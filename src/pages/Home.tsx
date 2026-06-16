@@ -385,7 +385,7 @@ export default function Home() {
         const hasAgenda = !!evt.agendaTransferred || !!evt.minutesSaved;
         const hasAttendance = !!evt.attendanceConfirmed;
         
-        const checklistItems = evt.preparationsChecklist !== undefined ? evt.preparationsChecklist : DEFAULT_PREPARATIONS;
+        const checklistItems = (evt.preparationsChecklist !== undefined && Array.isArray(evt.preparationsChecklist)) ? evt.preparationsChecklist : DEFAULT_PREPARATIONS;
         const hasGreeting = !!evt.preparationsConfirmed || !checklistItems.some((p: string) => p.includes("الأجهزة") || p.includes("الترحيبية"));
         const hasHospitality = !!evt.preparationsConfirmed || !checklistItems.some((p: string) => p.includes("الضيافة") || p.includes("ماء"));
         const hasSetup = !!evt.preparationsConfirmed || !checklistItems.some((p: string) => p.includes("تجهيز وحجز") || p.includes("فتح البوابة"));

@@ -652,7 +652,7 @@ export default function OrgChart() {
     setEmpExtension(emp.extension || "");
     setEmpEmail(emp.email);
     setEmpPhoto(emp.photo);
-    setEmpCommittees(emp.committees);
+    setEmpCommittees(emp.committees || []);
     setEmpActive(emp.active);
     setFormError("");
     setRoleInfoMessage("");
@@ -805,7 +805,7 @@ export default function OrgChart() {
         e.id.toLowerCase().includes(term) ||
         e.jobTitle.toLowerCase().includes(term) ||
         e.email.toLowerCase().includes(term) ||
-        e.committees.some(c => c.toLowerCase().includes(term))
+        (e.committees || []).some(c => c.toLowerCase().includes(term))
       );
     })
     .sort((a, b) => {
@@ -882,7 +882,7 @@ export default function OrgChart() {
       emp.jobTitle,
       emp.phone,
       emp.email,
-      emp.committees.join(" - ") || "لا يوجد",
+      (emp.committees || []).join(" - ") || "لا يوجد",
       emp.active ? "متصل حالياً" : "غير نشط"
     ]);
 
@@ -1139,7 +1139,7 @@ export default function OrgChart() {
                   {filteredEmployees.map((emp) => {
                     const isSelf = emp.role === "SYS_ADMIN";
                     const isAllowedToDelete = emp.role !== "SYS_ADMIN";
-                    const numComms = emp.committees.length;
+                    const numComms = (emp.committees || []).length;
 
                     return (
                       <motion.div
@@ -1271,7 +1271,7 @@ export default function OrgChart() {
                               {numComms === 0 ? (
                                 <p className="text-[10px] text-gray-450 italic font-bold">لم تُسنَد له لجان بعد.</p>
                               ) : (
-                                emp.committees.map((c, idx) => (
+                                (emp.committees || []).map((c, idx) => (
                                   <span 
                                     key={idx} 
                                     className="text-[9px] bg-white text-gray-700 font-bold px-1.5 py-0.5 rounded border border-gray-150 shadow-inner block"
@@ -1342,8 +1342,8 @@ export default function OrgChart() {
                           <td className="px-4 py-3 font-mono text-gray-800">{emp.email}</td>
                           <td className="px-4 py-3 font-mono text-gray-800">{emp.phone} {emp.extension ? `(تحويلة: ${emp.extension})` : ""}</td>
                           <td className="px-4 py-3 text-center">
-                            <span className="bg-white/80 border border-gray-200 shadow-inner px-2 py-0.5 rounded text-gray-800 text-[10px]" title={emp.committees.join(", ")}>
-                              {emp.committees.length} لجنة قطاعية
+                            <span className="bg-white/80 border border-gray-200 shadow-inner px-2 py-0.5 rounded text-gray-800 text-[10px]" title={(emp.committees || []).join(", ")}>
+                              {(emp.committees || []).length} لجنة قطاعية
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center">
@@ -2211,7 +2211,7 @@ export default function OrgChart() {
                     >
                       <option value="">-- اختر لجنة لربطها بالموظف --</option>
                       {availableCommittees.map(commName => {
-                        const ownerEmp = employees.find(emp => emp.id !== editingEmpId && emp.committees.includes(commName));
+                        const ownerEmp = employees.find(emp => emp.id !== editingEmpId && emp.committees && emp.committees.includes(commName));
                         const isLinkedToCurrent = empCommittees.includes(commName);
                         if (isLinkedToCurrent) return null; // Hide already selected ones
                         return (
@@ -2229,13 +2229,13 @@ export default function OrgChart() {
                         if (!selectedCommToLink) return;
                         
                         // Check if it belongs to someone else to transfer it
-                        const ownerEmp = employees.find(emp => emp.id !== editingEmpId && emp.committees.includes(selectedCommToLink));
+                        const ownerEmp = employees.find(emp => emp.id !== editingEmpId && emp.committees && emp.committees.includes(selectedCommToLink));
                         if (ownerEmp) {
                           setEmployees(prev => prev.map(emp => {
                             if (emp.id === ownerEmp.id) {
                               return {
                                 ...emp,
-                                committees: emp.committees.filter(c => c !== selectedCommToLink)
+                                committees: (emp.committees || []).filter(c => c !== selectedCommToLink)
                               };
                             }
                             return emp;
@@ -2359,13 +2359,13 @@ export default function OrgChart() {
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-black text-gray-800">اللجان المخصصة تحت إشرافه للأرشفة والفعاليات:</span>
-                    <span className="bg-blue-50 text-blue-800 text-[10px] font-black px-1.5 py-0.5 rounded border border-blue-200">{detailsEmployee.committees.length} لجنة</span>
+                    <span className="bg-blue-50 text-blue-800 text-[10px] font-black px-1.5 py-0.5 rounded border border-blue-200">{(detailsEmployee.committees || []).length} لجنة</span>
                   </div>
                   <div className="bg-slate-50 border border-slate-100 p-3 rounded-xl max-h-32 overflow-y-auto space-y-1">
-                    {detailsEmployee.committees.length === 0 ? (
+                    {(detailsEmployee.committees || []).length === 0 ? (
                       <p className="text-gray-400 italic text-[11px] font-bold">لم يسند له أي لجان رسمية بعد.</p>
                     ) : (
-                      detailsEmployee.committees.map((c) => (
+                      (detailsEmployee.committees || []).map((c) => (
                         <div key={c} className="flex items-center gap-1.5 text-gray-800 text-[11px] font-bold">
                           <span className="w-1.5 h-1.5 bg-[#246fff] rounded-full" />
                           <span>{c}</span>
@@ -2461,8 +2461,8 @@ export default function OrgChart() {
                     <p className="text-xs font-black text-red-950">تنبيه حرج لحوكمة البيانات:</p>
                     <p className="text-[11px] text-red-700 leading-relaxed font-semibold">
                       سيؤدي هذا الإجراء لاستبعاد الموظف بشكل نهائي من الهيكل الإداري للغرفة وتجريد كافة الصلاحيات الممنوحة له.
-                      {deletingEmployee.committees.length > 0 && (
-                        <span> سيتم إلغاء تكليفه باللجان التالية: ({deletingEmployee.committees.join("، ")}).</span>
+                      {(deletingEmployee.committees || []).length > 0 && (
+                        <span> سيتم إلغاء تكليفه باللجان التالية: ({(deletingEmployee.committees || []).join("، ")}).</span>
                       )}
                     </p>
                   </div>
@@ -2473,7 +2473,7 @@ export default function OrgChart() {
                       type="button"
                       onClick={() => {
                         setEmployees(prev => prev.filter(e => e.id !== deletingEmployee.id));
-                        addSystemLog("حذف موظف", `تم حذف ملف الموظف ${deletingEmployee.name} وإلغاء تخصيصه للجان: ${deletingEmployee.committees.join("، ")}`);
+                        addSystemLog("حذف موظف", `تم حذف ملف الموظف ${deletingEmployee.name} وإلغاء تخصيصه للجان: ${(deletingEmployee.committees || []).join("، ")}`);
                         setDeletingEmployee(null);
                       }}
                       className="w-full h-10 bg-red-600 hover:bg-red-700 text-white font-black text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm shadow-red-200"
