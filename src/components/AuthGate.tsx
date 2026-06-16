@@ -139,30 +139,11 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
             const nextEmployeesList = employeesList ? [userFound, ...employeesList] : [userFound];
             localStorage.setItem("app_employees", JSON.stringify(nextEmployeesList));
           } else {
-            let reqList = dbJoinRequests || [];
-            if (reqList.length === 0) {
-              try {
-                const storedReqs = localStorage.getItem("app_join_requests");
-                if (storedReqs) reqList = JSON.parse(storedReqs);
-              } catch (e) {}
-            }
-            const isPending = reqList && reqList.some((req: any) => req.email?.toLowerCase() === inputEmail);
-
-            if (isPending) {
-              setMessage({
-                text: "طلب انضمامك قيد المراجعة والاعتماد حالياً من قبل مدير النظام (باسم شهاب الدين). لا يمكنك الدخول حتى يتم اعتماد حسابك رسميًا.",
-                type: "info"
-              });
-            } else {
-              setRegName(googleUser.displayName || "");
-              setRegEmail(inputEmail);
-              setRegPhone(googleUser.phoneNumber || "");
-              setActiveTab("register");
-              setMessage({
-                text: "حساب جوجل هذا غير مسجل بالنظام كحساب موظف نشط. لقد قمنا بتعبئة بياناتك، يرجى استكمال الحقول لإرسال طلب انضمامك لمدير النظام.",
-                type: "info"
-              });
-            }
+            setMessage({
+              text: "عذراً، هذا البريد الإلكتروني غير معتمد أو مسجل مسبقاً بالنظام لقائمة تخويل الدخول. لا يُسمح بالوصول والتشغيل لغير منسوبي الغرفة المعتمدين مسبقاً من قبل مدير النظام.",
+              type: "error"
+            });
+            await logSystemAction(inputEmail, `محاولة دخول فاشلة بجوجل - بريد غير معتمد مسبقاً من الإدارة`, "مرفوضة");
             setLoading(false);
             return;
           }
@@ -400,67 +381,11 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
         setMessage({ text: "حدث خطأ أثناء الاتصال بقاعدة البيانات. حاول مرة أخرى.", type: "error" });
       }
     } else {
-      // Must put to join quests! "ولا يتم تسجيل الموظف إلى بموجب ايميل مسجل له في النظام من قبل مدير النظام"
-      let reqList = dbJoinRequests || [];
-      if (reqList.length === 0) {
-        try {
-          const stored = localStorage.getItem("app_join_requests");
-          if (stored) reqList = JSON.parse(stored);
-        } catch(e){}
-      }
-
-      // Check if duplicate pending request
-      const duplicateRequest = reqList.some((req: any) => req.email?.toLowerCase() === emailInput);
-      if (duplicateRequest) {
-        setMessage({
-          text: "طلب انضمامك مسجل قيد المراجعة بالفعل وبانتظار اعتماد مدير النظام (باسم شهاب الدين).",
-          type: "info"
-        });
-        setLoading(false);
-        return;
-      }
-
-      const roleMap: Record<string, string> = {
-        SPECIALIST: "أخصائي لجان",
-        DEPT_HEAD: "رئيس قسم اللجان",
-        MANAG_DIR: "مدير عام اللجان والفعاليات",
-      };
-
-      const newJoinRequest = {
-        id: Date.now(),
-        name: regName.trim(),
-        email: emailInput,
-        phone: regPhone.trim(),
-        requestedRole: finalRole,
-        requestedRoleAr: roleMap[finalRole] || "أخصائي",
-        password: finalPassword, // Keep temporary password for when approved
-        jobTitle: finalJob,
-        requestDate: new Date().toISOString().split('T')[0].replace(/-/g, '/')
-      };
-
-      try {
-        await addFirebaseReq(newJoinRequest);
-        
-        // Sync local storage
-        const nextRequests = [newJoinRequest, ...reqList];
-        localStorage.setItem("app_join_requests", JSON.stringify(nextRequests));
-
-        await logSystemAction(regName.trim(), `تقديم طلب تسجيل جديد (غير مسبق البريد) للبريد [${emailInput}]`, "ناجحة");
-
-        setMessage({
-          text: "تم إرسال طلب انضمامك لمدير النظام بنجاح! نظراً لأن بريدك غير معتمد مسبقاً بالنظام، تم تحويل طلبك لمدير النظام (باسم شهاب الدين) لمراجعة الأوراق واعتماده وتفعيله يدوياً.",
-          type: "success"
-        });
-
-        // Reset
-        setRegName("");
-        setRegEmail("");
-        setRegPhone("");
-        setRegPassword("");
-        setRegJob("");
-      } catch (err) {
-        setMessage({ text: "عذراً، فشل إرسال طلب الانضمام لقاعدة البيانات.", type: "error" });
-      }
+      setMessage({
+        text: "عذراً، هذا البريد الإلكتروني غير معتمد أو مسجل مسبقاً بالنظام من قبل الإدارة. بموجب السياسات الأمنية وبموجب تكوينات النظام الحالية، لا يمكن تسجيل الموظف إلا إذا كان بريده مسجلاً مسبقاً من قبل مدير النظام. يرجى مراجعة المسؤول لتسجيل بريدك المعتمد أولاً لتمكينك من الانضمام.",
+        type: "error"
+      });
+      await logSystemAction(regName.trim(), `محاولة تسجيل مرفوضة - بريد غير معتمد مسبقاً [${emailInput}]`, "مرفوضة");
     }
 
     setLoading(false);
@@ -613,8 +538,8 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
         {activeTab === "register" && (
           <form onSubmit={handleRegister} className="space-y-4 font-sans text-right">
             
-            <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl text-[10px] font-bold leading-normal mb-1.5">
-              💡 <span className="text-indigo-300">نظام التسجيل التلقائي المعزز:</span> إذا كان بريدك الإلكتروني مدرج ضمن العناوين المعتمدة من قبل مدير النظام مسبقاً، سيتم اعتمادك فوراً. بخلاف ذلك ستتحول المعاملة لطلب انضمام معلق ينتظر موافقة مدير النظام من لوحة تحكم الهيكل الإداري.
+            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-[10px] font-bold leading-normal mb-1.5">
+              🔒 <span className="text-red-300">نظام التسجيل والتحول الرقمي الآمن المغلق:</span> السياسة الأمنية للنظام صارمة للغاية؛ لن يتم قبول أو إرسال طلب تسجيلك إلا إذا كان بريدك الإلكتروني مسجلاً مسبقاً بقائمة التراخيص المعتمدة من قبل مدير إدارة النظام.
             </div>
 
             <div>
