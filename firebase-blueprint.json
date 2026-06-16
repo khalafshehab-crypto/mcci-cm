@@ -1,0 +1,96 @@
+{
+  "entities": {
+     "Committee": {
+        "title": "Committee",
+        "description": "A committee",
+        "type": "object",
+        "properties": {}
+     },
+     "Event": {
+        "title": "Event",
+        "description": "An event",
+        "type": "object",
+        "properties": {}
+     },
+     "Member": {
+        "title": "Member",
+        "description": "A member",
+        "type": "object",
+        "properties": {}
+     },
+     "Recommendation": {
+        "title": "Recommendation",
+        "description": "A recommendation",
+        "type": "object",
+        "properties": {}
+     },
+     "Task": {
+        "title": "Task",
+        "description": "A task",
+        "type": "object",
+        "properties": {}
+     },
+     "Employee": {
+        "title": "Employee",
+        "description": "An employee",
+        "type": "object",
+        "properties": {}
+     },
+    "SystemLog": {
+        "title": "SystemLog",
+        "description": "A system log",
+        "type": "object",
+        "properties": {}
+     },
+    "JoinRequest": {
+        "title": "JoinRequest",
+        "description": "A join request",
+        "type": "object",
+        "properties": {}
+     },
+    "ApprovedEmail": {
+        "title": "ApprovedEmail",
+        "description": "An approved email",
+        "type": "object",
+        "properties": {}
+     }
+  },
+  "firestore": {
+     "/committees/{id}": {
+         "schema": { "$ref": "#/entities/Committee" },
+         "description": "Committees"
+     },
+     "/events/{id}": {
+         "schema": { "$ref": "#/entities/Event" },
+         "description": "Events"
+     },
+     "/members/{id}": {
+         "schema": { "$ref": "#/entities/Member" },
+         "description": "Members"
+     },
+     "/recommendations/{id}": {
+         "schema": { "$ref": "#/entities/Recommendation" },
+         "description": "Recommendations"
+     },
+     "/tasks/{id}": {
+         "schema": { "$ref": "#/entities/Task" },
+         "description": "Tasks"
+     },
+     "/employees/{id}": {
+         "schema": { "$ref": "#/entities/Employee" },
+         "description": "Employees"
+     },
+     "/system_logs/{id}": {
+         "schema": { "$ref": "#/entities/SystemLog" },
+         "description": "System Logs"
+     },
+     "/join_requests/{id}": {
+         "schema": { "$ref": "#/entities/JoinRequest" },
+         "description": "Join Requests"
+     },
+     "/approved_emails/{id}": {
+         "schema": { "$ref": "#/entities/ApprovedEmail" },
+         "description": "Approved Emails"
+     }
+  }
+}
