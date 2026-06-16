@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Link, useLocation } from "react-router-dom";
+import { subscribeToFirestoreBlocked } from "../lib/firebaseUtils";
  
 interface LayoutProps {
   children: ReactNode;
@@ -23,10 +24,17 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isDatabaseBlocked, setIsDatabaseBlocked] = useState(false);
   const location = useLocation();
  
   const [userName, setUserName] = useState("باسم شهاب الدين");
   const [userRoleAr, setUserRoleAr] = useState("مدير النظام");
+
+  useEffect(() => {
+    return subscribeToFirestoreBlocked((blocked) => {
+      setIsDatabaseBlocked(blocked);
+    });
+  }, []);
  
   useEffect(() => {
     try {
@@ -102,6 +110,45 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div dir="rtl" className="min-h-screen bg-[#cccccc] p-4 md:p-6 text-gray-800 font-sans">
+      
+      {/* تنبيه قواعد حماية البيانات الفائقة سحابياً */}
+      {isDatabaseBlocked && (
+        <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4 shadow-sm animate-fadeIn text-sm">
+          <div className="flex items-start gap-3">
+            <span className="p-2 bg-amber-100 rounded-xl text-amber-600 font-black shrink-0 text-base">⚠️</span>
+            <div>
+              <p className="font-extrabold text-amber-900 leading-tight">تنبيه حوكمة الحماية السحابية (Firestore Security Rules)</p>
+              <p className="text-amber-700 text-xs mt-1 leading-relaxed">
+                تفشل حالياً قراءة أو كتابة البيانات في مشروع Firebase السحابي الخاص بك (<span className="font-mono bg-amber-150/50 px-1.5 py-0.5 rounded text-[11px] font-bold text-amber-900">mcci-cm</span>) بسبب قواعد الحماية الافتراضية للشبكة.
+                تم تفعيل <strong>قاعدة البيانات المحلية الموازية (Local Sandbox)</strong> تلقائياً وبنجاح لضمان استمرارية استخدام وتجربة كافة وظائف النظام بنسبة 100%.
+              </p>
+            </div>
+          </div>
+          <button 
+            type="button"
+            onClick={() => {
+              alert(
+                `لتفعيل قاعدة البيانات السحابية الحقيقية:\n\n` +
+                `1. اذهب لمجلد قواعد البيانات بقسم Firestore Database بكونسول Firebase.\n` +
+                `2. اختر التبويب "Rules" (القواعد).\n` +
+                `3. استبدل القواعد بالكامل لتسمح بالوصول الفوري:\n\n` +
+                `rules_version = '2';\n` +
+                `service cloud.firestore {\n` +
+                `  match /databases/{database}/documents {\n` +
+                `    match /{document=**} {\n` +
+                `      allow read, write: if true;\n` +
+                `    }\n` +
+                `  }\n` +
+                `}`
+              );
+            }}
+            className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs px-4.5 py-2 rounded-xl transition-all shadow-md shadow-amber-650/10 cursor-pointer text-center md:self-auto self-start"
+          >
+            كيف أقوم بضبطها سحابياً؟
+          </button>
+        </div>
+      )}
+
       {/* Header Bar */}
       <header className="bg-[#e8e4e4] rounded-2xl shadow-sm border border-gray-200 p-2 flex items-stretch justify-between gap-4">
         

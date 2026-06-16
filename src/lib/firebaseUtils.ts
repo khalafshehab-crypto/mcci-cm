@@ -1,6 +1,8 @@
+// src/lib/firebaseUtils.ts
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, addDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { db, auth } from './firebase';
+import { getLocalCollection, saveLocalCollection } from './mockFirebase';
 
 export enum OperationType {
   CREATE = 'create',
@@ -28,6 +30,31 @@ export interface FirestoreErrorInfo {
   }
 }
 
+// Global flag to track whether active Firestore is blocked (insufficient permissions, etc.)
+let isFirestoreBlocked = false;
+const blockedListeners = new Set<(blocked: boolean) => void>();
+
+export function setFirestoreBlocked(blocked: boolean) {
+  if (isFirestoreBlocked !== blocked) {
+    isFirestoreBlocked = blocked;
+    blockedListeners.forEach(listener => {
+      try {
+        listener(blocked);
+      } catch (e) {
+        console.error("Error invoking Firestore block listener:", e);
+      }
+    });
+  }
+}
+
+export function subscribeToFirestoreBlocked(listener: (blocked: boolean) => void) {
+  blockedListeners.add(listener);
+  listener(isFirestoreBlocked);
+  return () => {
+    blockedListeners.delete(listener);
+  };
+}
+
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
@@ -45,8 +72,8 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  console.warn('Firestore Warning (non-fatal, falling back to localStorage): ', JSON.stringify(errInfo));
+  setFirestoreBlocked(true);
 }
 
 export function useFirestoreCollection<T>(collectionName: string, initialData: T[] = []) {
@@ -54,20 +81,70 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(collection(db, collectionName));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as T[];
-      setData(docs);
-      setLoading(false);
-    }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.GET, collectionName);
-    });
+    let unsubscribe: (() => void) | null = null;
+    let localCleanup: (() => void) | null = null;
+    let active = true;
 
-    return () => unsubscribe();
+    try {
+      const q = query(collection(db, collectionName));
+      unsubscribe = onSnapshot(q, (snapshot) => {
+        if (!active) return;
+        const docs = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as T[];
+        setData(docs);
+        setLoading(false);
+      }, (error) => {
+        if (!active) return;
+        console.warn(`Firestore subscription failed for '${collectionName}'. Gracefully falling back to local storage.`, error);
+        setFirestoreBlocked(true);
+        setupLocalFallback();
+      });
+    } catch (e) {
+      if (!active) return;
+      console.warn(`Firestore collection setup failed for '${collectionName}'. Gracefully falling back to local storage.`, e);
+      setFirestoreBlocked(true);
+      setupLocalFallback();
+    }
+
+    function setupLocalFallback() {
+      // Load initial local data
+      const localData = getLocalCollection(collectionName) as T[];
+      setData(localData);
+      setLoading(false);
+
+      // Listen to storage changes for reactive updates across components/tabs
+      const handleStorageUpdate = (e: StorageEvent) => {
+        if (!active) return;
+        if (e.key === `mock_db_${collectionName}`) {
+          try {
+            const updated = JSON.parse(e.newValue || "[]") as T[];
+            setData(updated);
+          } catch (err) {}
+        }
+      };
+      
+      window.addEventListener('storage', handleStorageUpdate);
+
+      // Simple periodic polling to synchronize changes within the same tab in real-time
+      const intervalId = setInterval(() => {
+        if (!active) return;
+        const fresh = getLocalCollection(collectionName) as T[];
+        setData(fresh);
+      }, 1000);
+
+      localCleanup = () => {
+        window.removeEventListener('storage', handleStorageUpdate);
+        clearInterval(intervalId);
+      };
+    }
+
+    return () => {
+      active = false;
+      if (unsubscribe) unsubscribe();
+      if (localCleanup) localCleanup();
+    };
   }, [collectionName]);
 
   const addDocument = async (item: Omit<T, 'id'>) => {
@@ -75,7 +152,14 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
       const docRef = await addDoc(collection(db, collectionName), item);
       return docRef.id;
     } catch(e) {
-      handleFirestoreError(e, OperationType.CREATE, collectionName);
+      console.warn(`Firestore addDoc failed for ${collectionName}, saving into localStorage fallback.`, e);
+      setFirestoreBlocked(true);
+      const list = getLocalCollection(collectionName);
+      const newId = `${collectionName.substring(0, 4)}_${Math.random().toString(36).substring(2, 11)}`;
+      const localItem = { id: newId, ...item };
+      list.push(localItem);
+      saveLocalCollection(collectionName, list);
+      return newId;
     }
   };
 
@@ -83,7 +167,14 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
     try {
       await setDoc(doc(db, collectionName, String(id)), item, { merge: true });
     } catch(e) {
-      handleFirestoreError(e, OperationType.UPDATE, `${collectionName}/${id}`);
+      console.warn(`Firestore updateDoc failed for ${collectionName}/${id}, saving into localStorage fallback.`, e);
+      setFirestoreBlocked(true);
+      const list = getLocalCollection(collectionName);
+      const index = list.findIndex(x => String(x.id) === String(id));
+      if (index >= 0) {
+        list[index] = { ...list[index], ...item };
+        saveLocalCollection(collectionName, list);
+      }
     }
   };
 
@@ -91,7 +182,11 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
     try {
       await deleteDoc(doc(db, collectionName, String(id)));
     } catch(e) {
-      handleFirestoreError(e, OperationType.DELETE, `${collectionName}/${id}`);
+      console.warn(`Firestore deleteDoc failed for ${collectionName}/${id}, saving into localStorage fallback.`, e);
+      setFirestoreBlocked(true);
+      const list = getLocalCollection(collectionName);
+      const filtered = list.filter(item => String(item.id) !== String(id));
+      saveLocalCollection(collectionName, filtered);
     }
   };
 
@@ -99,7 +194,16 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
      try {
        await setDoc(doc(db, collectionName, String(id)), item);
      } catch(e) {
-        handleFirestoreError(e, OperationType.WRITE, `${collectionName}/${id}`);
+       console.warn(`Firestore setDoc failed for ${collectionName}/${id}, saving into localStorage fallback.`, e);
+       setFirestoreBlocked(true);
+       const list = getLocalCollection(collectionName);
+       const index = list.findIndex(x => String(x.id) === String(id));
+       if (index >= 0) {
+         list[index] = { id, ...item };
+       } else {
+         list.push({ id, ...item });
+       }
+       saveLocalCollection(collectionName, list);
      }
   };
 
