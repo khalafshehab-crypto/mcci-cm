@@ -27,8 +27,8 @@ export default function Layout({ children }: LayoutProps) {
   const [isDatabaseBlocked, setIsDatabaseBlocked] = useState(false);
   const location = useLocation();
  
-  const [userName, setUserName] = useState("باسم شهاب الدين");
-  const [userRoleAr, setUserRoleAr] = useState("مدير النظام");
+  const [userName, setUserName] = useState("شهاب الدين");
+  const [userRoleAr, setUserRoleAr] = useState("مشرف النظام");
 
   useEffect(() => {
     return subscribeToFirestoreBlocked((blocked) => {

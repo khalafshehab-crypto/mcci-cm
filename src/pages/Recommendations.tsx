@@ -72,7 +72,7 @@ interface RecommendationItem {
 }
 
 const DEFAULT_EMPLOYEES = [
-  "أ. باسم شهاب", "أ. هشام عريف", "عمار العمودي", "عبدالعزيز ناجي", "موفق سندي", "يعقوب الريمي", "علاء الأهدل", "عماد جمال"
+  "شهاب الدين"
 ];
 
 const STAGES: Array<{ id: RecommendationItem["approvalStage"]; label: string; role: string }> = [
@@ -99,7 +99,7 @@ export default function Recommendations() {
 
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
   const [selectedRecId, setSelectedRecId] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState({ name: "باسم شهاب الدين", role: "مدير النظام" });
+  const [currentUser, setCurrentUser] = useState({ name: "شهاب الدين", role: "مدير النظام" });
 
   // View style toggle: "grouped" (تجميع حسب الاجتماع) vs "individual" (سجل عام)
   const [viewType, setViewType] = useState<"grouped" | "individual">("grouped");
@@ -173,7 +173,7 @@ export default function Recommendations() {
           date: "2026-06-11",
           status: "جديدة",
           approvalStage: "أخصائي",
-          assignedTo: "أ. باسم شهاب",
+          assignedTo: "شهاب الدين",
           duration: "شهر واحد",
           attachments: [
             {
@@ -205,7 +205,7 @@ export default function Recommendations() {
           date: "2026-06-08",
           status: "جاري العمل عليها",
           approvalStage: "مدير الإدارة",
-          assignedTo: "أ. هشام عريف",
+          assignedTo: "شهاب الدين",
           duration: "أسبوعين",
           attachments: [
             {

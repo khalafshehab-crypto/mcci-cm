@@ -38,7 +38,7 @@ export default function Tasks() {
   }, []);
 
   const [employeesList, setEmployeesList] = useState<string[]>([
-    "باسم شهاب الدين", "أ. عاطف السويهري", "أ. سمر الحازمي", "أ. باسم شهاب", "الدكتور عمر فلاتة", "أ. هشام عريف"
+    "شهاب الدين"
   ]);
 
   useEffect(() => {
@@ -53,7 +53,7 @@ export default function Tasks() {
 
   // Filters state
   const [searchQuery, setSearchQuery] = useState("");
-  const [currentUserName, setCurrentUserName] = useState("باسم شهاب الدين");
+  const [currentUserName, setCurrentUserName] = useState("شهاب الدين");
   useEffect(() => {
     try {
       const stored = localStorage.getItem("current_user");

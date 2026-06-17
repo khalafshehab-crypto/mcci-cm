@@ -630,7 +630,7 @@ export default function Home() {
           description: t.description || "",
           dept: "إدارة اللجان والفعاليات",
           committee: "العامة واللوائح التنظيمية",
-          responsible: t.assignedTo || "باسم شهاب الدين",
+          responsible: t.assignedTo || "شهاب الدين",
           isUrgent: t.status === "متأخرة" || t.priority === "عاجلة",
           dateStr: t.dueDate || "2026/06/11",
           status: t.status === "متأخرة" ? "متأخر" : t.status === "منجزة" ? "تمت الإحالة" : t.status === "جاري العمل عليها" ? "قيد الانتظار" : "جديد",

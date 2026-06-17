@@ -45,30 +45,17 @@ function getSeedData(collectionName: string): any[] {
   if (collectionName === "employees") {
     defaultData = [
       {
-        id: "221550",
-        name: "خلف شهاب الدين",
+        id: "01",
+        name: "شهاب الدين",
         role: "SYS_ADMIN",
-        roleAr: "مدير النظام",
-        jobTitle: "مدير النظام والرقابة",
+        roleAr: "مشرف النظام",
+        jobTitle: "مشرف النظام",
         phone: "+966558494158",
         email: "khalafshehab@gmail.com",
         photo: "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200",
-        committees: ["الحج والعمرة", "الصناعية"],
+        committees: ["الحج والعمرة", "الصناعية", "التغذية والإعاشة"],
         active: true,
         joinDate: "2024/01/15"
-      },
-      {
-        id: "100200",
-        name: "صالح بن محمد الحربي",
-        role: "SPECIALIST",
-        roleAr: "أخصائي لجان",
-        jobTitle: "أخصائي لجان قطاعية",
-        phone: "0554832991",
-        email: "sales@makkahchamber.sa",
-        photo: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200",
-        committees: ["التغذية والإعاشة"],
-        active: true,
-        joinDate: "2025/03/10"
       }
     ];
   } else if (collectionName === "committees") {
@@ -78,8 +65,8 @@ function getSeedData(collectionName: string): any[] {
         name: "لجنة التغذية والإعاشة",
         description: "لجنة متخصصة بشؤون التموين والتغذية والإعاشة خلال مواسم الحج والعمرة غايتها تحسين تجربة الزوار وصناع الضيافة بمكة المكرمة.",
         goals: "تطوير منظومة الإعاشة الحديثة، تحسين معايير الجودة، وتحفيز الشراكات الاستراتيجية",
-        specialistId: "100200",
-        specialistName: "صالح بن محمد الحربي",
+        specialistId: "01",
+        specialistName: "شهاب الدين",
         status: "فعالة",
         driveLink: "",
         formationDecision: "قرار رقم 254-أ بشان تشكيل لجنة الإعاشة وتطوير الأعمال",
@@ -93,8 +80,8 @@ function getSeedData(collectionName: string): any[] {
         name: "لجنة الحج والعمرة",
         description: "لجنة وطنية لمتابعة وتيسير شؤون حجاج بيت الله الحرام وتجويد الخدمات اللوجستية بمكة المكرمة والمشاعر المقدسة.",
         goals: "تعزيز كفاءة الفنادق السكنية، تطوير وسائل التنقل، وحوكمة المبادرات التطوعية",
-        specialistId: "221550",
-        specialistName: "خلف شهاب الدين",
+        specialistId: "01",
+        specialistName: "شهاب الدين",
         status: "فعالة",
         driveLink: "",
         formationDecision: "القرار الوزاري الموحد رقم 1289",
@@ -176,7 +163,7 @@ function getSeedData(collectionName: string): any[] {
         type: "اجتماع",
         committee: "لجنة التغذية والإعاشة",
         status: "دوري",
-        employee: "صالح بن محمد الحربي",
+        employee: "شهاب الدين",
         date: new Date().toISOString().split('T')[0],
         time: "10:30",
         room: "G2",
@@ -206,7 +193,7 @@ function getSeedData(collectionName: string): any[] {
         status: "جاري العمل عليها",
         stage: "رئيس قسم",
         history: [
-          { status: "توصية جديدة", changer: "صالح بن محمد الحربي", date: "2026/06/15" },
+          { status: "توصية جديدة", changer: "شهاب الدين", date: "2026/06/15" },
           { status: "جاري العمل عليها (رئيس قسم)", changer: "رئيس القسم المعتمد", date: "2026/06/16" }
         ],
         attachments: []
@@ -217,8 +204,8 @@ function getSeedData(collectionName: string): any[] {
       {
         id: "task_1",
         title: "إعداد التقرير الربعي لأداء اللجان وتقديمه للأمانة العامة",
-        creator: "خلف شهاب الدين",
-        assignee: "صالح بن محمد الحربي",
+        creator: "شهاب الدين",
+        assignee: "شهاب الدين",
         dueDate: "2026/06/30",
         priority: "عالية",
         status: "جاري العمل عليها",
@@ -231,11 +218,11 @@ function getSeedData(collectionName: string): any[] {
     defaultData = [
       {
         id: "log_1",
-        employeeName: "خلف شهاب الدين",
+        employeeName: "شهاب الدين",
         time: "2026-06-16 11:20:15",
         operationType: "تسجيل دخول / انضمام",
         status: "ناجحة",
-        details: "تسجيل دخول ناجح بصلاحية مدير النظام"
+        details: "تسجيل دخول ناجح بصلاحية مشرف النظام"
       }
     ];
   } else if (collectionName === "templates") {
@@ -244,7 +231,7 @@ function getSeedData(collectionName: string): any[] {
         id: "temp_1",
         name: "نموذج خطة عمل اللجنة القطاعية السنوية",
         type: "مستندات",
-        creator: "خلف شهاب الدين",
+        creator: "شهاب الدين",
         googleWorkspaceUrl: "https://docs.google.com",
         description: "القالب المؤسسي الموحد لصياغة الأهداف السنوية وتوصيف المبادرات لكل لجنة قطاعية"
       },
@@ -252,7 +239,7 @@ function getSeedData(collectionName: string): any[] {
         id: "temp_2",
         name: "جدول حصر وإرسال التوصيات الهامة للجهات الخارجية",
         type: "جداول بيانات",
-        creator: "خلف شهاب الدين",
+        creator: "شهاب الدين",
         googleWorkspaceUrl: "https://sheets.google.com",
         description: "جدول منظم مخصص أسبوعيا لتلخيص ومراجعة حالات الإحالة لشركاء التنمية"
       }
@@ -263,7 +250,7 @@ function getSeedData(collectionName: string): any[] {
         id: "rep_1",
         title: "التقرير النصف السنوي لأعمال وإنجازات اللجان القطاعية لعام 2026",
         periodType: "ربع سنوي",
-        creator: "خلف شهاب الدين",
+        creator: "شهاب الدين",
         date: "2026/06/16",
         additionalFocusWords: "توصية، إعاشة، حج وعمرة، نمو الأعمال",
         reportsList: ["لجنة التغذية والإعاشة", "لجنة الحج والعمرة"],
@@ -282,7 +269,7 @@ function getSeedData(collectionName: string): any[] {
         title: "مؤشر التزام اللجان بالاجتماعات الدورية المجدولة",
         metricName: "بناء على نسبة الاجتماعات المنفذة إلى المجدولة",
         periodType: "شهري",
-        creator: "خلف شهاب الدين",
+        creator: "شهاب الدين",
         date: "2026/06/16",
         reportsList: ["لجنة التغذية والإعاشة"],
         targetValue: 100,
@@ -308,7 +295,7 @@ export const auth: any = {
       if (u) {
         const parsed = JSON.parse(u);
         return {
-          uid: parsed.id || '221550',
+          uid: parsed.id || '01',
           email: parsed.email,
           displayName: parsed.name,
           emailVerified: true,
@@ -326,7 +313,7 @@ export const auth: any = {
         if (u) {
           const parsed = JSON.parse(u);
           callback({
-            uid: parsed.id || '221550',
+            uid: parsed.id || '01',
             email: parsed.email,
             displayName: parsed.name,
             emailVerified: true,

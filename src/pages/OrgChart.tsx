@@ -27,7 +27,8 @@ import {
   Sparkles,
   Calendar,
   Layers,
-  FileText
+  FileText,
+  Upload
 } from "lucide-react";
 import { useFirestoreCollection } from "../lib/firebaseUtils";
 
@@ -144,6 +145,30 @@ export default function OrgChart() {
     }
   }, [currentUserRole, activeTab]);
   
+  // تنظيف تلقائي وتلقيم لتنقية كادر "خلف شهاب الدين" والمسميات القديمة والاحتفاظ بنسخة وحيدة نشطة
+  useEffect(() => {
+    if (dbEmployees && dbEmployees.length > 0) {
+      dbEmployees.forEach(async (emp: any) => {
+        const nameClean = (emp.name || "").trim();
+        const jobTitleClean = (emp.jobTitle || "").trim();
+        
+        if (nameClean === "خلف شهاب الدين" || nameClean.includes("خلف شهاب الدين") || jobTitleClean === "مدير النظام والرقابة" || (nameClean === "شهاب الدين" && emp.id === "221550")) {
+          console.log(`[Homing Cleanup OrgChart] Deleting target: ${emp.name} (ID: ${emp.id})`);
+          await deleteFirebaseEmp(emp.id);
+        }
+        
+        if (nameClean === "شهاب الدين" && emp.id === "01" && (emp.jobTitle !== "مشرف النظام" || !emp.active)) {
+          console.log(`[Homing Cleanup OrgChart] Enforcing correct properties for: ${emp.name} (ID: ${emp.id})`);
+          await updateFirebaseEmp(emp.id, {
+            jobTitle: "مشرف النظام",
+            roleAr: "مشرف النظام",
+            active: true
+          });
+        }
+      });
+    }
+  }, [dbEmployees]);
+  
   // Whitelist Email state fields
   const [whitelistEmailStr, setWhitelistEmailStr] = useState("");
   const [whitelistNameStr, setWhitelistNameStr] = useState("");
@@ -163,6 +188,32 @@ export default function OrgChart() {
   // System Logs search & filters
   const [logSearchQuery, setLogSearchQuery] = useState("");
   const [logStatusFilter, setLogStatusFilter] = useState("ALL");
+
+  // Derived helper states for form dropdowns selection rules
+  const hasSysAdmin = dbEmployees.some(emp => emp.id !== (isEditing ? originalEditId : formId) && emp.role === "SYS_ADMIN");
+  const hasMgmtDir = dbEmployees.some(emp => emp.id !== (isEditing ? originalEditId : formId) && emp.role === "MANAG_DIR");
+  const hasDeptHead = dbEmployees.some(emp => emp.id !== (isEditing ? originalEditId : formId) && emp.role === "DEPT_HEAD");
+
+  const assignedCommitteeNames = dbEmployees
+    .filter(emp => emp.id !== (isEditing ? originalEditId : formId))
+    .flatMap(emp => emp.committees || []);
+
+  const activeCommittees = dbCommittees.filter((comm: any) => comm.active !== false);
+  const availableCommittees = activeCommittees.filter((comm: any) => !assignedCommitteeNames.includes(comm.name));
+
+  const handleFile = (file: File) => {
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setFormPhoto(event.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
+    } else {
+      alert("يرجى اختيار ملف صورة صالح (jpg, png, jpeg).");
+    }
+  };
 
   // Trigger immediate log registration
   const reportSystemLog = async (type: string, details: string, status: "ناجحة" | "مرفوضة" = "ناجحة") => {
@@ -193,11 +244,11 @@ export default function OrgChart() {
     setFormId(Math.floor(1000 + Math.random() * 9000).toString());
     setFormName("");
     setFormRole("SPECIALIST");
-    setFormJobTitle("");
+    setFormJobTitle("أخصائي لجان قطاعية");
     setFormPhone("");
     setFormExtension("");
     setFormEmail("");
-    setFormPhoto(PRESET_AVATARS[Math.floor(Math.random() * PRESET_AVATARS.length)]);
+    setFormPhoto("");
     setFormActive(true);
     setFormPassword("123456");
     setShowFormModal(true);
@@ -222,7 +273,7 @@ export default function OrgChart() {
 
   const handleSaveEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName || !formEmail || !formJobTitle) {
+    if (!formName || !formEmail) {
       alert("يرجى ملء الحقول الإلزامية الأساسية.");
       return;
     }
@@ -242,21 +293,33 @@ export default function OrgChart() {
     const originalEmp = dbEmployees.find(emp => emp.id === (isEditing ? originalEditId : formId));
 
     const roleMapper: Record<string, string> = {
-      SYS_ADMIN: "مدير النظام",
-      MANAG_DIR: "مدير إدارة اللجان",
-      DEPT_HEAD: "رئيس قسم اللجان",
-      SPECIALIST: "أخصائي اللجان"
+      SYS_ADMIN: "مشرف النظام",
+      MANAG_DIR: "مدير إدارة لجان",
+      DEPT_HEAD: "رئيس قسم لجان",
+      SPECIALIST: "أخصائي لجان"
     };
+
+    const jobTitleMapper: Record<string, string> = {
+      SYS_ADMIN: "مشرف النظام",
+      MANAG_DIR: "مدير إدارة لجان قطاعية",
+      DEPT_HEAD: "رئيس قسم لجان قطاعية",
+      SPECIALIST: "أخصائي لجان قطاعية"
+    };
+
+    // Auto-computed job title based on selected system role
+    const computedJobTitle = isEditing && currentUserRole !== "SYS_ADMIN" && originalEmp 
+      ? originalEmp.jobTitle 
+      : (jobTitleMapper[formRole] || "أخصائي لجان قطاعية");
 
     const payload: Omit<Employee, 'id'> = {
       name: formName,
       role: isEditing && currentUserRole !== "SYS_ADMIN" && originalEmp ? originalEmp.role : formRole,
-      roleAr: isEditing && currentUserRole !== "SYS_ADMIN" && originalEmp ? originalEmp.roleAr : (roleMapper[formRole] || "أخصائي اللجان"),
-      jobTitle: formJobTitle,
+      roleAr: isEditing && currentUserRole !== "SYS_ADMIN" && originalEmp ? originalEmp.roleAr : (roleMapper[formRole] || "أخصائي لجان"),
+      jobTitle: computedJobTitle,
       phone: formPhone,
       extension: formExtension,
       email: formEmail,
-      photo: formPhoto,
+      photo: formPhoto || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200",
       active: isEditing && currentUserRole !== "SYS_ADMIN" && originalEmp ? originalEmp.active : formActive,
       committees: formCommittees,
       joinDate: isEditing ? (dbEmployees.find(emp => emp.id === originalEditId)?.joinDate || new Date().toISOString().split('T')[0].replace(/-/g, '/')) : new Date().toISOString().split('T')[0].replace(/-/g, '/'),
@@ -402,7 +465,7 @@ export default function OrgChart() {
 
     try {
       const generatedId = `whitelist_${Math.random().toString(36).substring(2, 9)}`;
-      let currentAdmin = "باسم شهاب الدين";
+      let currentAdmin = "شهاب الدين";
       try {
         const stored = localStorage.getItem("current_user");
         if (stored) {
@@ -1416,30 +1479,28 @@ export default function OrgChart() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-black text-gray-700">المسمى الوظيفي العملي <span className="text-red-500">*</span></label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="أخصائي لجان قطاعية أول"
-                      value={formJobTitle}
-                      onChange={(e) => setFormJobTitle(e.target.value)}
-                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-right outline-none transition-all"
-                    />
-                  </div>
-
+                <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-1.5">
                     <label className="block text-xs font-black text-gray-700">الرتبة الصلاحيتية بالنظام <span className="text-red-500">*</span></label>
                     <select
                       value={formRole}
-                      onChange={(e) => setFormRole(e.target.value as any)}
+                      onChange={(e) => {
+                        const selectedRole = e.target.value as any;
+                        setFormRole(selectedRole);
+                        const jobTitleMapper: Record<string, string> = {
+                          SYS_ADMIN: "مشرف النظام",
+                          MANAG_DIR: "مدير إدارة لجان قطاعية",
+                          DEPT_HEAD: "رئيس قسم لجان قطاعية",
+                          SPECIALIST: "أخصائي لجان قطاعية"
+                        };
+                        setFormJobTitle(jobTitleMapper[selectedRole] || "أخصائي لجان قطاعية");
+                      }}
                       className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-3 text-xs font-black text-right focus:ring-2 focus:ring-blue-500/20 outline-none transition-all cursor-pointer"
                     >
                       <option value="SPECIALIST">أخصائي لجان (SPECIALIST)</option>
-                      <option value="DEPT_HEAD">رئيس قسم لجان (DEPT_HEAD)</option>
-                      <option value="MANAG_DIR">مدير إدارة لجان (MANAG_DIR)</option>
-                      <option value="SYS_ADMIN">مدير نظام الرقابة (SYS_ADMIN)</option>
+                      {!hasDeptHead && <option value="DEPT_HEAD">رئيس قسم لجان (DEPT_HEAD)</option>}
+                      {!hasMgmtDir && <option value="MANAG_DIR">مدير إدارة لجان (MANAG_DIR)</option>}
+                      {!hasSysAdmin && <option value="SYS_ADMIN">مشرف النظام (SYS_ADMIN)</option>}
                     </select>
                   </div>
                 </div>
@@ -1494,21 +1555,72 @@ export default function OrgChart() {
                   </div>
                 </div>
 
-                {/* Avatar presets selector zone */}
-                <div className="space-y-2">
-                  <label className="block text-xs font-black text-gray-700">اختر الصورة التمثيلية للكادر</label>
-                  <div className="flex gap-2 justify-start overflow-x-auto py-1">
-                    {PRESET_AVATARS.map((av, index) => (
-                      <img
-                        key={index}
-                        src={av}
-                        alt=""
-                        onClick={() => setFormPhoto(av)}
-                        className={`w-10 h-10 rounded-full object-cover border-2 cursor-pointer transition-all shrink-0 ${
-                          formPhoto === av ? "border-blue-600 scale-105" : "border-transparent opacity-60 hover:opacity-100"
-                        }`}
-                      />
-                    ))}
+                {/* Drag and Drop Image File Upload */}
+                <div className="space-y-1.5 text-right">
+                  <label className="block text-xs font-black text-gray-700">صورة الموظف الرسمية <span className="text-red-500">*</span></label>
+                  <div
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                        handleFile(e.dataTransfer.files[0]);
+                      }
+                    }}
+                    className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all relative ${
+                      formPhoto
+                        ? "border-emerald-300 bg-emerald-50/20"
+                        : "border-gray-200 bg-gray-50/50 hover:bg-gray-100/70"
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      accept="image/*"
+                      id="employee-photo-upload"
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          handleFile(e.target.files[0]);
+                        }
+                      }}
+                    />
+                    <label htmlFor="employee-photo-upload" className="cursor-pointer block space-y-2">
+                      {formPhoto ? (
+                        <div className="flex flex-col items-center justify-center space-y-2">
+                          <img
+                            src={formPhoto}
+                            alt="الموظف"
+                            className="w-16 h-16 rounded-full object-cover border-2 border-emerald-500 shadow-sm"
+                          />
+                          <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                            <span>تم تحميل الصورة بنجاح</span>
+                          </span>
+                          <p className="text-[10px] text-gray-500 font-medium">اسحب صورة لتغييرها أو انقر للاختيار</p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-2 space-y-1.5">
+                          <div className="p-2.5 bg-gray-100 rounded-full text-gray-400">
+                            <Users className="w-5 h-5" />
+                          </div>
+                          <p className="text-xs font-black text-gray-700">اسحب صورة الكادر هنا أو انقر للإدراج</p>
+                          <p className="text-[10px] text-gray-400 font-medium">يدعم صيغ JPG, PNG, JPEG حتى 2 ميجابايت</p>
+                        </div>
+                      )}
+                    </label>
+                    {formPhoto && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          setFormPhoto("");
+                        }}
+                        className="absolute left-3 top-3 p-1.5 hover:bg-red-50 text-red-500 rounded-lg transition-colors cursor-pointer"
+                        title="حذف الصورة"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1533,10 +1645,10 @@ export default function OrgChart() {
                 <div className="space-y-1.5 text-right">
                   <label className="block text-xs font-black text-gray-700">ربط الموظف باللجان الفعالة</label>
                   <p className="text-[10px] text-gray-400 font-bold leading-normal">
-                    يمكن ربط هذا الموظف بلجنة واحدة أو أكثر من اللجان النشطة بالغرفة المكرمة.
+                    يمكن ربط هذا الموظف بلجنة واحدة أو أكثر من اللجان النشطة المتاحة بالغرفة المكرمة.
                   </p>
                   <div className="border border-gray-200 rounded-xl p-3 bg-white max-h-36 overflow-y-auto space-y-1.5">
-                    {dbCommittees && dbCommittees.filter((comm: any) => comm.active !== false).map((comm: any) => (
+                    {availableCommittees.map((comm: any) => (
                       <label key={comm.id} className="flex items-center gap-2 text-xs font-bold text-gray-700 cursor-pointer hover:bg-slate-50 p-1 rounded transition-all">
                         <input
                           type="checkbox"
@@ -1553,8 +1665,8 @@ export default function OrgChart() {
                         <span>{comm.name}</span>
                       </label>
                     ))}
-                    {(!dbCommittees || dbCommittees.filter((comm: any) => comm.active !== false).length === 0) && (
-                      <p className="text-[11px] text-gray-400 font-bold text-center py-2">لا توجد لجان فعالة حالياً لتخصيصها.</p>
+                    {availableCommittees.length === 0 && (
+                      <p className="text-[11px] text-gray-400 font-bold text-center py-2">لا توجد لجان فعالة متاحة (كل اللجان الفعالة مرتبطة بموظفين آخرين).</p>
                     )}
                   </div>
                 </div>
