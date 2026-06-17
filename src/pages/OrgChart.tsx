@@ -295,14 +295,17 @@ import { useFirestoreCollection } from '../lib/firebaseUtils';
 
 export default function OrgChart() {
   // Navigation tabs for this view
-  const [activeTab, setActiveTab] = useState<"hierarchy" | "approvals" | "logs_audit" | "account_profile">("hierarchy");
+  const [activeTab, setActiveTab] = useState<"hierarchy" | "approvals" | "logs_audit" | "account_profile" | "transfer_work">("hierarchy");
 
   // Live Data arrays loaded with local persistence
   const { data: dbEmployees, addDocument: addFirebaseEmp, updateDocument: updateFirebaseEmp, deleteDocument: deleteFirebaseEmp } = useFirestoreCollection<Employee>("employees", []);
   const { data: dbJoinRequests, addDocument: addFirebaseReq, updateDocument: updateFirebaseReq, deleteDocument: deleteFirebaseReq } = useFirestoreCollection<JoinRequest>("join_requests", []);
   const { data: dbApprovedEmails, addDocument: addFirebaseAppr, updateDocument: updateFirebaseAppr, deleteDocument: deleteFirebaseAppr } = useFirestoreCollection<ApprovedEmail>("approved_emails", []);
   const { data: dbSystemLogs, addDocument: addFirebaseLog, updateDocument: updateFirebaseLog, deleteDocument: deleteFirebaseLog } = useFirestoreCollection<SystemLog>("system_logs", []);
-  const { data: dbCommittees } = useFirestoreCollection<any>("committees", []);
+  const { data: dbCommittees, updateDocument: updateFirebaseComm } = useFirestoreCollection<any>("committees", []);
+  const { data: dbTasks, updateDocument: updateFirebaseTask } = useFirestoreCollection<any>("tasks", []);
+  const { data: dbEvents, updateDocument: updateFirebaseEvent } = useFirestoreCollection<any>("events", []);
+  const { data: dbRecommendations, updateDocument: updateFirebaseRec } = useFirestoreCollection<any>("recommendations", []);
 
   const setEmployees = (action: React.SetStateAction<Employee[]>) => {
     let nextItems = typeof action === 'function' ? action(dbEmployees) : action;
@@ -438,6 +441,126 @@ export default function OrgChart() {
   const [empActive, setEmpActive] = useState(true);
   const [editingEmpId, setEditingEmpId] = useState<string | null>(null);
   const [selectedCommToLink, setSelectedCommToLink] = useState("");
+
+  // ==========================================
+  // حالة وخدمة نقل الأعمال والمسؤوليات بين الموظفين
+  // ==========================================
+  const [sourceEmpId, setSourceEmpId] = useState("");
+  const [targetEmpId, setTargetEmpId] = useState("");
+  const [transferCommittees, setTransferCommittees] = useState(true);
+  const [transferTasks, setTransferTasks] = useState(true);
+  const [transferMeetings, setTransferMeetings] = useState(true);
+  const [transferRecs, setTransferRecs] = useState(true);
+  const [transferSuccess, setTransferSuccess] = useState("");
+  const [transferError, setTransferError] = useState("");
+  const [isTransferring, setIsTransferring] = useState(false);
+
+  const handleTransferJobs = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTransferSuccess("");
+    setTransferError("");
+    
+    if (!sourceEmpId || !targetEmpId) {
+      setTransferError("الرجاء تحديد الموظف المنقول منه والموظف المنقول إليه.");
+      return;
+    }
+    
+    if (sourceEmpId === targetEmpId) {
+      setTransferError("عذراً، لا يمكن نقل الأعمال والمسؤوليات لنفس الموظف.");
+      return;
+    }
+    
+    const sourceEmp = dbEmployees.find(emp => emp.id === sourceEmpId);
+    const targetEmp = dbEmployees.find(emp => emp.id === targetEmpId);
+    
+    if (!sourceEmp || !targetEmp) {
+      setTransferError("عذراً، لم نتمكن من العثور على الموظف المحدد.");
+      return;
+    }
+    
+    setIsTransferring(true);
+    let logMsgParts: string[] = [];
+    
+    try {
+      // 1. نقل اللجان القطاعية المشرف عليها
+      if (transferCommittees) {
+        const commsToTransfer = sourceEmp.committees || [];
+        if (commsToTransfer.length > 0) {
+          // دمج اللجان في ملف الموظف البديل مع تجنب التكرار
+          const updatedTargetComms = Array.from(new Set([...(targetEmp.committees || []), ...commsToTransfer]));
+          // سحب اللجان من ملف الموظف القديم لتجنب الازدواجية
+          const updatedSourceComms = (sourceEmp.committees || []).filter(c => !commsToTransfer.includes(c));
+          
+          await updateFirebaseEmp(sourceEmp.id, { committees: updatedSourceComms });
+          await updateFirebaseEmp(targetEmp.id, { committees: updatedTargetComms });
+          
+          // تحديث اسم الأخصائي المسؤول (specialist) في جدول اللجان "committees"
+          for (const commName of commsToTransfer) {
+            const matchedComm = dbCommittees.find((c: any) => c.name === commName);
+            if (matchedComm) {
+              await updateFirebaseComm(String(matchedComm.id), { specialist: targetEmp.name });
+            }
+          }
+          logMsgParts.push(`اللجان المشرف عليها (${commsToTransfer.length} لجنة)`);
+        }
+      }
+      
+      // 2. نقل المهام المباشرة المفتوحة والمعلقة
+      if (transferTasks) {
+        const matchingTasks = dbTasks.filter((t: any) => t.assignedTo === sourceEmp.name);
+        if (matchingTasks.length > 0) {
+          for (const task of matchingTasks) {
+            await updateFirebaseTask(String(task.id), { assignedTo: targetEmp.name });
+          }
+          logMsgParts.push(`المهام المباشرة (${matchingTasks.length} مهمة)`);
+        }
+      }
+      
+      // 3. نقل الفعاليات والاجتماعات المجدولة
+      if (transferMeetings) {
+        const matchingEvents = dbEvents.filter((evt: any) => Array.isArray(evt.employees) && evt.employees.includes(sourceEmp.name));
+        if (matchingEvents.length > 0) {
+          for (const evt of matchingEvents) {
+            const updatedEmps = evt.employees.map((name: string) => name === sourceEmp.name ? targetEmp.name : name);
+            await updateFirebaseEvent(String(evt.id), { employees: updatedEmps });
+          }
+          logMsgParts.push(`الفعاليات والاجتماعات (${matchingEvents.length} اجتماع)`);
+        }
+      }
+      
+      // 4. نقل متابعة التوصيات وقرارات اللجان
+      if (transferRecs) {
+        const matchingRecs = dbRecommendations.filter((r: any) => r.assignedTo === sourceEmp.name);
+        if (matchingRecs.length > 0) {
+          for (const rec of matchingRecs) {
+            await updateFirebaseRec(String(rec.id), { assignedTo: targetEmp.name });
+          }
+          logMsgParts.push(`متابعة التوصيات والقرارات (${matchingRecs.length} توصية)`);
+        }
+      }
+      
+      const summaryMsg = logMsgParts.length > 0 
+        ? `تم نقل: ${logMsgParts.join("، ")} بنجاح.`
+        : "الموظف المذكور ليس لديه لجان أو مهام نشطة حالياً لنقلها.";
+      
+      // تسجيل الحركة في سجل العمليات الأمنية ورقابة النظام
+      addSystemLog(
+        "نقل وتفويض الأعمال", 
+        `تم نقل وتفويض الأعمال بالموظف [${sourceEmp.name}] بالكامل إلى الموظف البديل [${targetEmp.name}]. تفاصيل حركة النقل: ${summaryMsg}`
+      );
+      
+      setTransferSuccess(`تم نقل وتفويض كامل الصلاحيات والمسؤوليات والأعمال المحددة من الموظف [${sourceEmp.name}] إلى الموظف [${targetEmp.name}] بنجاح وتحديث كافة قواعد الهيكل واللجان والقرارات المرتبطة!`);
+      
+      // تفريغ المدخلات بعد النجاح
+      setSourceEmpId("");
+      setTargetEmpId("");
+    } catch (e: any) {
+      console.error(e);
+      setTransferError(`حدث خطأ غير متوقع أثناء معالجة تفويض البيانات: ${e.message || e}`);
+    } finally {
+      setIsTransferring(false);
+    }
+  };
 
   // Quick avatar selector parameters
   const [showAvatarPresets, setShowAvatarPresets] = useState(false);
@@ -937,6 +1060,7 @@ export default function OrgChart() {
       <div className="flex flex-wrap gap-2 border-b border-gray-250 pb-1 select-none">
         {[
           { id: "hierarchy", label: "الهيكل الوظيفي والموظفين", icon: <Users className="w-4 h-4" /> },
+          { id: "transfer_work", label: "نقل وتفويض الأعمال ⇄", icon: <ArrowRightLeft className="w-4 h-4" /> },
           { id: "approvals", label: "اعتماد الموظفين والبريد المعتمد", icon: <UserCheck className="w-4 h-4" /> },
           { id: "logs_audit", label: "سجل مراقبة النظام والعمليات", icon: <Activity className="w-4 h-4" /> },
           { id: "account_profile", label: "إعدادات الحساب الشخصي", icon: <Settings className="w-4 h-4" /> },
@@ -1901,7 +2025,7 @@ export default function OrgChart() {
                   </button>
                 </div>
 
-                <div className="pt-3">
+                <div className="pt-3 font-sans">
                   <button
                     type="submit"
                     className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer"
@@ -1910,6 +2034,296 @@ export default function OrgChart() {
                   </button>
                 </div>
               </form>
+            </div>
+          </motion.div>
+        )}
+
+        {/* TAB 5: نقل وتفويض الأعمال والمسؤوليات */}
+        {activeTab === "transfer_work" && (
+          <motion.div
+            key="transfer_work"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.25 }}
+            className="space-y-6 text-right max-w-4xl mx-auto"
+          >
+            {/* Header Description block */}
+            <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 border-b border-gray-150 pb-3.5">
+                <div className="bg-blue-50 p-2.5 rounded-xl border border-blue-100 flex-shrink-0 w-max">
+                  <ArrowRightLeft className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-gray-900">أداة نقل وتفويض الأعمال والمسؤوليات بين الموظفين</h3>
+                  <p className="text-[11px] text-gray-500 font-bold mt-0.5">
+                    بوابة آمنة وموثوقة لتحويل وتفويض اللجان تحت الإشراف، الفعاليات النشطة، المهام الإدارية الجارية، وكود التوصيات الفعال في النظام من كادر إلى آخر دفعة واحدة لتفادي انقطاع سلاسل الأعمال في الغرفة.
+                  </p>
+                </div>
+              </div>
+
+              {/* Status and Notifications */}
+              {transferSuccess && (
+                <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 p-4 rounded-xl text-xs font-extrabold leading-relaxed animate-fadeIn">
+                  💡 {transferSuccess}
+                </div>
+              )}
+              {transferError && (
+                <div className="bg-red-50 text-red-800 border border-red-200 p-4 rounded-xl text-xs font-extrabold leading-relaxed animate-fadeIn">
+                  ⚠️ {transferError}
+                </div>
+              )}
+
+              {/* Diagram / Selection zone */}
+              <form onSubmit={handleTransferJobs} className="space-y-6">
+                
+                {/* Zones Selection Panel */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                  
+                  {/* FROM zone */}
+                  <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 flex flex-col justify-between space-y-4">
+                    <div>
+                      <span className="text-[10px] bg-red-100 text-red-700 font-black px-2.5 py-1 rounded-md shadow-sm">نقل الأعمال من (الموظف المصدر):</span>
+                      <p className="text-[11px] text-gray-400 font-bold mt-1.5 mb-3">اختر الموظف الأصلي الذي سيتم سحب المسؤوليات والأعمال المسندة إليه.</p>
+                      
+                      <div className="relative">
+                        <select
+                          required
+                          value={sourceEmpId}
+                          onChange={(e) => setSourceEmpId(e.target.value)}
+                          className="w-full h-11 px-3 bg-white border border-gray-300 rounded-xl text-xs font-extrabold outline-none focus:ring-2 focus:ring-blue-600"
+                        >
+                          <option value="">-- اختر الكادر الأصلي --</option>
+                          {dbEmployees.map(emp => (
+                            <option key={emp.id} value={emp.id}>
+                              {emp.name} ({emp.roleAr})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Metadata Card of selected Source Employee */}
+                    {sourceEmpId && (() => {
+                      const empObj = dbEmployees.find(e => e.id === sourceEmpId);
+                      if (!empObj) return null;
+                      
+                      // Count works
+                      const commsCount = empObj.committees?.length || 0;
+                      const tasksCount = dbTasks.filter((t: any) => t.assignedTo === empObj.name).length;
+                      const eventsCount = dbEvents.filter((ev: any) => Array.isArray(ev.employees) && ev.employees.includes(empObj.name)).length;
+                      const recsCount = dbRecommendations.filter((r: any) => r.assignedTo === empObj.name).length;
+
+                      return (
+                        <div className="bg-white border border-red-100 p-4 rounded-xl space-y-3 animate-fadeIn">
+                          <div className="flex items-center gap-3">
+                            <img src={empObj.photo} alt={empObj.name} className="w-10 h-10 rounded-full object-cover border border-gray-150" />
+                            <div>
+                              <p className="font-extrabold text-xs text-gray-900">{empObj.name}</p>
+                              <p className="text-[10px] text-gray-500 font-bold">{empObj.jobTitle}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-2 text-[10.5px] font-black border-t border-slate-100 pt-3">
+                            <div className="text-gray-600">🏛️ اللجان المشرف عليها: <span className="text-red-600 font-mono">{commsCount}</span></div>
+                            <div className="text-gray-600">📋 المهام المباشرة: <span className="text-red-600 font-mono">{tasksCount}</span></div>
+                            <div className="text-gray-600">🕒 فعاليات واجتماعات: <span className="text-red-600 font-mono">{eventsCount}</span></div>
+                            <div className="text-gray-600 font-sans font-black">🗳️ التوصيات النشطة: <span className="text-red-600 font-mono">{recsCount}</span></div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* TO zone */}
+                  <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 flex flex-col justify-between space-y-4">
+                    <div>
+                      <span className="text-[10px] bg-green-100 text-green-700 font-black px-2.5 py-1 rounded-md shadow-sm">نقل الأعمال إلى (الموظف المستلم):</span>
+                      <p className="text-[11px] text-gray-400 font-bold mt-1.5 mb-3">اختر الموظف البديل الذي ستفوض إليه كافة الأعمال والمسؤوليات المحددة.</p>
+                      
+                      <div className="relative">
+                        <select
+                          required
+                          value={targetEmpId}
+                          onChange={(e) => setTargetEmpId(e.target.value)}
+                          className="w-full h-11 px-3 bg-white border border-gray-300 rounded-xl text-xs font-extrabold outline-none focus:ring-2 focus:ring-blue-600"
+                        >
+                          <option value="">-- اختر الموظف المستلم للباقة --</option>
+                          {dbEmployees.map(emp => (
+                            <option key={emp.id} value={emp.id} disabled={emp.id === sourceEmpId}>
+                              {emp.name} ({emp.roleAr}) {emp.id === sourceEmpId ? " (لا يمكن الاختيار للمصدر نفسه)" : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Metadata Card of selected Target Employee */}
+                    {targetEmpId && (() => {
+                      const empObj = dbEmployees.find(e => e.id === targetEmpId);
+                      if (!empObj) return null;
+
+                      return (
+                        <div className="bg-white border border-green-100 p-4 rounded-xl space-y-3 animate-fadeIn">
+                          <div className="flex items-center gap-3">
+                            <img src={empObj.photo} alt={empObj.name} className="w-10 h-10 rounded-full object-cover border border-gray-150" />
+                            <div>
+                              <p className="font-extrabold text-xs text-gray-900">{empObj.name}</p>
+                              <p className="text-[10px] text-gray-500 font-bold">{empObj.jobTitle}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="border-t border-slate-100 pt-3 flex items-center justify-between">
+                            <span className="text-[10px] bg-green-50 text-green-700 font-extrabold px-2 py-0.5 rounded border border-green-200">مؤهل للاستلام</span>
+                            <span className="text-[10px] text-slate-400 font-extrabold">الفرقة الحالية: {empObj.roleAr}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                </div>
+
+                {/* Scope checkboxes to specify what should be transferred */}
+                {sourceEmpId && (
+                  <div className="bg-white p-5 rounded-2xl border border-gray-200 space-y-3.5 animate-fadeIn">
+                    <span className="text-xs font-extrabold text-gray-800 block">حدد تفاصيل الأعمال المطلوبة للنقل:</span>
+                    
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      
+                      {/* Committees checkbox */}
+                      <label 
+                        className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none ${
+                          transferCommittees ? "bg-blue-50/70 border-blue-300" : "bg-gray-50/50 border-gray-200"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={transferCommittees}
+                          onChange={(e) => setTransferCommittees(e.target.checked)}
+                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <div className="text-right">
+                          <span className="text-xs font-black block text-gray-900 font-sans">اللجان المخصصة</span>
+                          <span className="text-[10px] text-gray-500 font-bold">
+                            {(() => {
+                              const empObj = dbEmployees.find(e => e.id === sourceEmpId);
+                              return empObj?.committees?.length || 0;
+                            })()} لجنة
+                          </span>
+                        </div>
+                      </label>
+
+                      {/* Tasks checkbox */}
+                      <label 
+                        className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none ${
+                          transferTasks ? "bg-blue-50/70 border-blue-300" : "bg-gray-50/50 border-gray-200"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={transferTasks}
+                          onChange={(e) => setTransferTasks(e.target.checked)}
+                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <div className="text-right">
+                          <span className="text-xs font-black block text-gray-900 font-sans">المهام المباشرة</span>
+                          <span className="text-[10px] text-gray-500 font-bold">
+                            {(() => {
+                              const empObj = dbEmployees.find(e => e.id === sourceEmpId);
+                              if (!empObj) return 0;
+                              return dbTasks.filter((t: any) => t.assignedTo === empObj.name).length;
+                            })()} مهمة
+                          </span>
+                        </div>
+                      </label>
+
+                      {/* Meetings checkbox */}
+                      <label 
+                        className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none ${
+                          transferMeetings ? "bg-blue-50/70 border-blue-300" : "bg-gray-50/50 border-gray-200"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={transferMeetings}
+                          onChange={(e) => setTransferMeetings(e.target.checked)}
+                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <div className="text-right">
+                          <span className="text-xs font-black block text-gray-900 font-sans">الاجتماعات والفعاليات</span>
+                          <span className="text-[10px] text-gray-500 font-bold">
+                            {(() => {
+                              const empObj = dbEmployees.find(e => e.id === sourceEmpId);
+                              if (!empObj) return 0;
+                              return dbEvents.filter((ev: any) => Array.isArray(ev.employees) && ev.employees.includes(empObj.name)).length;
+                            })()} اجتماع
+                          </span>
+                        </div>
+                      </label>
+
+                      {/* Recommendations checkbox */}
+                      <label 
+                        className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none ${
+                          transferRecs ? "bg-blue-50/70 border-blue-300" : "bg-gray-50/50 border-gray-200"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={transferRecs}
+                          onChange={(e) => setTransferRecs(e.target.checked)}
+                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <div className="text-right">
+                          <span className="text-xs font-black block text-gray-900 font-sans">متابعة التوصيات</span>
+                          <span className="text-[10px] text-gray-500 font-bold">
+                            {(() => {
+                              const empObj = dbEmployees.find(e => e.id === sourceEmpId);
+                              if (!empObj) return 0;
+                              return dbRecommendations.filter((r: any) => r.assignedTo === empObj.name).length;
+                            })()} توصية
+                          </span>
+                        </div>
+                      </label>
+
+                    </div>
+                  </div>
+                )}
+
+                {/* Warning and security notice panel */}
+                <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200 flex gap-3 text-xs leading-normal">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="text-amber-900 font-extrabold text-right">
+                    <span>⚠️ تنبيه أمني وإداري:</span>
+                    <p className="font-bold text-[11px] mt-1 text-amber-800 leading-normal">
+                      عمليات نقل المهام والمسؤوليات هي معاملات مباشرة وتلقائية على مستوى قاعدة البيانات. بمجرد النقر فوق زر الإقرار، سيتم إعادة تعميد وتحديث كافة اللجان والمهام باسم الموظف الجديد فوراً، وسيتم تقييد وإثبات هذه المعاملة متكاملة في السجل الفيدرالي لعمليات النظام ورقابة الأمن الجدارية.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Form submit button */}
+                <div className="flex items-center justify-end font-sans">
+                  <button
+                    type="submit"
+                    disabled={isTransferring || !sourceEmpId || !targetEmpId}
+                    className="h-12 px-8 bg-blue-600 hover:bg-blue-750 disabled:bg-gray-200 disabled:text-gray-400 disabled:border-transparent text-white font-extrabold text-xs rounded-xl shadow-lg hover:shadow-blue-500/10 transition-all flex items-center gap-2.5 cursor-pointer"
+                  >
+                    {isTransferring ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                        <span>جاري معالجة وتفويض الصلاحيات...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ArrowRightLeft className="w-4 h-4" />
+                        <span>إقرار ونقل وتفويض الأعمال بالكامل ⇄</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+              </form>
+
             </div>
           </motion.div>
         )}
