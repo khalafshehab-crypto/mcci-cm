@@ -39,35 +39,9 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
   const [loading, setLoading] = useState(false);
 
   // Firestore Collections
-  const { data: dbEmployees, setDocument: setFirebaseEmpDoc, deleteDocument: deleteFirebaseEmp, updateDocument: updateFirebaseEmp } = useFirestoreCollection<any>("employees", []);
+  const { data: dbEmployees, setDocument: setFirebaseEmpDoc } = useFirestoreCollection<any>("employees", []);
   const { data: dbJoinRequests, addDocument: addFirebaseJoinReq } = useFirestoreCollection<any>("join_requests", []);
   const { addDocument: addFirebaseLog } = useFirestoreCollection<any>("system_logs", []);
-
-  // دالة تصحيح وتنظيف تلقائي لقاعدة البيانات لحذف حساب "خلف شهاب الدين" القديم والاحتفاظ بـ "شهاب الدين" مشرفاً وحيداً للنظام
-  React.useEffect(() => {
-    if (dbEmployees && dbEmployees.length > 0) {
-      dbEmployees.forEach(async (emp: any) => {
-        const nameClean = (emp.name || "").trim();
-        const jobTitleClean = (emp.jobTitle || "").trim();
-        
-        // أ. حذف "خلف شهاب الدين" أو أي حساب بلقب "مدير النظام والرقابة" أو أي حساب "شهاب الدين" برقم غير 01 لمنع التكرار
-        if (nameClean === "خلف شهاب الدين" || nameClean.includes("خلف شهاب الدين") || jobTitleClean === "مدير النظام والرقابة" || (nameClean === "شهاب الدين" && emp.id === "221550")) {
-          console.log(`[Homing Cleanup] Deleting obsolete account: ${emp.name} (ID: ${emp.id})`);
-          await deleteFirebaseEmp(emp.id);
-        }
-        
-        // ب. تصحيح حساب المسؤول الأساسي "شهاب الدين" ليكون نشطاً وبمسمى "مشرف النظام" بالمعرف 01
-        if (nameClean === "شهاب الدين" && emp.id === "01" && (emp.jobTitle !== "مشرف النظام" || !emp.active)) {
-          console.log(`[Homing Cleanup] Updating superuser account ${emp.name} (ID: ${emp.id}) to supervisor title`);
-          await updateFirebaseEmp(emp.id, {
-            jobTitle: "مشرف النظام",
-            roleAr: "مشرف النظام",
-            active: true
-          });
-        }
-      });
-    }
-  }, [dbEmployees]);
 
   const logSystemAction = async (employeeName: string, details: string, status: "ناجحة" | "مرفوضة") => {
     try {
@@ -90,24 +64,21 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
     // 1. Is this the Master Administrator?
     if (emailLower === "khalafshehab@gmail.com" || emailLower === "khalafshehab-crypto@gmail.com") {
       const adminEmp = {
-        id: "01",
+        id: "221550",
         name: "شهاب الدين",
         role: "SYS_ADMIN",
-        roleAr: "مشرف النظام",
+        roleAr: "مدير النظام",
         jobTitle: "مشرف النظام",
         phone: "+966558494158",
         email: emailLower,
         photo: PRESET_AVATARS[0],
-        committees: ["الحج والعمرة", "الصناعية", "التغذية والإعاشة"],
+        committees: ["الحج والعمرة", "الصناعية"],
         active: true,
         joinDate: "2024/01/15"
       };
 
       // Ensure provisioned in the local storage database
-      await setFirebaseEmpDoc("01", adminEmp);
-      try {
-        await deleteFirebaseEmp("221550");
-      } catch (err) {}
+      await setFirebaseEmpDoc("221550", adminEmp);
       localStorage.setItem("current_user", JSON.stringify(adminEmp));
       await logSystemAction(adminEmp.name, `تسجيل دخول ناجح للمسؤول برمز بريدي معتمد [${emailLower}]`, "ناجحة");
       onLogin(adminEmp);
@@ -239,7 +210,7 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
 
     if (emailLower === "khalafshehab@gmail.com" || emailLower === "khalafshehab-crypto@gmail.com") {
       setMessage({
-        text: "هذا البريد الإلكتروني مخصص لمشرف النظام الفعلي ومسجل لديه كافة الصلاحيات.",
+        text: "هذا البريد الإلكتروني مخصص لمدير النظام الفعلي ومسجل لديه كافة الصلاحيات.",
         type: "error"
       });
       return;
@@ -470,7 +441,7 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
           <form onSubmit={handleRegisterInput} className="space-y-4 animate-fadeIn">
             <div className="p-3 bg-sky-500/10 border border-sky-500/20 text-sky-400 rounded-2xl text-[10px] sm:text-[11px] font-bold leading-relaxed mb-2.5">
               💡 <span className="text-white font-extrabold">تقديم طلب انضمام موظف جديد:</span> 
-               سيتم إرسال طلب تسجيل حساب جديد إلى مشرف النظام، وستتمكن من الدخول فور الموافقة على الطلب.
+               سيتم إرسال طلب تسجيل حساب جديد إلى مدير النظام، وستتمكن من الدخول فور الموافقة على الطلب.
             </div>
 
             {/* Full Name */}

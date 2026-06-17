@@ -45,10 +45,10 @@ function getSeedData(collectionName: string): any[] {
   if (collectionName === "employees") {
     defaultData = [
       {
-        id: "01",
+        id: "221550",
         name: "شهاب الدين",
         role: "SYS_ADMIN",
-        roleAr: "مشرف النظام",
+        roleAr: "مدير النظام",
         jobTitle: "مشرف النظام",
         phone: "+966558494158",
         email: "khalafshehab@gmail.com",
@@ -65,7 +65,7 @@ function getSeedData(collectionName: string): any[] {
         name: "لجنة التغذية والإعاشة",
         description: "لجنة متخصصة بشؤون التموين والتغذية والإعاشة خلال مواسم الحج والعمرة غايتها تحسين تجربة الزوار وصناع الضيافة بمكة المكرمة.",
         goals: "تطوير منظومة الإعاشة الحديثة، تحسين معايير الجودة، وتحفيز الشراكات الاستراتيجية",
-        specialistId: "01",
+        specialistId: "221550",
         specialistName: "شهاب الدين",
         status: "فعالة",
         driveLink: "",
@@ -80,7 +80,7 @@ function getSeedData(collectionName: string): any[] {
         name: "لجنة الحج والعمرة",
         description: "لجنة وطنية لمتابعة وتيسير شؤون حجاج بيت الله الحرام وتجويد الخدمات اللوجستية بمكة المكرمة والمشاعر المقدسة.",
         goals: "تعزيز كفاءة الفنادق السكنية، تطوير وسائل التنقل، وحوكمة المبادرات التطوعية",
-        specialistId: "01",
+        specialistId: "221550",
         specialistName: "شهاب الدين",
         status: "فعالة",
         driveLink: "",
@@ -222,7 +222,7 @@ function getSeedData(collectionName: string): any[] {
         time: "2026-06-16 11:20:15",
         operationType: "تسجيل دخول / انضمام",
         status: "ناجحة",
-        details: "تسجيل دخول ناجح بصلاحية مشرف النظام"
+        details: "تسجيل دخول ناجح بصلاحية مدير النظام"
       }
     ];
   } else if (collectionName === "templates") {
@@ -295,7 +295,7 @@ export const auth: any = {
       if (u) {
         const parsed = JSON.parse(u);
         return {
-          uid: parsed.id || '01',
+          uid: parsed.id || '221550',
           email: parsed.email,
           displayName: parsed.name,
           emailVerified: true,
@@ -313,7 +313,7 @@ export const auth: any = {
         if (u) {
           const parsed = JSON.parse(u);
           callback({
-            uid: parsed.id || '01',
+            uid: parsed.id || '221550',
             email: parsed.email,
             displayName: parsed.name,
             emailVerified: true,

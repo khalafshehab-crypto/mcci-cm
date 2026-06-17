@@ -28,7 +28,7 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
  
   const [userName, setUserName] = useState("شهاب الدين");
-  const [userRoleAr, setUserRoleAr] = useState("مشرف النظام");
+  const [userRoleAr, setUserRoleAr] = useState("مدير النظام");
 
   useEffect(() => {
     return subscribeToFirestoreBlocked((blocked) => {

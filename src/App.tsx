@@ -26,12 +26,7 @@ export default function App() {
       const stored = localStorage.getItem("current_user");
       if (stored) {
         try {
-          const parsed = JSON.parse(stored);
-          if (parsed && (parsed.email === "khalafshehab@gmail.com" || parsed.email === "khalafshehab-crypto@gmail.com") && parsed.id !== "01") {
-            parsed.id = "01";
-            localStorage.setItem("current_user", JSON.stringify(parsed));
-          }
-          setUser(parsed);
+          setUser(JSON.parse(stored));
         } catch (e) {
           setUser(null);
         }
