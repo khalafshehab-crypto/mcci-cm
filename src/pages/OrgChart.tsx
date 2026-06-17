@@ -121,6 +121,8 @@ export default function OrgChart() {
   const [formPhoto, setFormPhoto] = useState(PRESET_AVATARS[0]);
   const [formActive, setFormActive] = useState(true);
   const [formPassword, setFormPassword] = useState("");
+  const [formCommittees, setFormCommittees] = useState<string[]>([]);
+  const [originalEditId, setOriginalEditId] = useState("");
   
   // Whitelist Email state fields
   const [whitelistEmailStr, setWhitelistEmailStr] = useState("");
@@ -166,6 +168,8 @@ export default function OrgChart() {
   // 1. ADD / EDIT EMPLOYEE ACTION HANDLER
   const openAddModal = () => {
     setIsEditing(false);
+    setOriginalEditId("");
+    setFormCommittees([]);
     setFormId(Math.floor(1000 + Math.random() * 9000).toString());
     setFormName("");
     setFormRole("SPECIALIST");
@@ -181,7 +185,9 @@ export default function OrgChart() {
 
   const openEditModal = (emp: Employee) => {
     setIsEditing(true);
+    setOriginalEditId(emp.id);
     setFormId(emp.id);
+    setFormCommittees(emp.committees || []);
     setFormName(emp.name);
     setFormRole(emp.role);
     setFormJobTitle(emp.jobTitle);
@@ -218,21 +224,64 @@ export default function OrgChart() {
       email: formEmail,
       photo: formPhoto,
       active: formActive,
-      committees: isEditing ? (dbEmployees.find(emp => emp.id === formId)?.committees || []) : [],
-      joinDate: isEditing ? (dbEmployees.find(emp => emp.id === formId)?.joinDate || new Date().toISOString().split('T')[0].replace(/-/g, '/')) : new Date().toISOString().split('T')[0].replace(/-/g, '/'),
+      committees: formCommittees,
+      joinDate: isEditing ? (dbEmployees.find(emp => emp.id === originalEditId)?.joinDate || new Date().toISOString().split('T')[0].replace(/-/g, '/')) : new Date().toISOString().split('T')[0].replace(/-/g, '/'),
       password: formPassword
     };
 
     try {
       if (isEditing) {
-        await updateFirebaseEmp(formId, payload);
-        await reportSystemLog("تعديل موظف", `تم تحديث بيانات الموظف [${formName}] الرقم الوظيفي [${formId}] بنجاح.`);
+        if (formId !== originalEditId) {
+          // Enforce unique check for new ID
+          const IDExists = dbEmployees.some(emp => emp.id === formId);
+          if (IDExists) {
+            alert("الرقم الوظيفي الجديد مأخوذ بالفعل من قبل موظف آخر.");
+            return;
+          }
+
+          // Create document with new ID
+          await updateFirebaseEmp(formId, payload);
+          // Delete old document
+          await deleteFirebaseEmp(originalEditId);
+
+          // Update loggedInUser in localStorage if self-editing
+          try {
+            const stored = localStorage.getItem("current_user");
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              if (parsed && parsed.id === originalEditId) {
+                localStorage.setItem("current_user", JSON.stringify({ ...payload, id: formId }));
+              }
+            }
+          } catch (err) {
+            console.error(err);
+          }
+
+          await reportSystemLog("تعديل موظف", `تم تحديث ملف الموظف وتغيير الرقم الوظيفي من [${originalEditId}] إلى [${formId}] بنجاح.`);
+        } else {
+          await updateFirebaseEmp(formId, payload);
+
+          // Update loggedInUser in localStorage if self-editing
+          try {
+            const stored = localStorage.getItem("current_user");
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              if (parsed && parsed.id === formId) {
+                localStorage.setItem("current_user", JSON.stringify({ ...payload, id: formId }));
+              }
+            }
+          } catch (err) {
+            console.error(err);
+          }
+
+          await reportSystemLog("تعديل موظف", `تم تحديث بيانات الموظف [${formName}] الرقم الوظيفي [${formId}] بنجاح.`);
+        }
       } else {
         // Enforce unique check for ID
         const IDExists = dbEmployees.some(emp => emp.id === formId);
         const actualId = IDExists ? `${formId}_${Math.floor(Math.random() * 1000)}` : formId;
         
-        await updateFirebaseEmp(actualId, payload); // Use set/update via hook which uses merge setDoc
+        await updateFirebaseEmp(actualId, payload);
         await reportSystemLog("إنشاء موظف جديد", `تم إدراج كادر جديد للهيكل [${formName}] في النظام بنجاح.`);
       }
       setShowFormModal(false);
@@ -465,8 +514,29 @@ export default function OrgChart() {
     }
   };
 
+  // Find current user's role
+  const getLoggedInUser = () => {
+    try {
+      const stored = localStorage.getItem("current_user");
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (_) {}
+    return null;
+  };
+  const currentUser = getLoggedInUser();
+  const currentUserRole = currentUser?.role || "SPECIALIST";
+
+  // Filter out SYS_ADMIN accounts if logged-in user is not SYS_ADMIN
+  const visibleEmployees = dbEmployees.filter(emp => {
+    if (emp.role === "SYS_ADMIN" && currentUserRole !== "SYS_ADMIN") {
+      return false;
+    }
+    return true;
+  });
+
   // FILTERED STAFF COMPUTATION
-  const filteredEmployees = dbEmployees.filter(emp => {
+  const filteredEmployees = visibleEmployees.filter(emp => {
     const matchSearch = 
       emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
       emp.jobTitle.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -774,7 +844,7 @@ export default function OrgChart() {
                       className="w-full h-11 px-3 bg-white border border-gray-300 rounded-xl text-xs font-extrabold focus:ring-2 focus:ring-blue-500 outline-none mt-2 cursor-pointer"
                     >
                       <option value="">-- اختر الموظف الأصلي --</option>
-                      {dbEmployees.map(emp => (
+                      {visibleEmployees.map(emp => (
                         <option key={emp.id} value={emp.id}>
                           {emp.name} (الرقم: {emp.id})
                         </option>
@@ -826,7 +896,7 @@ export default function OrgChart() {
                       className="w-full h-11 px-3 bg-white border border-gray-300 rounded-xl text-xs font-extrabold focus:ring-2 focus:ring-blue-500 outline-none mt-2 cursor-pointer"
                     >
                       <option value="">-- اختر الكادر المستلم البديل --</option>
-                      {dbEmployees.map(emp => (
+                      {visibleEmployees.map(emp => (
                         <option key={emp.id} value={emp.id} disabled={emp.id === sourceEmpId}>
                           {emp.name} (الرقم: {emp.id}) {emp.id === sourceEmpId ? "(غير مسموح كمنقول منه)" : ""}
                         </option>
@@ -1260,9 +1330,8 @@ export default function OrgChart() {
                       type="text"
                       required
                       value={formId}
-                      disabled={isEditing}
                       onChange={(e) => setFormId(e.target.value)}
-                      className="w-full h-10 px-3 bg-gray-50 border border-gray-300 rounded-xl text-xs font-black outline-none focus:ring-2 focus:ring-blue-500 text-right disabled:opacity-50"
+                      className="w-full h-10 px-3 bg-white border border-gray-350 rounded-xl text-xs font-black outline-none focus:ring-2 focus:ring-blue-500 text-right"
                     />
                   </div>
 
@@ -1390,6 +1459,36 @@ export default function OrgChart() {
                   >
                     <span className="w-4.5 h-4.5 bg-white rounded-full shadow-sm" />
                   </button>
+                </div>
+
+                {/* ربط الموظف باللجان الفعالة */}
+                <div className="space-y-1.5">
+                  <span className="font-black text-slate-800 block">ربط الموظف باللجان الفعالة:</span>
+                  <p className="text-[10px] text-gray-400 font-bold leading-normal">
+                    يمكن ربط هذا الموظف بلجنة واحدة أو أكثر من اللجان النشطة بالغرفة المكرمة.
+                  </p>
+                  <div className="border border-gray-250 rounded-xl p-3 bg-white max-h-36 overflow-y-auto space-y-1.5 grayscale-0">
+                    {dbCommittees && dbCommittees.filter((comm: any) => comm.active !== false).map((comm: any) => (
+                      <label key={comm.id} className="flex items-center gap-2 text-xs font-bold text-gray-700 cursor-pointer hover:bg-slate-50 p-1 rounded transition-all">
+                        <input
+                          type="checkbox"
+                          checked={formCommittees.includes(comm.name)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormCommittees(prev => [...prev, comm.name]);
+                            } else {
+                              setFormCommittees(prev => prev.filter(c => c !== comm.name));
+                            }
+                          }}
+                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span>{comm.name}</span>
+                      </label>
+                    ))}
+                    {(!dbCommittees || dbCommittees.filter((comm: any) => comm.active !== false).length === 0) && (
+                      <p className="text-[11px] text-gray-400 font-bold text-center py-2">لا توجد لجان فعالة حالياً لتخصيصها.</p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Footer buttons */}
