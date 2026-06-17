@@ -91,7 +91,7 @@ const JOINING_MECHANISMS = [
 ];
 
 const ENTITIES = [
-  "الغرفة التجارية بمكة المكرمة",
+  "غرفة مكة المكرمة",
   "أمانة العاصمة المقدسة",
   "وزارة الحج والعمرة",
   "وزارة الصناعة والثروة المعدنية",
@@ -393,7 +393,7 @@ export default function Members() {
       return;
     }
     if (joiningMechanism === "ممثل لجهة حكومية" && !govAgency.trim()) {
-      setFormError("يرجى إدخال اسم الجهة الحكومية الممثلة");
+      setFormError("يرجى إدخال اسم الجهة الممثلة");
       return;
     }
     if (!email.trim() || !email.includes("@")) {

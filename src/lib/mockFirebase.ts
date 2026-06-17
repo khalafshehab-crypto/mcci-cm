@@ -3,7 +3,7 @@
 // Global in-memory list of active reactive query subscriptions
 const listeners: { [collectionName: string]: Array<(snapshot: any) => void> } = {};
 
-// آلية تطهير إجبارية ومطلقة لتصفير الكاش القديم من المتصفح نهائياً
+// حذف الذاكرة المؤقتة للمتصفح نهائياً
 if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
   const FORCE_RESET_KEY = "force_clean_slate_final_v10";
   if (!localStorage.getItem(FORCE_RESET_KEY)) {
@@ -82,7 +82,7 @@ function makeSnapshot(data: any[]) {
   };
 }
 
-// Seed data generators - تم تصفير الجداول وتثبيت حساب مشرف النظام الرئيسي فقط ببيانات نظيفة
+// Seed data generators - تم حذف الجداول وتثبيت حساب مشرف النظام الرئيسي فقط ببيانات نظيفة
 function getSeedData(collectionName: string): any[] {
   let defaultData: any[] = [];
   if (collectionName === "employees") {
@@ -92,7 +92,7 @@ function getSeedData(collectionName: string): any[] {
         name: "شهاب الدين",
         role: "SYS_ADMIN",
         roleAr: "مدير النظام",
-        jobTitle: "مشرف النظام",
+        jobTitle: "مدير النظام",
         phone: "+966558494158",
         email: "khalafshehab@gmail.com",
         photo: "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200",

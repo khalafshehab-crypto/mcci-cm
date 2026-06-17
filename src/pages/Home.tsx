@@ -1039,10 +1039,10 @@ export default function Home() {
         }
       `}} />
 
-      {/* -------------------- مركز الإشعارات التفاعلي والموظفين المتصلين -------------------- */}
+      {/* -------------------- مركز الإشعارات والموظفين المتصلين -------------------- */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 print:hidden">
         
-        {/* أ) مركز العمليات التفاعلي للتنبيهات - يغطي 3 أعمدة */}
+        {/* أ) مركز التنبيهات - يغطي 3 أعمدة */}
         <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-250 shadow-sm overflow-hidden flex flex-col justify-between">
           
           {/* ترويسة مركز التنبيهات مع فلاتر سريعة */}
@@ -1112,7 +1112,7 @@ export default function Home() {
                 </div>
                 <div className="space-y-0.5">
                   <p className="text-xs font-black text-emerald-900">سجل الإشعارات نظيف تماماً!</p>
-                  <p className="text-[10px] text-gray-400">لا توجد تنبيهات عاجلة فوتت أو قيد المتابعة حالياً.</p>
+                  <p className="text-[10px] text-gray-400">لا توجد تنبيهات عاجلة حالياً.</p>
                 </div>
               </div>
             ) : (
@@ -1292,14 +1292,14 @@ export default function Home() {
 
         </div>
 
-        {/* ب) الموظفون المتصلون حالياً بالنظام لتسهيل التواصل والربط */}
+        {/* ب) الموظفون المتصلون حالياً بالنظام */}
         <div className="bg-white rounded-2xl border border-gray-250 shadow-sm overflow-hidden flex flex-col justify-between">
           <div className="p-3 bg-slate-50 border-b border-gray-200 text-right">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-ping shrink-0" />
               <span className="font-extrabold text-gray-900 text-xs">قنوات العمل الداخلي النشطة</span>
             </div>
-            <p className="text-[9px] text-gray-400 mt-0.5">موظفي نظام اللجان متصلون الآن للربط السريع ومشاركة المعاملات</p>
+            <p className="text-[9px] text-gray-400 mt-0.5">موظفي نظام اللجان متصلون الآن</p>
           </div>
 
           <div className="p-3 divide-y divide-gray-100 max-h-[300px] overflow-y-auto custom-scrollbar space-y-2">
@@ -1582,7 +1582,7 @@ export default function Home() {
                               {/* 3. الوقت */}
                               <td className="px-4 py-3.5 font-mono text-gray-800 whitespace-nowrap">{mtg.time}</td>
                               
-                              {/* 4. اللجنة / الجهة القطاعية */}
+                              {/* 4. اللجنة / الجهة */}
                               <td className="px-4 py-3.5">
                                 <span className="font-black text-brand bg-brand/10 px-2 py-0.5 rounded text-[10px] block w-fit">
                                   {mtg.section}
@@ -1752,7 +1752,7 @@ export default function Home() {
             <div className={`p-2 rounded-lg transition-colors duration-300 ${openCards.charts ? 'bg-brand text-white' : 'bg-brand/10 text-brand'}`}>
               <BarChart3 className="w-5 h-5" />
             </div>
-            <span className="font-extrabold text-[#111] group-hover/title:text-brand transition-colors text-base">الرسم البياني للنشاط</span>
+            <span className="font-extrabold text-[#111] group-hover/title:text-brand transition-colors text-base">الرسم البياني</span>
           </div>
           <ChevronDown className={`w-5 h-5 text-gray-500 transition-all duration-300 ${openCards.charts ? 'rotate-180 text-brand' : ''}`} />
         </button>
@@ -1923,7 +1923,7 @@ export default function Home() {
                         {selectedAlarm.status}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-500 font-medium mt-1">مركز العمليات وسجل المتابعة التنظيمي للفعاليات واللجان المشكلة</p>
+                    <p className="text-xs text-gray-500 font-medium mt-1">مركز العمليات وسجل المتابعة للفعاليات واللجان</p>
                   </div>
                 </div>
                 <button 
@@ -1947,7 +1947,7 @@ export default function Home() {
                         <Users2 className="w-5 h-5 text-brand" />
                       </div>
                       <div className="text-right">
-                        <span className="text-[10px] text-gray-400 font-black block">اللجنة القطاعية</span>
+                        <span className="text-[10px] text-gray-400 font-black block">اللجنة</span>
                         <span className="text-xs font-bold text-gray-900">{resolvedDetails.committeeName}</span>
                       </div>
                     </div>
@@ -1957,7 +1957,7 @@ export default function Home() {
                         <Calendar className="w-5 h-5 text-blue-600" />
                       </div>
                       <div className="text-right">
-                        <span className="text-[10px] text-gray-400 font-black block">رقم وتصنيف اللقاء</span>
+                        <span className="text-[10px] text-gray-400 font-black block">رقم اللقاء</span>
                         <span className="text-xs font-bold text-gray-900">{resolvedDetails.meetingSeq}</span>
                       </div>
                     </div>
@@ -1967,7 +1967,7 @@ export default function Home() {
                         <Clock className="w-5 h-5 text-purple-600" />
                       </div>
                       <div className="text-right">
-                        <span className="text-[10px] text-gray-400 font-black block">تاريخ وقائع الاجتماع</span>
+                        <span className="text-[10px] text-gray-400 font-black block">تاريخ الاجتماع</span>
                         <span className="text-xs font-bold text-gray-900">{resolvedDetails.meetingDate}</span>
                       </div>
                     </div>
@@ -1986,7 +1986,7 @@ export default function Home() {
 
                 {/* 2. Agenda Item & recommendation text section */}
                 <div className="space-y-4">
-                  <h4 className="text-xs font-black text-gray-400 tracking-wider">تفاصيل وقائع ومقررات البند المطروح</h4>
+                  <h4 className="text-xs font-black text-gray-400 tracking-wider">تفاصيل وقائع ومقررات البند</h4>
                   
                   <div className="bg-[#fcfbfb] border border-[#d2cece] rounded-2xl p-4 shadow-inner space-y-4">
                     <div>
@@ -1997,14 +1997,14 @@ export default function Home() {
                     </div>
 
                     <div>
-                      <span className="text-[10px] text-gray-400 font-black block mb-1">تدوين الوقائع والناقشة التفصيلية:</span>
+                      <span className="text-[10px] text-gray-400 font-black block mb-1">تدوين وقائع المناقشة:</span>
                       <p className="text-xs font-medium text-slate-700 leading-relaxed bg-white p-3 rounded-xl border border-gray-150">
                         {resolvedDetails.itemDiscussion}
                       </p>
                     </div>
 
                     <div className="border-t border-gray-200/80 pt-3">
-                      <span className="text-[10px] text-[#b59410] font-black block mb-1">نص التوصية الرسمية المعتمدة للترحيل:</span>
+                      <span className="text-[10px] text-[#b59410] font-black block mb-1">نص التوصية المعتمدة:</span>
                       <p className="text-xs font-bold text-gray-950 bg-[#fffdf5] p-3 rounded-xl border border-[#e8d284] leading-relaxed">
                         {resolvedDetails.recommendationText}
                       </p>
@@ -2016,7 +2016,7 @@ export default function Home() {
                 <div className="border-t border-gray-150 pt-4 space-y-4 text-right">
                   <h4 className="text-sm font-black text-slate-800 flex items-center gap-1.5">
                     <Send className="w-4 h-4 text-brand" />
-                    <span>تسجيل مستجدات التوصية وشرح الإفادة بالعمل والإنجاز</span>
+                    <span>تسجيل مستجدات التوصية وشرح الإفادة ونسبة الإنجاز</span>
                   </h4>
 
                   {referToast && (
@@ -2075,7 +2075,7 @@ export default function Home() {
                   {/* Recommendation updates / comments */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-black text-slate-700 block">
-                      شرح مستجدات التوصية وتفاصيل العمل المنجز للإفادة الرسمية
+                      شرح مستجدات التوصية وتفاصيل العمل المنجز
                     </label>
                     <textarea
                       value={referNotes}

@@ -258,7 +258,7 @@ export default function OrgChart() {
   // Whitelist Email state fields
   const [whitelistEmailStr, setWhitelistEmailStr] = useState("");
   const [whitelistNameStr, setWhitelistNameStr] = useState("");
-  const [whitelistRoleAr, setWhitelistRoleAr] = useState("أخصائي لجان قطاعية");
+  const [whitelistRoleAr, setWhitelistRoleAr] = useState("أخصائي لجان");
 
   // Transfer states
   const [sourceEmpId, setSourceEmpId] = useState("");
@@ -563,7 +563,7 @@ export default function OrgChart() {
         name: req.name,
         role: "SPECIALIST",
         roleAr: "أخصائي اللجان",
-        jobTitle: "أخصائي لجان قطاعية معتمد",
+        jobTitle: "أخصائي لجان",
         phone: req.phone,
         email: req.email,
         photo: PRESET_AVATARS[Math.floor(Math.random() * PRESET_AVATARS.length)],
@@ -792,9 +792,9 @@ export default function OrgChart() {
       <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <span className="text-[10px] bg-blue-50 text-blue-700 font-extrabold px-2.5 py-1 rounded-full border border-blue-150 uppercase tracking-wide">أمن وحوكمة الأنظمة</span>
-          <h1 className="text-xl font-black text-gray-950 mt-2 font-sans">صفحة الهيكل الإداري وضوابط الأمان الفيدرالية</h1>
+          <h1 className="text-xl font-black text-gray-950 mt-2 font-sans">صفحة الهيكل الإداري وضوابط الأمان</h1>
           <p className="text-xs text-gray-500 font-bold mt-1 max-w-2xl leading-relaxed">
-            البوابة المتكاملة للتحكم برتب الموظفين، التحويل الفوري لحالة الكادر (نشط/غير نشط)، تفويض ونقل حزم اللجان والمهام، ومراقبة تتبع العمليات والاعتمادات في الغرفة.
+            البوابة المتكاملة للموظفين، تفويض ونقل حزم اللجان والمهام، ومراقبة تتبع العمليات والاعتمادات.
           </p>
         </div>
         {currentUserRole === "SYS_ADMIN" && (
@@ -1016,7 +1016,7 @@ export default function OrgChart() {
                               handleDeleteEmployee(emp);
                             }}
                             disabled={emp.role === "SYS_ADMIN"}
-                            title={emp.role === "SYS_ADMIN" ? "لا يمكن حذف حساب مدير النظام الفيدرالي" : ""}
+                            title={emp.role === "SYS_ADMIN" ? "لا يمكن حذف حساب مدير النظام" : ""}
                             className="p-1 text-red-600 hover:bg-red-50 rounded-md transition-all shrink-0 disabled:opacity-40 cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1056,7 +1056,7 @@ export default function OrgChart() {
                 <ArrowRightLeft className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-extrabold text-base text-gray-900">أداة الحوكمة لنقل وتفويض الأعمال الإلكترونية بين الكوادر</h3>
+                <h3 className="font-extrabold text-base text-gray-900">نقل وتفويض الأعمال الإلكترونية بين الموظفين</h3>
                 <p className="text-[11px] text-gray-400 font-bold mt-1 leading-relaxed">
                   نظام حوكمة تلقائي يعمل بمجرد اختيار الموظف المُراد نقل مسؤولياته والموظف المستلم. ستقوم هذه الأداة تلقائياً بالبحث وتعديل وتفويض اللجان والمهام باسم الكادر الجديد.
                 </p>
@@ -1260,7 +1260,7 @@ export default function OrgChart() {
                 <div className="text-amber-900 font-extrabold text-xs space-y-1">
                   <span>تنفيذ آمن وإقرار إداري:</span>
                   <p className="text-[10.5px] text-amber-800 font-bold leading-relaxed">
-                    هذا الخيار سوف يعيد تخصيص كافة الأعمال والمهام المختارة لصالح الكادر المستلم مع تدوين العملية تلقائياً في السجل الفيدرالي لمراقبة عمليات النظام بغرفة مكة المكرمة لحمايتها من الانقطاع.
+                    هذا الخيار سوف يعيد تخصيص كافة الأعمال والمهام المختارة لصالح الكادر المستلم مع تدوين العملية تلقائياً في السجل لمراقبة عمليات النظام بغرفة مكة المكرمة لحمايتها من الانقطاع.
                   </p>
                 </div>
               </div>
@@ -1388,9 +1388,9 @@ export default function OrgChart() {
                       onChange={(e) => setWhitelistRoleAr(e.target.value)}
                       className="h-10 px-3 bg-white border border-gray-300 rounded-xl text-xs font-extrabold outline-none focus:ring-2 focus:ring-blue-500 select-none cursor-pointer flex-grow"
                     >
-                      <option value="أخصائي لجان قطاعية">أخصائي لجان قطاعية</option>
+                      <option value="أخصائي لجان">أخصائي لجان</option>
                       <option value="رئيس قسم لجان">رئيس قسم لجان</option>
-                      <option value="أخصائي لجان وتنسيق فعاليات">أخصائي لجان وتنسيق فعاليات</option>
+                                            <option value="مدير إدارة اللجان">مدير إدارة اللجان</option>
                     </select>
                     
                     <button
@@ -1457,19 +1457,19 @@ export default function OrgChart() {
               </span>
             </div>
 
-            {/* ركن التصفير وإعادة الضبط السحابي الشامل لمدير النظام */}
+            {/* إعادة الضبط الشامل للنظام */}
             {currentUserRole === "SYS_ADMIN" && (
               <div className="bg-red-50 border border-red-200 rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-right">
                 <div className="space-y-1">
                   <h4 className="font-black text-red-800 text-xs sm:text-sm flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping shrink-0"></span>
-                    لوحة السيطرة التامة وإعادة تهيئة النظام بالكامل (سحابياً ومحلياً)
+                    إعادة تهيئة النظام بالكامل (سحابياً ومحلياً)
                   </h4>
                   <p className="text-xs text-red-700 font-bold">
-                    سيقوم هذا الإجراء الاختياري بحذف وتطهير كافة اللجان، الأعضاء، الاجتماعات والفعاليات، التوصيات، المهام، البلاغات والتقارير المدرجة مسبقاً في قاعدة بيانات النظام السحابية ومستودع المتصفح بالكامل.
+                    سيقوم هذا الإجراء الاختياري بحذف كافة اللجان، الأعضاء، الاجتماعات والفعاليات، التوصيات، المهام، والتقارير المدرجة مسبقاً في قاعدة بيانات النظام السحابية ومستودع المتصفح بالكامل.
                   </p>
                   <p className="text-[10px] text-red-600 font-black">
-                    * سيتم الحفاظ التام والآمن على حسابك الإداري الحالي لضمان استمرارية تسجيل دخولك دون انقطاع.
+                    * سيتم الحفاظ على استمرارية تسجيل دخولك دون انقطاع.
                   </p>
                 </div>
                 <button
@@ -1482,7 +1482,7 @@ export default function OrgChart() {
                   className="bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-black px-5 py-2.5 rounded-xl border border-red-700 shadow-md hover:shadow-lg transition-all shrink-0 flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4 shrink-0" />
-                  تطهير وتصفير قاعدة البيانات بالكامل والبدء بنسخة خاوية
+                  إعادة بناء النظام بالكامل
                 </button>
               </div>
             )}
@@ -1633,7 +1633,7 @@ export default function OrgChart() {
                     <input
                       type="text"
                       required
-                      placeholder="عبدالله محمد آل سعود"
+                      placeholder="خالد إبراهيم مدني"
                       value={formName}
                       onChange={(e) => setFormName(e.target.value)}
                       className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-right outline-none transition-all"
@@ -1642,7 +1642,7 @@ export default function OrgChart() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-black text-gray-700">الرتبة الصلاحيتية بالنظام <span className="text-red-500">*</span></label>
+                  <label className="block text-xs font-black text-gray-700">الصلاحيات في النظام <span className="text-red-500">*</span></label>
                   <select
                     value={formRole}
                     onChange={(e) => setFormRole(e.target.value as any)}
@@ -1698,7 +1698,7 @@ export default function OrgChart() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-black text-gray-700">رقم الجوال الفعال <span className="text-red-500">*</span></label>
+                    <label className="block text-xs font-black text-gray-700">رقم الجوال <span className="text-red-500">*</span></label>
                     <input
                       type="text"
                       required
@@ -1736,7 +1736,7 @@ export default function OrgChart() {
 
                 {/* Drag and drop profile picture upload */}
                 <div className="space-y-1.5 text-right">
-                  <label className="block text-xs font-black text-gray-700">أرفق صورة الموظف الكادر</label>
+                  <label className="block text-xs font-black text-gray-700">صورة الموظف</label>
                   <div
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={(e) => {
@@ -1789,7 +1789,7 @@ export default function OrgChart() {
                             className="w-16 h-16 rounded-full object-cover border border-emerald-300 shadow-sm" 
                           />
                           <p className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100 px-2 py-0.5 rounded-full">
-                            ✓ تم تحميل صورة الكادر بنجاح
+                            ✓ تم تحميل الصورة بنجاح
                           </p>
                           <p className="text-[10px] text-gray-500 font-bold">انقر أو اسحب صورة أخرى للاستبدال</p>
                         </div>
@@ -2063,8 +2063,8 @@ export default function OrgChart() {
               {!purgeSuccess ? (
                 <>
                   <div className="space-y-3 font-semibold text-xs text-slate-750 line-clamp-none bg-red-50/50 border border-red-100 p-4 rounded-2xl leading-relaxed text-right">
-                    <p className="font-black text-red-800 text-sm">أنت على وشك تطهير كافة بيانات النظام سحابياً ومحلياً!</p>
-                    <p>سيقوم هذا الإجراء فورياً بمسح وتصفير العناصر التالية:</p>
+                    <p className="font-black text-red-800 text-sm">أنت على وشك حذف كافة بيانات النظام سحابياً ومحلياً!</p>
+                    <p>سيقوم هذا الإجراء فورياً بمسح العناصر التالية:</p>
                     <ul className="list-disc leading-loose list-inside pr-2 font-bold space-y-1 text-slate-750">
                       <li>اللجان القطاعية وتفويضاتها بالكامل</li>
                       <li>جميع أعضاء اللجان والمستخدمين الخارجيين</li>
@@ -2074,7 +2074,7 @@ export default function OrgChart() {
                       <li>مهام العمل وسجلات المراقبة والتنبيهات الأمنية</li>
                     </ul>
                     <p className="text-[10px] text-red-650 font-black mt-2">
-                       * سيتم استثناء حساب المشرف الإداري الفيدرالي الحالي لتظل متصلاً بالنظام.
+                       * سيتم استثناء حساب المشرف الإداري الحالي لتظل متصلاً بالنظام.
                     </p>
                   </div>
 
@@ -2116,7 +2116,7 @@ export default function OrgChart() {
                     <Check className="w-7 h-7 stroke-[3]" />
                   </div>
                   <div className="space-y-1.5">
-                    <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">تم تطهير وتصفير قاعدة البيانات بنجاح!</h4>
+                    <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">تم مسح قاعدة البيانات بنجاح!</h4>
                     <p className="text-xs text-gray-500 font-medium">أصبح المشروع خاماً وجديداً بنسبة مائة بالمائة كلياً.</p>
                   </div>
                   <button
