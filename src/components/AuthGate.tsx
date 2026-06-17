@@ -248,11 +248,19 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
         
         {/* Header Branding */}
         <div className="text-center mb-8">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-sky-500 via-sky-600 to-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-sky-500/20 mb-4 ring-4 ring-slate-800">
-            <Sparkles className="w-8 h-8 text-white animate-pulse" />
+          <div className="mx-auto w-24 h-24 bg-white rounded-2xl flex items-center justify-center shadow-lg shadow-black/10 mb-4 ring-4 ring-slate-800 p-2.5 overflow-hidden">
+            <img 
+              src="https://lh3.googleusercontent.com/d/1pAVRkqNXJmtVRpCl1fy3wuQS6hpmJPKt" 
+              alt="شعار غرفة مكة المكرمة"
+              className="w-full h-full object-contain"
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = "https://drive.google.com/thumbnail?id=1pAVRkqNXJmtVRpCl1fy3wuQS6hpmJPKt&sz=w500";
+              }}
+            />
           </div>
-          <h1 className="text-xl sm:text-2xl font-black text-white leading-tight">منصة إدارة اللجان والفعاليات</h1>
-          <p className="text-xs text-slate-400 mt-2 font-medium animate-fadeIn">الغرفة التجارية بمكة المكرمة - نظام تشغيل وإدارة مستقل ومؤتمت بالكامل</p>
+          <h1 className="font-black text-white leading-tight" style={{ fontSize: "22px" }}>التقرير الذكي لإدارة اللجان القطاعية</h1>
+          <p className="text-slate-400 mt-2 font-medium animate-fadeIn" style={{ fontSize: "18px" }}>غرفة مكة المكرمة</p>
         </div>
 
         {/* Action Tabs Selector */}
@@ -302,27 +310,18 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
         {activeTab === "login" && (
           <form onSubmit={handleEmailLogin} className="space-y-5 animate-fadeIn">
             <div className="bg-slate-800/60 border border-slate-700/40 rounded-2xl p-4 text-xs font-bold leading-relaxed text-slate-300">
-              <span className="text-sky-400 font-extrabold">ℹ️ حوكمة الدخول والمصادقة الرقمية:</span>
+              <span className="text-sky-400 font-extrabold">ℹ️ الدخول والمصادقة الرقمية:</span>
               <p className="mt-1.5 text-slate-450 leading-normal text-[11px] font-semibold">
-                تم الاستغناء عن روابط Google الخارجية بالكامل لضمان تشغيل ومزامنة آمنة بنسبة 100%. 
                 يرجى إدخال البريد الإلكتروني الرسمي المفعل لديك بالنظام.
               </p>
               <div className="mt-3 pt-2.5 border-t border-slate-700/30 flex flex-wrap gap-2 text-[10px] text-slate-400">
-                <span>مثال لحساب مسؤول النظام:</span>
+                <span>الحساب المستخدم:</span>
                 <button 
                   type="button"
-                  onClick={() => setLoginEmail("khalafshehab@gmail.com")}
-                  className="px-2 py-0.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 rounded-md border border-sky-400/20 transition-all font-mono"
+                  onClick={() => setLoginEmail("X.XXXX@makkahchamber.sa")}
+                  className="px-2 py-0.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 rounded-md border border-sky-400/20 transition-all font-mono cursor-pointer"
                 >
-                  khalafshehab@gmail.com
-                </button>
-                <span className="mt-1">أو حساب أخصائي لجان:</span>
-                <button 
-                  type="button"
-                  onClick={() => setLoginEmail("sales@makkahchamber.sa")}
-                  className="px-2 py-0.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 rounded-md border border-sky-400/20 transition-all font-mono"
-                >
-                  sales@makkahchamber.sa
+                  X.XXXX@makkahchamber.sa
                 </button>
               </div>
             </div>
@@ -335,7 +334,7 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
                   required
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
-                  placeholder="name@makkahchamber.sa"
+                  placeholder="X.XXXX@makkahchamber.sa"
                   className="w-full bg-slate-800 border border-slate-700/60 rounded-xl px-4 py-2.5 pr-10 text-slate-100 text-xs text-left focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-medium"
                   dir="ltr"
                 />
@@ -365,19 +364,19 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
           <form onSubmit={handleRegisterInput} className="space-y-4 animate-fadeIn">
             <div className="p-3 bg-sky-500/10 border border-sky-500/20 text-sky-400 rounded-2xl text-[10px] sm:text-[11px] font-bold leading-relaxed mb-2.5">
               💡 <span className="text-white font-extrabold">تقديم طلب انضمام موظف جديد:</span> 
-              سيتم تسجيل بياناتك ورفعها مباشرة للوحة تدقيق الهيكل التنظيمي والرقابة. بمجرد موافقة مدير النظام، ستتمكن فوراً من تسجيل الدخول ببريدك المدخل.
+               سيتم إرسال طلب تسجيل حساب جديد إلى مدير النظام، وستتمكن من الدخول فور الموافقة على الطلب.
             </div>
 
             {/* Full Name */}
             <div>
-              <label className="block text-[11px] text-slate-400 font-extrabold mb-1.5 text-right">الاسم الثلاثي واللقب</label>
+              <label className="block text-[11px] text-slate-400 font-extrabold mb-1.5 text-right">الاسم الثلاثي</label>
               <div className="relative">
                 <input
                   type="text"
                   required
                   value={regName}
                   onChange={(e) => setRegName(e.target.value)}
-                  placeholder="مثال: صالح بن محمد الحربي"
+                  placeholder="مثال: خالد بن إبراهيم مدني"
                   className="w-full bg-slate-800 border border-slate-700/60 rounded-xl px-4 py-2.5 pr-10 text-slate-100 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-bold transition-all text-right"
                 />
                 <User className="absolute top-3 right-3 text-slate-500 w-4.5 h-4.5 shrink-0" />
@@ -386,14 +385,14 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
 
             {/* Mobile number */}
             <div>
-              <label className="block text-[11px] text-slate-400 font-extrabold mb-1.5 text-right">رقم الجوال الخاص بالعمل</label>
+              <label className="block text-[11px] text-slate-400 font-extrabold mb-1.5 text-right">رقم الجوال</label>
               <div className="relative">
                 <input
                   type="tel"
                   required
                   value={regPhone}
                   onChange={(e) => setRegPhone(e.target.value)}
-                  placeholder="05xxxxxxxx"
+                  placeholder="+9665xxxxxxxx"
                   className="w-full bg-slate-800 border border-slate-700/60 rounded-xl px-4 py-2.5 pr-10 text-slate-100 text-xs text-left focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-medium"
                   dir="ltr"
                 />
@@ -403,14 +402,14 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
 
             {/* Email Address */}
             <div>
-              <label className="block text-[11px] text-slate-400 font-extrabold mb-1.5 text-right">البريد الإلكتروني المخصص</label>
+              <label className="block text-[11px] text-slate-400 font-extrabold mb-1.5 text-right">البريد الإلكتروني</label>
               <div className="relative">
                 <input
                   type="email"
                   required
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
-                  placeholder="name@makkahchamber.sa"
+                  placeholder="X.XXXX@makkahchamber.sa"
                   className="w-full bg-slate-800 border border-slate-700/60 rounded-xl px-4 py-2.5 pr-10 text-slate-100 text-xs text-left focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-medium"
                   dir="ltr"
                 />
@@ -429,7 +428,7 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
               ) : (
                 <>
                   <CheckCircle className="w-4 h-4" />
-                  إرسال وتدقيق طلب الانضمام
+                  إرسال طلب الانضمام
                 </>
               )}
             </button>
@@ -438,7 +437,7 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
 
         {/* Footer info */}
         <div className="text-center mt-6 text-[10px] text-slate-500 font-bold border-t border-slate-800 pt-4">
-          © {new Date().getFullYear()} الغرفة التجارية بمكة المكرمة. جميع الحقوق معتمدة ومحفوظة.
+          © {new Date().getFullYear()} جميع الحقوق محفوظة - غرفة مكة المكرمة
         </div>
       </div>
     </div>

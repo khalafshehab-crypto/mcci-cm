@@ -159,8 +159,16 @@ export default function Layout({ children }: LayoutProps) {
             onClick={() => toggleDropdown('menu')}
             className={`flex items-center gap-3 p-3 bg-white transition-all cursor-pointer w-full text-right ${activeDropdown === 'menu' ? 'rounded-t-2xl shadow-none' : 'rounded-2xl shadow-sm'}`}
           >
-            <div className="bg-brand p-2.5 rounded-xl text-white shadow-lg shadow-brand/20 flex-shrink-0">
-              <Menu className="w-5 h-5" />
+            <div className="w-11 h-11 bg-white rounded-xl shadow-md border border-gray-100 flex items-center justify-center p-1 flex-shrink-0 overflow-hidden">
+              <img 
+                src="https://lh3.googleusercontent.com/d/1pAVRkqNXJmtVRpCl1fy3wuQS6hpmJPKt" 
+                alt="شعار غرفة مكة"
+                className="w-full h-full object-contain"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "https://drive.google.com/thumbnail?id=1pAVRkqNXJmtVRpCl1fy3wuQS6hpmJPKt&sz=w500";
+                }}
+              />
             </div>
             <div className="flex-grow overflow-hidden text-right">
               <h1 className="font-extrabold text-base leading-tight truncate text-gray-900">إدارة اللجان</h1>
