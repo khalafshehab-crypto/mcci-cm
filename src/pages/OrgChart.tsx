@@ -90,6 +90,19 @@ export interface SystemLog {
 export default function OrgChart() {
   const [activeTab, setActiveTab] = useState<"hierarchy" | "transfer" | "approvals" | "logs">("hierarchy");
 
+  // Find current user's role
+  const getLoggedInUser = () => {
+    try {
+      const stored = localStorage.getItem("current_user");
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (_) {}
+    return null;
+  };
+  const currentUser = getLoggedInUser();
+  const currentUserRole = currentUser?.role || "SPECIALIST";
+
   // Load state and collections from Firestore / offline sandbox
   const { data: dbEmployees, addDocument: addFirebaseEmp, updateDocument: updateFirebaseEmp, deleteDocument: deleteFirebaseEmp } = useFirestoreCollection<Employee>("employees", []);
   const { data: dbJoinRequests, addDocument: addFirebaseReq, deleteDocument: deleteFirebaseReq } = useFirestoreCollection<JoinRequest>("join_requests", []);
@@ -123,6 +136,13 @@ export default function OrgChart() {
   const [formPassword, setFormPassword] = useState("");
   const [formCommittees, setFormCommittees] = useState<string[]>([]);
   const [originalEditId, setOriginalEditId] = useState("");
+
+  // Restrict tabs for non-SYS_ADMIN users
+  useEffect(() => {
+    if (currentUserRole !== "SYS_ADMIN" && activeTab !== "hierarchy") {
+      setActiveTab("hierarchy");
+    }
+  }, [currentUserRole, activeTab]);
   
   // Whitelist Email state fields
   const [whitelistEmailStr, setWhitelistEmailStr] = useState("");
@@ -207,6 +227,20 @@ export default function OrgChart() {
       return;
     }
 
+    // Role, permission and security checks
+    if (currentUserRole !== "SYS_ADMIN") {
+      if (!isEditing) {
+        alert("عذراً، لا تملك الصلاحية لإضافة موظفين جدد للنظام.");
+        return;
+      }
+      if (originalEditId !== currentUser?.id) {
+        alert("عذراً، يمكنك فقط تعديل بيانات ملفك الشخصي فقط، ولا تملك صلاحية تعديل بيانات موظف آخر.");
+        return;
+      }
+    }
+
+    const originalEmp = dbEmployees.find(emp => emp.id === (isEditing ? originalEditId : formId));
+
     const roleMapper: Record<string, string> = {
       SYS_ADMIN: "مدير النظام",
       MANAG_DIR: "مدير إدارة اللجان",
@@ -216,14 +250,14 @@ export default function OrgChart() {
 
     const payload: Omit<Employee, 'id'> = {
       name: formName,
-      role: formRole,
-      roleAr: roleMapper[formRole] || "أخصائي اللجان",
+      role: isEditing && currentUserRole !== "SYS_ADMIN" && originalEmp ? originalEmp.role : formRole,
+      roleAr: isEditing && currentUserRole !== "SYS_ADMIN" && originalEmp ? originalEmp.roleAr : (roleMapper[formRole] || "أخصائي اللجان"),
       jobTitle: formJobTitle,
       phone: formPhone,
       extension: formExtension,
       email: formEmail,
       photo: formPhoto,
-      active: formActive,
+      active: isEditing && currentUserRole !== "SYS_ADMIN" && originalEmp ? originalEmp.active : formActive,
       committees: formCommittees,
       joinDate: isEditing ? (dbEmployees.find(emp => emp.id === originalEditId)?.joinDate || new Date().toISOString().split('T')[0].replace(/-/g, '/')) : new Date().toISOString().split('T')[0].replace(/-/g, '/'),
       password: formPassword
@@ -293,6 +327,10 @@ export default function OrgChart() {
 
   // Toggle active status straight from card
   const handleToggleActiveStatus = async (emp: Employee) => {
+    if (currentUserRole !== "SYS_ADMIN") {
+      alert("عذراً، تقتصر صلاحية تغيير حالة حساب الموظف (نشط/غير نشط) على مدير النظام فقط.");
+      return;
+    }
     const nextState = !emp.active;
     try {
       await updateFirebaseEmp(emp.id, { active: nextState });
@@ -307,6 +345,10 @@ export default function OrgChart() {
 
   // Delete employee
   const handleDeleteEmployee = async (emp: Employee) => {
+    if (currentUserRole !== "SYS_ADMIN") {
+      alert("عذراً، لا تملك الصلاحية لحذف الموظف. تقتصر هذه العملية على مدير النظام فقط.");
+      return;
+    }
     if (!window.confirm(`هل أنت متأكد تماماً من حذف الموظف [${emp.name}] من قاعدة بيانات الهيكل الغرفي؟`)) {
       return;
     }
@@ -514,19 +556,6 @@ export default function OrgChart() {
     }
   };
 
-  // Find current user's role
-  const getLoggedInUser = () => {
-    try {
-      const stored = localStorage.getItem("current_user");
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (_) {}
-    return null;
-  };
-  const currentUser = getLoggedInUser();
-  const currentUserRole = currentUser?.role || "SPECIALIST";
-
   // Filter out SYS_ADMIN accounts if logged-in user is not SYS_ADMIN
   const visibleEmployees = dbEmployees.filter(emp => {
     if (emp.role === "SYS_ADMIN" && currentUserRole !== "SYS_ADMIN") {
@@ -573,13 +602,15 @@ export default function OrgChart() {
             البوابة المتكاملة للتحكم برتب الموظفين، التحويل الفوري لحالة الكادر (نشط/غير نشط)، تفويض ونقل حزم اللجان والمهام، ومراقبة تتبع العمليات والاعتمادات في الغرفة.
           </p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs h-11 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-500/10 shrink-0 cursor-pointer"
-        >
-          <Plus className="w-4 h-4 shrink-0" />
-          <span>إضافة موظف معتمد جديد</span>
-        </button>
+        {currentUserRole === "SYS_ADMIN" && (
+          <button
+            onClick={openAddModal}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs h-11 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-500/10 shrink-0 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 shrink-0" />
+            <span>إضافة موظف معتمد جديد</span>
+          </button>
+        )}
       </div>
 
       {/* 2. TABBED DEVIATION CONTROLS */}
@@ -593,33 +624,38 @@ export default function OrgChart() {
           <Users className="w-4 h-4 shrink-0" />
           <span>الهيكل الوظيفي والموظفين</span>
         </button>
-        <button
-          onClick={() => setActiveTab("transfer")}
-          className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === "transfer" ? "bg-slate-900 text-white shadow-sm" : "bg-white text-gray-500 border border-gray-200 hover:text-gray-900"
-          }`}
-        >
-          <ArrowRightLeft className="w-4 h-4 shrink-0" />
-          <span>نقل وتفويض الأعمال والمهمات ⇄</span>
-        </button>
-        <button
-          onClick={() => setActiveTab("approvals")}
-          className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === "approvals" ? "bg-slate-900 text-white shadow-sm animate-pulse" : "bg-white text-gray-500 border border-gray-200 hover:text-gray-900"
-          }`}
-        >
-          <UserCheck className="w-4 h-4 shrink-0" />
-          <span>اعتماد الموظفين والبريد Whitelist</span>
-        </button>
-        <button
-          onClick={() => setActiveTab("logs")}
-          className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === "logs" ? "bg-slate-900 text-white shadow-sm" : "bg-white text-gray-500 border border-gray-200 hover:text-gray-900"
-          }`}
-        >
-          <Activity className="w-4 h-4 shrink-0" />
-          <span>سجل مراقبة النظام والعمليات</span>
-        </button>
+
+        {currentUserRole === "SYS_ADMIN" && (
+          <>
+            <button
+              onClick={() => setActiveTab("transfer")}
+              className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === "transfer" ? "bg-slate-900 text-white shadow-sm" : "bg-white text-gray-500 border border-gray-200 hover:text-gray-900"
+              }`}
+            >
+              <ArrowRightLeft className="w-4 h-4 shrink-0" />
+              <span>نقل وتفويض الأعمال والمهمات ⇄</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("approvals")}
+              className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === "approvals" ? "bg-slate-900 text-white shadow-sm animate-pulse" : "bg-white text-gray-500 border border-gray-200 hover:text-gray-900"
+              }`}
+            >
+              <UserCheck className="w-4 h-4 shrink-0" />
+              <span>اعتماد الموظفين والبريد Whitelist</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("logs")}
+              className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === "logs" ? "bg-slate-900 text-white shadow-sm" : "bg-white text-gray-500 border border-gray-200 hover:text-gray-900"
+              }`}
+            >
+              <Activity className="w-4 h-4 shrink-0" />
+              <span>سجل مراقبة النظام والعمليات</span>
+            </button>
+          </>
+        )}
       </div>
 
       {/* 3. MULTI-TAB DISPLAY PANEL */}
@@ -690,18 +726,31 @@ export default function OrgChart() {
                   >
                     {/* Active toggle capsule on upper left */}
                     <div className="absolute left-3 top-3 z-10">
-                      <button
-                        onClick={() => handleToggleActiveStatus(emp)}
-                        title={emp.active ? "انقر لتحويل الموظف إلى حالة غير نشطة" : "انقر لتنشيط حساب الموظف"}
-                        className={`text-[9.5px] font-black px-2 py-1 rounded-md shadow-sm transition-all flex items-center gap-1.5 cursor-pointer ${
-                          emp.active 
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100" 
-                            : "bg-red-100 text-red-700 border border-red-200 hover:bg-red-150"
-                        }`}
-                      >
-                        <span className={`w-1.5 h-1.5 rounded-full ${emp.active ? "bg-emerald-500" : "bg-red-500 animate-ping"}`} />
-                        <span>{emp.active ? "نشط" : "غير نشط"}</span>
-                      </button>
+                      {currentUserRole === "SYS_ADMIN" ? (
+                        <button
+                          onClick={() => handleToggleActiveStatus(emp)}
+                          title={emp.active ? "انقر لتحويل الموظف إلى حالة غير نشطة" : "انقر لتنشيط حساب الموظف"}
+                          className={`text-[9.5px] font-black px-2 py-1 rounded-md shadow-sm transition-all flex items-center gap-1.5 cursor-pointer ${
+                            emp.active 
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100" 
+                              : "bg-red-100 text-red-700 border border-red-200 hover:bg-red-150"
+                          }`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${emp.active ? "bg-emerald-500" : "bg-red-500 animate-ping"}`} />
+                          <span>{emp.active ? "نشط" : "غير نشط"}</span>
+                        </button>
+                      ) : (
+                        <div
+                          className={`text-[9.5px] font-black px-2 py-1 rounded-md shadow-sm flex items-center gap-1.5 ${
+                            emp.active 
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-100" 
+                              : "bg-red-50 text-red-700 border border-red-105"
+                          }`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${emp.active ? "bg-emerald-500" : "bg-red-500"}`} />
+                          <span>{emp.active ? "نشط" : "غير نشط"}</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Card Inner elements */}
@@ -753,27 +802,31 @@ export default function OrgChart() {
                       </div>
                       
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEditModal(emp);
-                          }}
-                          className="p-1 px-2 border border-gray-250 bg-white hover:bg-blue-50/50 hover:text-blue-600 rounded-md transition-all text-[10px] font-bold shrink-0 flex items-center gap-1 cursor-pointer"
-                        >
-                          <Edit2 className="w-3 h-3" />
-                          <span>تعديل</span>
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteEmployee(emp);
-                          }}
-                          disabled={emp.role === "SYS_ADMIN"}
-                          title={emp.role === "SYS_ADMIN" ? "لا يمكن حذف حساب مدير النظام الفيدرالي" : ""}
-                          className="p-1 text-red-600 hover:bg-red-50 rounded-md transition-all shrink-0 disabled:opacity-40 cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {(currentUserRole === "SYS_ADMIN" || emp.id === currentUser?.id) && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditModal(emp);
+                            }}
+                            className="p-1 px-2 border border-gray-250 bg-white hover:bg-blue-50/50 hover:text-blue-600 rounded-md transition-all text-[10px] font-bold shrink-0 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                            <span>تعديل</span>
+                          </button>
+                        )}
+                        {currentUserRole === "SYS_ADMIN" && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteEmployee(emp);
+                            }}
+                            disabled={emp.role === "SYS_ADMIN"}
+                            title={emp.role === "SYS_ADMIN" ? "لا يمكن حذف حساب مدير النظام الفيدرالي" : ""}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded-md transition-all shrink-0 disabled:opacity-40 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
 
