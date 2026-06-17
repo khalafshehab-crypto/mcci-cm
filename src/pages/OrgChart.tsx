@@ -1341,85 +1341,100 @@ export default function OrgChart() {
       {/* ========================================================== */}
       <AnimatePresence>
         {showFormModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div className="fixed inset-0" onClick={() => setShowFormModal(false)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+            {/* Dark background overlay with scale fade */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowFormModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
             
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-3xl border border-gray-300 shadow-2xl max-w-lg w-full relative z-10 text-right overflow-hidden"
+              initial={{ scale: 0.9, y: 15, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.9, y: 15, opacity: 0 }}
+              transition={{ type: "spring", damping: 20, stiffness: 280 }}
+              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right"
             >
-              {/* Modal header details */}
-              <div className="bg-slate-900 text-white p-5 flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-amber-400 shrink-0" />
-                  <h3 className="font-extrabold text-sm">{isEditing ? "تعديل ملف الموظف المشرف" : "إدراج كادر جديد للهيكل الوظيفي"}</h3>
+              {/* Header block with solid header representation - identical to Committees */}
+              <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-600 text-white rounded-xl">
+                    {isEditing ? <Edit2 className="w-5 h-5 stroke-[2.5]" /> : <Plus className="w-5 h-5 stroke-[2.5]" />}
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-gray-900 text-sm leading-tight">
+                      {isEditing ? `تعديل ملف الموظف: ${formName || "الكادر"}` : "إدراج كادر جديد للهيكل الوظيفي"}
+                    </h3>
+                    <p className="text-xs text-gray-500 font-medium">يرجى التأكد من تسجيل البيانات بعناية لربطها بالنظام</p>
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowFormModal(false)}
-                  className="p-1 text-gray-400 hover:text-white transition-all cursor-pointer"
+                  className="p-1.5 hover:bg-gray-200/50 text-gray-500 rounded-lg transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               {/* Modal body form */}
-              <form onSubmit={handleSaveEmployee} className="p-6 space-y-4 leading-normal font-sans text-xs">
+              <form onSubmit={handleSaveEmployee} className="p-6 space-y-4">
                 
-                <div className="bg-blue-50/50 border border-blue-150 p-3 rounded-xl flex items-center gap-3">
+                <div className="bg-blue-50/50 border border-blue-150 p-3.5 rounded-2xl flex items-center gap-3">
                   <span className="text-xl">👤</span>
                   <div>
-                    <span className="font-extrabold text-blue-900">ملف الكادر الشخصي</span>
-                    <p className="text-[10px] text-gray-400 font-bold">يرجى التأكد من مطابقة بيانات الهيكل للبيانات الرسمية بالغرفة.</p>
+                    <span className="font-extrabold text-blue-900 block text-xs">ملف الكادر الشخصي الرسمي</span>
+                    <p className="text-[10px] text-gray-400 font-bold leading-none mt-0.5">يرجى التأكد من مطابقة بيانات الهيكل للبيانات المعتمدة بالغرفة.</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3.5">
-                  <div className="space-y-1">
-                    <span className="font-black text-slate-800">الرقم الوظيفي (ID):</span>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-black text-gray-700">الرقم الوظيفي (ID) <span className="text-red-500">*</span></label>
                     <input
                       type="text"
                       required
                       value={formId}
                       onChange={(e) => setFormId(e.target.value)}
-                      className="w-full h-10 px-3 bg-white border border-gray-350 rounded-xl text-xs font-black outline-none focus:ring-2 focus:ring-blue-500 text-right"
+                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-right outline-none transition-all"
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <span className="font-black text-slate-800">الاسم الثلاثي للموظف:</span>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-black text-gray-700">الاسم الثلاثي للموظف <span className="text-red-500">*</span></label>
                     <input
                       type="text"
                       required
                       placeholder="عبدالله محمد آل سعود"
                       value={formName}
                       onChange={(e) => setFormName(e.target.value)}
-                      className="w-full h-10 px-3 bg-white border border-gray-350 rounded-xl text-xs font-black outline-none focus:ring-2 focus:ring-blue-500 text-right"
+                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-right outline-none transition-all"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3.5">
-                  <div className="space-y-1">
-                    <span className="font-black text-slate-800">المسمى الوظيفي العلمي:</span>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-black text-gray-700">المسمى الوظيفي العملي <span className="text-red-500">*</span></label>
                     <input
                       type="text"
                       required
                       placeholder="أخصائي لجان قطاعية أول"
                       value={formJobTitle}
                       onChange={(e) => setFormJobTitle(e.target.value)}
-                      className="w-full h-10 px-3 bg-white border border-gray-350 rounded-xl text-xs font-black outline-none focus:ring-2 focus:ring-blue-500 text-right"
+                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-right outline-none transition-all"
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <span className="font-black text-slate-800">الرتبة الصلاحيتية بالسيستم:</span>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-black text-gray-700">الرتبة الصلاحيتية بالنظام <span className="text-red-500">*</span></label>
                     <select
                       value={formRole}
                       onChange={(e) => setFormRole(e.target.value as any)}
-                      className="w-full h-10 px-3 bg-white border border-gray-350 rounded-xl text-xs font-extrabold outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-3 text-xs font-black text-right focus:ring-2 focus:ring-blue-500/20 outline-none transition-all cursor-pointer"
                     >
                       <option value="SPECIALIST">أخصائي لجان (SPECIALIST)</option>
                       <option value="DEPT_HEAD">رئيس قسم لجان (DEPT_HEAD)</option>
@@ -1429,59 +1444,59 @@ export default function OrgChart() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3.5">
-                  <div className="space-y-1">
-                    <span className="font-black text-slate-800">البريد الإلكتروني للغرفة:</span>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-black text-gray-700">البريد الإلكتروني للغرفة <span className="text-red-500">*</span></label>
                     <input
                       type="email"
                       required
                       placeholder="abdullah@makkahchamber.sa"
                       value={formEmail}
                       onChange={(e) => setFormEmail(e.target.value)}
-                      className="w-full h-10 px-3 bg-white border border-gray-350 rounded-xl text-xs font-black outline-none focus:ring-2 focus:ring-blue-500 text-left font-mono"
+                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-left font-mono outline-none transition-all"
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <span className="font-black text-slate-800">رقم الجوال الفعال:</span>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-black text-gray-700">رقم الجوال الفعال <span className="text-red-500">*</span></label>
                     <input
                       type="text"
                       required
                       placeholder="+966500000000"
                       value={formPhone}
                       onChange={(e) => setFormPhone(e.target.value)}
-                      className="w-full h-10 px-3 bg-white border border-gray-350 rounded-xl text-xs font-black outline-none focus:ring-2 focus:ring-blue-500 text-left font-mono"
+                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-left font-mono outline-none transition-all"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3.5">
-                  <div className="space-y-1">
-                    <span className="font-black text-slate-800">التحويلة الداخلية (اختياري):</span>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-black text-gray-700">التحويلة الداخلية (اختياري)</label>
                     <input
                       type="text"
                       placeholder="104"
                       value={formExtension}
                       onChange={(e) => setFormExtension(e.target.value)}
-                      className="w-full h-10 px-3 bg-white border border-gray-350 rounded-xl text-xs font-black outline-none focus:ring-2 focus:ring-blue-500 text-left font-mono"
+                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-left font-mono outline-none transition-all"
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <span className="font-black text-slate-800">كلمة المرور المشفرة:</span>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-black text-gray-700">كلمة المرور المشفرة <span className="text-red-500">*</span></label>
                     <input
                       type="text"
                       required
                       value={formPassword}
                       onChange={(e) => setFormPassword(e.target.value)}
-                      className="w-full h-10 px-3 bg-white border border-gray-350 rounded-xl text-xs font-black outline-none focus:ring-2 focus:ring-blue-500 text-left font-mono"
+                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-left font-mono outline-none transition-all"
                     />
                   </div>
                 </div>
 
                 {/* Avatar presets selector zone */}
                 <div className="space-y-2">
-                  <span className="font-black text-slate-800 block">اختر الصورة التمثيلية للكادر:</span>
+                  <label className="block text-xs font-black text-gray-700">اختر الصورة التمثيلية للكادر</label>
                   <div className="flex gap-2 justify-start overflow-x-auto py-1">
                     {PRESET_AVATARS.map((av, index) => (
                       <img
@@ -1498,10 +1513,10 @@ export default function OrgChart() {
                 </div>
 
                 {/* Active switch slider */}
-                <div className="bg-slate-50 p-3 rounded-xl border border-gray-200 flex justify-between items-center">
+                <div className="bg-slate-50 p-3.5 rounded-2xl border border-gray-200 flex justify-between items-center text-right">
                   <div>
-                    <span className="font-black text-slate-900 block">هل الحساب فعال ومصرح باستخدامه؟</span>
-                    <span className="text-[10px] text-gray-400 font-bold">الموظف غير الفعال سيتم منعه من تحرير وتوقيع محاضر اللجان تلقائياً.</span>
+                    <span className="font-black text-slate-800 block text-xs">هل الحساب فعال ومصرح باستخدامه؟</span>
+                    <span className="text-[10px] text-gray-400 font-bold leading-normal">الموظف غير الفعال سيتم منعه من تحرير وتوقيع محاضر اللجان تلقائياً.</span>
                   </div>
                   <button
                     type="button"
@@ -1515,12 +1530,12 @@ export default function OrgChart() {
                 </div>
 
                 {/* ربط الموظف باللجان الفعالة */}
-                <div className="space-y-1.5">
-                  <span className="font-black text-slate-800 block">ربط الموظف باللجان الفعالة:</span>
+                <div className="space-y-1.5 text-right">
+                  <label className="block text-xs font-black text-gray-700">ربط الموظف باللجان الفعالة</label>
                   <p className="text-[10px] text-gray-400 font-bold leading-normal">
                     يمكن ربط هذا الموظف بلجنة واحدة أو أكثر من اللجان النشطة بالغرفة المكرمة.
                   </p>
-                  <div className="border border-gray-250 rounded-xl p-3 bg-white max-h-36 overflow-y-auto space-y-1.5 grayscale-0">
+                  <div className="border border-gray-200 rounded-xl p-3 bg-white max-h-36 overflow-y-auto space-y-1.5">
                     {dbCommittees && dbCommittees.filter((comm: any) => comm.active !== false).map((comm: any) => (
                       <label key={comm.id} className="flex items-center gap-2 text-xs font-bold text-gray-700 cursor-pointer hover:bg-slate-50 p-1 rounded transition-all">
                         <input
@@ -1544,20 +1559,21 @@ export default function OrgChart() {
                   </div>
                 </div>
 
-                {/* Footer buttons */}
-                <div className="border-t pt-4 flex justify-end gap-2">
+                {/* Buttons block - identical to Committees */}
+                <div className="flex items-center gap-3 pt-4 border-t border-gray-150">
+                  <button
+                    type="submit"
+                    className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 hover:shadow-md text-white font-black text-sm rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>{isEditing ? "حفظ التعديلات الحالية" : "إضافة وتعميد الموظف"}</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => setShowFormModal(false)}
-                    className="h-10 px-5 text-gray-500 hover:text-gray-700 bg-gray-50 border border-gray-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                    className="px-6 h-11 bg-gray-100 hover:bg-gray-200 text-gray-750 font-extrabold text-sm rounded-xl transition-all cursor-pointer"
                   >
                     إلغاء الأمر
-                  </button>
-                  <button
-                    type="submit"
-                    className="h-10 px-6 bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold rounded-xl transition-all shadow-md cursor-pointer"
-                  >
-                    {isEditing ? "اعتماد وحفظ التعديلات" : "إدراج الموظف وتعميده"}
                   </button>
                 </div>
 
