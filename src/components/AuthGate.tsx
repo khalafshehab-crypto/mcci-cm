@@ -12,6 +12,8 @@ import {
   UserPlus
 } from "lucide-react";
 import { useFirestoreCollection } from "../lib/firebaseUtils";
+import { auth } from "../lib/firebase";
+import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 
 interface AuthGateProps {
   onLogin: (user: any) => void;
@@ -55,7 +57,118 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
     }
   };
 
-  // Secure Local Email Login (Replacing Firebase Auth / Google POPUP completely)
+  // معالجة التحقق والتوجيه بالبريد الإلكتروني المدخل بعد الحصول عليه
+  const proceedWithEmailLogin = async (email: string) => {
+    const emailLower = email.trim().toLowerCase();
+
+    // 1. Is this the Master Administrator?
+    if (emailLower === "khalafshehab@gmail.com" || emailLower === "khalafshehab-crypto@gmail.com") {
+      const adminEmp = {
+        id: "221550",
+        name: "خلف شهاب الدين",
+        role: "SYS_ADMIN",
+        roleAr: "مدير النظام",
+        jobTitle: "مدير النظام والرقابة",
+        phone: "+966558494158",
+        email: emailLower,
+        photo: PRESET_AVATARS[0],
+        committees: ["الحج والعمرة", "الصناعية"],
+        active: true,
+        joinDate: "2024/01/15"
+      };
+
+      // Ensure provisioned in the local storage database
+      await setFirebaseEmpDoc("221550", adminEmp);
+      localStorage.setItem("current_user", JSON.stringify(adminEmp));
+      await logSystemAction(adminEmp.name, `تسجيل دخول ناجح للمسؤول برمز بريدي معتمد [${emailLower}]`, "ناجحة");
+      onLogin(adminEmp);
+      return true;
+    }
+
+    // 2. Is this a registered employee?
+    const matchedEmployee = dbEmployees.find(
+      (emp: any) => emp.email?.trim().toLowerCase() === emailLower
+    );
+
+    if (matchedEmployee) {
+      if (!matchedEmployee.active) {
+        setMessage({
+          text: "عذراً، هذا الحساب معطل حالياً من قبل إدارة النظام. يرجى التواصل مع مسؤول النظام لتنشيطه.",
+          type: "error"
+        });
+        await logSystemAction(matchedEmployee.name, `محاولة دخول فاشلة بحساب معطل [${emailLower}]`, "مرفوضة");
+        return false;
+      }
+
+      localStorage.setItem("current_user", JSON.stringify(matchedEmployee));
+      await logSystemAction(matchedEmployee.name, `تسجيل دخول موظف بالبريد الرقمي المعتمد [${emailLower}]`, "ناجحة");
+      onLogin(matchedEmployee);
+      return true;
+    }
+
+    // 3. Is there a pending join request?
+    const pendingReq = dbJoinRequests.find(
+      (req: any) => req.email?.trim().toLowerCase() === emailLower
+    );
+
+    if (pendingReq) {
+      setMessage({
+        text: `طلب انضمامك بالبريد الإلكتروني [${emailLower}] قيد المراجعة حالياً من قبل مدير النظام (خلف شهاب الدين). ستتمكن من الدخول بمجرد اعتماد طلبك من لوحة الهيكل التنظيمي.`,
+        type: "info"
+      });
+      await logSystemAction("مستعلم", `محاولة دخول فاشلة - طلب الانضمام قيد الدراسة [${emailLower}]`, "مرفوضة");
+      return false;
+    } else {
+      setMessage({
+        text: `عذراً، البريد الإلكتروني غير مسجل مسبقاً بالنظام كحساب موظف معتمد. يرجى تقديم طلب انضمام جديد عبر التبويب الآخر ليتم تفعيله من المدير.`,
+        type: "error"
+      });
+      await logSystemAction("زائر", `محاولة دخول فاشلة لبريد غير مسجل [${emailLower}]`, "مرفوضة");
+      return false;
+    }
+  };
+
+  // تسجيل الدخول الآمن بحساب جوجل
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setMessage(null);
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+      
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      
+      if (user && user.email) {
+        setLoginEmail(user.email);
+        const success = await proceedWithEmailLogin(user.email);
+        if (!success) {
+          // If not registered or pending, we've already displayed the notice inside proceedWithEmailLogin
+        }
+      } else {
+        throw new Error("لم نتمكن من العثور على بريد إلكتروني نشط لحساب جوجل هذا.");
+      }
+    } catch (err: any) {
+      console.warn("Google sign-in popup blocked or failed inside sandboxed environment:", err);
+      let friendlyError = "عذراً، فشلت عملية تسجيل الدخول بحساب جوجل.";
+      if (err.code === "auth/popup-blocked") {
+        friendlyError = "تم حظر النافذة المنبثقة من قبل متصفحك. يرجى السماح بالنوافذ المنبثقة لغرفة مكة، أو استخدم خيار الدخول المباشر بالبريد بالأسفل.";
+      } else if (err.code === "auth/unauthorized-domain") {
+        friendlyError = "اسم النطاق (domain) غير مصرح به في إعدادات OAuth بكونسول Firebase لمشروع mcci-cm.";
+      } else if (err.message) {
+        friendlyError = `تنبيه: ${err.message}. يرجى محاولة استخدام تسجيل الدخول المباشر بالبريد بالأسفل.`;
+      }
+      
+      setMessage({
+        text: friendlyError,
+        type: "error"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // الدخول المباشر بالبريد الإلكتروني كبديل أو خيار مباشر
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginEmail.trim()) {
@@ -69,74 +182,8 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
     setLoading(true);
     setMessage(null);
 
-    const emailLower = loginEmail.trim().toLowerCase();
-
     try {
-      // 1. Is this the Master Administrator?
-      if (emailLower === "khalafshehab@gmail.com" || emailLower === "khalafshehab-crypto@gmail.com") {
-        const adminEmp = {
-          id: "221550",
-          name: "خلف شهاب الدين",
-          role: "SYS_ADMIN",
-          roleAr: "مدير النظام",
-          jobTitle: "مدير النظام والرقابة",
-          phone: "+966558494158",
-          email: emailLower,
-          photo: PRESET_AVATARS[0],
-          committees: ["الحج والعمرة", "الصناعية"],
-          active: true,
-          joinDate: "2024/01/15"
-        };
-
-        // Ensure provisioned in the local storage database
-        await setFirebaseEmpDoc("221550", adminEmp);
-        localStorage.setItem("current_user", JSON.stringify(adminEmp));
-        await logSystemAction(adminEmp.name, `تسجيل دخول ناجح للمسؤول برمز بريدي معتمد [${emailLower}]`, "ناجحة");
-        onLogin(adminEmp);
-        return;
-      }
-
-      // 2. Is this a registered employee?
-      const matchedEmployee = dbEmployees.find(
-        (emp: any) => emp.email?.trim().toLowerCase() === emailLower
-      );
-
-      if (matchedEmployee) {
-        if (!matchedEmployee.active) {
-          setMessage({
-            text: "عذراً، هذا الحساب معطل حالياً من قبل إدارة النظام. يرجى التواصل مع مسؤول النظام لتنشيطه.",
-            type: "error"
-          });
-          await logSystemAction(matchedEmployee.name, `محاولة دخول فاشلة بحساب معطل [${emailLower}]`, "مرفوضة");
-          setLoading(false);
-          return;
-        }
-
-        localStorage.setItem("current_user", JSON.stringify(matchedEmployee));
-        await logSystemAction(matchedEmployee.name, `تسجيل دخول موظف بالبريد الرقمي المعتمد [${emailLower}]`, "ناجحة");
-        onLogin(matchedEmployee);
-        return;
-      }
-
-      // 3. Is there a pending join request?
-      const pendingReq = dbJoinRequests.find(
-        (req: any) => req.email?.trim().toLowerCase() === emailLower
-      );
-
-      if (pendingReq) {
-        setMessage({
-          text: `طلب انضمامك بالبريد الإلكتروني [${emailLower}] قيد المراجعة حالياً من قبل مدير النظام (خلف شهاب الدين). ستتمكن من الدخول بمجرد اعتماد طلبك من لوحة الهيكل التنظيمي.`,
-          type: "info"
-        });
-        await logSystemAction("مستعلم", `محاولة دخول فاشلة - طلب الانضمام قيد الدراسة [${emailLower}]`, "مرفوضة");
-      } else {
-        setMessage({
-          text: `عذراً، البريد الإلكتروني غير مسجل مسبقاً بالنظام كحساب موظف معتمد. يرجى تقديم طلب انضمام جديد عبر التبويب الآخر ليتم تفعيله من المدير.`,
-          type: "error"
-        });
-        await logSystemAction("زائر", `محاولة دخول فاشلة لبريد غير مسجل [${emailLower}]`, "مرفوضة");
-      }
-
+      await proceedWithEmailLogin(loginEmail);
     } catch (err: any) {
       console.error(err);
       setMessage({
@@ -308,55 +355,85 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
 
         {/* LOGIN VIEW PANEL (Email based registration matched) */}
         {activeTab === "login" && (
-          <form onSubmit={handleEmailLogin} className="space-y-5 animate-fadeIn">
-            <div className="bg-slate-800/60 border border-slate-700/40 rounded-2xl p-4 text-xs font-bold leading-relaxed text-slate-300">
-              <span className="text-sky-400 font-extrabold">ℹ️ الدخول والمصادقة الرقمية:</span>
-              <p className="mt-1.5 text-slate-450 leading-normal text-[11px] font-semibold">
-                يرجى إدخال البريد الإلكتروني الرسمي المفعل لديك بالنظام.
-              </p>
-              <div className="mt-3 pt-2.5 border-t border-slate-700/30 flex flex-wrap gap-2 text-[10px] text-slate-400">
-                <span>الحساب المستخدم:</span>
-                <button 
-                  type="button"
-                  onClick={() => setLoginEmail("X.XXXX@makkahchamber.sa")}
-                  className="px-2 py-0.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 rounded-md border border-sky-400/20 transition-all font-mono cursor-pointer"
-                >
-                  X.XXXX@makkahchamber.sa
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[11px] text-slate-400 font-extrabold mb-1.5 text-right">البريد الإلكتروني المعتمد</label>
-              <div className="relative">
-                <input
-                  type="email"
-                  required
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  placeholder="X.XXXX@makkahchamber.sa"
-                  className="w-full bg-slate-800 border border-slate-700/60 rounded-xl px-4 py-2.5 pr-10 text-slate-100 text-xs text-left focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-medium"
-                  dir="ltr"
-                />
-                <Mail className="absolute top-3 right-3 text-slate-500 w-4.5 h-4.5 shrink-0" />
-              </div>
-            </div>
-
+          <div className="space-y-6 animate-fadeIn">
+            {/* زر تسجيل الدخول الرئيسي بحساب جوجل */}
             <button
-              type="submit"
+              type="button"
+              onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full py-3 bg-sky-500 hover:bg-sky-600 text-white font-extrabold text-xs rounded-xl transition-all shadow-lg hover:shadow-sky-500/20 flex items-center justify-center gap-3 cursor-pointer text-center disabled:opacity-50"
+              className="w-full py-3.5 bg-white hover:bg-slate-50 text-slate-800 font-extrabold text-sm rounded-xl transition-all shadow-lg hover:shadow-black/10 flex items-center justify-center gap-3 cursor-pointer text-center disabled:opacity-50 border border-slate-200"
             >
               {loading ? (
-                <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                <div className="w-5 h-5 border-2 border-slate-400 border-t-slate-800 rounded-full animate-spin"></div>
               ) : (
                 <>
-                  <LogIn className="w-4 h-4" />
-                  <span>دخول آمن ومباشر للنظام</span>
+                  <img 
+                    src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" 
+                    alt="Google G logo" 
+                    className="w-5 h-5 shrink-0" 
+                  />
+                  <span>تسجيل الدخول الآمن بحساب Google</span>
                 </>
               )}
             </button>
-          </form>
+
+            {/* خط تقسيم أنيق */}
+            <div className="flex items-center my-6">
+              <div className="flex-1 border-t border-slate-700/50"></div>
+              <span className="px-3 text-[10px] text-slate-550 font-black tracking-wider text-center">أو تسجيل الدخول اليدوي (للمحافظة الرقمية)</span>
+              <div className="flex-1 border-t border-slate-700/50"></div>
+            </div>
+
+            <form onSubmit={handleEmailLogin} className="space-y-4">
+              <div className="bg-slate-800/60 border border-slate-700/40 rounded-2xl p-4 text-xs font-bold leading-relaxed text-slate-300">
+                <span className="text-sky-400 font-extrabold">ℹ️ الدخول والمصادقة الرقمية:</span>
+                <p className="mt-1.5 text-slate-450 leading-normal text-[11px] font-semibold">
+                  يرجى إدخال البريد الإلكتروني الرسمي المفعل لديك بالنظام.
+                </p>
+                <div className="mt-3 pt-2.5 border-t border-slate-700/30 flex flex-wrap gap-2 text-[10px] text-slate-400">
+                  <span>الحساب المستخدم:</span>
+                  <button 
+                    type="button"
+                    onClick={() => setLoginEmail("X.XXXX@makkahchamber.sa")}
+                    className="px-2 py-0.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 rounded-md border border-sky-400/20 transition-all font-mono cursor-pointer"
+                  >
+                    X.XXXX@makkahchamber.sa
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-slate-400 font-extrabold mb-1.5 text-right">البريد الإلكتروني المعتمد</label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    required
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    placeholder="X.XXXX@makkahchamber.sa"
+                    className="w-full bg-slate-800 border border-slate-700/60 rounded-xl px-4 py-2.5 pr-10 text-slate-100 text-xs text-left focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-medium"
+                    dir="ltr"
+                  />
+                  <Mail className="absolute top-3 right-3 text-slate-500 w-4.5 h-4.5 shrink-0" />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-sky-500 hover:bg-sky-600 text-white font-extrabold text-xs rounded-xl transition-all shadow-lg hover:shadow-sky-500/20 flex items-center justify-center gap-3 cursor-pointer text-center disabled:opacity-50"
+              >
+                {loading ? (
+                  <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                ) : (
+                  <>
+                    <LogIn className="w-4 h-4" />
+                    <span>دخول آمن ومباشر للنظام</span>
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
         )}
 
         {/* REGISTER VIEW PANEL (Join Request) */}
