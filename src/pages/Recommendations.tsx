@@ -1,4 +1,4 @@
-import React, { useState, useEffect, FormEvent } from "react";
+import React, { useState, useEffect, useMemo, FormEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useFirestoreCollection } from "../lib/firebaseUtils";
 import {
@@ -84,10 +84,7 @@ const STAGES: Array<{ id: RecommendationItem["approvalStage"]; label: string; ro
   { id: "مكتملة", label: "مكتملة ومفعّلة", role: "توصية سارية ومطبقة" }
 ];
 
-const DRIVE_FOLDERS = [
-  "/الغرفة التجارية/اللجان القطاعية/لجنة التدريب وتوطين الوظائف/التوصيات المعتمدة",
-  "/الغرفة التجارية/اللجان القطاعية/لجنة السياحة والترفيه/مكتبة التوصيات الإجرائية",
-  "/الغرفة التجارية/اللجان القطاعية/لجنة الاستثمار والتطوير العقاري/الأرشيف الإلكتروني",
+const DEFAULT_DRIVE_FOLDERS = [
   "/الغرفة التجارية/الملفات العامة/قسم اللجان/ملفات الاعتماد والتفعيل السريع",
   "/الغرفة التجارية/الأرشيف الرقمي/توصيات لجان الدورة الحالية"
 ];
@@ -95,9 +92,22 @@ const DRIVE_FOLDERS = [
 export default function Recommendations() {
   const { data: rawRecs, loading: recsLoading, addDocument: addFirebaseRec, updateDocument: updateFirebaseRec, deleteDocument: deleteFirebaseRec } = useFirestoreCollection<RecommendationItem>("recommendations", []);
   const { data: rawCommittees } = useFirestoreCollection<any>("committees", []);
-  const { data: dbEmployees } = useFirestoreCollection<any>("employees", []);
+  
+  // Dynamically generate Google Drive folder paths linked to the formed committees
+  const driveFolders = useMemo(() => {
+    const list = rawCommittees.map((comm: any) => 
+      `/الغرفة التجارية/اللجان القطاعية/${comm.name}/التوصيات المعتمدة والأرشفة`
+    );
+    return [
+      ...list,
+      ...DEFAULT_DRIVE_FOLDERS
+    ];
+  }, [rawCommittees]);
 
-  const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
+  const { data: dbEmployees } = useFirestoreCollection<any>("employees", []);
+  const { addDocument: addFirebaseLog } = useFirestoreCollection<any>("system_logs", []);
+
+  const recommendations = rawRecs;
   const [selectedRecId, setSelectedRecId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState({ name: "شهاب الدين", role: "مدير النظام" });
 
@@ -139,12 +149,19 @@ export default function Recommendations() {
   const [newFileName, setNewFileName] = useState("");
   const [newFileType, setNewFileType] = useState<"مرفق التوصية" | "إيميل اعتماد التوصية">("مرفق التوصية");
   const [newFileAuthority, setNewFileAuthority] = useState("الأمين العام");
-  const [newFileDrivePath, setNewFileDrivePath] = useState(DRIVE_FOLDERS[0]);
+  const [newFileDrivePath, setNewFileDrivePath] = useState("");
   const [archiveSuccessMessage, setArchiveSuccessMessage] = useState("");
   const [isArchiving, setIsArchiving] = useState(false);
 
   // State to notify dynamic summaries copy
   const [isCopied, setIsCopied] = useState(false);
+
+  // Initialize and synchronize newFileDrivePath dynamically from driveFolders
+  useEffect(() => {
+    if (driveFolders.length > 0 && (!newFileDrivePath || !driveFolders.includes(newFileDrivePath))) {
+      setNewFileDrivePath(driveFolders[0]);
+    }
+  }, [driveFolders, newFileDrivePath]);
 
   useEffect(() => {
     try {
@@ -161,94 +178,14 @@ export default function Recommendations() {
     } catch (e) {}
   }, []);
 
-  // Seed default data if database is empty
+  // Set default selection when recommendations are loaded
   useEffect(() => {
     if (!recsLoading) {
-      if (rawRecs.length === 0) {
-        const mock1: Omit<RecommendationItem, "id"> = {
-          title: "تفعيل منصة التدريب الافتراضية لأعضاء الجمعية العمومية",
-          description: "توفير حقائب تدريبية تفاعلية تدعم تفعيل تقنيات الواقع المعزز في مسارات تنمية مهارات منسوبي الغرفة التجارية وتطبيقات سوق العمل.",
-          committeeName: "لجنة التدريب وتوطين الوظائف",
-          eventName: "الاجتماع الدوري الثاني للجنة التدريب والمهارات",
-          date: "2026-06-11",
-          status: "جديدة",
-          approvalStage: "أخصائي",
-          assignedTo: "شهاب الدين",
-          duration: "شهر واحد",
-          attachments: [
-            {
-              name: "خطة التدريب الرقمي المقترحة.pdf",
-              url: "https://drive.google.com/open?id=1example_plan",
-              date: "2026-06-12",
-              type: "مرفق التوصية",
-              drivePath: DRIVE_FOLDERS[0]
-            }
-          ],
-          hasImpact: true,
-          response: "",
-          responseNotes: "",
-          implementationAction: "",
-          auditLogs: [
-            {
-              timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-              action: "تأسيس التوصية وتوثيقها بالنظام وتوجيهها للمستويات الإدارية",
-              user: "نظام حوكمة اللجان"
-            }
-          ]
-        };
-
-        const mock2: Omit<RecommendationItem, "id"> = {
-          title: "شراكة ممتدة لتطوير خدمات الضيافة الموسمية الفندقية",
-          description: "عقد مذكرة تفاهم متبادلة مع مجموعة رائدة من الفنادق والمطاعم السياحية المؤهلة بغرض تسيير برامج ومبادرات سياحية متقدمة في مواسم الحج والصيف.",
-          committeeName: "لجنة السياحة والترفيه",
-          eventName: "لقاء ريادة الضيافة الموسمي الثالث",
-          date: "2026-06-08",
-          status: "جاري العمل عليها",
-          approvalStage: "مدير الإدارة",
-          assignedTo: "شهاب الدين",
-          duration: "أسبوعين",
-          attachments: [
-            {
-              name: "إيميل اعتماد مذكرة التفاهم.pdf",
-              url: "https://drive.google.com/open?id=1example_email",
-              date: "2026-06-09",
-              type: "إيميل اعتماد التوصية",
-              approvalAuthority: "مدير إدارة اللجان",
-              drivePath: DRIVE_FOLDERS[1]
-            }
-          ],
-          hasImpact: false,
-          response: "موافقة",
-          responseNotes: "تم تعضيد الدراسات المالية واللوجستية واعتماد الصيغة التنفيذية لمذكرة التفاهم.",
-          implementationAction: "جاري تسيير الملف ومخاطبة الشؤون القانونية لصياغة المسودة المبدئية للاتفاقية.",
-          auditLogs: [
-            {
-              timestamp: "2026-06-08 11:30",
-              action: "ترحيل التوصية للمسابقة الإجرائية من محضر الاجتماع تلقائياً",
-              user: "أخصائي اللجان"
-            },
-            {
-              timestamp: "2026-06-09 14:15",
-              action: "مراجعة وإحالة التوصية من رئيس القسم إلى مدير الإدارة",
-              user: "رئيس قسم اللجان",
-              notes: "معتمدة للاستمرارية الإجرائية والرفع لسعادة المدير."
-            }
-          ]
-        };
-
-        const seedData = async () => {
-          await addFirebaseRec(mock1);
-          await addFirebaseRec(mock2);
-        };
-        seedData();
-      } else {
-        setRecommendations(rawRecs);
-        if (!selectedRecId && rawRecs.length > 0) {
-          setSelectedRecId(rawRecs[0].id);
-        }
+      if (!selectedRecId && rawRecs.length > 0) {
+        setSelectedRecId(rawRecs[0].id);
       }
     }
-  }, [rawRecs, recsLoading]);
+  }, [rawRecs, recsLoading, selectedRecId]);
 
   // Click outside to close layout drop menu
   useEffect(() => {
@@ -417,9 +354,30 @@ export default function Recommendations() {
       return;
     }
 
-    await deleteFirebaseRec(recToDeleteId);
+    try {
+      await deleteFirebaseRec(recToDeleteId);
+      
+      // Register custom audit logging for system records
+      await addFirebaseLog({
+        employeeName: currentUser?.name || "مدير النظام",
+        time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        operationType: "حذف توصية",
+        status: "ناجحة",
+        details: `تم تفعيل إجراء الحذف النهائي للتوصية المعرّفة بـ (${recToDeleteId}) بقرار مسبب: ${deleteReason}`
+      } as any);
+
+      // Smooth selection fallback
+      const remaining = recommendations.filter(r => r.id !== recToDeleteId);
+      if (selectedRecId === recToDeleteId) {
+        setSelectedRecId(remaining.length > 0 ? remaining[0].id : null);
+      }
+    } catch (err) {
+      console.error("Error deleting recommendation:", err);
+    }
+
     setIsDeleteConfirmOpen(false);
     setRecToDeleteId(null);
+    setDeleteReason("");
   };
 
   // Referral / Stage advancement in layout
@@ -649,9 +607,7 @@ export default function Recommendations() {
   };
 
   const listEmployees = dbEmployees.length > 0 ? dbEmployees.map((e: any) => e.name) : DEFAULT_EMPLOYEES;
-  const listCommittees = rawCommittees.length > 0 ? rawCommittees.map((c: any) => c.name) : [
-    "لجنة الاستثمار والتطوير العقاري", "لجنة التدريب وتوطين الوظائف", "لجنة السياحة والترفيه", "لجنة الصناعة والطاقة", "لجنة شباب الأعمال", "لجنة الإعلام والتسويق"
-  ];
+  const listCommittees = rawCommittees.map((c: any) => c.name);
 
   return (
     <div className="space-y-6 pb-12 text-right" dir="rtl">
@@ -1181,14 +1137,26 @@ export default function Recommendations() {
                       </div>
                     </div>
 
-                    {/* Specialist Badge */}
-                    <div className="flex items-center gap-2 shrink-0 bg-gray-50 p-2.5 rounded-xl border border-gray-200/80">
-                      <div className="text-left">
-                        <span className="text-[9px] font-black text-gray-400 block leading-none">المشرف المكلّف</span>
-                        <span className="text-xs font-black text-gray-800 leading-normal">{currentRec.assignedTo}</span>
-                      </div>
-                      <div className="w-9 h-9 rounded-xl bg-brand/10 text-brand flex items-center justify-center font-black text-sm border border-brand/20 select-none">
-                        {currentRec.assignedTo ? currentRec.assignedTo[0] : "م"}
+                    {/* Actions and Specialist Badge */}
+                    <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenDeleteConfirm(currentRec.id)}
+                        className="h-10 px-4 bg-red-50 hover:bg-red-100 text-red-650 border border-red-200 font-extrabold text-xs rounded-xl flex items-center gap-1.5 shadow-sm hover:shadow transition-all cursor-pointer"
+                        title="حذف التوصية لتأمين السجل الرقابي والإداري"
+                      >
+                        <Trash2 className="w-4 h-4 stroke-[2]" />
+                        <span>حذف التوصية</span>
+                      </button>
+
+                      <div className="flex items-center gap-2 bg-gray-50 p-2.5 rounded-xl border border-gray-200/80">
+                        <div className="text-left font-Cairo">
+                          <span className="text-[9px] font-black text-gray-400 block leading-none">المشرف المكلّف</span>
+                          <span className="text-xs font-black text-gray-800 leading-normal">{currentRec.assignedTo}</span>
+                        </div>
+                        <div className="w-9 h-9 rounded-xl bg-brand/10 text-brand flex items-center justify-center font-black text-sm border border-brand/20 select-none">
+                          {currentRec.assignedTo ? currentRec.assignedTo[0] : "م"}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1355,7 +1323,7 @@ export default function Recommendations() {
                           onChange={(e) => setNewFileDrivePath(e.target.value)}
                           className="w-full text-[10.5px] font-bold p-1.5 border border-gray-350 rounded-lg bg-white text-slate-800 leading-tight"
                         >
-                          {DRIVE_FOLDERS.map((folder, idx) => (
+                          {driveFolders.map((folder, idx) => (
                             <option key={idx} value={folder}>{folder}</option>
                           ))}
                         </select>

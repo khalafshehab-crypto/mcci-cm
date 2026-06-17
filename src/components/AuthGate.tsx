@@ -63,8 +63,21 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
 
     // 1. Is this the Master Administrator?
     if (emailLower === "khalafshehab@gmail.com" || emailLower === "khalafshehab-crypto@gmail.com") {
+      // Check if there is an existing employee card in the database with this admin email
+      const existingAdmin = dbEmployees.find(
+        (emp: any) => emp.email?.trim().toLowerCase() === emailLower
+      );
+
+      if (existingAdmin) {
+        // Use the existingAdmin (it has their custom ID, name, phone, etc.!)
+        localStorage.setItem("current_user", JSON.stringify(existingAdmin));
+        await logSystemAction(existingAdmin.name, `تسجيل دخول ناجح للمسؤول برمز بريدي معتمد [${emailLower}]`, "ناجحة");
+        onLogin(existingAdmin);
+        return true;
+      }
+
       const adminEmp = {
-        id: "221550",
+        id: "01",
         name: "شهاب الدين",
         role: "SYS_ADMIN",
         roleAr: "مدير النظام",
@@ -72,13 +85,13 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
         phone: "+966558494158",
         email: emailLower,
         photo: PRESET_AVATARS[0],
-        committees: ["الحج والعمرة", "الصناعية"],
+        committees: [],
         active: true,
         joinDate: "2024/01/15"
       };
 
       // Ensure provisioned in the local storage database
-      await setFirebaseEmpDoc("221550", adminEmp);
+      await setFirebaseEmpDoc("01", adminEmp);
       localStorage.setItem("current_user", JSON.stringify(adminEmp));
       await logSystemAction(adminEmp.name, `تسجيل دخول ناجح للمسؤول برمز بريدي معتمد [${emailLower}]`, "ناجحة");
       onLogin(adminEmp);

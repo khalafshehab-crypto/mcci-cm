@@ -75,7 +75,17 @@ export default function Layout({ children }: LayoutProps) {
  
   // Dates formatting (English numbers/names)
   const lang = 'en-GB';
-  const dayName = new Intl.DateTimeFormat(lang, { weekday: 'long' }).format(currentTime);
+  const dayNameEnglish = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(currentTime);
+  const arabicDaysMap: Record<string, string> = {
+    "Sunday": "الأحد",
+    "Monday": "الإثنين",
+    "Tuesday": "الثلاثاء",
+    "Wednesday": "الأربعاء",
+    "Thursday": "الخميس",
+    "Friday": "الجمعة",
+    "Saturday": "السبت"
+  };
+  const dayName = arabicDaysMap[dayNameEnglish] || dayNameEnglish;
   const timeStr = new Intl.DateTimeFormat(lang, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).format(currentTime).toUpperCase();
   
   // Function to format date parts into "DD Month YYYY" with Western digits

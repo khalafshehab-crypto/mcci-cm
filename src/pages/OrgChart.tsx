@@ -43,6 +43,53 @@ const PRESET_AVATARS = [
   "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200", // Female 4
 ];
 
+const compressImage = (base64Str: string, callback: (resized: string) => void) => {
+  if (!base64Str || !base64Str.startsWith("data:image")) {
+    callback(base64Str);
+    return;
+  }
+  const img = new Image();
+  img.src = base64Str;
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    const MAX_WIDTH = 120;
+    const MAX_HEIGHT = 120;
+    let width = img.width;
+    let height = img.height;
+
+    if (width > height) {
+      if (width > MAX_WIDTH) {
+        height *= MAX_WIDTH / width;
+        width = MAX_WIDTH;
+      }
+    } else {
+      if (height > MAX_HEIGHT) {
+        width *= MAX_HEIGHT / height;
+        height = MAX_HEIGHT;
+      }
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.drawImage(img, 0, 0, width, height);
+      try {
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+        callback(dataUrl);
+      } catch (e) {
+        console.error("Canvas export failed", e);
+        callback(base64Str);
+      }
+    } else {
+      callback(base64Str);
+    }
+  };
+  img.onerror = () => {
+    callback(base64Str);
+  };
+};
+
 export interface Employee {
   id: string; // الرقم الوظيفي
   name: string; // الاسم
@@ -120,6 +167,33 @@ export default function OrgChart() {
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+
+  // Administrative removal of raw committees linked to a specific specialist (تحت الإشراف حذف اللجان المرتبط بها)
+  const handleRemoveCommitteeFromEmployee = async (committeeName: string) => {
+    if (!selectedEmployee) return;
+    const currentComms = selectedEmployee.committees || [];
+    const updatedComms = currentComms.filter(c => c !== committeeName);
+    
+    try {
+      await updateFirebaseEmp(selectedEmployee.id, { committees: updatedComms });
+      
+      // Document this removal in System Logs catalog for audit checks
+      await addFirebaseLog({
+        employeeName: currentUser?.name || "مدير النظام",
+        time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        operationType: "حذف لجنة مرتبطة بالمشرف",
+        status: "ناجحة",
+        details: `تم إلغاء ارتباط اللجنة: (${committeeName}) من ملف الموظف: ${selectedEmployee.name}`
+      } as any);
+      
+      setSelectedEmployee({
+        ...selectedEmployee,
+        committees: updatedComms
+      });
+    } catch (error) {
+      console.error("Failed to unbind committee from staff", error);
+    }
+  };
   
   // Add / Edit Modal fields state
   const [showFormModal, setShowFormModal] = useState(false);
@@ -143,6 +217,43 @@ export default function OrgChart() {
       setActiveTab("hierarchy");
     }
   }, [currentUserRole, activeTab]);
+
+  // Generic Self-healing: Merge/clean up duplicate accounts sharing the exact same email address
+  useEffect(() => {
+    if (dbEmployees && dbEmployees.length > 0) {
+      // Find all duplicate emails
+      const emailGroups: Record<string, Employee[]> = {};
+      dbEmployees.forEach(emp => {
+        if (emp.email) {
+          const emailLower = emp.email.trim().toLowerCase();
+          if (!emailGroups[emailLower]) {
+            emailGroups[emailLower] = [];
+          }
+          emailGroups[emailLower].push(emp);
+        }
+      });
+
+      Object.entries(emailGroups).forEach(([email, list]) => {
+        if (list.length > 1) {
+          // We have duplicates for this email!
+          // We choose of one canonical record to keep:
+          // 1. If currentUser matches one, keep that one
+          // 2. Else keep the one that is active or first
+          let canonical = list.find(emp => emp.id === currentUser?.id);
+          if (!canonical) {
+            canonical = list.find(emp => emp.active) || list[0];
+          }
+
+          // Delete all duplicates that are NOT canonical
+          const toDelete = list.filter(emp => emp.id !== canonical?.id);
+          toDelete.forEach(emp => {
+            console.log(`Self-healing deduplication: Deleting duplicate for email [${email}] with ID [${emp.id}], keeping canonical ID [${canonical?.id}]`);
+            deleteFirebaseEmp(emp.id);
+          });
+        }
+      });
+    }
+  }, [dbEmployees, deleteFirebaseEmp, currentUser]);
   
   // Whitelist Email state fields
   const [whitelistEmailStr, setWhitelistEmailStr] = useState("");
@@ -159,6 +270,81 @@ export default function OrgChart() {
   const [transferSuccess, setTransferSuccess] = useState("");
   const [transferError, setTransferError] = useState("");
   const [isTransferring, setIsTransferring] = useState(false);
+
+  // Database Purge / Reset State & Logic
+  const [isPurging, setIsPurging] = useState(false);
+  const [showPurgeConfirm, setShowPurgeConfirm] = useState(false);
+  const [purgeSuccess, setPurgeSuccess] = useState(false);
+  const [purgeError, setPurgeError] = useState("");
+
+  const handlePurgeEntireSystem = async () => {
+    setIsPurging(true);
+    setPurgeError("");
+    try {
+      const collectionsToPurge = [
+        "committees",
+        "members",
+        "events",
+        "recommendations",
+        "tasks",
+        "system_logs",
+        "templates",
+        "kpis",
+        "reports",
+        "join_requests",
+        "approved_emails"
+      ];
+
+      const { collection, getDocs, deleteDoc, doc } = await import("firebase/firestore");
+      const { db } = await import("../lib/firebase");
+
+      // 1. Clear standard collections in Firestore
+      for (const colName of collectionsToPurge) {
+        try {
+          const snap = await getDocs(collection(db, colName));
+          for (const docSnap of snap.docs) {
+            await deleteDoc(doc(db, colName, docSnap.id));
+          }
+        } catch (err) {
+          console.warn(`Failed to purge Firestore collection: ${colName}`, err);
+        }
+        
+        // Wipe local fallbacks/storage
+        localStorage.removeItem(`mock_db_${colName}`);
+        localStorage.removeItem(`app_${colName}`);
+      }
+
+      // 2. Clear employees except the system admin
+      try {
+        const empSnap = await getDocs(collection(db, "employees"));
+        for (const docSnap of empSnap.docs) {
+          const d = docSnap.data();
+          const lowerEmail = d?.email?.trim().toLowerCase();
+          const isSysAdmin = lowerEmail === "khalafshehab@gmail.com" || lowerEmail === "khalafshehab-crypto@gmail.com" || docSnap.id === "01";
+          if (!isSysAdmin) {
+            await deleteDoc(doc(db, "employees", docSnap.id));
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to purge Firestore employees collection", err);
+      }
+
+      localStorage.removeItem(`mock_db_employees`);
+      localStorage.removeItem(`app_employees`);
+      localStorage.removeItem("app_deleted_templates");
+      localStorage.removeItem("app_ignored_alarms_timestamps");
+      localStorage.removeItem("app_custom_recommendations_alarms");
+      localStorage.removeItem("app_recommendations_custom");
+      localStorage.removeItem("app_member_columns_v2");
+
+      setPurgeSuccess(true);
+    } catch (e) {
+      console.error("Purge action failed:", e);
+      setPurgeError("حدث خطأ أثناء محاولة تصفير قاعدة البيانات سحابياً. يرجى المحاولة لاحقاً.");
+    } finally {
+      setIsPurging(false);
+    }
+  };
 
   // System Logs search & filters
   const [logSearchQuery, setLogSearchQuery] = useState("");
@@ -222,7 +408,7 @@ export default function OrgChart() {
 
   const handleSaveEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName || !formEmail || !formJobTitle) {
+    if (!formName || !formEmail) {
       alert("يرجى ملء الحقول الإلزامية الأساسية.");
       return;
     }
@@ -252,7 +438,7 @@ export default function OrgChart() {
       name: formName,
       role: isEditing && currentUserRole !== "SYS_ADMIN" && originalEmp ? originalEmp.role : formRole,
       roleAr: isEditing && currentUserRole !== "SYS_ADMIN" && originalEmp ? originalEmp.roleAr : (roleMapper[formRole] || "أخصائي اللجان"),
-      jobTitle: formJobTitle,
+      jobTitle: isEditing && currentUserRole !== "SYS_ADMIN" && originalEmp ? originalEmp.jobTitle : (roleMapper[formRole] || "أخصائي اللجان"),
       phone: formPhone,
       extension: formExtension,
       email: formEmail,
@@ -285,6 +471,10 @@ export default function OrgChart() {
               const parsed = JSON.parse(stored);
               if (parsed && parsed.id === originalEditId) {
                 localStorage.setItem("current_user", JSON.stringify({ ...payload, id: formId }));
+                window.dispatchEvent(new Event('storage'));
+                setTimeout(() => {
+                  window.location.reload();
+                }, 300);
               }
             }
           } catch (err) {
@@ -302,6 +492,10 @@ export default function OrgChart() {
               const parsed = JSON.parse(stored);
               if (parsed && parsed.id === formId) {
                 localStorage.setItem("current_user", JSON.stringify({ ...payload, id: formId }));
+                window.dispatchEvent(new Event('storage'));
+                setTimeout(() => {
+                  window.location.reload();
+                }, 300);
               }
             }
           } catch (err) {
@@ -556,12 +750,13 @@ export default function OrgChart() {
     }
   };
 
-  // Filter out SYS_ADMIN accounts if logged-in user is not SYS_ADMIN
+  // Filter out other accounts if logged-in user is not the master SYS_ADMIN (khalafshehab@gmail.com)
   const visibleEmployees = dbEmployees.filter(emp => {
-    if (emp.role === "SYS_ADMIN" && currentUserRole !== "SYS_ADMIN") {
-      return false;
+    if (currentUser?.email === "khalafshehab@gmail.com") {
+      return true;
     }
-    return true;
+    // Other users do not see other employees (meaning they only see themselves, so they can edit their own profile if they wish)
+    return emp.id === currentUser?.id;
   });
 
   // FILTERED STAFF COMPUTATION
@@ -1262,6 +1457,36 @@ export default function OrgChart() {
               </span>
             </div>
 
+            {/* ركن التصفير وإعادة الضبط السحابي الشامل لمدير النظام */}
+            {currentUserRole === "SYS_ADMIN" && (
+              <div className="bg-red-50 border border-red-200 rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-right">
+                <div className="space-y-1">
+                  <h4 className="font-black text-red-800 text-xs sm:text-sm flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping shrink-0"></span>
+                    لوحة السيطرة التامة وإعادة تهيئة النظام بالكامل (سحابياً ومحلياً)
+                  </h4>
+                  <p className="text-xs text-red-700 font-bold">
+                    سيقوم هذا الإجراء الاختياري بحذف وتطهير كافة اللجان، الأعضاء، الاجتماعات والفعاليات، التوصيات، المهام، البلاغات والتقارير المدرجة مسبقاً في قاعدة بيانات النظام السحابية ومستودع المتصفح بالكامل.
+                  </p>
+                  <p className="text-[10px] text-red-600 font-black">
+                    * سيتم الحفاظ التام والآمن على حسابك الإداري الحالي لضمان استمرارية تسجيل دخولك دون انقطاع.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setPurgeSuccess(false);
+                    setPurgeError("");
+                    setShowPurgeConfirm(true);
+                  }}
+                  disabled={isPurging}
+                  className="bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-black px-5 py-2.5 rounded-xl border border-red-700 shadow-md hover:shadow-lg transition-all shrink-0 flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4 shrink-0" />
+                  تطهير وتصفير قاعدة البيانات بالكامل والبدء بنسخة خاوية
+                </button>
+              </div>
+            )}
+
             {/* SEACH BAR FOR AUDIT LOGS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <div className="relative">
@@ -1416,32 +1641,47 @@ export default function OrgChart() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-black text-gray-700">المسمى الوظيفي العملي <span className="text-red-500">*</span></label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="أخصائي لجان قطاعية أول"
-                      value={formJobTitle}
-                      onChange={(e) => setFormJobTitle(e.target.value)}
-                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-right outline-none transition-all"
-                    />
-                  </div>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-black text-gray-700">الرتبة الصلاحيتية بالنظام <span className="text-red-500">*</span></label>
+                  <select
+                    value={formRole}
+                    onChange={(e) => setFormRole(e.target.value as any)}
+                    className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-3 text-xs font-black text-right focus:ring-2 focus:ring-blue-500/20 outline-none transition-all cursor-pointer"
+                  >
+                    {(() => {
+                      const rolesTakenElsewhere = {
+                        SYS_ADMIN: false,
+                        MANAG_DIR: false,
+                        DEPT_HEAD: false,
+                      };
 
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-black text-gray-700">الرتبة الصلاحيتية بالنظام <span className="text-red-500">*</span></label>
-                    <select
-                      value={formRole}
-                      onChange={(e) => setFormRole(e.target.value as any)}
-                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-3 text-xs font-black text-right focus:ring-2 focus:ring-blue-500/20 outline-none transition-all cursor-pointer"
-                    >
-                      <option value="SPECIALIST">أخصائي لجان (SPECIALIST)</option>
-                      <option value="DEPT_HEAD">رئيس قسم لجان (DEPT_HEAD)</option>
-                      <option value="MANAG_DIR">مدير إدارة لجان (MANAG_DIR)</option>
-                      <option value="SYS_ADMIN">مدير نظام الرقابة (SYS_ADMIN)</option>
-                    </select>
-                  </div>
+                      dbEmployees.forEach(emp => {
+                        if (emp.id !== (isEditing ? originalEditId : formId)) {
+                          if (emp.role === "SYS_ADMIN") rolesTakenElsewhere.SYS_ADMIN = true;
+                          if (emp.role === "MANAG_DIR") rolesTakenElsewhere.MANAG_DIR = true;
+                          if (emp.role === "DEPT_HEAD") rolesTakenElsewhere.DEPT_HEAD = true;
+                        }
+                      });
+
+                      return (
+                        <>
+                          <option value="SPECIALIST">أخصائي لجان (SPECIALIST)</option>
+                          
+                          {(!rolesTakenElsewhere.DEPT_HEAD || formRole === "DEPT_HEAD") && (
+                            <option value="DEPT_HEAD">رئيس قسم لجان (DEPT_HEAD)</option>
+                          )}
+                          
+                          {(!rolesTakenElsewhere.MANAG_DIR || formRole === "MANAG_DIR") && (
+                            <option value="MANAG_DIR">مدير إدارة لجان (MANAG_DIR)</option>
+                          )}
+                          
+                          {((!rolesTakenElsewhere.SYS_ADMIN && (formEmail?.trim().toLowerCase() === "khalafshehab@gmail.com" || formEmail?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com")) || formRole === "SYS_ADMIN") && (
+                            <option value="SYS_ADMIN">مدير نظام الرقابة (SYS_ADMIN)</option>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </select>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -1494,21 +1734,88 @@ export default function OrgChart() {
                   </div>
                 </div>
 
-                {/* Avatar presets selector zone */}
-                <div className="space-y-2">
-                  <label className="block text-xs font-black text-gray-700">اختر الصورة التمثيلية للكادر</label>
-                  <div className="flex gap-2 justify-start overflow-x-auto py-1">
-                    {PRESET_AVATARS.map((av, index) => (
-                      <img
-                        key={index}
-                        src={av}
-                        alt=""
-                        onClick={() => setFormPhoto(av)}
-                        className={`w-10 h-10 rounded-full object-cover border-2 cursor-pointer transition-all shrink-0 ${
-                          formPhoto === av ? "border-blue-600 scale-105" : "border-transparent opacity-60 hover:opacity-100"
-                        }`}
-                      />
-                    ))}
+                {/* Drag and drop profile picture upload */}
+                <div className="space-y-1.5 text-right">
+                  <label className="block text-xs font-black text-gray-700">أرفق صورة الموظف الكادر</label>
+                  <div
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                        const file = e.dataTransfer.files[0];
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          if (event.target?.result) {
+                            compressImage(event.target.result as string, (resized) => {
+                              setFormPhoto(resized);
+                            });
+                          }
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all relative flex flex-col items-center justify-center min-h-32 ${
+                      formPhoto
+                        ? "border-emerald-300 bg-emerald-50/20"
+                        : "border-gray-200 bg-gray-50/50 hover:bg-gray-100/70"
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      id="employee-photo-upload"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          const file = e.target.files[0];
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            if (event.target?.result) {
+                              compressImage(event.target.result as string, (resized) => {
+                                setFormPhoto(resized);
+                              });
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                    <label htmlFor="employee-photo-upload" className="cursor-pointer block space-y-2 w-full">
+                      {formPhoto ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <img 
+                            src={formPhoto} 
+                            alt="Preview" 
+                            className="w-16 h-16 rounded-full object-cover border border-emerald-300 shadow-sm" 
+                          />
+                          <p className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100 px-2 py-0.5 rounded-full">
+                            ✓ تم تحميل صورة الكادر بنجاح
+                          </p>
+                          <p className="text-[10px] text-gray-500 font-bold">انقر أو اسحب صورة أخرى للاستبدال</p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-2xl">📸</span>
+                          <span className="text-xs font-black text-gray-700">اسحب الصورة هنا أو انقر للإدراج</span>
+                          <p className="text-[10px] text-gray-500 font-bold">يمكنك رفع صورة شخصية للموظف مباشرة</p>
+                        </div>
+                      )}
+                    </label>
+
+                    {formPhoto && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          setFormPhoto("");
+                        }}
+                        className="absolute left-3 top-3 p-1.5 hover:bg-red-50 text-red-500 rounded-lg transition-colors cursor-pointer"
+                        title="حذف الصورة"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1536,26 +1843,47 @@ export default function OrgChart() {
                     يمكن ربط هذا الموظف بلجنة واحدة أو أكثر من اللجان النشطة بالغرفة المكرمة.
                   </p>
                   <div className="border border-gray-200 rounded-xl p-3 bg-white max-h-36 overflow-y-auto space-y-1.5">
-                    {dbCommittees && dbCommittees.filter((comm: any) => comm.active !== false).map((comm: any) => (
-                      <label key={comm.id} className="flex items-center gap-2 text-xs font-bold text-gray-700 cursor-pointer hover:bg-slate-50 p-1 rounded transition-all">
-                        <input
-                          type="checkbox"
-                          checked={formCommittees.includes(comm.name)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFormCommittees(prev => [...prev, comm.name]);
-                            } else {
-                              setFormCommittees(prev => prev.filter(c => c !== comm.name));
-                            }
-                          }}
-                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
-                        />
-                        <span>{comm.name}</span>
-                      </label>
-                    ))}
-                    {(!dbCommittees || dbCommittees.filter((comm: any) => comm.active !== false).length === 0) && (
-                      <p className="text-[11px] text-gray-400 font-bold text-center py-2">لا توجد لجان فعالة حالياً لتخصيصها.</p>
-                    )}
+                    {(() => {
+                      const assignedCommitteesElsewhere = new Set<string>();
+                      dbEmployees.forEach(emp => {
+                        if (emp.id !== (isEditing ? originalEditId : formId)) {
+                          if (Array.isArray(emp.committees)) {
+                            emp.committees.forEach(c => assignedCommitteesElsewhere.add(c));
+                          }
+                        }
+                      });
+
+                      const visibleComms = dbCommittees
+                        ? dbCommittees.filter((comm: any) => {
+                            if (comm.active === false) return false;
+                            const isMine = formCommittees.includes(comm.name);
+                            const isElsewhere = assignedCommitteesElsewhere.has(comm.name);
+                            return isMine || !isElsewhere;
+                          })
+                        : [];
+
+                      if (visibleComms.length === 0) {
+                        return <p className="text-[11px] text-gray-400 font-bold text-center py-2">لا توجد لجان فعالة حالياً لتخصيصها.</p>;
+                      }
+
+                      return visibleComms.map((comm: any) => (
+                        <label key={comm.id} className="flex items-center gap-2 text-xs font-bold text-gray-700 cursor-pointer hover:bg-slate-50 p-1 rounded transition-all">
+                          <input
+                            type="checkbox"
+                            checked={formCommittees.includes(comm.name)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormCommittees(prev => [...prev, comm.name]);
+                              } else {
+                                setFormCommittees(prev => prev.filter(c => c !== comm.name));
+                              }
+                            }}
+                            className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span>{comm.name}</span>
+                        </label>
+                      ));
+                    })()}
                   </div>
                 </div>
 
@@ -1659,12 +1987,24 @@ export default function OrgChart() {
                     {(selectedEmployee.committees || []).length === 0 ? (
                       <p className="text-gray-400 italic text-[10.5px] font-bold">لم تخصص له أي لجان رسمية بعد.</p>
                     ) : (
-                      (selectedEmployee.committees || []).map((c, i) => (
-                        <div key={i} className="flex items-center gap-1.5 text-gray-700 text-[10.5px] font-bold">
-                          <span className="w-1.5 h-1.5 bg-blue-500 rounded-full shrink-0" />
-                          <span>{c}</span>
-                        </div>
-                      ))
+                      <div className="space-y-1.5">
+                        {(selectedEmployee.committees || []).map((c, i) => (
+                          <div key={i} className="flex items-center justify-between gap-1.5 text-gray-700 text-[10.5px] font-bold bg-white p-2 rounded-lg border border-gray-200 shadow-sm hover:border-gray-350 transition-all">
+                            <div className="flex items-center gap-1.5 truncate">
+                              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full shrink-0" />
+                              <span className="truncate" title={c}>{c}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveCommitteeFromEmployee(c)}
+                              className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors cursor-pointer shrink-0"
+                              title="حذف اللجنة من تحت إشراف الموظف"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1686,6 +2026,108 @@ export default function OrgChart() {
                 </button>
               </div>
 
+            </motion.div>
+          </div>
+        )}
+
+        {showPurgeConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Dark background overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => { if (!isPurging) setShowPurgeConfirm(false); }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            
+            <motion.div
+              initial={{ scale: 0.9, y: 15, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.9, y: 15, opacity: 0 }}
+              transition={{ type: "spring", damping: 20, stiffness: 280 }}
+              className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right p-6 space-y-6"
+            >
+              <div className="flex items-center gap-3 border-b pb-3.5 border-gray-150">
+                <div className="p-2 bg-red-100 text-red-600 rounded-xl">
+                  <Trash2 className="w-6 h-6 stroke-[2.5]" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-red-900 text-sm sm:text-base leading-tight">
+                    تأكيد تصفير وتطهير النظام بالكامل
+                  </h3>
+                  <p className="text-xs text-gray-500 font-medium">إجراء حاسم ولا يمكن التراجع عنه</p>
+                </div>
+              </div>
+
+              {!purgeSuccess ? (
+                <>
+                  <div className="space-y-3 font-semibold text-xs text-slate-750 line-clamp-none bg-red-50/50 border border-red-100 p-4 rounded-2xl leading-relaxed text-right">
+                    <p className="font-black text-red-800 text-sm">أنت على وشك تطهير كافة بيانات النظام سحابياً ومحلياً!</p>
+                    <p>سيقوم هذا الإجراء فورياً بمسح وتصفير العناصر التالية:</p>
+                    <ul className="list-disc leading-loose list-inside pr-2 font-bold space-y-1 text-slate-750">
+                      <li>اللجان القطاعية وتفويضاتها بالكامل</li>
+                      <li>جميع أعضاء اللجان والمستخدمين الخارجيين</li>
+                      <li>كافة الاجتماعات الدوريّة والفعاليات المسجلة</li>
+                      <li>جميع التوصيات وحالات حوكمتها والاعتمادات السحابية</li>
+                      <li>جميع قوالب المستندات المدرجة</li>
+                      <li>مهام العمل وسجلات المراقبة والتنبيهات الأمنية</li>
+                    </ul>
+                    <p className="text-[10px] text-red-650 font-black mt-2">
+                       * سيتم استثناء حساب المشرف الإداري الفيدرالي الحالي لتظل متصلاً بالنظام.
+                    </p>
+                  </div>
+
+                  {purgeError && (
+                    <div className="bg-red-50 text-red-700 border border-red-100 p-3 rounded-xl text-xs font-bold">
+                      {purgeError}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2.5 justify-end">
+                    <button
+                      type="button"
+                      disabled={isPurging}
+                      onClick={() => setShowPurgeConfirm(false)}
+                      className="px-4.5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-705 font-extrabold text-[11px] rounded-xl cursor-pointer transition-all disabled:opacity-50"
+                    >
+                      إلغاء التراجع
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isPurging}
+                      onClick={handlePurgeEntireSystem}
+                      className="px-5 py-2.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white font-extrabold text-[11px] rounded-xl cursor-pointer shadow-md hover:shadow-lg transition-all shrink-0 flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {isPurging ? (
+                        <>
+                          <span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full shrink-0"></span>
+                          جاري تصفير ومسح السحابة...
+                        </>
+                      ) : (
+                        "نعم، امسح كل شيء الآن"
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-5 text-center py-4">
+                  <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto scale-110">
+                    <Check className="w-7 h-7 stroke-[3]" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">تم تطهير وتصفير قاعدة البيانات بنجاح!</h4>
+                    <p className="text-xs text-gray-500 font-medium">أصبح المشروع خاماً وجديداً بنسبة مائة بالمائة كلياً.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg transition-all active:scale-95 cursor-pointer"
+                  >
+                    تحديث وتحميل النظام الجديد الآن
+                  </button>
+                </div>
+              )}
             </motion.div>
           </div>
         )}

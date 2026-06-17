@@ -178,62 +178,83 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
   }, [collectionName]);
 
   const addDocument = async (item: Omit<T, 'id'>) => {
-    try {
-      const docRef = await addDoc(collection(db, collectionName), item);
-      return docRef.id;
-    } catch(e) {
-      handleFirestoreError(e, OperationType.CREATE, collectionName);
-      const list = getLocalCollection(collectionName);
-      const newId = `${collectionName.substring(0, 4)}_${Math.random().toString(36).substring(2, 11)}`;
-      const localItem = { id: newId, ...item };
-      list.push(localItem);
-      saveLocalCollection(collectionName, list);
-      return newId;
+    const list = getLocalCollection(collectionName);
+    const newId = `${collectionName.substring(0, 4)}_${Math.random().toString(36).substring(2, 11)}`;
+    const localItem = { id: newId, ...item } as unknown as T;
+    list.push(localItem);
+    saveLocalCollection(collectionName, list);
+
+    if (!isFirestoreBlocked) {
+      try {
+        const docRef = await addDoc(collection(db, collectionName), item);
+        
+        // Sync the local storage collection's fallback ID with the actual Firestore ID
+        const freshList = getLocalCollection(collectionName);
+        const index = freshList.findIndex(x => String(x.id) === String(newId));
+        if (index >= 0) {
+          freshList[index].id = docRef.id;
+          saveLocalCollection(collectionName, freshList);
+        }
+        
+        return docRef.id;
+      } catch(e) {
+        handleFirestoreError(e, OperationType.CREATE, collectionName);
+        return newId;
+      }
     }
+    return newId;
   };
 
   const updateDocument = async (id: string, item: Partial<T>) => {
-    try {
-      await setDoc(doc(db, collectionName, String(id)), item, { merge: true });
-    } catch(e) {
-      handleFirestoreError(e, OperationType.UPDATE, `${collectionName}/${id}`);
-      const list = getLocalCollection(collectionName);
-      const index = list.findIndex(x => String(x.id) === String(id));
-      if (index >= 0) {
-        list[index] = { ...list[index], ...item };
-      } else {
-        // Essential FIX for adding a newly created item or setting a currently unregistered item in LocalFallback
-        list.push({ id, ...item } as any);
+    const list = getLocalCollection(collectionName);
+    const index = list.findIndex(x => String(x.id) === String(id));
+    if (index >= 0) {
+      list[index] = { ...list[index], ...item };
+    } else {
+      list.push({ id, ...item } as any);
+    }
+    saveLocalCollection(collectionName, list);
+
+    if (!isFirestoreBlocked) {
+      try {
+        await setDoc(doc(db, collectionName, String(id)), item, { merge: true });
+      } catch(e) {
+        handleFirestoreError(e, OperationType.UPDATE, `${collectionName}/${id}`);
       }
-      saveLocalCollection(collectionName, list);
     }
   };
 
   const deleteDocument = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, collectionName, String(id)));
-    } catch(e) {
-      handleFirestoreError(e, OperationType.DELETE, `${collectionName}/${id}`);
-      const list = getLocalCollection(collectionName);
-      const filtered = list.filter(item => String(item.id) !== String(id));
-      saveLocalCollection(collectionName, filtered);
+    const list = getLocalCollection(collectionName);
+    const filtered = list.filter(item => String(item.id) !== String(id));
+    saveLocalCollection(collectionName, filtered);
+
+    if (!isFirestoreBlocked) {
+      try {
+        await deleteDoc(doc(db, collectionName, String(id)));
+      } catch(e) {
+        handleFirestoreError(e, OperationType.DELETE, `${collectionName}/${id}`);
+      }
     }
   };
 
   const setDocument = async (id: string, item: Omit<T, 'id'>) => {
-     try {
-       await setDoc(doc(db, collectionName, String(id)), item);
-     } catch(e) {
-       handleFirestoreError(e, OperationType.WRITE, `${collectionName}/${id}`);
-       const list = getLocalCollection(collectionName);
-       const index = list.findIndex(x => String(x.id) === String(id));
-       if (index >= 0) {
-         list[index] = { id, ...item };
-       } else {
-         list.push({ id, ...item });
-       }
-       saveLocalCollection(collectionName, list);
-     }
+    const list = getLocalCollection(collectionName);
+    const index = list.findIndex(x => String(x.id) === String(id));
+    if (index >= 0) {
+      list[index] = { id, ...item } as any;
+    } else {
+      list.push({ id, ...item } as any);
+    }
+    saveLocalCollection(collectionName, list);
+
+    if (!isFirestoreBlocked) {
+      try {
+        await setDoc(doc(db, collectionName, String(id)), item);
+      } catch(e) {
+        handleFirestoreError(e, OperationType.WRITE, `${collectionName}/${id}`);
+      }
+    }
   };
 
   return { data, loading, addDocument, updateDocument, deleteDocument, setDocument };
