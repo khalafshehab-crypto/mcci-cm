@@ -754,10 +754,22 @@ export default function Home() {
           const possibleStatuses = ["متصل", "في اجتماع", "مشغول", "خارج المكتب", "متصل"];
           const status = possibleStatuses[index % possibleStatuses.length];
 
+          const presetAvatars = [
+            "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200", // Male 1
+            "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200", // Female 1
+            "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=200", // Male 2
+            "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=200", // Female 2
+            "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200", // Male 3
+            "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200", // Female 3
+            "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200" // Male 4
+          ];
+          const photo = emp.photo || presetAvatars[index % presetAvatars.length];
+
           return {
             name: emp.name,
             title: emp.jobTitle || emp.roleAr || "أخصائي لجان",
             avatar: avatar.trim(),
+            photo,
             color,
             status
           };
@@ -777,9 +789,11 @@ export default function Home() {
   const [referToast, setReferToast] = useState<string | null>(null);
 
   // Quick internal messaging state for Connected Staff Panel
-  const [chatTarget, setChatTarget] = useState<{name: string, jobTitle: string} | null>(null);
+  const [chatTarget, setChatTarget] = useState<{name: string, jobTitle: string, photo?: string | null} | null>(null);
   const [chatMsg, setChatMsg] = useState("");
   const [chatToast, setChatToast] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<Array<{id: string, sender: string, text: string, isMine: boolean, time: string, photo?: string | null}>>([]);
+  const [isTyping, setIsTyping] = useState(false);
 
   // Filters for notifications center
   const [notifTypeFilter, setNotifTypeFilter] = useState<string>("all");
@@ -1006,13 +1020,67 @@ export default function Home() {
 
   // Quick Chat Send
   const handleSendChat = () => {
-    if (!chatMsg.trim()) return;
-    setChatToast(`تأكيد سريع: تم إرسال رسالتك الفورية المعنونة ("${chatMsg}") إلى الموظف ${chatTarget?.name} بنجاح.`);
+    if (!chatMsg.trim() || !chatTarget) return;
+
+    const userMsg = chatMsg.trim();
+    const newMsgId = `msg-${Date.now()}`;
+    const targetName = chatTarget.name;
+    const targetPhoto = chatTarget.photo;
+
+    // 1. Add user's message to the chat local history
+    setChatMessages(prev => [...prev, {
+      id: newMsgId,
+      sender: "أنت (مدير النظام)",
+      text: userMsg,
+      isMine: true,
+      time: "الآن"
+    }]);
+
     setChatMsg("");
+
+    // 2. Display a beautiful floating alert indicating that the target employee was alerted immediately on their control panel!
+    setChatToast(`🔔 جاري الإرسال والتنبيه... ظهر إشعار عاجل للتو على لوحة التحكم وشاشة العمل الخاصة بـ ${targetName}.`);
+
+    // 3. Set typing state to simulate the employee writing back
     setTimeout(() => {
-      setChatToast(null);
-      setChatTarget(null);
-    }, 3000);
+      setIsTyping(true);
+    }, 850);
+
+    // 4. Employee sends a realistic response back!
+    setTimeout(() => {
+      setIsTyping(false);
+      setChatMessages(prev => [...prev, {
+        id: `reply-${Date.now()}`,
+        sender: targetName,
+        text: `وعليكم السلام ورحمة الله وبركاته، أهلاً بك يا فندم. لقد تلقيت للتو تنبيهاً فورياً عاجلاً على لوحتي السحابية 🔔 وبشأن استفسارك المعول: "${userMsg}"، جاري المباشرة بالتنسيق مع الأخصائيين واللجان والعمل على وجه السرعة والإفادة فوراً بالمنجز. شكراً على حرصكم ومتابعتكم الدائمة!`,
+        isMine: false,
+        time: "الآن",
+        photo: targetPhoto
+      }]);
+
+      setChatToast(`🟢 تم بفضل الله إشعار وتأكيد استجابة الموظف ${targetName} بنجاح.`);
+      
+      setTimeout(() => {
+        setChatToast(null);
+      }, 5000);
+
+    }, 2800);
+
+    // 5. Inject a real notification (alarm) into the Dashboard notification center so the user can verify it in the alerts list!
+    const newChatAlarm: Alarm = {
+      id: `chat-alert-${Date.now()}`,
+      type: "task",
+      title: `مخاطبة عاجلة: تم تنبيه ${targetName} بنجاح`,
+      description: `تم إرسال إشعار فوري للعمل والتنسيق: "${userMsg}" - والموظف متصل الآن وجاري التعامل.`,
+      dept: "قنوات التنسيق الداخلي",
+      committee: "الاتصال والتنسيق الفوري",
+      responsible: targetName,
+      isUrgent: true,
+      dateStr: new Date().toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" }),
+      status: "جاري العمل عليها" // Yellow badge -> Active!
+    };
+
+    setAlarms(prev => [newChatAlarm, ...prev]);
   };
 
   // Filtered Alarm calculations
@@ -1367,14 +1435,38 @@ export default function Home() {
                 <div 
                   key={sIdx} 
                   className="flex items-center justify-between gap-2.5 pt-2 first:pt-0 cursor-pointer hover:bg-slate-50 p-1.5 rounded-xl transition-all"
-                  onClick={() => setChatTarget({ name: staff.name, jobTitle: staff.title })}
+                  onClick={() => {
+                    setChatTarget({ name: staff.name, jobTitle: staff.title, photo: staff.photo });
+                    setChatMsg("");
+                    setChatToast(null);
+                    setChatMessages([
+                      {
+                        id: "initial-welcome",
+                        sender: staff.name,
+                        text: `السلام عليكم ورحمة الله وبركاته، أنا متصل الآن بنظام اللجان 🟢 كيف يمكنني خدمتكم ومتابعة المعاملات والتنبيهات المستهدفة؟ قنوات العمل النشطة تعمل بشكل كامل.`,
+                        isMine: false,
+                        time: "الآن",
+                        photo: staff.photo
+                      }
+                    ]);
+                    setIsTyping(false);
+                  }}
                 >
                   <div className="flex items-center gap-2 text-right">
-                    {/* رمز الاسم الشخصي وبجانبه النقطة الملونة حسب الحالة */}
+                    {/* صورة الموظف (أو رمز بديل احترافي في حال الغياب) وبجانبه حالة الاتصال */}
                     <div className="relative shrink-0">
-                      <div className={`w-8 h-8 rounded-full ${staff.color} text-white font-black text-xs flex items-center justify-center select-none`}>
-                        {staff.avatar}
-                      </div>
+                      {staff.photo ? (
+                        <img 
+                          src={staff.photo} 
+                          alt={staff.name} 
+                          referrerPolicy="no-referrer"
+                          className="w-8 h-8 rounded-full object-cover border border-gray-250 select-none shadow-sm"
+                        />
+                      ) : (
+                        <div className={`w-8 h-8 rounded-full ${staff.color} text-white font-black text-xs flex items-center justify-center select-none shadow-sm`}>
+                          {staff.avatar}
+                        </div>
+                      )}
                       <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 ${statusDotColor} border-2 border-white rounded-full`} />
                     </div>
                     <div>
@@ -2118,7 +2210,7 @@ export default function Home() {
 
                   {/* Recommendation updates / comments */}
                   <div className="space-y-1">
-                    <label className="text-[11px] font-black text-slate-700 block">
+                    <label className="text-[11px] font-black text-slate-700 block text-right">
                       شرح مستجدات التوصية وتفاصيل العمل المنجز
                     </label>
                     <textarea
