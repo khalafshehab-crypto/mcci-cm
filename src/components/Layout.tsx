@@ -242,7 +242,7 @@ export default function Layout({ children }: LayoutProps) {
                       type="button"
                       onClick={() => {
                         localStorage.removeItem("current_user");
-                        window.location.reload();
+                        window.location.href = "/";
                       }}
                       className="flex items-center justify-center gap-2 px-3 py-2 text-right hover:bg-red-50 rounded-xl transition-all text-red-600 font-bold text-xs border border-transparent hover:border-red-100 cursor-pointer"
                     >

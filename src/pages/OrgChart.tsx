@@ -343,7 +343,7 @@ export default function OrgChart() {
       } as any);
 
       setTimeout(() => {
-        window.location.reload();
+        window.location.href = "/";
       }, 1500);
 
     } catch (e) {
@@ -561,11 +561,8 @@ export default function OrgChart() {
             const updatedUser = { ...payload, id: formId };
             localStorage.setItem("current_user", JSON.stringify(updatedUser));
             
-            // Dispatch reactive storage cross tab update
+            // Dispatch reactive storage cross tab update so UI updates immediately
             window.dispatchEvent(new Event("storage"));
-            setTimeout(() => {
-              window.location.reload();
-            }, 500);
           }
         }
 
