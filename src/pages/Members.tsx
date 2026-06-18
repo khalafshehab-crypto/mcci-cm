@@ -230,6 +230,22 @@ export default function Members() {
     { id: 3, name: "التطوير العقاري" }
   ];
 
+  const canUserEditCommittee = (committeeName: string): boolean => {
+    try {
+      const stored = localStorage.getItem("current_user");
+      if (!stored) return true;
+      const user = JSON.parse(stored);
+      if (!user) return true;
+      if (user.role === "SYS_ADMIN") return true;
+      if (user.committees && Array.isArray(user.committees)) {
+        return user.committees.includes(committeeName);
+      }
+      return false;
+    } catch (e) {
+      return true;
+    }
+  };
+
   const [searchQuery, setSearchQuery] = useState("");
   const [filterQuery, setFilterQuery] = useState("");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
@@ -371,6 +387,10 @@ export default function Members() {
   };
 
   const handleOpenEdit = (m: Member) => {
+    if (!canUserEditCommittee(m.committeeName)) {
+      alert("عذراً، لا تملك الصلاحية لتعديل هذا العضو. يمكنك فقط تعديل وعمل اللجان المكلف بها.");
+      return;
+    }
     setEditingMember(m);
     setTitle(m.title || "الأستاذ");
     setCustomTitle(m.customTitle || "");
@@ -398,6 +418,10 @@ export default function Members() {
   };
 
   const handleOpenDelete = (m: Member) => {
+    if (!canUserEditCommittee(m.committeeName)) {
+      alert("عذراً، لا تملك الصلاحية لحذف هذا العضو. يمكنك فقط تعديل وعمل اللجان المكلف بها.");
+      return;
+    }
     setDeletingMember(m);
     setDeleteReason("");
     setIsDeletingStep(false);
@@ -440,6 +464,11 @@ export default function Members() {
     }
 
     const matchedComm = allCommittees.find(c => c.id === Number(selectedCommitteeId)) || { name: "لجنة" };
+
+    if (!canUserEditCommittee(matchedComm.name)) {
+      setFormError("عذراً، لا تملك الصلاحية لإضافة أو تعديل عضو في هذه اللجنة. يمكنك فقط إدارة لجانك المكلف بها.");
+      return;
+    }
 
     // Auto calculate membershipType
     const calculatedEntity = joiningMechanism === "ممثل لجهة حكومية" 

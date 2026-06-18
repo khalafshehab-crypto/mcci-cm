@@ -105,6 +105,7 @@ export interface Employee {
   active: boolean; // حالة الموظف (فعال / غير فعال)
   joinDate: string; // تاريخ التعيين
   password?: string; // كلمة المرور
+  allowedPages?: string[]; // الصفحات المصرح بها
 }
 
 export interface JoinRequest {
@@ -241,6 +242,7 @@ export default function OrgChart() {
   const [formActive, setFormActive] = useState(true);
   const [formPassword, setFormPassword] = useState("");
   const [formCommittees, setFormCommittees] = useState<string[]>([]);
+  const [formAllowedPages, setFormAllowedPages] = useState<string[]>([]);
   const [originalEditId, setOriginalEditId] = useState("");
 
   // Restrict tabs for non-SYS_ADMIN users
@@ -549,6 +551,7 @@ export default function OrgChart() {
         photo: formPhoto,
         active: isPowerUser ? formActive : (existingEmployee ? existingEmployee.active : true), // Lock active state
         committees: formCommittees,
+        allowedPages: isPowerUser ? formAllowedPages : (existingEmployee?.allowedPages || []),
         password: formPassword.trim() || (existingEmployee?.password || ""),
         joinDate: existingEmployee?.joinDate || new Date().toISOString().split('T')[0].replace(/-/g, '/')
       };
@@ -671,6 +674,7 @@ export default function OrgChart() {
     setFormActive(true);
     setFormPassword("");
     setFormCommittees([]);
+    setFormAllowedPages([]);
     setOriginalEditId("");
   };
 
@@ -698,6 +702,7 @@ export default function OrgChart() {
     setFormActive(emp.active !== false);
     setFormPassword(emp.password || "");
     setFormCommittees(emp.committees || []);
+    setFormAllowedPages(emp.allowedPages || []);
     
     setIsEditing(true);
     setShowFormModal(true);
@@ -1935,6 +1940,89 @@ export default function OrgChart() {
                         )}
                       </>
                     )}
+                  </div>
+
+                  {/* Page Access Permissions - Checkboxes */}
+                  <div className="col-span-1 sm:col-span-2 border border-gray-200 bg-gray-50/50 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-gray-150 pb-2.5">
+                      <span className="text-xs font-extrabold text-gray-700 block">
+                        صلاحيات عرض صفحات النظام المخصصة (من صلاحيات مدير النظام)
+                      </span>
+                      <span className="text-[10px] text-brand bg-brand/10 px-2.5 py-1 rounded-full font-extrabold">
+                        {formAllowedPages.length || 9} صفحات نشطة مصرح بها
+                      </span>
+                    </div>
+                    
+                    <p className="text-[11px] text-gray-500 font-bold leading-normal">
+                      ضع علامة صح أمام الصفحات التي تود ظهورها لهذا الموظف (إذا لم يتم اختيار أي صفحة، ستظهر كافة الصفحات افتراضياً):
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 max-h-48 overflow-y-auto pr-1">
+                      {[
+                        { path: "/", label: "شاشة المتابعة (لوحة التحكم)" },
+                        { path: "/committees", label: "تشكيل اللجان" },
+                        { path: "/members", label: "سجل الأعضاء" },
+                        { path: "/events", label: "الفعاليات" },
+                        { path: "/recommendations", label: "التوصيات القطاعية" },
+                        { path: "/tasks", label: "المهام الإدارية" },
+                        { path: "/reports", label: "التقارير" },
+                        { path: "/library", label: "المكتبة الرقمية" },
+                        { path: "/org-chart", label: "الهيكل الإداري والرقابة" }
+                      ].map((pg) => {
+                        const isSelected = formAllowedPages.includes(pg.path) || formAllowedPages.length === 0;
+                        const isSysAdmin = currentUserRole === "SYS_ADMIN";
+                        return (
+                          <label
+                            key={pg.path}
+                            className={`flex items-center gap-3 px-3 py-2 rounded-lg border text-right transition-all select-none ${
+                              isSysAdmin ? "cursor-pointer" : "opacity-80"
+                            } ${
+                              isSelected
+                                ? "bg-emerald-50/40 border-emerald-300 text-emerald-800 font-bold"
+                                : "bg-white border-gray-200 text-gray-500"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              disabled={!isSysAdmin}
+                              onChange={(e) => {
+                                if (!isSysAdmin) return;
+                                let currentSelected = [...formAllowedPages];
+                                // If first time unchecking and all pages were active by default (empty array)
+                                if (formAllowedPages.length === 0) {
+                                  // initialize with all except current pg
+                                  currentSelected = [
+                                    "/",
+                                    "/committees",
+                                    "/members",
+                                    "/events",
+                                    "/recommendations",
+                                    "/tasks",
+                                    "/reports",
+                                    "/library",
+                                    "/org-chart"
+                                  ];
+                                }
+                                
+                                if (e.target.checked) {
+                                  if (!currentSelected.includes(pg.path)) {
+                                    currentSelected.push(pg.path);
+                                  }
+                                } else {
+                                  currentSelected = currentSelected.filter(p => p !== pg.path);
+                                }
+                                setFormAllowedPages(currentSelected);
+                              }}
+                              className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer disabled:cursor-not-allowed"
+                            />
+                            <div className="flex flex-col text-right">
+                              <span className="text-xs font-semibold">{pg.label}</span>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
                   
                 </div>

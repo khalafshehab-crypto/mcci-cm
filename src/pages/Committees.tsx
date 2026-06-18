@@ -71,6 +71,22 @@ export default function Committees() {
 
   const committees = dbCommittees;
 
+  const canUserEditCommittee = (committeeName: string): boolean => {
+    try {
+      const stored = localStorage.getItem("current_user");
+      if (!stored) return true;
+      const user = JSON.parse(stored);
+      if (!user) return true;
+      if (user.role === "SYS_ADMIN") return true;
+      if (user.committees && Array.isArray(user.committees)) {
+        return user.committees.includes(committeeName);
+      }
+      return false;
+    } catch (e) {
+      return true;
+    }
+  };
+
   const [searchQuery, setSearchQuery] = useState("");
   const [filterQuery, setFilterQuery] = useState("");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
@@ -386,6 +402,10 @@ export default function Committees() {
   };
 
   const handleOpenEdit = (comm: Committee) => {
+    if (!canUserEditCommittee(comm.name)) {
+      alert("عذراً، لا تملك الصلاحية لتعديل هذه اللجنة. يمكنك فقط تعديل اللجان المكلف بها.");
+      return;
+    }
     setEditingComm(comm);
     setName(comm.name);
     setMembersCount(comm.membersCount);
@@ -406,6 +426,10 @@ export default function Committees() {
   };
 
   const handleOpenDelete = (comm: Committee) => {
+    if (!canUserEditCommittee(comm.name)) {
+      alert("عذراً، لا تملك الصلاحية لحذف هذه اللجنة. يمكنك فقط تعديل اللجان المكلف بها.");
+      return;
+    }
     setDeletingComm(comm);
     setDeleteReason("");
     setIsDeletingStep(false);

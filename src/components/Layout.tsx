@@ -30,6 +30,7 @@ export default function Layout({ children }: LayoutProps) {
   const [userName, setUserName] = useState("مدير النظام");
   const [userRoleAr, setUserRoleAr] = useState("مدير النظام");
   const [userPhoto, setUserPhoto] = useState<string | null>(null);
+  const [currentUserObj, setCurrentUserObj] = useState<any>(null);
 
   useEffect(() => {
     return subscribeToFirestoreBlocked((blocked) => {
@@ -43,6 +44,7 @@ export default function Layout({ children }: LayoutProps) {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed) {
+          setCurrentUserObj(parsed);
           if (parsed.name) setUserName(parsed.name);
           if (parsed.roleAr) setUserRoleAr(parsed.roleAr || "أخصائي اللجان");
           if (parsed.photo) setUserPhoto(parsed.photo);
@@ -117,8 +119,21 @@ export default function Layout({ children }: LayoutProps) {
     { name: "Library", nameAr: "المكتبة الرقمية", path: "/library", icon: <BookOpen className="w-4 h-4" /> },
     { name: "System Admin", nameAr: "الهيكل الإداري", path: "/org-chart", icon: <Settings className="w-4 h-4" /> },
   ];
+
+  const filteredPages = pages.filter(page => {
+    if (!currentUserObj) return true;
+    // Always let sysadmins see everything
+    if (currentUserObj.role === "SYS_ADMIN") return true;
+    
+    // If user has allowedPages restriction
+    if (currentUserObj.allowedPages && Array.isArray(currentUserObj.allowedPages)) {
+      if (currentUserObj.allowedPages.length === 0) return true;
+      return currentUserObj.allowedPages.includes(page.path);
+    }
+    return true;
+  });
  
-  const currentPage = pages.find(p => p.path === location.pathname) || pages[0];
+  const currentPage = filteredPages.find(p => p.path === location.pathname) || filteredPages[0] || pages[0];
 
   return (
     <div dir="rtl" className="min-h-screen bg-[#cccccc] p-4 md:p-6 text-gray-800 font-sans">
@@ -202,7 +217,7 @@ export default function Layout({ children }: LayoutProps) {
                   <div className="px-4 py-2 mb-1">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">التنقل الرئيسي</p>
                   </div>
-                  {pages.map((page, idx) => (
+                  {filteredPages.map((page, idx) => (
                     <Link 
                       key={idx}
                       to={page.path}

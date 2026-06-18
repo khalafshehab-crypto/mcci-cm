@@ -1077,7 +1077,8 @@ export default function Home() {
       responsible: targetName,
       isUrgent: true,
       dateStr: new Date().toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" }),
-      status: "جاري العمل عليها" // Yellow badge -> Active!
+      status: "قيد الانتظار", // Yellow badge -> Active!
+      timeframe: "current"
     };
 
     setAlarms(prev => [newChatAlarm, ...prev]);

@@ -223,6 +223,23 @@ export default function Events() {
   const [filterQuery, setFilterQuery] = useState("");
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+
+  const canUserEditCommittee = (committeeName: string): boolean => {
+    try {
+      const stored = localStorage.getItem("current_user");
+      if (!stored) return true;
+      const user = JSON.parse(stored);
+      if (!user) return true;
+      if (user.role === "SYS_ADMIN") return true;
+      if (user.committees && Array.isArray(user.committees)) {
+        return user.committees.includes(committeeName);
+      }
+      return false;
+    } catch (e) {
+      return true;
+    }
+  };
+
   const [selectedEventIds, setSelectedEventIds] = useState<number[]>([]);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -449,6 +466,7 @@ ${formattedItems}
 
   // Form state
   const [newTitle, setNewTitle] = useState("");
+  const [isTitleManuallyEdited, setIsTitleManuallyEdited] = useState(false);
   const [newType, setNewType] = useState<"مفردة" | "متسلسلة">("مفردة");
   const [newDate, setNewDate] = useState("");
   const [newCommitteeId, setNewCommitteeId] = useState<number>(0);
@@ -459,8 +477,8 @@ ${formattedItems}
   const [newNotes, setNewNotes] = useState("");
 
   // Single specific form state
-  const [singleKind, setSingleKind] = useState("اجتماع");
-  const [singleClassification, setSingleClassification] = useState("دوري");
+  const [singleKind, setSingleKind] = useState("");
+  const [singleClassification, setSingleClassification] = useState("");
   const [singleEventNumber, setSingleEventNumber] = useState("الأول");
   const [isSeqManuallyEdited, setIsSeqManuallyEdited] = useState(false);
   const [singleTime, setSingleTime] = useState("");
@@ -492,6 +510,7 @@ ${formattedItems}
   }, [newType, singleKind, newCommitteeId, singleClassification, committees, events, isSeqManuallyEdited]);
 
   useEffect(() => {
+    if (isTitleManuallyEdited) return;
     if (newType === "مفردة") {
       const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
       const classifStr = singleClassification === "دوري" ? "الدوري" : singleClassification === "استثنائي" ? "الاستثنائي" : singleClassification === "طارئ" ? "الطارئ" : singleClassification === "فريق عمل" ? "فريق العمل" : singleClassification;
@@ -503,7 +522,7 @@ ${formattedItems}
       }
       setNewTitle(autoTitle);
     }
-  }, [newType, singleKind, newCommitteeId, singleClassification, singleEventNumber, committees]);
+  }, [newType, singleKind, newCommitteeId, singleClassification, singleEventNumber, committees, isTitleManuallyEdited]);
 
   useEffect(() => {
     if (location.state && (location.state as any).selectedEventId) {
@@ -525,8 +544,8 @@ ${formattedItems}
   }, [location.state, events]);
 
   // Series specific form state
-  const [seriesKind, setSeriesKind] = useState("اجتماع");
-  const [seriesClassification, setSeriesClassification] = useState("دوري");
+  const [seriesKind, setSeriesKind] = useState("");
+  const [seriesClassification, setSeriesClassification] = useState("");
   const [seriesAssignedEmployee, setSeriesAssignedEmployee] = useState(dynamicEmployees[0] || EMPLOYEES[0] || "");
   const [seriesDayOfWeek, setSeriesDayOfWeek] = useState("الأحد");
   const [seriesStartDate, setSeriesStartDate] = useState("");
@@ -565,9 +584,10 @@ ${formattedItems}
 
   const resetForm = () => {
     setNewTitle("");
+    setIsTitleManuallyEdited(false);
     setNewType("مفردة");
     setNewDate(new Date().toISOString().split("T")[0]);
-    setNewCommitteeId(committees[0]?.id || 0);
+    setNewCommitteeId(0);
     setNewStatus("تجهيز الفعاليات");
     setNewLocation("حضوري");
     setNewEmployees([]);
@@ -575,16 +595,16 @@ ${formattedItems}
     setNewNotes("");
     
     // reset single
-    setSingleKind("اجتماع");
-    setSingleClassification("دوري");
+    setSingleKind("");
+    setSingleClassification("");
     setSingleEventNumber("الأول");
     setSingleTime("");
     setSingleRoom("");
     setSingleEmployee(dynamicEmployees[0] || EMPLOYEES[0] || "");
     
     // reset series
-    setSeriesKind("اجتماع");
-    setSeriesClassification("دوري");
+    setSeriesKind("");
+    setSeriesClassification("");
     setSeriesAssignedEmployee(dynamicEmployees[0] || EMPLOYEES[0] || "");
     setSeriesDayOfWeek("الأحد");
     setSeriesStartDate("");
@@ -605,8 +625,13 @@ ${formattedItems}
   };
 
   const handleOpenEdit = (evt: EventItem) => {
+    if (!canUserEditCommittee(evt.committeeName)) {
+      alert("عذراً، لا تملك الصلاحية لتعديل هذه الفعالية. يمكنك فقط تعديل فعاليات اللجان المكلف بها.");
+      return;
+    }
     setEditingEvent(evt);
     setNewTitle(evt.title);
+    setIsTitleManuallyEdited(true);
     setNewType(evt.type);
     setNewDate(evt.date);
     setNewCommitteeId(evt.committeeId);
@@ -627,6 +652,14 @@ ${formattedItems}
     }
 
     setIsAddOpen(true);
+  };
+
+  const handleOpenDelete = (evt: EventItem) => {
+    if (!canUserEditCommittee(evt.committeeName)) {
+      alert("عذراً، لا تملك الصلاحية لحذف هذه الفعالية. يمكنك فقط تعديل فعاليات اللجان المكلف بها.");
+      return;
+    }
+    setDeletingEvent(evt);
   };
 
   const toggleSeriesRoom = (rm: string) => {
@@ -1067,10 +1100,38 @@ ${formattedItems}
           </button>
         </div>
       ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <AnimatePresence mode="popLayout">
-            {filteredEvents.map((evt) => (
-              <motion.div
+        <div className="space-y-8 text-right">
+          {Object.entries(
+            filteredEvents.reduce((acc, evt) => {
+              const cName = evt.committeeName || "عام / غير محدد";
+              if (!acc[cName]) acc[cName] = [];
+              acc[cName].push(evt);
+              return acc;
+            }, {} as Record<string, EventItem[]>)
+          ).map(([committeeName, commEvents]) => (
+            <div 
+              key={committeeName} 
+              className="bg-white border border-gray-150 rounded-2xl p-6 shadow-sm space-y-4 text-right"
+              id={`committee-grouped-${committeeName}`}
+            >
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-brand/5 border border-brand/10 flex items-center justify-center text-brand">
+                    <Users2 className="w-5 h-5 font-black" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-gray-800">{committeeName}</h3>
+                    <p className="text-[10px] text-gray-400 font-bold">اللجنة القطاعية المنظمة للفعاليات</p>
+                  </div>
+                </div>
+                <span className="text-[10px] text-brand bg-brand/10 px-3 py-1 rounded-full font-black">
+                  {(commEvents as EventItem[]).length} فعاليات مسجلة
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <AnimatePresence mode="popLayout">
+                  {(commEvents as EventItem[]).map((evt) => (
+                    <motion.div
                 key={evt.id}
                 id={`event-card-${evt.id}`}
                 layout
@@ -1119,7 +1180,7 @@ ${formattedItems}
                         </button>
                         <button
                           type="button"
-                          onClick={() => setDeletingEvent(evt)}
+                          onClick={() => handleOpenDelete(evt)}
                           className="w-full px-3 py-2 text-xs font-black text-red-600 hover:bg-red-50 flex items-center justify-end gap-2 transition-colors cursor-pointer"
                         >
                           <span>حذف</span>
@@ -1180,7 +1241,10 @@ ${formattedItems}
               </div>
             </motion.div>
           ))}
-          </AnimatePresence>
+                </AnimatePresence>
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         /* TABLE REGISTER VIEW LAYOUT (سجل الفعاليات) */
@@ -1235,7 +1299,13 @@ ${formattedItems}
                            <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-black border tracking-wide mb-1 ${getEventKindStyle(evt.title)}`}>
                              {getEventKindStr(evt.title)}
                            </span>
-                           <span className="block text-[#4ea0b0] font-black text-[10px]">إضافة {evt.type}</span>
+                           <span className={`block text-[10px] font-black mx-auto mt-1 max-w-max px-1.5 py-0.5 rounded border ${
+                             evt.type === "متسلسلة" 
+                               ? "text-purple-700 bg-purple-100 border-purple-200" 
+                               : "text-blue-700 bg-blue-100 border-blue-200"
+                           }`}>
+                             آلية الإضافة: {evt.type === "متسلسلة" ? "متسلسلة 🔁" : "مفردة 🎯"}
+                           </span>
                         </td>
                         <td className="px-4 py-3.5 whitespace-nowrap font-black text-gray-900 group/row" title="انقر لتشغيل منصة التحضير">
                           <div className="flex flex-col text-right truncate">
@@ -1390,7 +1460,7 @@ ${formattedItems}
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => setDeletingEvent(evt)}
+                                    onClick={() => handleOpenDelete(evt)}
                                     className="w-full px-3 py-2 text-xs font-black text-red-600 hover:bg-red-50 flex items-center justify-end gap-2 transition-colors cursor-pointer"
                                   >
                                     <span>حذف الفعالية</span>
@@ -2662,6 +2732,7 @@ ${formattedItems}
                               onChange={(e) => setSingleKind(e.target.value)}
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
+                              <option value="" disabled>اختر نوع الفعالية</option>
                               {EVENT_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
                             </select>
                           </div>
@@ -2672,6 +2743,7 @@ ${formattedItems}
                               onChange={(e) => setSingleClassification(e.target.value)}
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
+                              <option value="">اختر نوع التصنيف</option>
                               {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </div>
@@ -2739,9 +2811,13 @@ ${formattedItems}
                             <label className="text-[11px] font-black text-gray-500 block">عنوان الفعالية</label>
                             <input
                               type="text"
-                              readOnly
                               value={newTitle}
-                              className="w-full bg-gray-200/50 text-gray-600 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold"
+                              onChange={(e) => {
+                                setNewTitle(e.target.value);
+                                setIsTitleManuallyEdited(true);
+                              }}
+                              className="w-full bg-gray-50 text-gray-900 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              placeholder="أدخل عنوان الفعالية أو قم بتعديله يدوياً..."
                             />
                           </div>
                         </>
@@ -2757,6 +2833,7 @@ ${formattedItems}
                               onChange={(e) => setSeriesKind(e.target.value)}
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
+                              <option value="" disabled>اختر نوع الفعالية</option>
                               {EVENT_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
                             </select>
                           </div>
@@ -2768,6 +2845,7 @@ ${formattedItems}
                               onChange={(e) => setSeriesClassification(e.target.value)}
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
+                              <option value="">اختر نوع التصنيف</option>
                               {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </div>
