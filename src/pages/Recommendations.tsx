@@ -33,8 +33,25 @@ import {
   ChevronLeft,
   Calendar,
   Layers,
-  ArrowRightLeft
+  ArrowRightLeft,
+  ChevronRight,
+  Activity,
+  Briefcase,
+  UserCheck,
+  Building,
+  ArrowUpRight,
+  ShieldAlert,
+  Inbox
 } from "lucide-react";
+
+interface Attachment {
+  name: string;
+  url: string;
+  date: string;
+  type: "مرفق التوصية" | "بريد اعتماد التوصية";
+  approvalAuthority?: string; // جهة الاعتماد if email
+  drivePath: string; // مجلد الحفظ المختار في جوجل درايف
+}
 
 interface AuditLogEntry {
   timestamp: string;
@@ -43,85 +60,75 @@ interface AuditLogEntry {
   notes?: string;
 }
 
-interface Attachment {
-  name: string;
-  url: string;
-  date: string;
-  type: "مرفق التوصية" | "إيميل اعتماد التوصية";
-  approvalAuthority?: string; // جهة الاعتماد if email
-  drivePath: string; // محلد الحفظ المختار في جوجل درايف
-}
-
 interface RecommendationItem {
   id: string;
-  title: string;
-  description: string;
-  committeeName: string;
-  eventName: string;
-  date: string;
+  title: string;              // نص التوصية
+  description: string;        // تفاصيل أخرى
+  committeeName: string;      // اللجنة المعنية
+  eventName: string;          // اسم الفعالية
+  date: string;               // تاريخ الفعالية
   status: "جديدة" | "جاري العمل عليها" | "متأخرة" | "منجزة";
-  approvalStage: "أخصائي" | "رئيس قسم" | "مدير الإدارة" | "مساعد الأمين العام" | "المكتب التنفيذي" | "مكتملة";
-  assignedTo: string;
-  duration: string;
+  approvalStage: "الأخصائي" | "رئيس القسم" | "مدير الإدارة" | "مساعد الأمين العام" | "المكتب التنفيذي" | "مكتملة";
+  assignedTo: string;         // المكلف بتفعيلها
+  duration: string;           // مدة تفعيل التوصية
   attachments?: Attachment[];
   auditLogs?: AuditLogEntry[];
   hasImpact?: boolean;
   response?: "موافقة" | "رفض" | "";
   responseNotes?: string;
   implementationAction?: string;
+  
+  // Custom metadata
+  itemNumber?: string;         // رقم البند
+  itemTitle?: string;          // عنوان البند
+  discussion?: string;         // المناقشة التي تمت
+  addMethod?: "توصية مستقلة" | "توصية بالتمرير";
+  linkedEventId?: string;      // ID of linked event if applicable
 }
 
-const DEFAULT_EMPLOYEES = [
-  "شهاب الدين"
+const DEFAULT_EMPLOYEES = ["شهاب الدين", "أحمد الحربي", "ياسر المحمادي", "مروان الأنصاري"];
+const DEFAULT_COMMITTEES = [
+  "لجنة الاستثمار والتمويل",
+  "لجنة التغذية والإعاشة",
+  "لجنة السياحة والفنادق",
+  "لجنة الصناعة والطاقة",
+  "لجنة التطوير العقاري"
 ];
 
 const STAGES: Array<{ id: RecommendationItem["approvalStage"]; label: string; role: string }> = [
-  { id: "أخصائي", label: "أخصائي اللجان", role: "إعداد ومطابقة" },
-  { id: "رئيس قسم", label: "رئيس قسم اللجان", role: "مراجعة واعتماد أولى" },
+  { id: "الأخصائي", label: "الأخصائي", role: "مرحلة الدراسة والصياغة" },
+  { id: "رئيس القسم", label: "رئيس القسم", role: "مراجعة ومطابقة المتطلبات" },
   { id: "مدير الإدارة", label: "مدير الإدارة", role: "اعتماد إدارة اللجان" },
-  { id: "مساعد الأمين العام", label: "مساعد الأمين العام", role: "تدقيق وتمكين استراتيجي" },
-  { id: "المكتب التنفيذي", label: "المكتب التنفيذي", role: "الاعتماد النهائي والتفعيل" },
-  { id: "مكتملة", label: "مكتملة ومفعّلة", role: "توصية سارية ومطبقة" }
+  { id: "مساعد الأمين العام", label: "مساعد الأمين العام", role: "التدقيق والتفعيل الاستراتيجي" },
+  { id: "المكتب التنفيذي", label: "المكتب التنفيذي", role: "المصادقة والاعتماد النهائي" }
 ];
 
 const DEFAULT_DRIVE_FOLDERS = [
-  "/الغرفة التجارية/الملفات العامة/قسم اللجان/ملفات الاعتماد والتفعيل السريع",
-  "/الغرفة التجارية/الأرشيف الرقمي/توصيات لجان الدورة الحالية"
+  "/غرفة مكة المكرمة/الملفات العامة/قسم اللجان/ملفات الاعتماد والتفعيل السريع",
+  "/غرفة مكة المكرمة/الأرشيف الرقمي/توصيات لجان الدورة الحالية"
 ];
 
 export default function Recommendations() {
   const { data: rawRecs, loading: recsLoading, addDocument: addFirebaseRec, updateDocument: updateFirebaseRec, deleteDocument: deleteFirebaseRec } = useFirestoreCollection<RecommendationItem>("recommendations", []);
   const { data: rawCommittees } = useFirestoreCollection<any>("committees", []);
-  
-  // Dynamically generate Google Drive folder paths linked to the formed committees
-  const driveFolders = useMemo(() => {
-    const list = rawCommittees.map((comm: any) => 
-      `/الغرفة التجارية/اللجان القطاعية/${comm.name}/التوصيات المعتمدة والأرشفة`
-    );
-    return [
-      ...list,
-      ...DEFAULT_DRIVE_FOLDERS
-    ];
-  }, [rawCommittees]);
-
+  const { data: rawEvents } = useFirestoreCollection<any>("events", []);
   const { data: dbEmployees } = useFirestoreCollection<any>("employees", []);
   const { addDocument: addFirebaseLog } = useFirestoreCollection<any>("system_logs", []);
 
-  const recommendations = rawRecs;
   const [selectedRecId, setSelectedRecId] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState({ name: "شهاب الدين", role: "مدير النظام" });
+  const [currentUser, setCurrentUser] = useState({ name: "شهاب الدين", role: "أخصائي اللجان" });
 
-  // View style toggle: "grouped" (تجميع حسب الاجتماع) vs "individual" (سجل عام)
+  // View mode toggle: "grouped" (تجميع باسم الفعالية) vs "individual" (سجل جدول شامل)
   const [viewType, setViewType] = useState<"grouped" | "individual">("grouped");
 
-  // Filter & Search states
+  // Filters state
   const [searchWord, setSearchWord] = useState("");
   const [filterCommittee, setFilterCommittee] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterStage, setFilterStage] = useState("all");
   const [filterImpact, setFilterImpact] = useState("all");
 
-  // Interaction dropdowns & modals
+  // Command menu & dropdowns
   const [activeCommandMenuId, setActiveCommandMenuId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<RecommendationItem | null>(null);
@@ -129,7 +136,7 @@ export default function Recommendations() {
   const [recToDeleteId, setRecToDeleteId] = useState<string | null>(null);
   const [deleteReason, setDeleteReason] = useState("");
 
-  // Email modal state
+  // Simulated Email Dialogue state
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [emailRec, setEmailRec] = useState<RecommendationItem | null>(null);
   const [emailTo, setEmailTo] = useState("");
@@ -138,31 +145,72 @@ export default function Recommendations() {
   const [isEmailSending, setIsEmailSending] = useState(false);
   const [isEmailSentSuccess, setIsEmailSentSuccess] = useState(false);
 
-  // Quick Referral Modal state
+  // Quick Stage change workflow drawer/overlay
   const [isReferralModalOpen, setIsReferralModalOpen] = useState(false);
   const [referralRec, setReferralRec] = useState<RecommendationItem | null>(null);
-  const [referralTargetStage, setReferralTargetStage] = useState<RecommendationItem["approvalStage"]>("رئيس قسم");
+  const [referralTargetStage, setReferralTargetStage] = useState<RecommendationItem["approvalStage"]>("رئيس القسم");
   const [referralNotesInput, setReferralNotesInput] = useState("");
 
-  // Attachments form state (Google Drive integration style)
+  // Attachments & simulated directory save
   const [newFileUrl, setNewFileUrl] = useState("");
   const [newFileName, setNewFileName] = useState("");
-  const [newFileType, setNewFileType] = useState<"مرفق التوصية" | "إيميل اعتماد التوصية">("مرفق التوصية");
-  const [newFileAuthority, setNewFileAuthority] = useState("الأمين العام");
+  const [newFileType, setNewFileType] = useState<"مرفق التوصية" | "بريد اعتماد التوصية">("مرفق التوصية");
+  const [newFileAuthority, setNewFileAuthority] = useState("الأمانة العامة");
   const [newFileDrivePath, setNewFileDrivePath] = useState("");
   const [archiveSuccessMessage, setArchiveSuccessMessage] = useState("");
   const [isArchiving, setIsArchiving] = useState(false);
 
-  // State to notify dynamic summaries copy
+  // Visual success triggers
   const [isCopied, setIsCopied] = useState(false);
 
-  // Initialize and synchronize newFileDrivePath dynamically from driveFolders
+  // Form input variables
+  const [formAddMethod, setFormAddMethod] = useState<"توصية مستقلة" | "توصية بالتمرير">("توصية مستقلة");
+  const [formLinkedEventId, setFormLinkedEventId] = useState<string>("");
+  const [formTitle, setFormTitle] = useState("");
+  const [formDesc, setFormDesc] = useState("");
+  const [formCommittee, setFormCommittee] = useState("");
+  const [formEventName, setFormEventName] = useState("");
+  const [formDate, setFormDate] = useState("");
+  const [formStatus, setFormStatus] = useState<RecommendationItem["status"]>("جديدة");
+  const [formAssignedTo, setFormAssignedTo] = useState("");
+  const [formDuration, setFormDuration] = useState("");
+  const [formHasImpact, setFormHasImpact] = useState(false);
+  const [formItemNumber, setFormItemNumber] = useState("");
+  const [formItemTitle, setFormItemTitle] = useState("");
+  const [formDiscussion, setFormDiscussion] = useState("");
+
+  // Resolve dynamic entities or fallbacks
+  const listEmployees = useMemo(() => {
+    return dbEmployees.length > 0 ? dbEmployees.map((e: any) => e.name) : DEFAULT_EMPLOYEES;
+  }, [dbEmployees]);
+
+  const listCommittees = useMemo(() => {
+    return rawCommittees.length > 0 ? rawCommittees.map((c: any) => c.name) : DEFAULT_COMMITTEES;
+  }, [rawCommittees]);
+
+  const confirmedEvents = useMemo(() => {
+    return rawEvents || [];
+  }, [rawEvents]);
+
+  // Google Drive folders dynamically generated based on listed committees
+  const driveFolders = useMemo(() => {
+    const list = listCommittees.map((commName: string) => 
+      `/غرفة مكة المكرمة/اللجان القطاعية/${commName}/التوصيات المعتمدة والأرشفة`
+    );
+    return [
+      ...list,
+      ...DEFAULT_DRIVE_FOLDERS
+    ];
+  }, [listCommittees]);
+
+  // Sync default storage directory
   useEffect(() => {
     if (driveFolders.length > 0 && (!newFileDrivePath || !driveFolders.includes(newFileDrivePath))) {
       setNewFileDrivePath(driveFolders[0]);
     }
   }, [driveFolders, newFileDrivePath]);
 
+  // Load current user context
   useEffect(() => {
     try {
       const stored = localStorage.getItem("current_user");
@@ -178,7 +226,7 @@ export default function Recommendations() {
     } catch (e) {}
   }, []);
 
-  // Set default selection when recommendations are loaded
+  // Sync selected recommendation on first load
   useEffect(() => {
     if (!recsLoading) {
       if (!selectedRecId && rawRecs.length > 0) {
@@ -187,7 +235,7 @@ export default function Recommendations() {
     }
   }, [rawRecs, recsLoading, selectedRecId]);
 
-  // Click outside to close layout drop menu
+  // Automatically close floating dropdown menu on outside clicks
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
@@ -201,68 +249,89 @@ export default function Recommendations() {
     };
   }, []);
 
-  const currentRec = recommendations.find(r => r.id === selectedRecId) || null;
-
-  // Filter Logic
-  const filteredRecs = recommendations.filter(rec => {
-    const word = searchWord.trim().toLowerCase();
-    const matchesWord = !word || 
-      rec.title.toLowerCase().includes(word) ||
-      rec.description.toLowerCase().includes(word) ||
-      rec.eventName.toLowerCase().includes(word) ||
-      rec.assignedTo.toLowerCase().includes(word);
-    
-    const matchesCommittee = filterCommittee === "all" || rec.committeeName === filterCommittee;
-    const matchesStatus = filterStatus === "all" || rec.status === filterStatus;
-    const matchesStage = filterStage === "all" || rec.approvalStage === filterStage;
-    const matchesImpact = filterImpact === "all" || 
-      (filterImpact === "impact" && rec.hasImpact) || 
-      (filterImpact === "normal" && !rec.hasImpact);
-
-    return matchesWord && matchesCommittee && matchesStatus && matchesStage && matchesImpact;
-  });
-
-  // Unique Events grouped data: Map of "(committee - event)" to RecommendationItem[]
-  const groupedEvents: { [key: string]: { committeeName: string; eventName: string; items: RecommendationItem[] } } = {};
-  filteredRecs.forEach(rec => {
-    const key = `${rec.committeeName} || ${rec.eventName}`;
-    if (!groupedEvents[key]) {
-      groupedEvents[key] = {
-        committeeName: rec.committeeName,
-        eventName: rec.eventName,
-        items: []
-      };
+  // Handler for select event changes in the setup wrapper
+  const handleLinkedEventChange = (eventId: string) => {
+    setFormLinkedEventId(eventId);
+    if (!eventId) return;
+    const evt = confirmedEvents.find((e: any) => String(e.id) === eventId);
+    if (evt) {
+      setFormEventName(evt.title);
+      setFormCommittee(evt.committeeName || (listCommittees[0] || ""));
+      setFormDate(evt.date || new Date().toISOString().substring(0, 10));
     }
-    groupedEvents[key].items.push(rec);
-  });
+  };
 
-  // Form input variables
-  const [formTitle, setFormTitle] = useState("");
-  const [formDesc, setFormDesc] = useState("");
-  const [formCommittee, setFormCommittee] = useState("");
-  const [formEventName, setFormEventName] = useState("");
-  const [formDate, setFormDate] = useState("");
-  const [formStatus, setFormStatus] = useState<RecommendationItem["status"]>("جديدة");
-  const [formAssignedTo, setFormAssignedTo] = useState("");
-  const [formDuration, setFormDuration] = useState("");
-  const [formHasImpact, setFormHasImpact] = useState(false);
+  const currentRec = useMemo(() => {
+    return rawRecs.find(r => r.id === selectedRecId) || null;
+  }, [rawRecs, selectedRecId]);
 
+  // Filter recommendations matching the selected parameters
+  const filteredRecs = useMemo(() => {
+    return rawRecs.filter(rec => {
+      const word = searchWord.trim().toLowerCase();
+      const matchesWord = !word || 
+        rec.title.toLowerCase().includes(word) ||
+        (rec.description && rec.description.toLowerCase().includes(word)) ||
+        rec.committeeName.toLowerCase().includes(word) ||
+        rec.eventName.toLowerCase().includes(word) ||
+        rec.assignedTo.toLowerCase().includes(word);
+      
+      const matchesCommittee = filterCommittee === "all" || rec.committeeName === filterCommittee;
+      const matchesStatus = filterStatus === "all" || rec.status === filterStatus;
+      const matchesStage = filterStage === "all" || rec.approvalStage === filterStage;
+      const matchesImpact = filterImpact === "all" || 
+        (filterImpact === "impact" && rec.hasImpact) || 
+        (filterImpact === "normal" && !rec.hasImpact);
+
+      return matchesWord && matchesCommittee && matchesStatus && matchesStage && matchesImpact;
+    });
+  }, [rawRecs, searchWord, filterCommittee, filterStatus, filterStage, filterImpact]);
+
+  // Grouped by Event mapping for card-based presentations (اسم الفعالية يحمل التوصيات)
+  const groupedEvents = useMemo(() => {
+    const groups: { [key: string]: { committeeName: string; eventName: string; date: string; items: RecommendationItem[] } } = {};
+    filteredRecs.forEach(rec => {
+      const eventKey = rec.addMethod === "توصية بالتمرير" 
+        ? `توصيات بالتمرير خارج إطار الاجتماعات الاعتيادية` 
+        : `${rec.committeeName} || ${rec.eventName}`;
+
+      if (!groups[eventKey]) {
+        groups[eventKey] = {
+          committeeName: rec.addMethod === "توصية بالتمرير" ? "إعفاء من الجلسة" : rec.committeeName,
+          eventName: rec.addMethod === "توصية بالتمرير" ? "توصيات بطريقة التمرير المباشر" : rec.eventName,
+          date: rec.date || "",
+          items: []
+        };
+      }
+      groups[eventKey].items.push(rec);
+    });
+    return groups;
+  }, [filteredRecs]);
+
+  // Layout triggers
   const handleOpenAdd = () => {
     setEditingItem(null);
+    setFormAddMethod("توصية مستقلة");
+    setFormLinkedEventId("");
     setFormTitle("");
     setFormDesc("");
-    setFormCommittee(rawCommittees[0]?.name || "لجنة الإعلام والتسويق");
-    setFormEventName("الاجتماع الدوري الأول للعام المالي الجديد");
+    setFormCommittee(listCommittees[0] || "");
+    setFormEventName("");
     setFormDate(new Date().toISOString().substring(0, 10));
     setFormStatus("جديدة");
-    setFormAssignedTo(dbEmployees[0]?.name || DEFAULT_EMPLOYEES[0]);
-    setFormDuration("أسبوعين");
+    setFormAssignedTo(listEmployees[0] || "");
+    setFormDuration("15 يوم عمل");
     setFormHasImpact(false);
+    setFormItemNumber("البند الأول");
+    setFormItemTitle("");
+    setFormDiscussion("");
     setIsFormOpen(true);
   };
 
   const handleOpenEdit = (rec: RecommendationItem) => {
     setEditingItem(rec);
+    setFormAddMethod(rec.addMethod || "توصية مستقلة");
+    setFormLinkedEventId(rec.linkedEventId || "");
     setFormTitle(rec.title);
     setFormDesc(rec.description);
     setFormCommittee(rec.committeeName);
@@ -272,70 +341,83 @@ export default function Recommendations() {
     setFormAssignedTo(rec.assignedTo);
     setFormDuration(rec.duration);
     setFormHasImpact(!!rec.hasImpact);
+    setFormItemNumber(rec.itemNumber || "البند الأول");
+    setFormItemTitle(rec.itemTitle || "");
+    setFormDiscussion(rec.discussion || "");
     setIsFormOpen(true);
   };
 
   const handleSaveRecommendation = async (e: FormEvent) => {
     e.preventDefault();
-    if (!formTitle.trim() || !formDesc.trim() || !formCommittee || !formAssignedTo) {
-      alert("يرجى ملء كافة الخلايا الأساسية لاستكمال الحفظ بنجاح.");
+    if (!formTitle.trim() || !formCommittee || !formAssignedTo) {
+      alert("يرجى التأكد من ملء حقول نص التوصية، اللجنة والمسؤول المتابع.");
       return;
     }
 
+    const currentTimestamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
+
     if (editingItem) {
-      // Update
       const originalLogs = editingItem.auditLogs || [];
       const updatedLogs = [
         ...originalLogs,
         {
-          timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-          action: "تعديل محتوى التوصية وتحديث البيانات الأساسية",
+          timestamp: currentTimestamp,
+          action: "تعديل محتويات التوصية وبنية تفعيلها",
           user: currentUser.name
         }
       ];
 
-      const updatedItem: Partial<RecommendationItem> = {
+      const updatePayload: Partial<RecommendationItem> = {
         title: formTitle,
         description: formDesc,
         committeeName: formCommittee,
-        eventName: formEventName,
+        eventName: formAddMethod === "توصية بالتمرير" ? "توصية بالتمرير المباشر" : formEventName,
         date: formDate,
         status: formStatus,
         assignedTo: formAssignedTo,
         duration: formDuration,
         hasImpact: formHasImpact,
+        itemNumber: formItemNumber,
+        itemTitle: formItemTitle,
+        discussion: formDiscussion,
+        addMethod: formAddMethod,
+        linkedEventId: formLinkedEventId || undefined,
         auditLogs: updatedLogs
       };
 
-      await updateFirebaseRec(editingItem.id, updatedItem);
+      await updateFirebaseRec(editingItem.id, updatePayload);
     } else {
-      // Create new
-      const newItem: Omit<RecommendationItem, "id"> = {
+      const newPayload: Omit<RecommendationItem, "id"> = {
         title: formTitle,
         description: formDesc,
         committeeName: formCommittee,
-        eventName: formEventName,
+        eventName: formAddMethod === "توصية بالتمرير" ? "توصية بالتمرير المباشر" : formEventName,
         date: formDate,
         status: formStatus,
-        approvalStage: "أخصائي",
+        approvalStage: "الأخصائي",
         assignedTo: formAssignedTo,
         duration: formDuration,
         hasImpact: formHasImpact,
+        itemNumber: formItemNumber,
+        itemTitle: formItemTitle,
+        discussion: formDiscussion,
+        addMethod: formAddMethod,
+        linkedEventId: formLinkedEventId || undefined,
         response: "",
         responseNotes: "",
         implementationAction: "",
         attachments: [],
         auditLogs: [
           {
-            timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-            action: `تأسيس يدوي للتوصية بواسطة الأخصائي: ${currentUser.name}`,
+            timestamp: currentTimestamp,
+            action: `تأسيس التوصية (${formAddMethod === "توصية مستقلة" ? "توصية مستقلة" : "توصية بالتمرير المباشر"}) بواسطة الأخصائي: ${currentUser.name}`,
             user: currentUser.name
           }
         ]
       };
 
-      const newId = await addFirebaseRec(newItem);
-      if (newId) setSelectedRecId(newId);
+      const docId = await addFirebaseRec(newPayload);
+      if (docId) setSelectedRecId(docId);
     }
 
     setIsFormOpen(false);
@@ -350,29 +432,27 @@ export default function Recommendations() {
   const handleDeleteRecommendation = async () => {
     if (!recToDeleteId) return;
     if (!deleteReason.trim()) {
-      alert("يرجى ذكر سبب حذف التوصية لتأمين السجل الرقابي والإداري.");
+      alert("يرجى إدخال سبب الحذف.");
       return;
     }
 
     try {
       await deleteFirebaseRec(recToDeleteId);
       
-      // Register custom audit logging for system records
       await addFirebaseLog({
-        employeeName: currentUser?.name || "مدير النظام",
+        employeeName: currentUser.name,
         time: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        operationType: "حذف توصية",
+        operationType: "حذف توصية قطاعية",
         status: "ناجحة",
-        details: `تم تفعيل إجراء الحذف النهائي للتوصية المعرّفة بـ (${recToDeleteId}) بقرار مسبب: ${deleteReason}`
+        details: `تم الحذف للتوصية (${recToDeleteId}) مع توثيق سبب الحذف: ${deleteReason}`
       } as any);
 
-      // Smooth selection fallback
-      const remaining = recommendations.filter(r => r.id !== recToDeleteId);
+      const remaining = rawRecs.filter(r => r.id !== recToDeleteId);
       if (selectedRecId === recToDeleteId) {
         setSelectedRecId(remaining.length > 0 ? remaining[0].id : null);
       }
     } catch (err) {
-      console.error("Error deleting recommendation:", err);
+      console.error(err);
     }
 
     setIsDeleteConfirmOpen(false);
@@ -380,39 +460,42 @@ export default function Recommendations() {
     setDeleteReason("");
   };
 
-  // Referral / Stage advancement in layout
+  // Stepper Referral trigger
   const handleProceedReferral = async (nextStage: RecommendationItem["approvalStage"], notes: string) => {
     const targetRec = referralRec || currentRec;
     if (!targetRec) return;
 
     let actionDescription = "";
-    if (nextStage === "رئيس قسم") {
-      actionDescription = `إحالة التوصية إلى رئيس قسم اللجان للتدقيق والمطابقة`;
+    if (nextStage === "رئيس القسم") {
+      actionDescription = "إحالة التوصية إلى رئيس القسم";
     } else if (nextStage === "مدير الإدارة") {
-      actionDescription = `رفع واعتماد التوصية وإحالتها لسعادة مدير إدارة اللجان القطاعية`;
+      actionDescription = "رفع التوصية لمدير إدارة اللجان";
     } else if (nextStage === "مساعد الأمين العام") {
-      actionDescription = `مراجعة إدارة اللجان والرفع للتوجيه والاعتمادات الاستراتيجية بمكتب مساعد الأمين العام`;
+      actionDescription = "رفع التوصية للاعتماد من مساعد الأمين العام";
     } else if (nextStage === "المكتب التنفيذي") {
-      actionDescription = `إحالة التوصية للمكتب التنفيذي للدراسة والاعتماد النهائي المباشر`;
+      actionDescription = "إحالة التوصية للمكتب التنفيذي للاعتماد";
     } else if (nextStage === "مكتملة") {
-      actionDescription = `الاعتماد النهائي وإقرار التوصية كحالة مكتملة ومطبق بنجاح`;
+      actionDescription = "تأكيد تفعيل التوصية بنجاح واعتماد ترحيلها النهائي";
+    } else {
+      actionDescription = `إرجاع الملف الإجرائي للمرحلة: ${nextStage}`;
     }
 
+    const currentTimestamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
     const newLog: AuditLogEntry = {
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      timestamp: currentTimestamp,
       action: actionDescription,
       user: currentUser.name,
       notes: notes.trim() || undefined
     };
 
     const updatedLogs = [...(targetRec.auditLogs || []), newLog];
-    const updates: Partial<RecommendationItem> = {
+    const updatePayload: Partial<RecommendationItem> = {
       approvalStage: nextStage,
       status: nextStage === "مكتملة" ? "منجزة" : "جاري العمل عليها",
       auditLogs: updatedLogs
     };
 
-    await updateFirebaseRec(targetRec.id, updates);
+    await updateFirebaseRec(targetRec.id, updatePayload);
     setIsReferralModalOpen(false);
     setReferralRec(null);
     setReferralNotesInput("");
@@ -420,7 +503,6 @@ export default function Recommendations() {
 
   const handleOpenQuickReferral = (rec: RecommendationItem) => {
     setReferralRec(rec);
-    // Suggest the next logical stage
     const currentIndex = STAGES.findIndex(s => s.id === rec.approvalStage);
     const nextIndex = currentIndex < STAGES.length - 1 ? currentIndex + 1 : currentIndex;
     setReferralTargetStage(STAGES[nextIndex].id);
@@ -428,50 +510,73 @@ export default function Recommendations() {
     setIsReferralModalOpen(true);
   };
 
-  // Email simulation composer
+  // Smart Compiler compiler text compiler
+  const getSmartAISummary = (rec: RecommendationItem) => {
+    return `مقرر حوكمة وتفعيل التوصيات - غرفة مكة المكرمة:
+------------------------------------------
+• تصنيف الإجراء: ${rec.addMethod || "توصية مستقلة"}
+• اللجنة والقطاع المعني: ${rec.committeeName}
+• الفعالية التاريخية: ${rec.eventName || "تفعيل بالتمرير الدائم"} (${rec.date || "بدون تاريخ محدد"})
+• معرّف البند والمحور: البند {${rec.itemNumber || "غير مرقم"}} - العنوان {${rec.itemTitle || "عام"}}
+• وقائع ومناقشة الجلسة: "${rec.discussion || "لم يتم تدوين مناقشة تفصيلية"}"
+• نص القرار الملتزم به: "${rec.title}"
+• المسؤول المكلف بالمتابعة: الأستاذ / ${rec.assignedTo}
+• الإطار الزمني للتنفيذ: خلال ${rec.duration || "الفترة النظامية"}
+• مرحلة التتبع الإداري الحالية: [${rec.approvalStage}] (الحالة: ${rec.status})`;
+  };
+
+  const handleCopySmartSummary = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  // Email simulation container triggers
   const handleOpenEmailComposer = (rec: RecommendationItem) => {
     setEmailRec(rec);
-    setEmailTo("khalafshehab@gmail.com, secretary@chamber.org.sa");
-    setEmailSubject(`مظروف حوكمة إلكتروني: تنشيط وتطبيق توصية [${rec.title}]`);
-    setEmailBody(`السادة منسقو اللجان القطاعية الكرام،
+    setEmailTo("committees.manager@makkahchamber.sa");
+    setEmailSubject(`مخطط حوكمة وتصميم توصية: [${rec.committeeName}] - البند [${rec.itemNumber || "الرئيسي"}]`);
+    setEmailBody(`المحترمين في إدارة اللجان بغرفة مكة المكرمة،
 
-تجدون برفقه السجل والمستندات الخاصة بالتوصية المعتمدة الصادرة عن (${rec.committeeName}) في اللقاء الموسوم بـ [${rec.eventName}]:
+السلام عليكم ورحمة الله وبركاته،،
 
-• عنوان التوصية: ${rec.title}
-• الوصف والمحتوى: ${rec.description}
-• الموظف المكلف بالمتابعة والقياس: ${rec.assignedTo}
-• تاريخ الاجتماع المحدد: ${rec.date}
-• مدة العمل والإطار الزمني: ${rec.duration}
+نرفع لكم مستند حوكمة التوصية المعتمدة رقم (${rec.id.substring(0, 6)})، والصادرة بمطالب من السادة أعضاء اللجنة:
 
-برجاء الاطلاع على التفاصيل واستكمال إجراءات الاعتماد التنفيذي والمطابقة في النظام.
+• اللجنة والنشاط القطاعي: ${rec.committeeName}
+• الفعالية التاريخية: ${rec.eventName} (${rec.date})
+• رقم ومحور البند: ${rec.itemNumber || "الأول"} - ${rec.itemTitle || "غير محدد"}
+• خلاصة المناقشة: ${rec.discussion || "تطوير الجودة وتفعيل برامج التعاون المشتركة"}
+• صيغة التوصية المعمدة: "${rec.title}"
+• منسق التمكين والمكلف: الأستاذ/ ${rec.assignedTo}
+• سقف التنفيذ الزمني: ${rec.duration}
 
-مع التقدير،
-مكتب أخصائي شؤون حوكمة اللجان - الغرفة التجارية`);
+تم أرشفتها بمجلد جوجل درايف ومطابقتها من قبل إدارة اللجان.
+
+أخصائي اللجان والاتصال بغرفة مكة المكرمة`);
     setIsEmailModalOpen(true);
     setIsEmailSending(false);
     setIsEmailSentSuccess(false);
   };
 
   const handleSendEmailSimulate = () => {
+    if (!emailRec) return;
     setIsEmailSending(true);
     setTimeout(() => {
       setIsEmailSending(false);
       setIsEmailSentSuccess(true);
       
-      // Log this email transaction inside original recommendation's audit logs
-      if (emailRec) {
-        const originalLogs = emailRec.auditLogs || [];
-        const updatedLogs = [
-          ...originalLogs,
-          {
-            timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-            action: `تصدير وإرسال إيميل رسمي لإخطار الأعضاء والمكلَّف ببنود التوصية`,
-            user: currentUser.name,
-            notes: `تم الإرسال بنجاح إلى: ${emailTo}`
-          }
-        ];
-        updateFirebaseRec(emailRec.id, { auditLogs: updatedLogs });
-      }
+      const currentTimestamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
+      const originalLogs = emailRec.auditLogs || [];
+      const updatedLogs = [
+        ...originalLogs,
+        {
+          timestamp: currentTimestamp,
+          action: `إصدار وتصدير المظروف البريدي وحافظه العمل لوجهات المتابعة الحكومية والتجارية`,
+          user: currentUser.name,
+          notes: `البريد المرسل: ${emailTo}`
+        }
+      ];
+      updateFirebaseRec(emailRec.id, { auditLogs: updatedLogs });
 
       setTimeout(() => {
         setIsEmailModalOpen(false);
@@ -480,41 +585,41 @@ export default function Recommendations() {
     }, 1200);
   };
 
-  // Attachments archiving and manual saving in Google Drive path
+  // Custom attachment Google Drive archiver simulation with live warning
   const handleAddAttachment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentRec) return;
     if (!newFileName.trim()) {
-      alert("يرجى تدوين اسم المرفق بشكل واضح.");
+      alert("يرجى تدوين اسم الملحق بوضوح.");
       return;
     }
 
     setIsArchiving(true);
     setArchiveSuccessMessage("");
 
-    // Simulate upload and sync in 1 second
     setTimeout(async () => {
-      const targetUrl = newFileUrl.trim() || `https://drive.google.com/drive/folders/rec_${currentRec.id}`;
+      const generatedUrl = newFileUrl.trim() || `https://drive.google.com/drive/folders/makkah_chamber_rec_${currentRec.id}`;
       const newAttach: Attachment = {
         name: newFileName.trim(),
-        url: targetUrl,
+        url: generatedUrl,
         date: new Date().toISOString().substring(0, 10),
         type: newFileType,
         drivePath: newFileDrivePath,
-        approvalAuthority: newFileType === "إيميل اعتماد التوصية" ? newFileAuthority : undefined
+        approvalAuthority: newFileType === "بريد اعتماد التوصية" ? newFileAuthority : undefined
       };
 
       const originalAttachments = currentRec.attachments || [];
       const updatedAttachments = [...originalAttachments, newAttach];
 
+      const currentTimestamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
       const originalLogs = currentRec.auditLogs || [];
       const updatedLogs = [
         ...originalLogs,
         {
-          timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-          action: `إرفاق وأرشفة ملف [${newFileName}] وتخزينه المستندي في المسار المعتمد بجوجل درايف`,
+          timestamp: currentTimestamp,
+          action: `إرفاق وتوثيق مخرج رقمي [${newFileName}] وحفظه في مساحة درايف المحددة`,
           user: currentUser.name,
-          notes: `نوع الملحق: ${newFileType} | مجلد جوجل درايف: ${newFileDrivePath}`
+          notes: `مسار جوجل درايف: ${newFileDrivePath}`
         }
       ];
 
@@ -527,1346 +632,1214 @@ export default function Recommendations() {
       setArchiveSuccessMessage(newFileDrivePath);
       setNewFileName("");
       setNewFileUrl("");
-    }, 1000);
+    }, 1200);
   };
 
-  const handleUpdateResponse = async (resp: "موافقة" | "رفض", notes: string) => {
-    if (!currentRec) return;
-
-    const newLog: AuditLogEntry = {
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      action: `تسجيل قرار تفعيل التوصية من جهة الاختصاص: [${resp === "موافقة" ? "موافقة واعتماد تفعيل" : "رفض وتعديل"}]`,
-      user: currentUser.name,
-      notes: notes.trim() ? `صيغة الرد: ${notes}` : undefined
-    };
-
-    const updatedLogs = [...(currentRec.auditLogs || []), newLog];
-
-    await updateFirebaseRec(currentRec.id, {
-      response: resp,
-      responseNotes: notes,
-      auditLogs: updatedLogs
-    });
-  };
-
-  const handleSaveImplementationAction = async (actionText: string) => {
-    if (!currentRec) return;
-
-    const newLog: AuditLogEntry = {
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      action: `تحديث مسار الإجراء التنفيذي الفعلي المطبق لدعم وحوكمة المخرج`,
-      user: currentUser.name,
-      notes: actionText.trim() ? `المجرى الفعلي: ${actionText}` : undefined
-    };
-
-    const updatedLogs = [...(currentRec.auditLogs || []), newLog];
-
-    await updateFirebaseRec(currentRec.id, {
-      implementationAction: actionText,
-      auditLogs: updatedLogs
-    });
-  };
-
-  const getSmartAISummary = (rec: RecommendationItem) => {
-    return `بناءً على التداول الإداري والمخرجات الفنية للمحور المطروح في "${rec.eventName}" التابع لـ (${rec.committeeName}) المنعقد بتاريخ [${rec.date}]، فقد تبلورت هذه التوصية الهادفة لـ [${rec.title}] - تفصيلاً بـ: [${rec.description}]، وقد تَقَرّرَ الرفع بها لتسير في مسارات الاعتماد المنهجية تحت إشراف سعادة المكلّف وتوجيهه الأستاذ/ [${rec.assignedTo}] وبمدّة عمل تنفيذية تُقَدّر بـ (${rec.duration}) كَحَدّ أَقْصَى.`;
-  };
-
-  const handleCopySmartSummary = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
-  };
-
-  const getStatusColorClass = (status: RecommendationItem["status"]) => {
+  // Colors & badges mapped to the requested guidelines (Navy & Gold vibe)
+  const getStatusBadge = (status: RecommendationItem["status"]) => {
     switch (status) {
-      case "جديدة": return "bg-blue-100 text-blue-800 border-blue-200";
-      case "جاري العمل عليها": return "bg-amber-100 text-amber-800 border-amber-200";
-      case "متأخرة": return "bg-red-100 text-red-800 border-red-200";
-      case "منجزة": return "bg-emerald-100 text-emerald-850 border-emerald-200";
+      case "جديدة":
+        return "bg-blue-50 text-blue-700 border-blue-200";
+      case "جاري العمل عليها":
+        return "bg-amber-50 text-amber-800 border-amber-200";
+      case "متأخرة":
+        return "bg-rose-50 text-rose-700 border-rose-200";
+      case "منجزة":
+        return "bg-emerald-50 text-emerald-800 border-emerald-200";
+      default:
+        return "bg-slate-50 text-slate-700 border-slate-200";
     }
   };
 
-  const getStatusDotColor = (status: RecommendationItem["status"]) => {
+  const getStatusBullet = (status: RecommendationItem["status"]) => {
     switch (status) {
-      case "جديدة": return "bg-blue-500 ring-blue-100";
-      case "جاري العمل عليها": return "bg-amber-500 ring-amber-100";
-      case "متأخرة": return "bg-red-500 ring-red-100";
-      case "منجزة": return "bg-emerald-500 ring-emerald-100";
+      case "جديدة": return "bg-blue-500";
+      case "جاري العمل عليها": return "bg-amber-500";
+      case "متأخرة": return "bg-rose-500";
+      case "منجزة": return "bg-emerald-500";
+      default: return "bg-slate-400";
     }
   };
-
-  const getStageBadgeClass = (stage: RecommendationItem["approvalStage"]) => {
-    switch (stage) {
-      case "أخصائي": return "bg-slate-100 text-slate-700 hover:bg-slate-200";
-      case "رئيس قسم": return "bg-purple-100 text-purple-700 border border-purple-200";
-      case "مدير الإدارة": return "bg-indigo-100 text-indigo-700 border border-indigo-200";
-      case "مساعد الأمين العام": return "bg-pink-100 text-pink-700 border border-pink-200";
-      case "المكتب التنفيذي": return "bg-cyan-100 text-cyan-700 border border-cyan-200";
-      case "مكتملة": return "bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold";
-    }
-  };
-
-  const listEmployees = dbEmployees.length > 0 ? dbEmployees.map((e: any) => e.name) : DEFAULT_EMPLOYEES;
-  const listCommittees = rawCommittees.map((c: any) => c.name);
 
   return (
-    <div className="space-y-6 pb-12 text-right" dir="rtl">
+    <div className="space-y-6 pb-20 text-right font-sans" dir="rtl">
       
-      {/* Premium Sub-Header Title & Stats */}
-      <div className="bg-[#e8e4e4] rounded-2xl p-6 border border-gray-200 shadow-sm flex flex-col xl:flex-row items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3 font-Cairo">
-            <div className="bg-brand p-2 rounded-xl text-white shadow-lg shadow-brand/25">
-              <CheckCircle2 className="w-6 h-6 stroke-[2.5]" />
+      {/* Top Professional Header Info */}
+      <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <div className="bg-[#246fff]/10 p-2.5 rounded-xl text-[#246fff] shadow-sm">
+              <CheckCircle2 className="w-6 h-6 stroke-[2.3]" />
             </div>
-            <span>إدارة وحوكمة التوصيات القطاعية</span>
-          </h2>
-          <p className="text-gray-600 text-xs font-bold mt-1">
-            متابعة وإقرار التوصيات المرحلة تلقائياً من الفعاليات ومحاضر الاجتماعات واختبار مسارات الحوكمة الإجرائية والاعتمادات.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 justify-center">
-          {/* Quick Stats Widget */}
-          <div className="flex gap-2 bg-white/70 p-1 rounded-xl border border-gray-200">
-            <div className="px-3 py-1 rounded-lg text-center">
-              <span className="text-[9px] font-black text-gray-500 block leading-tight">إجمالي التوصيات</span>
-              <span className="text-sm font-black text-gray-900 font-mono">{recommendations.length}</span>
-            </div>
-            <div className="border-r border-gray-200 my-1"></div>
-            <div className="px-3 py-1 rounded-lg text-center">
-              <span className="text-[9px] font-black text-blue-600 block leading-tight">جديدة</span>
-              <span className="text-sm font-black text-blue-700 font-mono">{recommendations.filter(r => r.status === "جديدة").length}</span>
-            </div>
-            <div className="border-r border-gray-200 my-1"></div>
-            <div className="px-3 py-1 rounded-lg text-center font-Cairo">
-              <span className="text-[9px] font-black text-emerald-600 block leading-tight">منجزة ومعتمدة</span>
-              <span className="text-sm font-black text-emerald-700 font-mono">{recommendations.filter(r => r.status === "منجزة").length}</span>
+            <div>
+              <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+                إدارة وحوكمة التوصيات القطاعية
+              </h2>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-[11px] font-bold text-[#246fff] bg-[#246fff]/5 border border-[#246fff]/10 px-2 py-0.5 rounded-md">
+                  غرفة مكة المكرمة
+                </span>
+                <span className="text-slate-400 text-xs">•</span>
+                <span className="text-slate-500 text-xs font-medium">
+                  منصة الصياغة، الاعتماد، الربط بالفعاليات، والأرشفة الفورية على جوجل درايف
+                </span>
+              </div>
             </div>
           </div>
+        </div>
 
-          <button
-            type="button"
-            onClick={handleOpenAdd}
-            className="h-10 px-5 bg-brand hover:bg-brand/90 text-white font-extrabold text-xs rounded-xl flex items-center gap-1.5 shadow-md hover:shadow-lg transition-all cursor-pointer"
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>تأسيس توصية يدوية</span>
-          </button>
+        <button
+          type="button"
+          onClick={handleOpenAdd}
+          className="w-full md:w-auto h-11 px-6 bg-[#246fff] hover:bg-[#2064e6] text-white font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer hover:shadow-md"
+        >
+          <Plus className="w-4 h-4 stroke-[2.5]" />
+          <span>تأسيس وإضافة توصية</span>
+        </button>
+      </div>
+
+      {/* Grid General Performance Card */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-x-4">
+          <div className="p-3 rounded-lg bg-blue-50 text-blue-600">
+            <Activity className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-slate-500">إجمالي التوصيات</p>
+            <p className="text-xl font-extrabold text-slate-900 font-mono mt-0.5">{rawRecs.length}</p>
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-x-4">
+          <div className="p-3 rounded-lg bg-orange-50 text-orange-600">
+            <Clock className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-slate-500">جاري تفعيلها</p>
+            <p className="text-xl font-extrabold text-slate-900 font-mono mt-0.5">
+              {rawRecs.filter(r => r.status === "جاري العمل عليها").length}
+            </p>
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-x-4">
+          <div className="p-3 rounded-lg bg-emerald-50 text-emerald-600">
+            <CheckSquare className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-slate-500">منجزة ومعتمدة</p>
+            <p className="text-xl font-extrabold text-slate-900 font-mono mt-0.5">
+              {rawRecs.filter(r => r.status === "منجزة").length}
+            </p>
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-x-4">
+          <div className="p-3 rounded-lg bg-rose-50 text-rose-600">
+            <AlertTriangle className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-slate-500">توصيات متأخرة</p>
+            <p className="text-xl font-extrabold text-slate-900 font-mono mt-0.5">
+              {rawRecs.filter(r => r.status === "متأخرة").length}
+            </p>
+          </div>
         </div>
       </div>
 
       {recsLoading ? (
-        <div className="bg-white border border-gray-200 rounded-2xl p-16 text-center shadow-sm">
-          <RefreshCw className="w-10 h-10 text-brand animate-spin mx-auto mb-3" />
-          <p className="text-gray-500 font-black">جاري تحديث واستيراد التوصيات المرحّلة من قاعدة البيانات...</p>
+        <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center">
+          <RefreshCw className="w-10 h-10 text-[#246fff] animate-spin mx-auto mb-4" />
+          <p className="text-slate-650 font-extrabold text-sm">جاري جلب بيانات التوصيات من قاعدة البيانات...</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
-          {/* Right Panel: Recommendations List & Grouping Controls (4 Columns) */}
-          <div className="lg:col-span-5 xl:col-span-4 space-y-4">
+          {/* Main List Section (7 columns) */}
+          <div className="lg:col-span-7 space-y-4">
             
-            {/* Search, Filter and Groupings Workspace */}
-            <div className="bg-[#f0ecec] border border-gray-300 rounded-2xl p-4 shadow-sm space-y-4">
-              
-              {/* Header inside Panel */}
-              <div className="flex items-center justify-between border-b border-gray-300 pb-2">
-                <h3 className="text-xs font-black text-gray-900 flex items-center gap-1.5">
-                  <Filter className="w-4 h-4 text-brand" />
-                  <span>لوحة التصفية والفهرسة</span>
-                </h3>
+            {/* Filter controls tab */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-4">
+              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-slate-400" />
+                  <span className="text-xs font-black text-slate-700">تصفية التوصيات والفرز</span>
+                </div>
 
-                {(searchWord || filterCommittee !== "all" || filterStatus !== "all" || filterStage !== "all" || filterImpact !== "all") && (
+                {/* Styled Switcher for View Modes */}
+                <div className="bg-slate-100 p-0.5 rounded-lg flex self-end md:self-auto">
                   <button
-                    onClick={() => {
-                      setSearchWord("");
-                      setFilterCommittee("all");
-                      setFilterStatus("all");
-                      setFilterStage("all");
-                      setFilterImpact("all");
-                    }}
-                    className="text-[10px] font-bold text-red-650 hover:underline"
+                    type="button"
+                    onClick={() => setViewType("grouped")}
+                    className={`px-3 py-1.5 text-center font-bold text-[11px] rounded-md transition-all flex items-center gap-1.5 cursor-pointer ${
+                      viewType === "grouped" ? "bg-white text-[#246fff] shadow-xs" : "text-slate-500 hover:text-slate-800"
+                    }`}
                   >
-                    إعادة تصفير الفلاتر
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>العرض كـ بطاقة</span>
                   </button>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => setViewType("individual")}
+                    className={`px-3 py-1.5 text-center font-bold text-[11px] rounded-md transition-all flex items-center gap-1.5 cursor-pointer ${
+                      viewType === "individual" ? "bg-white text-[#246fff] shadow-xs" : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>العرض كـ سجل (جدول)</span>
+                  </button>
+                </div>
               </div>
 
-              {/* View toggle (الجمع في بطاقة باسم الاجتماع vs سجل عام للتوصيات) */}
-              <div className="bg-white/80 p-0.5 rounded-xl border border-gray-300 flex">
-                <button
-                  type="button"
-                  onClick={() => setViewType("grouped")}
-                  className={`flex-1 py-2 text-center font-extrabold text-[11px] rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                    viewType === "grouped" ? "bg-brand text-white shadow-sm" : "text-gray-600 hover:bg-gray-100"
-                  }`}
-                >
-                  <Layers className="w-3.5 h-3.5" />
-                  <span>تجميع حسب الاجتماع</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewType("individual")}
-                  className={`flex-1 py-2 text-center font-extrabold text-[11px] rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                    viewType === "individual" ? "bg-brand text-white shadow-sm" : "text-gray-600 hover:bg-gray-100"
-                  }`}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>سجل عام مستقل</span>
-                </button>
-              </div>
+              {/* Filtering Controls */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={searchWord}
+                    onChange={(e) => setSearchWord(e.target.value)}
+                    placeholder="ابحث بالنص أو المسؤول..."
+                    className="w-full text-[11px] font-bold px-3 py-2 pr-8 border border-slate-250 rounded-xl bg-slate-50/50 text-right focus:outline-none focus:ring-1 focus:ring-[#246fff] text-slate-800 placeholder-slate-400"
+                  />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-2.5" />
+                </div>
 
-              {/* Standard text search */}
-              <div className="relative">
-                <input
-                  type="text"
-                  value={searchWord}
-                  onChange={(e) => setSearchWord(e.target.value)}
-                  placeholder="ابحث بالعنوان، اللجنة، المكلّف..."
-                  className="w-full text-xs font-bold px-3 py-2 border border-gray-300 rounded-xl bg-white text-right focus:outline-none focus:ring-1 focus:ring-brand placeholder-gray-400 text-gray-850"
-                />
-                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-2.5" />
-              </div>
-
-              {/* Dropdowns */}
-              <div className="grid grid-cols-2 gap-2 text-right">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-600">اللجنة القطاعية:</label>
+                <div>
                   <select
                     value={filterCommittee}
                     onChange={(e) => setFilterCommittee(e.target.value)}
-                    className="w-full text-[10px] font-bold p-1.5 border border-gray-300 rounded-xl bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-brand"
+                    className="w-full text-[11px] font-bold p-2 border border-slate-200 rounded-xl bg-white text-slate-700"
                   >
-                    <option value="all">كافة اللجان</option>
+                    <option value="all">كل اللجان القطاعية</option>
                     {listCommittees.map((comm, idx) => (
                       <option key={idx} value={comm}>{comm}</option>
                     ))}
                   </select>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-600">المسار الإداري:</label>
-                  <select
-                    value={filterStage}
-                    onChange={(e) => setFilterStage(e.target.value)}
-                    className="w-full text-[10px] font-bold p-1.5 border border-gray-300 rounded-xl bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-brand"
-                  >
-                    <option value="all">كافة الرتب</option>
-                    {STAGES.map((s, idx) => (
-                      <option key={idx} value={s.id}>{s.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-600">الحالة الإدارية:</label>
+                <div>
                   <select
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value)}
-                    className="w-full text-[10px] font-bold p-1.5 border border-gray-300 rounded-xl bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-brand"
+                    className="w-full text-[11px] font-bold p-2 border border-slate-200 rounded-xl bg-white text-slate-700"
                   >
-                    <option value="all">كافة الحالات</option>
-                    <option value="جديدة">جديدة (أزرق)</option>
-                    <option value="جاري العمل عليها">جاري العمل عليها (أصفر)</option>
-                    <option value="متأخرة">متأخرة (أحمر)</option>
-                    <option value="منجزة">منجزة (أخضر)</option>
+                    <option value="all">كل حالات التفعيل</option>
+                    <option value="جديدة">جديدة</option>
+                    <option value="جاري العمل عليها">جاري العمل عليها</option>
+                    <option value="متأخرة">متأخرة</option>
+                    <option value="منجزة">منجزة</option>
                   </select>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-600">الأثر والمستوى:</label>
+                <div>
                   <select
-                    value={filterImpact}
-                    onChange={(e) => setFilterImpact(e.target.value)}
-                    className="w-full text-[10px] font-bold p-1.5 border border-gray-300 rounded-xl bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-brand"
+                    value={filterStage}
+                    onChange={(e) => setFilterStage(e.target.value)}
+                    className="w-full text-[11px] font-bold p-2 border border-slate-200 rounded-xl bg-white text-slate-700"
                   >
-                    <option value="all">الكل</option>
-                    <option value="impact">ذات أثر استراتيجي ✨</option>
-                    <option value="normal">عنصر اعتيادي</option>
+                    <option value="all">كل مراحل الحوكمة</option>
+                    {STAGES.map((s, idx) => (
+                      <option key={idx} value={s.id}>{s.label}</option>
+                    ))}
+                    <option value="مكتملة">مكتملة</option>
                   </select>
                 </div>
               </div>
             </div>
 
-            {/* List or Group Cards Area */}
-            <div className="space-y-4 max-h-[660px] overflow-y-auto pr-1">
+            {/* List Body Area */}
+            {filteredRecs.length === 0 ? (
+              <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center shadow-xs">
+                <Inbox className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                <p className="text-slate-500 font-extrabold text-sm">لا تتوفر أي توصيات قطاعية مطابقة لخيارات الفرز الحالية.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchWord("");
+                    setFilterCommittee("all");
+                    setFilterStatus("all");
+                    setFilterStage("all");
+                    setFilterImpact("all");
+                  }}
+                  className="mt-3 text-xs text-[#246fff] font-bold hover:underline"
+                >
+                  إعادة تهيئة التصفية لجميع التوصيات
+                </button>
+              </div>
+            ) : viewType === "grouped" ? (
               
-              {/* RENDER OPTION A: Grouped by Meeting (يتم جمع توصيات كل اجتماع في بطاقة باسم اللجنة والفعالية) */}
-              {viewType === "grouped" && (
-                Object.keys(groupedEvents).length === 0 ? (
-                  <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center shadow-sm">
-                    <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
-                    <p className="text-gray-500 font-extrabold text-xs">لا يوجد تجميعات مطابقة لفلاتر البحث الحالية.</p>
-                  </div>
-                ) : (
-                  Object.keys(groupedEvents).map((groupKey, groupIdx) => {
-                    const group = groupedEvents[groupKey];
-                    return (
-                      <div key={groupIdx} className="bg-white border border-gray-250 rounded-2xl overflow-hidden shadow-sm hover:shadow transition-all relative">
-                        {/* Group Card Header - Meeting / Event info */}
-                        <div className="bg-[#f0ecec] border-b border-gray-200 p-4">
-                          <span className="text-[10px] font-extrabold text-brand bg-brand/10 border border-brand/20 px-2 py-0.5 rounded-full block w-fit mb-1 leading-tight">
-                            {group.committeeName}
-                          </span>
-                          <h4 className="text-xs font-black text-gray-900 leading-snug flex items-center gap-1">
-                            <BookOpen className="w-3.5 h-3.5 text-slate-500 select-none" />
-                            <span>ارتباط الفعالية: {group.eventName}</span>
-                          </h4>
-                          <div className="flex gap-2 mt-2">
-                            <span className="text-[9px] text-gray-500 font-bold block bg-white px-2 py-0.5 rounded border border-gray-150 shadow-inner">
-                              إجمالي: <strong className="text-gray-800">{group.items.length} توصية</strong>
-                            </span>
-                            <span className="text-[9px] text-blue-600 font-bold block bg-white px-2 py-0.5 rounded border border-blue-100 shadow-inner">
-                              جديدة: <strong className="text-blue-800 font-mono">{group.items.filter(i => i.status === "جديدة").length}</strong>
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* List of recommendations in this meeting */}
-                        <div className="p-3 divide-y divide-gray-100 space-y-2">
-                          {group.items.map((rec) => {
-                            const isSelected = rec.id === selectedRecId;
-                            const borderCol = rec.status === "جديدة" ? "border-r-blue-500 border-r-4 animate-pulse-subtle" :
-                                              rec.status === "جاري العمل عليها" ? "border-r-amber-500 border-r-4" :
-                                              rec.status === "متأخرة" ? "border-r-red-500 border-r-4" :
-                                              "border-r-emerald-500 border-r-4";
-
-                            return (
-                              <div
-                                key={rec.id}
-                                onClick={() => setSelectedRecId(rec.id)}
-                                className={`p-3 rounded-xl transition-all cursor-pointer relative group/item border ${
-                                  isSelected ? "bg-blue-50/50 border-brand ring-1 ring-brand/10 shadow-sm" : "bg-gray-50/50 border-transparent hover:bg-gray-50"
-                                } ${borderCol} mt-1`}
-                              >
-                                <div className="flex items-start justify-between gap-1">
-                                  <div className="flex flex-wrap items-center gap-1.5">
-                                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${getStatusColorClass(rec.status)}`}>
-                                      {rec.status}
-                                    </span>
-                                    <span className="text-[9px] font-black bg-gray-200/80 text-gray-700 px-1.5 py-0.5 rounded">
-                                      {rec.approvalStage}
-                                    </span>
-                                  </div>
-
-                                  {/* Command Arrow Dropdown (سهم الأوامر) */}
-                                  <div className="relative command-menu-container">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setActiveCommandMenuId(activeCommandMenuId === rec.id ? null : rec.id);
-                                      }}
-                                      className="p-1 hover:bg-gray-200 rounded-lg text-gray-500 hover:text-gray-900 transition-colors cursor-pointer flex items-center gap-0.5 border border-gray-200/60 shadow-inner bg-white"
-                                    >
-                                      <span className="text-[10px] font-extrabold text-blue-900 leading-none">خيارات</span>
-                                      <ChevronDown className="w-3.5 h-3.5 text-blue-700" />
-                                    </button>
-
-                                    {/* Dropped popup list */}
-                                    {activeCommandMenuId === rec.id && (
-                                      <div className="absolute left-0 mt-1.5 w-44 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden divide-y divide-gray-100 text-right">
-                                        <div className="p-1">
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setActiveCommandMenuId(null);
-                                              handleOpenEdit(rec);
-                                            }}
-                                            className="w-full text-right px-3 py-2 text-xs font-black text-gray-700 hover:bg-gray-50 hover:text-brand flex items-center gap-2 rounded-lg cursor-pointer"
-                                          >
-                                            <Edit2 className="w-3.5 h-3.5 text-brand" />
-                                            <span>تعديل التوصية</span>
-                                          </button>
-                                          
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setActiveCommandMenuId(null);
-                                              handleOpenQuickReferral(rec);
-                                            }}
-                                            className="w-full text-right px-3 py-2 text-xs font-black text-gray-700 hover:bg-gray-50 hover:text-brand flex items-center gap-2 rounded-lg cursor-pointer"
-                                          >
-                                            <Forward className="w-3.5 h-3.5 text-indigo-600" />
-                                            <span>الإحالة والاعتماد</span>
-                                          </button>
-
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setActiveCommandMenuId(null);
-                                              handleOpenEmailComposer(rec);
-                                            }}
-                                            className="w-full text-right px-3 py-2 text-xs font-black text-gray-700 hover:bg-gray-50 hover:text-indigo-600 flex items-center gap-2 rounded-lg cursor-pointer"
-                                          >
-                                            <Mail className="w-3.5 h-3.5 text-purple-600" />
-                                            <span>إرسال بريد إلكتروني</span>
-                                          </button>
-                                        </div>
-                                        <div className="p-1">
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setActiveCommandMenuId(null);
-                                              handleOpenDeleteConfirm(rec.id);
-                                            }}
-                                            className="w-full text-right px-3 py-2 text-xs font-black text-red-650 hover:bg-red-50 flex items-center gap-2 rounded-lg cursor-pointer"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                                            <span>حذف التوصية</span>
-                                          </button>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <h5 className="text-xs font-black text-gray-900 mt-2 hover:text-brand transition-colors leading-relaxed">
-                                  {rec.title}
-                                </h5>
-                                
-                                <p className="text-gray-500 text-[11px] font-bold mt-1 line-clamp-1 leading-relaxed">
-                                  {rec.description}
-                                </p>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })
-                )
-              )}
-
-              {/* RENDER OPTION B: General Individual List View */}
-              {viewType === "individual" && (
-                filteredRecs.length === 0 ? (
-                  <div className="bg-white border border-gray-250 rounded-2xl p-8 text-center shadow-sm">
-                    <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
-                    <p className="text-gray-500 font-extrabold text-xs">لم نجد توصيات قطاعية مسجلة للبحث الحالي.</p>
-                  </div>
-                ) : (
-                  filteredRecs.map((rec) => {
-                    const isSelected = rec.id === selectedRecId;
-                    const borderCol = rec.status === "جديدة" ? "border-r-blue-500 border-r-4" :
-                                      rec.status === "جاري العمل عليها" ? "border-r-amber-500 border-r-4" :
-                                      rec.status === "متأخرة" ? "border-r-red-500 border-r-4" :
-                                      "border-r-emerald-500 border-r-4";
-
-                    return (
-                      <div
-                        key={rec.id}
-                        onClick={() => setSelectedRecId(rec.id)}
-                        className={`bg-white rounded-xl p-4 border transition-all cursor-pointer relative ${
-                          isSelected ? "border-brand ring-1 ring-brand shadow-md" : "border-gray-200 shadow-sm hover:border-gray-300"
-                        } ${borderCol}`}
-                      >
-                        <div className="flex items-start justify-between gap-1">
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${getStatusColorClass(rec.status)}`}>
-                            {rec.status}
-                          </span>
-
-                          {/* Command dropdown trigger */}
-                          <div className="relative command-menu-container">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveCommandMenuId(activeCommandMenuId === rec.id ? null : rec.id);
-                              }}
-                              className="p-1 hover:bg-gray-150 rounded-lg text-gray-550 transition-colors cursor-pointer"
-                            >
-                              <ChevronDown className="w-4 h-4 text-slate-500" />
-                            </button>
-                            {activeCommandMenuId === rec.id && (
-                              <div className="absolute left-0 mt-1 w-40 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden divide-y divide-gray-100 text-right">
-                                <div className="p-1 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setActiveCommandMenuId(null);
-                                      handleOpenEdit(rec);
-                                    }}
-                                    className="w-full text-right px-3 py-1.5 text-xs font-black text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 cursor-pointer"
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                    <span>تعديل التوصية</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setActiveCommandMenuId(null);
-                                      handleOpenQuickReferral(rec);
-                                    }}
-                                    className="w-full text-right px-3 py-1.5 text-xs font-black text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 cursor-pointer"
-                                  >
-                                    <Forward className="w-3.5 h-3.5" />
-                                    <span>خيارات الإحالة</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setActiveCommandMenuId(null);
-                                      handleOpenEmailComposer(rec);
-                                    }}
-                                    className="w-full text-right px-3 py-1.5 text-xs font-black text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 cursor-pointer"
-                                  >
-                                    <Mail className="w-3.5 h-3.5" />
-                                    <span>إرسال بريد إلكتروني</span>
-                                  </button>
-                                </div>
-                                <div className="p-1">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setActiveCommandMenuId(null);
-                                      handleOpenDeleteConfirm(rec.id);
-                                    }}
-                                    className="w-full text-right px-3 py-1.5 text-xs font-black text-red-650 hover:bg-red-50 flex items-center gap-1.5 cursor-pointer"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5 text-red-600" />
-                                    <span>حذف التوصية</span>
-                                  </button>
-                                </div>
-                              </div>
+              /* RENDER METHOD A: Grouped by activity/meeting (بطاقة باسم الفعالية وبداخلها التوصيات) */
+              <div className="space-y-4">
+                {Object.keys(groupedEvents).map((eventTitle, gIndex) => {
+                  const groupObj = groupedEvents[eventTitle];
+                  const isCirculation = eventTitle.includes("توصيات بطريقة التمرير");
+                  return (
+                    <div key={gIndex} className="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden">
+                      
+                      {/* Event Group Header */}
+                      <div className="bg-slate-50 border-b border-slate-100 p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            {isCirculation ? (
+                              <span className="text-[10px] font-black text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                                أسلوب تفعيل سريع
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-black text-[#246fff] bg-[#246fff]/5 border border-[#246fff]/10 px-2 py-0.5 rounded-md">
+                                {groupObj.committeeName}
+                              </span>
+                            )}
+                            {groupObj.date && (
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                تاريخ الفعالية: {groupObj.date}
+                              </span>
                             )}
                           </div>
+                          <h4 className="text-xs md:text-sm font-black text-slate-900 mt-1">
+                            {groupObj.eventName}
+                          </h4>
                         </div>
-
-                        <h4 className="text-sm font-black text-gray-900 mt-2 leading-relaxed">
-                          {rec.title}
-                        </h4>
-                        
-                        <p className="text-gray-500 text-xs font-bold mt-1 line-clamp-2 leading-relaxed">
-                          {rec.description}
-                        </p>
-
-                        <div className="border-t border-gray-150 my-2.5"></div>
-
-                        <div className="flex flex-wrap items-center justify-between text-[10px] text-gray-500 font-black">
-                          <span className="flex items-center gap-1">
-                            <BookOpen className="w-3 h-3 text-slate-400" />
-                            {rec.committeeName}
-                          </span>
-                          <span className="bg-slate-100 px-2 py-0.5 rounded text-gray-800">
-                            {rec.approvalStage}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })
-                )
-              )}
-
-            </div>
-          </div>
-
-          {/* Left Panel: Detailed Recommendation Workspace & Interactive Archiving (7-8 Columns) */}
-          <div className="lg:col-span-7 xl:col-span-8">
-            <AnimatePresence mode="wait">
-              {!currentRec ? (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="bg-white border border-gray-200 rounded-2xl p-16 text-center shadow-sm space-y-4"
-                >
-                  <div className="w-20 h-20 bg-blue-50 border border-blue-100 text-brand rounded-full flex items-center justify-center mx-auto shadow-inner shadow-brand/5">
-                    <CheckCircle2 className="w-10 h-10 animate-pulse" />
-                  </div>
-                  <h3 className="text-lg font-black text-gray-900">مكتب ومعمل تدقيق التوصيات</h3>
-                  <p className="text-gray-500 text-xs leading-relaxed max-w-md mx-auto">
-                    يرجى تظليل أو اختيار إحدى التوصيات القطاعية من اللائحة الجانبية لتفعيل حوكمتها، إرفاق مستندات الاعتماد، أرشفة الملفات على Drive، واتخاذ قرارات ההתעצמות الإدارية.
-                  </p>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key={currentRec.id}
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -15 }}
-                  className="bg-white border border-gray-250 rounded-2xl p-6 shadow-sm space-y-6"
-                >
-                  
-                  {/* Title Bar with badges and specialist manager */}
-                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-gray-200 pb-5">
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${getStatusColorClass(currentRec.status)} flex items-center gap-1`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${getStatusDotColor(currentRec.status)} ring-2`}></span>
-                          <span>المطابقة: {currentRec.status}</span>
-                        </span>
-                        
-                        <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${getStageBadgeClass(currentRec.approvalStage)}`}>
-                          طاقة الاعتماد: {currentRec.approvalStage}
-                        </span>
-
-                        {currentRec.hasImpact && (
-                          <span className="text-[10px] font-black text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-0.5">
-                            <Sparkles className="w-3 h-3 text-amber-500 fill-amber-300" />
-                            <span>مبادرة ذات أثر استراتيجي ✨</span>
-                          </span>
-                        )}
-                      </div>
-
-                      <h3 className="text-lg font-black text-gray-950 mt-1 leading-relaxed">
-                        {currentRec.title}
-                      </h3>
-
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-gray-500 font-bold pt-1">
-                        <span className="flex items-center gap-1 text-slate-800">
-                          <Calendar className="w-4 h-4 text-brand" />
-                          <span>الاجتماع: {currentRec.eventName}</span>
-                        </span>
-                        <span className="text-gray-300 select-none">|</span>
-                        <span>بتاريخ: {currentRec.date}</span>
-                        <span className="text-gray-300 select-none">|</span>
-                        <span className="flex items-center gap-1">
-                          <Users className="w-3.5 h-3.5 text-brand" />
-                          <span>اللجنة: {currentRec.committeeName}</span>
+                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">
+                          المقر المقيد: {groupObj.items.length} توصيات
                         </span>
                       </div>
-                    </div>
 
-                    {/* Actions and Specialist Badge */}
-                    <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenDeleteConfirm(currentRec.id)}
-                        className="h-10 px-4 bg-red-50 hover:bg-red-100 text-red-650 border border-red-200 font-extrabold text-xs rounded-xl flex items-center gap-1.5 shadow-sm hover:shadow transition-all cursor-pointer"
-                        title="حذف التوصية لتأمين السجل الرقابي والإداري"
-                      >
-                        <Trash2 className="w-4 h-4 stroke-[2]" />
-                        <span>حذف التوصية</span>
-                      </button>
-
-                      <div className="flex items-center gap-2 bg-gray-50 p-2.5 rounded-xl border border-gray-200/80">
-                        <div className="text-left font-Cairo">
-                          <span className="text-[9px] font-black text-gray-400 block leading-none">المشرف المكلّف</span>
-                          <span className="text-xs font-black text-gray-800 leading-normal">{currentRec.assignedTo}</span>
-                        </div>
-                        <div className="w-9 h-9 rounded-xl bg-brand/10 text-brand flex items-center justify-center font-black text-sm border border-brand/20 select-none">
-                          {currentRec.assignedTo ? currentRec.assignedTo[0] : "م"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 1. Progress Steps Graphic (مسار غاية الاعتماد بالهيكل) */}
-                  <div className="bg-gray-50 rounded-2xl p-5 border border-gray-200/80 relative">
-                    <h4 className="text-xs font-black text-gray-950 mb-4 flex items-center gap-1.5">
-                      <Sliders className="w-4 h-4 text-brand" />
-                      <span>مسار الحوكمة وسلسلة الاعتماد الإداري</span>
-                    </h4>
-
-                    {/* Stepper Pipeline */}
-                    <div className="relative">
-                      {/* Grey Line connecting steps */}
-                      <div className="absolute top-4 right-8 left-8 h-0.5 bg-gray-200 z-0 hidden sm:block"></div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-y-4 relative z-10">
-                        {STAGES.map((step, idx) => {
-                          const currentIdx = STAGES.findIndex(s => s.id === currentRec.approvalStage);
-                          const isCompleted = idx < currentIdx;
-                          const isCurrentActive = step.id === currentRec.approvalStage;
-                          const isFullyApproved = currentRec.approvalStage === "مكتملة" && step.id === "مكتملة";
-
-                          let iconBox = "bg-white text-gray-400 border-gray-200";
-                          let labelText = "text-gray-550 font-bold";
-                          if (isCompleted) {
-                            iconBox = "bg-brand text-white border-brand";
-                            labelText = "text-brand font-extrabold";
-                          } else if (isCurrentActive) {
-                            if (step.id === "مكتملة") {
-                              iconBox = "bg-emerald-600 text-white border-emerald-750 ring-4 ring-emerald-50";
-                              labelText = "text-emerald-700 font-extrabold";
-                            } else {
-                              iconBox = "bg-brand text-white border-brand ring-4 ring-brand/10 animate-pulse-subtle";
-                              labelText = "text-gray-900 font-black";
-                            }
-                          }
-
+                      {/* Nested group items */}
+                      <div className="divide-y divide-slate-100">
+                        {groupObj.items.map((rec) => {
+                          const isSelected = rec.id === selectedRecId;
                           return (
-                            <div key={idx} className="flex flex-col items-center px-1 text-center">
-                              <div className={`w-8 h-8 rounded-full border-1.5 flex items-center justify-center transition-all font-black text-xs ${iconBox}`}>
-                                {isFullyApproved ? (
-                                  <CheckSquare className="w-4 h-4" />
-                                ) : isCompleted ? (
-                                  <Check className="w-4 h-4" />
-                                ) : (
-                                  <span>{idx + 1}</span>
-                                )}
+                            <div
+                              key={rec.id}
+                              onClick={() => setSelectedRecId(rec.id)}
+                              className={`p-4 hover:bg-slate-50/50 cursor-pointer transition-all flex flex-col gap-2 relative ${
+                                isSelected ? "bg-[#246fff]/5 border-r-4 border-[#246fff]" : ""
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${getStatusBadge(rec.status)}`}>
+                                    {rec.status}
+                                  </span>
+                                  {rec.hasImpact && (
+                                    <span className="bg-amber-100 text-amber-800 border border-amber-200 rounded-md text-[9px] font-extrabold px-1.5 py-0.5 flex items-center gap-0.5">
+                                      <Sparkles className="w-2.5 h-2.5" />
+                                      أثر استراتيجي
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Floating control action wheels */}
+                                <div className="relative command-menu-container">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveCommandMenuId(activeCommandMenuId === rec.id ? null : rec.id);
+                                    }}
+                                    className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-600 rounded-lg transition-colors cursor-pointer"
+                                  >
+                                    <ChevronDown className="w-4 h-4" />
+                                  </button>
+
+                                  {activeCommandMenuId === rec.id && (
+                                    <div className="absolute left-0 mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-lg z-30 divide-y divide-slate-100">
+                                      <div className="p-1">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveCommandMenuId(null);
+                                            handleOpenEdit(rec);
+                                          }}
+                                          className="w-full text-right px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 rounded-lg flex items-center gap-2 cursor-pointer"
+                                        >
+                                          <Edit2 className="w-3.5 h-3.5" />
+                                          <span>تعديل التفاصيل</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveCommandMenuId(null);
+                                            handleOpenQuickReferral(rec);
+                                          }}
+                                          className="w-full text-right px-3 py-1.5 text-xs font-bold text-[#246fff] hover:bg-slate-50 rounded-lg flex items-center gap-2 cursor-pointer"
+                                        >
+                                          <Forward className="w-3.5 h-3.5" />
+                                          <span>خيارات الإحالة</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveCommandMenuId(null);
+                                            handleOpenEmailComposer(rec);
+                                          }}
+                                          className="w-full text-right px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 rounded-lg flex items-center gap-2 cursor-pointer"
+                                        >
+                                          <Mail className="w-3.5 h-3.5" />
+                                          <span>تصدير بالبريد</span>
+                                        </button>
+                                      </div>
+                                      <div className="p-1">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveCommandMenuId(null);
+                                            handleOpenDeleteConfirm(rec.id);
+                                          }}
+                                          className="w-full text-right px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-lg flex items-center gap-2 cursor-pointer"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                          <span>حذف التوصية</span>
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                              <span className={`text-[10.5px] mt-1.5 block ${labelText} leading-tight`}>
-                                {step.label}
-                              </span>
-                              <span className="text-[9px] text-gray-400 block font-bold leading-tight mt-0.5">
-                                {step.role}
-                              </span>
+
+                              <h5 className="text-[12px] md:text-[13px] font-extrabold text-slate-900 leading-normal pl-4">
+                                {rec.title}
+                              </h5>
+
+                              <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-50">
+                                <span className="flex items-center gap-1">
+                                  <BookOpen className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>{rec.itemNumber || "البند الأول"} {rec.itemTitle ? `- ${rec.itemTitle}` : ""}</span>
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold">
+                                    مكتب: {rec.assignedTo}
+                                  </span>
+                                  <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold">
+                                    المرحلة: {rec.approvalStage}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
                           );
                         })}
                       </div>
                     </div>
-                  </div>
-
-                  {/* 2. Intelligent Smart Summary Generator Section */}
-                  <div className="bg-[#f0f9ff]/75 rounded-2xl p-5 border border-blue-200/50 relative overflow-hidden">
-                    <div className="absolute -top-4 -left-4 select-none">
-                      <Sparkles className="w-16 h-16 text-blue-100 fill-blue-50/50" />
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 mb-3 relative z-10">
-                      <h4 className="text-xs font-black text-blue-950 flex items-center gap-1.5 font-Cairo">
-                        <Sparkles className="w-4 h-4 text-brand animate-pulse" />
-                        <span>الصيغة الرسمية المعتمدة لحوكمة التوصية (توليد ذكي)</span>
-                      </h4>
-
-                      <button
-                        type="button"
-                        onClick={() => handleCopySmartSummary(getSmartAISummary(currentRec))}
-                        className={`text-[10.5px] p-1 px-3 rounded-lg border font-black flex items-center gap-1.5 transition-all cursor-pointer ${
-                          isCopied 
-                            ? "bg-emerald-600 text-white border-emerald-650" 
-                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 shadow-xs"
-                        }`}
-                      >
-                        {isCopied ? (
-                          <>
-                            <Check className="w-3.5 h-3.5" />
-                            <span>تم نسخ النص!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5 text-blue-600" />
-                            <span>نسخ الصيغة الحركية</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-
-                    <p className="text-xs text-gray-800 font-medium leading-relaxed bg-white/95 p-4 rounded-xl border border-blue-150/40 shadow-xs relative z-10">
-                      {getSmartAISummary(currentRec)}
-                    </p>
-                  </div>
-
-                  {/* 3. Attachments Archiving and Google Drive Upload box */}
-                  <div className="bg-white rounded-2xl p-5 border border-gray-250/90 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-black text-gray-950 flex items-center gap-1.5">
-                        <FolderOpen className="w-4.5 h-4.5 text-brand" />
-                        <span>أرشيف المرفقات والاعتمادات الرسمية (سحابي)</span>
-                      </h4>
-                      <span className="text-[10px] text-brand bg-brand/5 font-extrabold px-2.5 py-0.5 rounded border border-brand/10">أرشفة Google Drive</span>
-                    </div>
-
-                    {/* Drive upload simulation form according to guidelines */}
-                    <form onSubmit={handleAddAttachment} className="bg-gray-50 rounded-xl p-3 border border-gray-200 grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                      
-                      <div className="md:col-span-12">
-                        <p className="text-[10px] text-gray-500 font-extrabold block">
-                          📂 دليل العمل الإلزامي: يتوجّب أرشفة أي مرفق بمسار مخصّص في Google Drive، وتأكيد مجلد الحفظ المعتمد.
-                        </p>
-                      </div>
-
-                      <div className="md:col-span-5 space-y-1">
-                        <label className="text-[10px] font-black text-gray-700 block">اسم المرفق بالكامل مع اللاحقة:</label>
-                        <input
-                          type="text"
-                          required
-                          value={newFileName}
-                          onChange={(e) => setNewFileName(e.target.value)}
-                          placeholder="مثال: قرار وزارة الاقتصاد للضيافة.pdf"
-                          className="w-full text-xs font-bold px-3 py-1.5 border border-gray-350 rounded-lg bg-white"
-                        />
-                      </div>
-
-                      <div className="md:col-span-4 space-y-1">
-                        <label className="text-[10px] font-black text-gray-700 block">نوع الملحق الإداري:</label>
-                        <select
-                          value={newFileType}
-                          onChange={(e) => setNewFileType(e.target.value as any)}
-                          className="w-full text-xs font-semibold p-1.5 border border-gray-350 rounded-lg bg-white text-gray-800"
-                        >
-                          <option value="مرفق التوصية">مرفق التوصية (اللائحة/بيان)</option>
-                          <option value="إيميل اعتماد التوصية">إيميل اعتماد التوصية (يوضح جهة الاعتماد)</option>
-                        </select>
-                      </div>
-
-                      {newFileType === "إيميل اعتماد التوصية" && (
-                        <div className="md:col-span-3 space-y-1">
-                          <label className="text-[10px] font-black text-gray-700 block">سلطة وجهة الاعتماد:</label>
-                          <input
-                            type="text"
-                            required
-                            value={newFileAuthority}
-                            onChange={(e) => setNewFileAuthority(e.target.value)}
-                            placeholder="مثال: الأمين العام للغرفة"
-                            className="w-full text-xs font-bold px-3 py-1.5 border border-gray-350 rounded-lg bg-white"
-                          />
-                        </div>
-                      )}
-
-                      <div className="md:col-span-8 space-y-1">
-                        <label className="text-[10px] font-black text-gray-700 block">تحديد المجلد السحابي المستهدف (مسار الأرشفة):</label>
-                        <select
-                          value={newFileDrivePath}
-                          onChange={(e) => setNewFileDrivePath(e.target.value)}
-                          className="w-full text-[10.5px] font-bold p-1.5 border border-gray-350 rounded-lg bg-white text-slate-800 leading-tight"
-                        >
-                          {driveFolders.map((folder, idx) => (
-                            <option key={idx} value={folder}>{folder}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="md:col-span-4">
-                        <button
-                          type="submit"
-                          disabled={isArchiving}
-                          className="w-full h-8 px-4 bg-brand hover:bg-brand/90 disabled:bg-gray-400 text-white font-extrabold text-[11px] rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
-                        >
-                          {isArchiving ? (
-                            <>
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                              <span>جاري الأرشفة...</span>
-                            </>
-                          ) : (
-                            <>
-                              <UploadCloud className="w-3.5 h-3.5" />
-                              <span>نقل وتخزين الملف</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </form>
-
-                    {/* Archive Success Path Notice Modal if and when file is successfully saved */}
-                    {archiveSuccessMessage && (
-                      <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-xl text-emerald-900 text-xs font-bold flex items-start gap-2.5 shadow-inner">
-                        <Check className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-extrabold">تم حفظ المرفق وتخزينه سحابياً بنجاح في Google Drive!</p>
-                          <p className="text-[10px] text-emerald-700 mt-1">
-                            مجلد الحفظ الرسمي المعتمد: <strong className="font-mono text-emerald-950 underline">{archiveSuccessMessage}</strong>
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Listing existing attachments */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                      {(!currentRec.attachments || currentRec.attachments.length === 0) ? (
-                        <div className="md:col-span-2 border border-dashed border-gray-200 rounded-xl p-6 text-center text-xs text-gray-400 font-extrabold">
-                          لم يتم تأمين أو ربط ملفات معتمدة لهذه التوصية بعد.
-                        </div>
-                      ) : (
-                        currentRec.attachments.map((file, idx) => (
-                          <div key={idx} className="bg-white border border-gray-200 rounded-xl p-3 flex items-start justify-between hover:border-gray-300 transition-colors">
-                            <div className="flex items-start gap-2.5 overflow-hidden">
-                              <div className={`p-2 rounded-lg shrink-0 ${file.type === "إيميل اعتماد التوصية" ? "bg-purple-50 text-purple-700" : "bg-blue-50 text-blue-700"}`}>
-                                <FileText className="w-5 h-5" />
-                              </div>
-                              <div className="overflow-hidden">
-                                <h5 className="text-[11px] font-black text-gray-900 truncate leading-snug" title={file.name}>
-                                  {file.name}
-                                </h5>
-                                <p className="text-[10px] text-gray-450 font-bold block pt-0.5">
-                                  {file.type} {file.approvalAuthority ? `[باعتماد: ${file.approvalAuthority}]` : ""}
-                                </p>
-                                <span className="text-[9px] text-slate-400 block truncate mt-1">
-                                  الـ Drive: {file.drivePath}
-                                </span>
-                              </div>
-                            </div>
-                            <a
-                              href={file.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[10px] font-black text-brand hover:underline shrink-0 flex items-center gap-0.5 pr-2"
-                            >
-                              <span>استعراض</span>
-                              <ChevronLeft className="w-3 h-3" />
-                            </a>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 4. Active implementation action plan by the specialist */}
-                  <div className="bg-white rounded-2xl p-5 border border-gray-250">
-                    <h4 className="text-xs font-black text-gray-950 mb-2 flex items-center gap-1.5">
-                      <CheckSquare className="w-4.5 h-4.5 text-brand" />
-                      <span>الإجراء التنفيذي والمناورة الحالية المتبعة لتفعيل المخرج</span>
-                    </h4>
-                    <p className="text-[10px] text-gray-500 font-bold pb-2">
-                      وثق هنا الإنجازات والخطوات المتبعة على أرض الواقع لسير مخرجات اللجنة من مراسلات ومتابعات.
-                    </p>
-                    
-                    <div className="space-y-3">
-                      <textarea
-                        rows={3}
-                        defaultValue={currentRec.implementationAction || ""}
-                        placeholder="مثال: الرفع بتفاصيل منصة التدريب للجنة الفنية بوزارة الاقتصاد وصناعة البرمجيات الوطنية، أو الرفع بتفاصيل الحوكمة لإدارة اللجان..."
-                        onBlur={(e) => handleSaveImplementationAction(e.target.value)}
-                        className="w-full text-xs font-bold p-3 border border-gray-250 rounded-xl bg-gray-50/50 text-right focus:ring-1 focus:ring-brand focus:bg-white text-gray-800 leading-relaxed placeholder-gray-400"
-                      />
-                      <p className="text-[9px] text-gray-400 font-bold select-none leading-none">
-                        💡 يتم حفظ الإجراء وتحديث السجل تلقائياً بمجرد الانتقال لحقل أو زر آخر.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* 5. Reactions and status decision by general managers */}
-                  <div className="bg-slate-50 rounded-2xl p-5 border border-gray-300 space-y-4">
-                    <h4 className="text-xs font-black text-indigo-950 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4.5 h-4.5 text-brand" />
-                      <span>قرار وتوجيهات الحوكمة الرسمية (الاعتماد أو الرفض)</span>
-                    </h4>
-
-                    {/* Decisions buttons */}
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateResponse("موافقة", currentRec.responseNotes || "")}
-                        className={`flex-1 py-3 px-4 rounded-xl border font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                          currentRec.response === "موافقة"
-                            ? "bg-emerald-600 border-emerald-700 text-white shadow-sm"
-                            : "bg-white hover:bg-emerald-50 text-emerald-800 border-gray-300"
-                        }`}
-                      >
-                        <CheckSquare className="w-4.5 h-4.5" />
-                        <span>موافقة على تفعيل التوصية</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateResponse("رفض", currentRec.responseNotes || "")}
-                        className={`flex-1 py-3 px-4 rounded-xl border font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                          currentRec.response === "رفض"
-                            ? "bg-red-650 border-red-700 text-white shadow-sm"
-                            : "bg-white hover:bg-red-50 text-red-650 border-gray-300"
-                        }`}
-                      >
-                        <X className="w-4.5 h-4.5" />
-                        <span>رفض وتعديل التوصية</span>
-                      </button>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-[10.5px] font-black text-gray-700 block">شروحات ومبررات القرار الإداري الملحق:</label>
-                      <input
-                        type="text"
-                        value={currentRec.responseNotes || ""}
-                        placeholder="اضف مبررات الرفض لتصحيح التوجيه أو تفاصيل القرار الإجرائي..."
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          updateFirebaseRec(currentRec.id, { responseNotes: val });
-                        }}
-                        className="w-full text-xs font-bold p-2.5 border border-gray-250 rounded-xl bg-white text-right focus:outline-none focus:ring-1 focus:ring-brand text-gray-850 shadow-inner"
-                      />
-                    </div>
-                  </div>
-
-                  {/* 6. Stepper actions and Quick stage progression */}
-                  <div className="bg-[#f0f5fa] rounded-2xl p-5 border border-blue-200/50 space-y-3">
-                    <h4 className="text-xs font-black text-blue-950 flex items-center gap-1.5">
-                      <Forward className="w-4.5 h-4.5 text-brand" />
-                      <span>اتخاذ الإحالة الإدارية وتمرير الملف (للأخصائي والمدير)</span>
-                    </h4>
-
-                    <div className="flex flex-wrap items-center gap-2 pt-1.5">
-                      {STAGES.map((s, idx) => {
-                        const isCurrent = currentRec.approvalStage === s.id;
+                  );
+                })}
+              </div>
+            ) : (
+              
+              /* RENDER METHOD B: Comprehensive Individual Checklist Table (سجل) */
+              <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-100 text-slate-700 font-bold">
+                      <tr>
+                        <th className="p-3 text-right">عنوان التوصية</th>
+                        <th className="p-3 text-right">اللجنة القطاعية</th>
+                        <th className="p-3 text-right">رقم البند</th>
+                        <th className="p-3 text-center">المسؤول المكلف</th>
+                        <th className="p-3 text-center">المسار الحالي</th>
+                        <th className="p-3 text-center">الحالة</th>
+                        <th className="p-3 text-left">أوامر</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredRecs.map((rec) => {
+                        const isSelected = rec.id === selectedRecId;
                         return (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => handleProceedReferral(s.id, "")}
-                            className={`px-3 py-1.5 text-[10.5px] font-black rounded-lg transition-all cursor-pointer border ${
-                              isCurrent
-                                ? "bg-brand text-white border-brand shadow-sm"
-                                : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                          <tr
+                            key={rec.id}
+                            onClick={() => setSelectedRecId(rec.id)}
+                            className={`hover:bg-slate-50/70 transition-colors cursor-pointer ${
+                              isSelected ? "bg-slate-50/90 font-semibold border-r-4 border-r-[#246fff]" : ""
                             }`}
                           >
-                            <span>إلى: {s.label}</span>
-                          </button>
+                            <td className="p-3">
+                              <p className="font-extrabold text-slate-900 leading-normal max-w-[200px] truncate">
+                                {rec.title}
+                              </p>
+                              {rec.hasImpact && (
+                                <span className="inline-flex mt-1 bg-amber-50 text-amber-700 text-[8.5px] font-extrabold px-1 rounded-sm">
+                                  تمكين استراتيجي ✨
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3 text-slate-650 max-w-[120px] truncate">{rec.committeeName}</td>
+                            <td className="p-3 text-slate-500 font-mono">{rec.itemNumber || "الأول"}</td>
+                            <td className="p-3 text-center text-slate-700 font-medium">{rec.assignedTo}</td>
+                            <td className="p-3 text-center">
+                              <span className="bg-slate-100 text-slate-700 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                                {rec.approvalStage}
+                              </span>
+                            </td>
+                            <td className="p-3 text-center">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getStatusBadge(rec.status)}`}>
+                                {rec.status}
+                              </span>
+                            </td>
+                            <td className="p-3 text-left" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEdit(rec)}
+                                  className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                                  title="تعديل"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenQuickReferral(rec)}
+                                  className="p-1 hover:bg-slate-100 rounded text-[#246fff] transition-colors cursor-pointer"
+                                  title="إحالة ومتابعة"
+                                >
+                                  <Forward className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenDeleteConfirm(rec.id)}
+                                  className="p-1 hover:bg-rose-50 rounded text-rose-600 transition-colors cursor-pointer"
+                                  title="حذف"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right Side: Detail Panel Card & Interactive Actions (5 Columns) */}
+          <div className="lg:col-span-5 space-y-4">
+            {currentRec ? (
+              <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden divide-y divide-slate-100">
+                
+                {/* Visual Header card */}
+                <div className="p-5 bg-slate-50 border-b border-slate-200 flex flex-col gap-2 relative">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold text-slate-500 tracking-wide block uppercase font-mono">
+                      مظروف التوصية الإجرائي
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border ${getStatusBadge(currentRec.status)}`}>
+                      {currentRec.status}
+                    </span>
+                  </div>
+
+                  <h3 className="text-sm md:text-base font-black text-slate-900 leading-normal">
+                    {currentRec.title}
+                  </h3>
+                  
+                  {currentRec.hasImpact && (
+                    <div className="inline-flex gap-1 items-center px-2 py-1 bg-amber-50 border border-amber-200 text-amber-900 text-[10px] font-extrabold rounded-lg w-fit mt-1">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0 animate-pulse" />
+                      <span>توصية ذات بعد وأثر استراتيجي وطني</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Event Core Specifications Details */}
+                <div className="p-5 space-y-3">
+                  <h4 className="text-[11px] font-black text-slate-800 border-r-2 border-r-[#246fff] pr-2">
+                    تفاصيل وقائع ومأثور الفعالية
+                  </h4>
+                  
+                  <div className="grid grid-cols-2 gap-3 text-right">
+                    <div className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                      <span className="text-[9.5px] font-black text-slate-400 block mb-0.5">اسم الفعالية المقيدة</span>
+                      <span className="text-[10.5px] font-extrabold text-slate-800 block line-clamp-1">
+                        {currentRec.eventName || "تفعيل بالتمرير المباشر"}
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                      <span className="text-[9.5px] font-black text-slate-400 block mb-0.5">اللجنة القطاعية</span>
+                      <span className="text-[10.5px] font-extrabold text-slate-800 block line-clamp-1">
+                        {currentRec.committeeName}
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                      <span className="text-[9.5px] font-black text-slate-400 block mb-0.5">الرقم المرجعي / التاريخ</span>
+                      <span className="text-[10px] font-extrabold text-slate-800 block">
+                        {currentRec.date || "غير مدرج"}
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                      <span className="text-[9.5px] font-black text-slate-400 block mb-0.5">آلية التأسيس والإضافة</span>
+                      <span className="text-[10px] font-extrabold text-slate-800 block">
+                        {currentRec.addMethod || "توصية مستقلة"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Item credentials */}
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                    <div className="flex items-center gap-1.5 text-slate-500 text-[10px] font-black">
+                      <BookOpen className="w-3.5 h-3.5 text-[#246fff]" />
+                      <span>{currentRec.itemNumber || "البند الأول"}: {currentRec.itemTitle || "غير مسمى"}</span>
+                    </div>
+                    {currentRec.discussion && (
+                      <p className="text-[11px] font-bold text-slate-700 leading-normal pr-5 text-justify">
+                        <span className="text-slate-400 font-medium">الواقعة والمناقشة: </span>
+                        {currentRec.discussion}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Assigned Person & expected Duration */}
+                <div className="p-5 grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-[10px] font-black text-slate-400 block">المكلف بالتنفيذ والتمكين</span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="bg-blue-100 w-6 h-6 rounded-full flex items-center justify-center text-[#246fff] text-[10px] font-bold">
+                        {currentRec.assignedTo ? currentRec.assignedTo.substring(0, 2) : "أخ"}
+                      </div>
+                      <span className="text-[11.5px] font-extrabold text-slate-800">
+                        {currentRec.assignedTo || "غير معين"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-black text-slate-400 block">الإطار الزمني المستهدف</span>
+                    <div className="flex items-center gap-1.5 mt-1 text-slate-800">
+                      <Clock className="w-4 h-4 text-[#246fff]" />
+                      <span className="text-[11.5px] font-extrabold">
+                        {currentRec.duration || "مباشر"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stages tracking Stepper widget (الأخصائي -> رئيس القسم -> مدير الإدارة -> مساعد الأمين العام -> المكتب التنفيذي) */}
+                <div className="p-5 space-y-4 bg-slate-50/50">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-[11px] font-black text-slate-800">
+                      مراحل وسلسلة مطابقة وحوكمة التوصية
+                    </h4>
+                    <span className="text-[10px] font-bold text-[#246fff]">
+                      {currentRec.approvalStage === "مكتملة" ? "اعتماد كلي مكتمل" : `المرحلة: ${currentRec.approvalStage}`}
+                    </span>
+                  </div>
+
+                  {/* Horizontal Stepper layout */}
+                  <div className="relative pt-2 pb-5">
+                    <div className="absolute top-5 left-2 right-2 h-0.5 bg-slate-200"></div>
+                    <div className="relative flex justify-between">
+                      {STAGES.map((s, stepIndex) => {
+                        const currentIndex = STAGES.findIndex(x => x.id === currentRec.approvalStage);
+                        const isCompleted = currentRec.approvalStage === "مكتملة" || stepIndex < currentIndex;
+                        const isCurrent = currentRec.approvalStage === s.id;
+
+                        return (
+                          <div key={stepIndex} className="flex flex-col items-center relative z-10">
+                            <div
+                              className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black transition-all ${
+                                isCompleted
+                                  ? "bg-emerald-500 text-white"
+                                  : isCurrent
+                                  ? "bg-[#246fff] text-white ring-4 ring-[#246fff]/20"
+                                  : "bg-white border border-slate-300 text-slate-400"
+                              }`}
+                              title={s.role}
+                            >
+                              {isCompleted ? <Check className="w-3 h-3 stroke-[3]" /> : stepIndex + 1}
+                            </div>
+                            <span className={`text-[9px] font-black mt-1.5 transition-colors ${
+                              isCurrent ? "text-[#246fff]" : isCompleted ? "text-emerald-600" : "text-slate-400"
+                            }`}>
+                              {s.label}
+                            </span>
+                          </div>
                         );
                       })}
                     </div>
                   </div>
 
-                  {/* 7. Audit log trails */}
-                  <div className="pt-2">
-                    <h4 className="text-xs font-black text-gray-950 mb-3 flex items-center gap-1.5">
-                      <Clock className="w-4 h-4 text-brand" />
-                      <span>سجل تتبع الترحيل والمراجعة التاريخية للحوكمة (Audit History)</span>
-                    </h4>
+                  {/* Action block for referring forwards or backwards in the hierarchy */}
+                  <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenQuickReferral(currentRec)}
+                      className="flex-1 h-9 px-3 bg-slate-900 text-white hover:bg-slate-800 text-[10.5px] font-extrabold rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <Forward className="w-3.5 h-3.5 shrink-0" />
+                      <span>إحالة للمرحلة التالية</span>
+                    </button>
 
-                    <div className="bg-gray-50 border border-gray-200 rounded-xl divide-y divide-gray-200 overflow-hidden text-right">
-                      {(!currentRec.auditLogs || currentRec.auditLogs.length === 0) ? (
-                        <div className="p-4 text-center text-xs text-gray-400 font-bold">
-                          لم يتم رصد حركات تاريخية على هذه التوصية بعد.
-                        </div>
-                      ) : (
-                        currentRec.auditLogs.map((log, idx) => (
-                          <div key={idx} className="p-3 text-xs flex items-start gap-3">
-                            <div className="w-2 h-2 rounded-full bg-brand shrink-0 mt-1.5 ring-4 ring-brand/10"></div>
-                            <div className="space-y-1 flex-1">
-                              <div className="flex flex-wrap items-center justify-between gap-1.5">
-                                <span className="font-extrabold text-gray-900 leading-tight">
-                                  {log.action}
-                                </span>
-                                <span className="text-[10px] text-gray-400 font-bold font-mono">
-                                  {log.timestamp}
-                                </span>
-                              </div>
-                              <p className="text-[10.5px] text-slate-500 font-bold leading-normal">
-                                منَفّذ العملية: <strong className="text-slate-700">{log.user || "النظام"}</strong>
-                              </p>
-                              {log.notes && (
-                                <p className="text-[10.5px] text-gray-600 bg-white border border-gray-150 p-2 rounded-lg mt-1 select-all font-semibold">
-                                  💬 {log.notes}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const originalLogs = currentRec.auditLogs || [];
+                        const updatedLogs = [
+                          ...originalLogs,
+                          {
+                            timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+                            action: "تمت تصفية التوصية والتأكيد كلياً لتصبح منجزة ومحمية",
+                            user: currentUser.name
+                          }
+                        ];
+                        updateFirebaseRec(currentRec.id, { approvalStage: "مكتملة", status: "منجزة", auditLogs: updatedLogs });
+                      }}
+                      disabled={currentRec.approvalStage === "مكتملة"}
+                      className={`h-9 px-4 text-[10.5px] font-extrabold rounded-lg flex items-center justify-center gap-1 cursor-pointer border ${
+                        currentRec.approvalStage === "مكتملة"
+                          ? "bg-slate-150 text-slate-400 border-slate-200 cursor-not-allowed"
+                          : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100/70"
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>اعتماد مكتمل</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Google Drive Archiving and Attachment Module */}
+                <div className="p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-[11px] font-black text-slate-800 flex items-center gap-1">
+                      <FolderOpen className="w-4 h-4 text-slate-400" />
+                      <span>مرفقات التوصية (أرشيف Google Drive)</span>
+                    </h4>
+                    <span className="text-[9.5px] text-slate-400">
+                      {currentRec.attachments?.length || 0} ملف مجدول
+                    </span>
                   </div>
 
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  {/* Render listed attachments if any */}
+                  {currentRec.attachments && currentRec.attachments.length > 0 ? (
+                    <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
+                      {currentRec.attachments.map((attach, aIdx) => (
+                        <div key={aIdx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-150 flex items-center justify-between gap-3 text-right">
+                          <div className="min-w-0">
+                            <p className="text-[10.5px] font-black text-slate-800 truncate" title={attach.name}>
+                              {attach.name}
+                            </p>
+                            <span className="text-[9px] text-slate-400 block leading-tight truncate" title={attach.drivePath}>
+                              مجلد الحفظ: {attach.drivePath}
+                            </span>
+                            {attach.approvalAuthority && (
+                              <span className="text-[8.5px] text-amber-700 font-extrabold bg-amber-50 px-1 rounded-sm">
+                                المعتمد: {attach.approvalAuthority}
+                              </span>
+                            )}
+                          </div>
+
+                          <a
+                            href={attach.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#246fff] hover:underline text-[10px] font-bold shrink-0 flex items-center gap-0.5 bg-white border px-2 py-1 rounded-md"
+                          >
+                            <span>فتح</span>
+                            <ArrowUpRight className="w-3 h-3" />
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[10px] font-bold text-slate-400 bg-slate-50 p-3 rounded-xl text-center">
+                      لم ترفق مستندات رسمية أو بريد اعتماد لهذه التوصية بعد في أرشيف درايف.
+                    </p>
+                  )}
+
+                  {/* Fast Archiving form simulating Google Workspace placement */}
+                  <form onSubmit={handleAddAttachment} className="bg-slate-50 p-3 rounded-xl border border-slate-200/60 space-y-3">
+                    <span className="text-[10px] font-black text-slate-700 block">
+                      رفع أو ربط مستند أرشفة جديد
+                    </span>
+
+                    <div className="grid grid-cols-2 gap-2 text-right">
+                      <div>
+                        <label className="text-[9px] font-black text-slate-400">اسم المرفق:</label>
+                        <input
+                          type="text"
+                          value={newFileName}
+                          onChange={(e) => setNewFileName(e.target.value)}
+                          placeholder="مثال: قرار مطابقة اللجنة"
+                          className="w-full text-[10px] font-bold p-1 border border-slate-250 rounded-lg bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-black text-slate-400">التصنيف الإجرائي:</label>
+                        <select
+                          value={newFileType}
+                          onChange={(e) => setNewFileType(e.target.value as any)}
+                          className="w-full text-[10px] font-bold p-1 border border-slate-250 rounded-lg bg-white text-slate-600"
+                        >
+                          <option value="مرفق التوصية">مرفق التوصية</option>
+                          <option value="بريد اعتماد التوصية">بريد اعتماد التوصية</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {newFileType === "بريد اعتماد التوصية" && (
+                      <div>
+                        <label className="text-[9px] font-black text-slate-400 block leading-tight">جهة الاعتماد والمصادقة:</label>
+                        <input
+                          type="text"
+                          value={newFileAuthority}
+                          onChange={(e) => setNewFileAuthority(e.target.value)}
+                          placeholder="مثال: الأمين العام، رئيس الغرفة"
+                          className="w-full text-[10px] font-bold p-1 border border-slate-250 rounded-lg bg-white mt-0.5"
+                        />
+                      </div>
+                    )}
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 block mb-0.5">
+                        مكان ومجلد الحفظ على Google Drive (قائد الأرشفة):
+                      </label>
+                      <select
+                        value={newFileDrivePath}
+                        onChange={(e) => setNewFileDrivePath(e.target.value)}
+                        className="w-full text-[9.5px] font-bold p-1 border border-slate-250 rounded-lg bg-white text-slate-700"
+                      >
+                        {driveFolders.map((pathStr, pIdx) => (
+                          <option key={pIdx} value={pathStr}>
+                            {pathStr}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] font-black text-slate-400 block leading-tight">رابط الملف بالجوجل درايف (إيجاز):</label>
+                      <input
+                        type="url"
+                        value={newFileUrl}
+                        onChange={(e) => setNewFileUrl(e.target.value)}
+                        placeholder="https://drive.google.com/..."
+                        className="w-full text-[10px] font-bold p-1 border border-slate-250 rounded-lg bg-white focus:ring-1 focus:ring-[#246fff] mt-0.5L"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isArchiving}
+                      className="w-full h-8 bg-[#246fff] text-white hover:bg-slate-800 text-[10px] font-black rounded-lg flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      {isArchiving ? (
+                        <>
+                          <RefreshCw className="w-3 h-3 animate-spin" />
+                          <span>جاري الأرشفة على درايف...</span>
+                        </>
+                      ) : (
+                        <>
+                          <UploadCloud className="w-3.5 h-3.5" />
+                          <span>ربط وأرشفة المستند فوراً</span>
+                        </>
+                      )}
+                    </button>
+
+                    {archiveSuccessMessage && (
+                      <div className="bg-emerald-50 text-emerald-800 border border-emerald-250 p-2 rounded-lg text-[9.5px] font-bold flex items-center gap-1 mt-2">
+                        <Check className="w-3.5 h-3.5" />
+                        <div className="min-w-0 flex-1">
+                          تم الحفظ بنجاح وتوثيق مسار المجلد لتأكيد الأرشفة المباشرة:
+                          <span className="block font-mono bg-white p-1 rounded border overflow-x-auto text-[8.5px] mt-1 text-slate-600 select-all font-bold">
+                            {archiveSuccessMessage}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </form>
+                </div>
+
+                {/* Smart Action Tools (AI Summary & Mail Sender) */}
+                <div className="p-5 space-y-4">
+                  <h4 className="text-[11px] font-black text-slate-800 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    <span>المنظومة الذكية للتصدير والمطابقة</span>
+                  </h4>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* AISmart copy button */}
+                    <button
+                      type="button"
+                      onClick={() => handleCopySmartSummary(getSmartAISummary(currentRec))}
+                      className="h-10 px-3 bg-amber-50 hover:bg-amber-100/80 text-amber-950 border border-amber-250 rounded-xl text-[10.5px] font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+                    >
+                      <Copy className="w-4 h-4 text-amber-600" />
+                      <span>{isCopied ? "تم النسخ بنجاح!" : "نسخ المظروف الذكي"}</span>
+                    </button>
+
+                    {/* Quick email composer action */}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEmailComposer(currentRec)}
+                      className="h-10 px-3 bg-[#246fff]/5 hover:bg-[#246fff]/10 text-slate-850 border border-[#246fff]/20 rounded-xl text-[10.5px] font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                    >
+                      <Mail className="w-4 h-4 text-[#246fff]" />
+                      <span>تصدير فوري بالبريد</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Audit Logs */}
+                <div className="p-5 space-y-2 bg-slate-50/20">
+                  <h4 className="text-[11px] font-black text-slate-700">
+                    السجل التاريخي للإجراءات وعمليات الفحص
+                  </h4>
+                  {currentRec.auditLogs && currentRec.auditLogs.length > 0 ? (
+                    <div className="space-y-1.5 max-h-[120px] overflow-y-auto pr-1">
+                      {currentRec.auditLogs.map((log, lIdx) => (
+                        <div key={lIdx} className="bg-white p-2 rounded-lg border border-slate-100 text-[10px] leading-relaxed">
+                          <div className="flex items-center justify-between text-slate-400 text-[9px] font-semibold">
+                            <span>بواسطة: {log.user}</span>
+                            <span className="font-mono">{log.timestamp}</span>
+                          </div>
+                          <p className="font-bold text-slate-800 mt-0.5">{log.action}</p>
+                          {log.notes && (
+                            <p className="text-slate-500 font-medium text-[9.5px] mt-0.5 bg-slate-50 p-1.5 rounded-md border-r-2 border-r-indigo-200">
+                              ملاحظة الإحالة: {log.notes}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[10px] font-bold text-slate-400">لا توجد سجلات تعديل ومطابقة حتى تاريخه.</p>
+                  )}
+                </div>
+
+              </div>
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center shadow-xs">
+                <AlertCircle className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                <p className="text-slate-500 font-extrabold text-xs">يرجى اختيار وتحديد أحد التوصيات المدرجة لاستعراض مظروفها الإجرائي وحوكمتها هنا.</p>
+              </div>
+            )}
           </div>
+
         </div>
       )}
 
-      {/* MODAL 1: Add / Edit Recommendation Form */}
+      {/* RETAIN FULL COMPLIANT MODALS AND OVERLAYS SECTION */}
+      
+      {/* 1. Modal creation / edit wrapper */}
       <AnimatePresence>
         {isFormOpen && (
-          <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 text-right md:p-6" dir="rtl">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto" dir="rtl">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl border border-gray-300 shadow-2xl w-full max-w-xl overflow-hidden"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl w-full max-w-2xl border border-slate-200 shadow-2xl overflow-hidden text-right text-xs"
             >
-              <div className="bg-[#f0ecec] border-b border-gray-300 px-6 py-4 flex items-center justify-between">
-                <h3 className="text-base font-black text-gray-900 flex items-center gap-2">
-                  <CheckSquare className="w-5 h-5 text-brand" />
-                  <span>{editingItem ? "تعديل محتوى التوصية المنسقة" : "إضافة وحوكمة توصية يدوية جديدة"}</span>
-                </h3>
+              <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <h3 className="text-base font-black">
+                    {editingItem ? "تعديل وحوكمة توصية قائمة" : "تأسيس وتجليس توصية قطاعية جديدة"}
+                  </h3>
+                  <p className="text-slate-400 text-[10.5px]">
+                    يرجى توفير خلاصة مداولات البند ونص التوصية لتقييدها في نظام غرفة مكة
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={() => setIsFormOpen(false)}
-                  className="p-1 text-gray-500 hover:text-gray-850 hover:bg-gray-200 rounded-lg cursor-pointer"
+                  className="p-2 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleSaveRecommendation} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              <form onSubmit={handleSaveRecommendation} className="p-6 space-y-4">
                 
+                {/* Addition methodologies selection requested (توصية مستقلة vs توصية بالتمرير) */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-black text-gray-705 block">عنوان التوصية / القرار المقترح بالتحديد:</label>
-                  <input
-                    type="text"
-                    required
+                  <label className="text-[11px] font-black text-slate-800 block">أسلوب وتصنيف الإضافة والتفعيل:</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormAddMethod("توصية مستقلة");
+                        const initialEvt = confirmedEvents[0];
+                        if (initialEvt) {
+                          setFormLinkedEventId(initialEvt.id);
+                          setFormEventName(initialEvt.title);
+                          setFormCommittee(initialEvt.committeeName || listCommittees[0]);
+                          setFormDate(initialEvt.date || new Date().toISOString().substring(0, 10));
+                        }
+                      }}
+                      className={`py-2 px-3 border rounded-xl text-center font-extrabold text-[11px] cursor-pointer transition-all ${
+                        formAddMethod === "توصية مستقلة"
+                          ? "bg-[#246fff]/5 text-[#246fff] border-[#246fff] shadow-sm font-black"
+                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      توصية مستقلة (مرتبطة بفعالية)
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormAddMethod("توصية بالتمرير");
+                        setFormLinkedEventId("");
+                        setFormEventName("تأصيل بالتمرير المباشر");
+                        setFormCommittee(listCommittees[0] || "");
+                      }}
+                      className={`py-2 px-3 border rounded-xl text-center font-extrabold text-[11px] cursor-pointer transition-all ${
+                        formAddMethod === "توصية بالتمرير"
+                          ? "bg-amber-500/10 text-amber-900 border-amber-600 shadow-sm font-black"
+                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      توصية بالتمرير (خارج إطار الجلسات)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Conditional Linked meeting select list requested */}
+                {formAddMethod === "توصية مستقلة" && (
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-black text-slate-800 block">اختر الفعالية / اللقاء المرجعي المصدر:</label>
+                    <select
+                      value={formLinkedEventId}
+                      onChange={(e) => handleLinkedEventChange(e.target.value)}
+                      className="w-full font-bold p-2.5 border border-slate-300 rounded-xl bg-slate-50 text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#246fff]"
+                    >
+                      <option value="">-- حدد أحد اللقاءات والفعاليات المجدولة في غرفة مكة --</option>
+                      {confirmedEvents.map((evt: any) => (
+                        <option key={evt.id} value={evt.id}>
+                          {evt.title} ({evt.committeeName}) - {evt.date}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Text Title of recommendations */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-black text-slate-800 block">نص التوصية الصريح والمعتمد:</label>
+                  <textarea
+                    rows={2}
                     value={formTitle}
                     onChange={(e) => setFormTitle(e.target.value)}
-                    placeholder="مثال: ترقية قنوات البث ومواد النشر الإعلامية للغرفة..."
-                    className="w-full text-xs font-black p-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand text-gray-850 bg-white"
+                    placeholder="مثل: إعادة هيكلة شروط انضمام ريادي الأعمال لورشة التصنيع المتكاملة"
+                    className="w-full font-bold px-3 py-2 border border-slate-300 rounded-xl text-right focus:outline-none focus:ring-1 focus:ring-[#246fff]"
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-black text-gray-705 block">الوصف والتفصيل والمطولات الملحقة بالتوصية:</label>
-                  <textarea
-                    rows={3}
-                    required
-                    value={formDesc}
-                    onChange={(e) => setFormDesc(e.target.value)}
-                    placeholder="اكتب المعطيات الكاملة، أهداف وبنود التوصية بشكل مفصّل ومكتمل..."
-                    className="w-full text-xs font-bold p-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand text-gray-800 bg-white leading-relaxed text-right"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-black text-gray-705 block">اللجنة والقطاع المعني:</label>
+                {/* Grid attributes (Committee, assigned personnel, timing, status) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-right">
+                  <div>
+                    <label className="text-[11px] font-black text-slate-800 block mb-0.5">اللجنة القطاعية المعنية:</label>
                     <select
                       value={formCommittee}
                       onChange={(e) => setFormCommittee(e.target.value)}
-                      className="w-full text-xs font-bold p-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand bg-white text-gray-800"
+                      className="w-full font-bold p-2.5 border border-slate-300 rounded-xl bg-white"
                     >
-                      {listCommittees.map((commName, i) => (
-                        <option key={i} value={commName}>{commName}</option>
+                      {listCommittees.map((comm, idx) => (
+                        <option key={idx} value={comm}>{comm}</option>
                       ))}
                     </select>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-black text-gray-705 block">اسم ورمز اللقاء المصدر:</label>
-                    <input
-                      type="text"
-                      value={formEventName}
-                      onChange={(e) => setFormEventName(e.target.value)}
-                      placeholder="مثال: لقاء ريادة التوطين الدوري الثالث..."
-                      className="w-full text-xs font-bold p-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand text-gray-850 bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-black text-gray-705 block">الموظف المكلّف بالمتابعة والرفع:</label>
+                  <div>
+                    <label className="text-[11px] font-black text-slate-800 block mb-0.5">المسؤول المكلف بالمتابعة والتنسيق:</label>
                     <select
                       value={formAssignedTo}
                       onChange={(e) => setFormAssignedTo(e.target.value)}
-                      className="w-full text-xs font-bold p-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand bg-white text-gray-800"
+                      className="w-full font-bold p-2.5 border border-slate-300 rounded-xl bg-white"
                     >
-                      {listEmployees.map((emp, i) => (
-                        <option key={i} value={emp}>{emp}</option>
+                      {listEmployees.map((emp, idx) => (
+                        <option key={idx} value={emp}>{emp}</option>
                       ))}
                     </select>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-black text-gray-705 block">تاريخ الفعالية واللقاء:</label>
-                    <input
-                      type="date"
-                      value={formDate}
-                      onChange={(e) => setFormDate(e.target.value)}
-                      className="w-full text-xs font-bold p-2.5 border border-gray-300 rounded-xl bg-white text-gray-805"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-black text-gray-705 block">الحالة الحركية للعمل:</label>
-                    <select
-                      value={formStatus}
-                      onChange={(e) => setFormStatus(e.target.value as any)}
-                      className="w-full text-xs font-bold p-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand bg-white text-gray-800"
-                    >
-                      <option value="جديدة">جديدة (أزرق)</option>
-                      <option value="جاري العمل عليها">جاري العمل عليها (أصفر)</option>
-                      <option value="متأخرة">متأخرة (أحمر)</option>
-                      <option value="منجزة">منجزة (أخضر)</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-black text-gray-705 block">مدة وسقف التنفيذ المخرجة للتوصية:</label>
+                  <div>
+                    <label className="text-[11px] font-black text-slate-800 block mb-0.5">المهلة الزمنية المتاحة (التنفيذ):</label>
                     <input
                       type="text"
                       value={formDuration}
                       onChange={(e) => setFormDuration(e.target.value)}
-                      placeholder="مثال: أسبوعين، ثلاثة أسابيع، شهر واحد..."
-                      className="w-full text-xs font-bold p-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand text-gray-85 bg-white text-right"
+                      placeholder="كتابة الأيام مثل: 15 يوم عمل"
+                      className="w-full font-bold px-3 py-2 border border-slate-300 rounded-xl"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-black text-slate-800 block mb-0.5">حالة التفعيل الحالية:</label>
+                    <select
+                      value={formStatus}
+                      onChange={(e) => setFormStatus(e.target.value as any)}
+                      className="w-full font-bold p-2.5 border border-slate-300 rounded-xl bg-white"
+                    >
+                      <option value="جديدة">جديدة (لم تبدأ)</option>
+                      <option value="جاري العمل عليها">جاري العمل عليها (منشطة)</option>
+                      <option value="متأخرة">متأخرة (تجاوز المدة)</option>
+                      <option value="منجزة">منجزة (محسومة)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Specific features requested checklist: رقم البند، عنوان البند، المداولة */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                  <span className="text-[11px] font-black text-[#246fff] block">تفاصيل مداولات وموقع البند المقيد:</span>
+                  
+                  <div className="grid grid-cols-2 gap-3 text-right">
+                    <div>
+                      <label className="text-[10px] font-black text-slate-500">رقم البند والمحور:</label>
+                      <input
+                        type="text"
+                        value={formItemNumber}
+                        onChange={(e) => setFormItemNumber(e.target.value)}
+                        placeholder="مثل: البند الثالث"
+                        className="w-full font-bold px-3 py-1.5 border border-slate-300 rounded-xl mt-0.5 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-slate-500">عنوان وموضوع البند:</label>
+                      <input
+                        type="text"
+                        value={formItemTitle}
+                        onChange={(e) => setFormItemTitle(e.target.value)}
+                        placeholder="كتابة البند مثل: مبادرة الاستثمار السياحي بمكة"
+                        className="w-full font-bold px-3 py-1.5 border border-slate-300 rounded-xl mt-0.5 bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black text-slate-500 block">وقائع ومداولات وقناعات الجلسة (المناقشة):</label>
+                    <textarea
+                      rows={2}
+                      value={formDiscussion}
+                      onChange={(e) => setFormDiscussion(e.target.value)}
+                      placeholder="كتابة المناقشة والوقائع باختصار لوسم التفسير الفني واللوجيستي للقرار"
+                      className="w-full font-bold px-3 py-2 border border-slate-300 rounded-xl mt-0.5 bg-white"
                     />
                   </div>
                 </div>
 
-                <div className="p-3 bg-blue-50/40 rounded-xl border border-blue-100 flex items-center justify-between">
+                {/* Impact assessment */}
+                <div className="bg-amber-500/5 p-3.5 rounded-xl border border-amber-500/20 flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <label className="text-xs font-black text-blue-950 flex items-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5 text-brand" />
-                      <span>هل هذه التوصية ذات أثر تنموي استراتيجي؟</span>
-                    </label>
-                    <span className="text-[10px] text-gray-500 block leading-tight">التوصيات الفريدة التي تدعم معايير التميز في الحوكمة وتوجيه الاستحقاقات للغرفة.</span>
+                    <span className="text-[11px] font-black text-amber-900 block">تصنيف كـ "تمكين استراتيجي دولي"؟</span>
+                    <span className="text-[9.5px] text-slate-500 block">سيتم تمييز التوصية لمنحها رتب فحص استثنائية وأولوية بالغة</span>
                   </div>
                   <input
                     type="checkbox"
                     checked={formHasImpact}
                     onChange={(e) => setFormHasImpact(e.target.checked)}
-                    className="w-5 h-5 accent-brand cursor-pointer"
+                    className="w-5 h-5 rounded accent-amber-600 cursor-pointer"
                   />
                 </div>
 
-                <div className="flex items-center gap-3 justify-end pt-4 border-t border-gray-200">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-black text-slate-800 block">إضافة مذكّرة أو مبررات تعقيبية أولى:</label>
+                  <input
+                    type="text"
+                    value={formDesc}
+                    onChange={(e) => setFormDesc(e.target.value)}
+                    placeholder="ملاحظات توثيقية إضافية لإيضاح أسلوب حصر المتطلبات"
+                    className="w-full font-bold px-3 py-2 border border-slate-300 rounded-xl text-right"
+                  />
+                </div>
+
+                {/* Submissions action bar */}
+                <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => setIsFormOpen(false)}
-                    className="h-10 px-4 text-xs font-black text-gray-500 hover:text-gray-805 hover:bg-gray-100 border border-gray-300 rounded-xl cursor-pointer"
+                    className="h-10 px-4 bg-slate-100 font-bold hover:bg-slate-200 rounded-xl text-slate-700 cursor-pointer text-[11px]"
                   >
-                    إلغاء
+                    إلغاء الأمر
                   </button>
                   <button
                     type="submit"
-                    className="h-10 px-5 bg-brand hover:bg-brand/90 text-white font-black text-xs rounded-xl shadow-sm cursor-pointer"
+                    className="h-10 px-6 bg-[#246fff] hover:bg-[#2064e6] text-white font-extrabold rounded-xl shadow-xs transition-colors cursor-pointer text-[11px]"
                   >
-                    {editingItem ? "حفظ التعديلات" : "إضافة التوصية والجدولة الفورية"}
+                    حفظ الملف وتعميد القييد
                   </button>
                 </div>
+
               </form>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
-      {/* MODAL 2: Delete Recommendation with Required Reason Tracker */}
+      {/* 2. Referral Stage Transition Modal (سهم الأوامر وخطوات الإحالة) */}
       <AnimatePresence>
-        {isDeleteConfirmOpen && (
-          <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 text-right" dir="rtl">
+        {isReferralModalOpen && referralRec && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 text-right">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl border border-gray-350 w-full max-w-md p-6 overflow-hidden shadow-2xl space-y-4"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl w-full max-w-md border border-slate-200 shadow-2xl p-5"
             >
-              <h3 className="text-base font-black text-red-650 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
-                <span>تأكيد حذف التوصية والقرار الإداري</span>
-              </h3>
-
-              <p className="text-xs text-slate-800 font-bold leading-relaxed">
-                هل أنت متأكد من رغبتك في إتمام استئصال وحذف هذه التوصية نهائياً من قاعدة البيانات والسجلات؟ لا يمكن التراجع عن هذا الإتلاف بعد اعتماده.
-              </p>
-
-              <div className="space-y-1">
-                <label className="text-xs font-black text-gray-700">الرجاء إبداء سبب الحذف وحفظ السجل التاريخي (إلزامي):</label>
-                <input
-                  type="text"
-                  required
-                  value={deleteReason}
-                  onChange={(e) => setDeleteReason(e.target.value)}
-                  placeholder="مثال: إلغاء القرار من رئيس القسم أو دمج الملفات..."
-                  className="w-full text-xs font-bold p-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-red-500 text-gray-805 bg-white text-right"
-                />
-              </div>
-
-              <div className="flex items-center gap-3 justify-end pt-3 border-t border-gray-100">
+              <div className="flex items-center justify-between border-b pb-3 mb-4">
+                <h4 className="text-sm font-black text-slate-900 flex items-center gap-1.5">
+                  <Forward className="w-5 h-5 text-[#246fff]" />
+                  <span>تعديل وإحالة مسار المرحلة الإدارية</span>
+                </h4>
                 <button
                   type="button"
-                  onClick={() => setIsDeleteConfirmOpen(false)}
-                  className="h-10 px-4 text-xs font-black text-gray-500 hover:text-gray-800 border border-gray-200 rounded-xl cursor-pointer"
-                >
-                  تراجع
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDeleteRecommendation}
-                  className="h-10 px-5 bg-red-650 hover:bg-red-700 text-white font-black text-xs rounded-xl shadow-sm cursor-pointer"
-                >
-                  نعم، احذف التوصية نهائياً
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* MODAL 3: Simulated Email Governance Composer */}
-      <AnimatePresence>
-        {isEmailModalOpen && emailRec && (
-          <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 text-right md:p-6" dir="rtl">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl border border-gray-300 shadow-2xl w-full max-w-2xl overflow-hidden"
-            >
-              {/* Header */}
-              <div className="bg-[#f0ecec] border-b border-gray-300 px-6 py-4 flex items-center justify-between">
-                <h3 className="text-sm font-black text-gray-950 flex items-center gap-2">
-                  <Mail className="w-5 h-5 text-indigo-600 animate-pulse" />
-                  <span>تصدير وإخطار الكتروني بمظروف الحوكمة والاعتماد للتوصية</span>
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setIsEmailModalOpen(false)}
-                  className="p-1 text-gray-500 hover:text-gray-850 hover:bg-gray-200 rounded-lg cursor-pointer"
+                  onClick={() => { setIsReferralModalOpen(false); setReferralRec(null); }}
+                  className="p-1 hover:bg-slate-100 rounded text-slate-400"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="p-6 space-y-4">
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10.5px] font-black text-gray-600 block">إرسال إلى (صيغة مراسلات المنسقين والمكلَّف):</label>
-                    <input
-                      type="text"
-                      value={emailTo}
-                      onChange={(e) => setEmailTo(e.target.value)}
-                      className="w-full text-xs font-bold p-2.5 border border-gray-300 rounded-xl bg-slate-50 text-left font-mono"
-                      dir="ltr"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10.5px] font-black text-gray-600 block">الموضوع الرسمي للمظروف الإلكتروني:</label>
-                    <input
-                      type="text"
-                      value={emailSubject}
-                      onChange={(e) => setEmailSubject(e.target.value)}
-                      className="w-full text-xs font-black p-2.5 border border-gray-300 rounded-xl bg-slate-50"
-                    />
-                  </div>
+              <div className="space-y-4 text-xs">
+                <div className="bg-slate-50 p-3 rounded-xl border">
+                  <p className="font-extrabold text-[#246fff]">التوصية المختارة:</p>
+                  <p className="font-bold text-slate-800 leading-normal mt-1">{referralRec.title}</p>
+                  <span className="text-[10px] text-slate-400 block mt-1">المرحلة المقيدة حالياً: {referralRec.approvalStage}</span>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-[10.5px] font-black text-gray-600 block">محتوى البريد الإلكتروني (Draft Body):</label>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-black text-slate-700 block">تعديل المسار والرتبة المستهدفة:</label>
+                  <select
+                    value={referralTargetStage}
+                    onChange={(e) => setReferralTargetStage(e.target.value as any)}
+                    className="w-full font-bold p-2 border border-slate-300 rounded-xl bg-white text-slate-800"
+                  >
+                    {STAGES.map((s, idx) => (
+                      <option key={idx} value={s.id}>{s.label} ({s.role})</option>
+                    ))}
+                    <option value="مكتملة">مكتملة ومقفلة (معتمدة للتطوير)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-black text-slate-700 block">تدوين توجيه أو ملاحظة الإحالة (إلزامي):</label>
                   <textarea
-                    rows={8}
-                    value={emailBody}
-                    onChange={(e) => setEmailBody(e.target.value)}
-                    className="w-full text-xs font-semibold p-3 border border-gray-300 rounded-xl bg-white leading-relaxed text-right font-mono"
+                    rows={3}
+                    value={referralNotesInput}
+                    onChange={(e) => setReferralNotesInput(e.target.value)}
+                    placeholder="يرجى كتابة ملاحظات مرافقة للإحالة أو توجيهات المراجعة..."
+                    className="w-full font-bold px-3 py-2 border border-slate-300 rounded-xl text-right"
                   />
                 </div>
 
-                {isEmailSentSuccess && (
-                  <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-xl text-emerald-805 text-xs font-bold leading-normal text-center shadow-inner">
-                    ✨ تم إرسال مظروف حوكمة التوصية بنجاح إلى المكلفين والمنسقين! وجاري تثبيت السجل الإداري للتوصية.
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                  <span className="text-[10px] text-gray-400 font-bold select-none text-right block max-w-sm">
-                    💼 يرسل مظروف البريد الإلكتروني عبر خوادم الغرفة المعتمدة تلقائياً.
-                  </span>
-                  
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setIsEmailModalOpen(false)}
-                      className="h-10 px-4 text-xs font-black text-gray-500 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-xl cursor-pointer"
-                    >
-                      إلغاء الأمر
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSendEmailSimulate}
-                      disabled={isEmailSending}
-                      className="h-10 px-5 bg-brand hover:bg-brand/90 disabled:bg-gray-400 text-white font-black text-xs rounded-xl flex items-center gap-1.5 shadow-md cursor-pointer transition-all"
-                    >
-                      {isEmailSending ? (
-                        <>
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                          <span>جاري الإرسال الإلكتروني...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Send className="w-4 h-4" />
-                          <span>إرسال البريد الآن</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+                <div className="flex items-center gap-2 pt-3 border-t">
+                  <button
+                    type="button"
+                    onClick={() => { setIsReferralModalOpen(false); setReferralRec(null); }}
+                    className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg"
+                  >
+                    إلغاء الأمر
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleProceedReferral(referralTargetStage, referralNotesInput)}
+                    className="flex-1 py-2 bg-[#246fff] text-white hover:bg-slate-800 font-black rounded-lg"
+                  >
+                    تأكيد وإحالة المظروف
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -1874,72 +1847,157 @@ export default function Recommendations() {
         )}
       </AnimatePresence>
 
-      {/* MODAL 4: Interactive Quick Referral and Progress ADVANCEMENT */}
+      {/* 3. Simulated smart email dialog (تصدير بالبريد) */}
       <AnimatePresence>
-        {isReferralModalOpen && referralRec && (
-          <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 text-right" dir="rtl">
+        {isEmailModalOpen && emailRec && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 text-right">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl border border-gray-300 w-full max-w-md p-6 overflow-hidden shadow-2xl space-y-4"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl w-full max-w-lg border border-slate-200 shadow-2xl overflow-hidden text-xs"
             >
-              <div className="bg-[#f2f6fa] -mx-6 -mt-6 px-6 py-4 border-b border-gray-200">
-                <h3 className="text-sm font-black text-blue-950 flex items-center gap-2">
-                  <ArrowRightLeft className="w-4.5 h-4.5 text-brand" />
-                  <span>تسيير الإحالة والاعتماد الإداري للتوصية</span>
-                </h3>
+              <div className="bg-[#246fff] text-white p-5 flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <h4 className="text-sm font-black flex items-center gap-1.5">
+                    <Mail className="w-5 h-5 text-white" />
+                    <span>تصدير مظروف التوصية بالبريد الإلكتروني المباشر</span>
+                  </h4>
+                  <p className="text-[#246fff]/10 text-[10.5px]">
+                    صياغة بريدية ذكية ومرحلة لإرسال تفاصيل التوصية للمتابعة والمطابقة
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setIsEmailModalOpen(false); setEmailRec(null); }}
+                  className="p-1 hover:bg-[#246fff]/20 rounded text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
-              <div className="space-y-4 pt-1">
-                <div className="space-y-1">
-                  <label className="text-[10.5px] font-black text-gray-700 block">عنوان التوصية المختارة:</label>
-                  <p className="text-xs font-black text-gray-900 bg-gray-50 p-2 rounded-lg border border-gray-200">
-                    {referralRec.title}
+              <div className="p-5 space-y-4">
+                {isEmailSentSuccess ? (
+                  <div className="py-8 text-center space-y-2">
+                    <div className="w-12 h-12 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center mx-auto text-xl">
+                      <Check className="w-6 h-6 stroke-[3]" />
+                    </div>
+                    <p className="text-emerald-800 font-black text-sm">تم إرسال الملف والبريد للتوصية بنجاح!</p>
+                    <p className="text-slate-400 font-bold text-[11px]">تم تسجيل وتدوين حركة التصدير في السجل الأمني للنظام.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 block">صندوق البريد المستهدف (المكلف):</label>
+                      <input
+                        type="text"
+                        value={emailTo}
+                        onChange={(e) => setEmailTo(e.target.value)}
+                        className="w-full font-bold px-3 py-1.5 border border-slate-300 rounded-xl"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 block">عنوان الرسالة البريدية:</label>
+                      <input
+                        type="text"
+                        value={emailSubject}
+                        onChange={(e) => setEmailSubject(e.target.value)}
+                        className="w-full font-bold px-3 py-1.5 border border-slate-300 rounded-xl"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 block font-mono">تفاصيل الرسالة ومخرجات التوصية المقررة:</label>
+                      <textarea
+                        rows={7}
+                        value={emailBody}
+                        onChange={(e) => setEmailBody(e.target.value)}
+                        className="w-full font-bold p-3 border border-slate-300 bg-slate-50 rounded-xl font-mono text-[10px] leading-relaxed"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => { setIsEmailModalOpen(false); setEmailRec(null); }}
+                        className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg"
+                      >
+                        إلغاء الأمر
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSendEmailSimulate}
+                        disabled={isEmailSending}
+                        className="flex-1 py-2 bg-[#246fff] text-white hover:bg-[#2064e6] font-black rounded-lg flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        {isEmailSending ? (
+                          <>
+                            <RefreshCw className="w-3 animate-spin" />
+                            <span>جاري إرسال المظروف...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-3.5 h-3.5" />
+                            <span>تأكيد الإرسال بالبريد</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 4. Delete Confirmation Dialog */}
+      <AnimatePresence>
+        {isDeleteConfirmOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 text-right">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl w-full max-w-sm border border-slate-200 shadow-2xl p-5"
+            >
+              <div className="text-center space-y-3">
+                <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto">
+                  <ShieldAlert className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-slate-900">تأكيد عملية حذف التوصية القطاعية نهائياً</h4>
+                  <p className="text-[11px] text-slate-400 mt-1 leading-normal">
+                    تحذير: هذا القرار نهائي ولا يمكن الرجوع عنه، وستحذف كافة السجلات والمستندات المرتبطة به.
                   </p>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10.5px] font-black text-gray-700 block">إرسال وإحالة التوصية إلى رتبة:</label>
-                  <select
-                    value={referralTargetStage}
-                    onChange={(e) => setReferralTargetStage(e.target.value as any)}
-                    className="w-full text-xs font-bold p-2 border border-gray-350 rounded-xl bg-white text-gray-800"
-                  >
-                    {STAGES.map((s, idx) => (
-                      <option key={idx} value={s.id}>{s.label} ({s.role})</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10.5px] font-black text-gray-700 block">ملاحظات مرافقة للإحالة (ستدون في السجل):</label>
-                  <textarea
-                    rows={2}
-                    value={referralNotesInput}
-                    onChange={(e) => setReferralNotesInput(e.target.value)}
-                    placeholder="اكتب توجيهات المتابعة أو أية مبررات للإحالة لتقييد السجل التاريخي..."
-                    className="w-full text-xs font-semibold p-2 border border-gray-350 rounded-xl bg-white text-right"
+                <div className="space-y-1 mt-3 text-right">
+                  <label className="text-[10px] font-black text-rose-850 block">يرجى كتابة سبب الحذف للمطابقة الأمنية (إلزامي):</label>
+                  <input
+                    type="text"
+                    value={deleteReason}
+                    onChange={(e) => setDeleteReason(e.target.value)}
+                    placeholder="مثل: إلغاء محضر البند، أو وجود دمج للتوصيات"
+                    className="w-full text-xs font-bold px-3 py-1.5 border border-slate-300 rounded-xl"
                   />
                 </div>
 
-                <div className="flex items-center gap-3 justify-end pt-3 border-t border-gray-100">
+                <div className="flex items-center gap-2 pt-4">
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsReferralModalOpen(false);
-                      setReferralRec(null);
-                    }}
-                    className="h-10 px-4 text-xs font-black text-gray-500 hover:text-gray-800 border border-gray-200 rounded-xl cursor-pointer"
+                    onClick={() => { setIsDeleteConfirmOpen(false); setRecToDeleteId(null); }}
+                    className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs"
                   >
-                    تراجع
+                    إلغاء الحذف
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleProceedReferral(referralTargetStage, referralNotesInput)}
-                    className="h-10 px-5 bg-brand hover:bg-brand/90 text-white font-black text-xs rounded-xl shadow-sm cursor-pointer"
+                    onClick={handleDeleteRecommendation}
+                    className="flex-1 py-2 bg-rose-600 text-white hover:bg-rose-700 font-black rounded-lg text-xs"
                   >
-                    تأكيد إحالة الملف
+                    تأكيد الحذف النهائي
                   </button>
                 </div>
               </div>

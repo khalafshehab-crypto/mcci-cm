@@ -229,7 +229,7 @@ export default function OrgChart() {
     }
   }, [currentUserRole, activeTab]);
 
-  // Generic Self-healing: Merge/clean up duplicate accounts sharing the exact same email address
+  // Safe duplicates detection: log warnings in console but do NOT delete silently to avoid asynchronous race conditions during updates
   useEffect(() => {
     if (dbEmployees && dbEmployees.length > 0) {
       const emailGroups: Record<string, Employee[]> = {};
@@ -245,20 +245,11 @@ export default function OrgChart() {
 
       Object.entries(emailGroups).forEach(([email, list]) => {
         if (list.length > 1) {
-          let canonical = list.find(emp => emp.id === currentUser?.id);
-          if (!canonical) {
-            canonical = list.find(emp => emp.active) || list[0];
-          }
-
-          const toDelete = list.filter(emp => emp.id !== canonical?.id);
-          toDelete.forEach(emp => {
-            console.log(`Self-healing deduplication: Deleting duplicate for email [${email}] with ID [${emp.id}], keeping canonical ID [${canonical?.id}]`);
-            deleteFirebaseEmp(emp.id);
-          });
+          console.warn(`تنبيه: يوجد حساب مكرر بنفس البريد الإلكتروني [${email}] للبطاقات ذات المعرفات: ${list.map(e => e.id).join(', ')}`);
         }
       });
     }
-  }, [dbEmployees, deleteFirebaseEmp, currentUser]);
+  }, [dbEmployees]);
   
   // Whitelist Email state fields
   const [whitelistEmailStr, setWhitelistEmailStr] = useState("");
@@ -366,8 +357,20 @@ export default function OrgChart() {
   // 1. Approve Join Request (اعتماد طلبات الانضمام)
   const handleApproveJoinRequest = async (req: JoinRequest) => {
     try {
-      // Create a random 4-digit employee ID
-      const parsedId = Math.floor(1000 + Math.random() * 9000).toString();
+      const emailLower = req.email.trim().toLowerCase();
+
+      // Enforce email uniqueness
+      const emailTaken = dbEmployees.some(emp => emp.email?.trim().toLowerCase() === emailLower);
+      if (emailTaken) {
+        alert(`عذراً، البريد الإلكتروني [${req.email}] مأخوذ مسبقاً لموظف آخر في النظام.`);
+        return;
+      }
+
+      // Generate a unique 4-digit employee ID
+      let parsedId = Math.floor(1000 + Math.random() * 9000).toString();
+      while (dbEmployees.some(emp => emp.id === parsedId)) {
+        parsedId = Math.floor(1000 + Math.random() * 9000).toString();
+      }
       
       const payload: Omit<Employee, "id"> = {
         name: req.name,
@@ -375,7 +378,7 @@ export default function OrgChart() {
         roleAr: "أخصائي اللجان",
         jobTitle: "أخصائي لجان",
         phone: req.phone,
-        email: req.email.trim().toLowerCase(),
+        email: emailLower,
         photo: PRESET_AVATARS[Math.floor(Math.random() * PRESET_AVATARS.length)],
         committees: [],
         active: true,
@@ -580,6 +583,12 @@ export default function OrgChart() {
         const IDTaken = dbEmployees.some(emp => emp.id === formId);
         if (IDTaken) {
           alert(`الرقم الوظيفي [${formId}] مأخوذ مسبقاً لموظف آخر.`);
+          return;
+        }
+
+        const emailTaken = dbEmployees.some(emp => emp.email?.trim().toLowerCase() === cleanEmail);
+        if (emailTaken) {
+          alert(`البريد الإلكتروني [${cleanEmail}] مستخدم بالفعل من قبل موظف آخر في النظام.`);
           return;
         }
 
