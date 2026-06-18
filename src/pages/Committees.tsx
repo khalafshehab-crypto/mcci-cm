@@ -50,6 +50,7 @@ export default function Committees() {
   const { data: dbMembers } = useFirestoreCollection<any>("members", []);
   const { data: dbEvents } = useFirestoreCollection<any>("events", []);
   const { data: dbRecs } = useFirestoreCollection<any>("recommendations", []);
+  const { data: dbEmployees } = useFirestoreCollection<any>("employees", []);
   
   const setCommittees = (action: React.SetStateAction<Committee[]>) => {
     let nextItems = typeof action === 'function' ? action(dbCommittees) : action;
@@ -78,43 +79,33 @@ export default function Committees() {
   const [newMtgError, setNewMtgError] = useState("");
 
   // Dynamic employees fetched from Org Chart database
-  const [dynamicEmployees, setDynamicEmployees] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem("app_employees");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((e: any) => e.name).filter(Boolean);
-        }
-      }
-    } catch (e) {}
-    return EMPLOYEES;
-  });
+  const [dynamicEmployees, setDynamicEmployees] = useState<string[]>(EMPLOYEES);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("app_employees");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setDynamicEmployees(parsed.map((e: any) => e.name).filter(Boolean));
-          
-          // Sync committees' specialists based on employee assignments
-          setCommittees(prev => {
-            return prev.map(comm => {
-              const matchedEmp = parsed.find((emp: any) => 
-                emp && emp.active && emp.committees && emp.committees.includes(comm.name)
-              );
-              if (matchedEmp) {
-                return { ...comm, specialist: matchedEmp.name };
-              }
-              return comm;
-            });
-          });
-        }
-      }
-    } catch (e) {}
-  }, []);
+    if (dbEmployees && dbEmployees.length > 0) {
+      setDynamicEmployees(dbEmployees.map((e: any) => e.name).filter(Boolean));
+      
+      // Update local storage so any other legacy pages have it
+      localStorage.setItem("app_employees", JSON.stringify(dbEmployees));
+
+      // Sync committees' specialists based on employee assignments
+      setCommittees(prev => {
+        let changed = false;
+        const updated = prev.map(comm => {
+          const matchedEmp = dbEmployees.find((emp: any) => 
+            emp && emp.active && emp.committees && emp.committees.includes(comm.name)
+          );
+          const expectedSpecialist = matchedEmp ? matchedEmp.name : "غير محدد";
+          if (comm.specialist !== expectedSpecialist) {
+            changed = true;
+            return { ...comm, specialist: expectedSpecialist };
+          }
+          return comm;
+        });
+        return changed ? updated : prev;
+      });
+    }
+  }, [dbEmployees]);
 
   // Form Fields for Add / Edit
   const [name, setName] = useState("");

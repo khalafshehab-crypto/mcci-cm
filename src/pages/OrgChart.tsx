@@ -164,6 +164,12 @@ export default function OrgChart() {
   const { data: dbEvents, updateDocument: updateFirebaseEvent } = useFirestoreCollection<any>("events", []);
   const { data: dbRecommendations, updateDocument: updateFirebaseRec } = useFirestoreCollection<any>("recommendations", []);
 
+  useEffect(() => {
+    if (dbEmployees && dbEmployees.length > 0) {
+      localStorage.setItem("app_employees", JSON.stringify(dbEmployees));
+    }
+  }, [dbEmployees]);
+
   // UI state for search, filters, modals, and actions
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
@@ -484,9 +490,10 @@ export default function OrgChart() {
 
     const cleanEmail = formEmail.trim().toLowerCase();
     const isSysAdmin = currentUserRole === "SYS_ADMIN";
+    const isPowerUser = isSysAdmin || currentUserRole === "MANAG_DIR" || currentUserRole === "DEPT_HEAD";
 
     // Security Gate check
-    if (!isSysAdmin) {
+    if (!isPowerUser) {
       if (!isEditing) {
         alert("عذراً، لا تملك صلاحية لإضافة موظفين جدد للنظام.");
         return;
@@ -514,27 +521,27 @@ export default function OrgChart() {
         SPECIALIST: "أخصائي اللجان"
       };
 
-      // Construction of strict payload: if not Admin, merge existing critical access fields directly
+      // Construction of strict payload: if not Admin/PowerUser, merge existing critical access fields directly
       // This protects the Specialist from losing email, active stance, or role privileges during self-updates
       const payload: Omit<Employee, "id"> = {
         name: formName.trim(),
-        role: isSysAdmin ? formRole : (existingEmployee?.role || "SPECIALIST"),
-        roleAr: isSysAdmin ? (roleMapper[formRole] || "أخصائي اللجان") : (existingEmployee?.roleAr || "أخصائي اللجان"),
-        jobTitle: formJobTitle.trim() || (isSysAdmin ? (roleMapper[formRole] || "أخصائي لجان") : (existingEmployee?.jobTitle || "أخصائي لجان")),
+        role: isPowerUser ? formRole : (existingEmployee?.role || "SPECIALIST"),
+        roleAr: isPowerUser ? (roleMapper[formRole] || "أخصائي اللجان") : (existingEmployee?.roleAr || "أخصائي اللجان"),
+        jobTitle: formJobTitle.trim() || (isPowerUser ? (roleMapper[formRole] || "أخصائي لجان") : (existingEmployee?.jobTitle || "أخصائي لجان")),
         phone: formPhone.trim(),
         extension: formExtension.trim(),
         email: isEditing && existingEmployee ? existingEmployee.email : cleanEmail, // البريد الإلكتروني هو معرف الحساب ولا يمكن تعديله لضمان عدم الخروج
         photo: formPhoto,
-        active: isSysAdmin ? formActive : (existingEmployee ? existingEmployee.active : true), // Lock active state
+        active: isPowerUser ? formActive : (existingEmployee ? existingEmployee.active : true), // Lock active state
         committees: formCommittees,
         password: formPassword.trim() || (existingEmployee?.password || ""),
         joinDate: existingEmployee?.joinDate || new Date().toISOString().split('T')[0].replace(/-/g, '/')
       };
 
       if (isEditing) {
-        // Did the ID change? (Only allowed for system admins)
+        // Did the ID change? (Only allowed for system admins / power users)
         if (formId !== targetEditId) {
-          if (!isSysAdmin) {
+          if (!isPowerUser) {
             alert("عذراً، الرقم الوظيفي غير قابل للتعديل.");
             return;
           }
@@ -1179,7 +1186,7 @@ export default function OrgChart() {
 
                       {/* Control buttons */}
                       <div className="mt-5 pt-3 border-t border-gray-100 flex items-center justify-end gap-1.5">
-                        {(currentUserRole === "SYS_ADMIN" || isSelf) && (
+                        {(currentUserRole === "SYS_ADMIN" || currentUserRole === "MANAG_DIR" || currentUserRole === "DEPT_HEAD" || isSelf) && (
                           <button
                             onClick={() => openEditModal(emp)}
                             className="p-2 bg-gray-50 hover:bg-brand/10 text-gray-600 hover:text-brand rounded-lg transition-all cursor-pointer border border-gray-200 hover:border-brand/20 flex items-center gap-1.5 text-[10px] font-extrabold"
@@ -1266,7 +1273,7 @@ export default function OrgChart() {
                             </td>
                             <td className="p-4 text-left">
                               <div className="flex items-center justify-end gap-1.5">
-                                {(currentUserRole === "SYS_ADMIN" || isSelf) && (
+                                {(currentUserRole === "SYS_ADMIN" || currentUserRole === "MANAG_DIR" || currentUserRole === "DEPT_HEAD" || isSelf) && (
                                   <button
                                     onClick={() => openEditModal(emp)}
                                     className="p-1 px-2.5 bg-gray-100 hover:bg-brand/10 text-gray-600 hover:text-brand rounded-md border border-gray-200 text-[10px] font-bold"

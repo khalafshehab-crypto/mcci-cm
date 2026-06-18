@@ -236,6 +236,7 @@ export default function Members() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [showSuccessPrompt, setShowSuccessPrompt] = useState(false);
   const [formError, setFormError] = useState("");
   const [selectedMembers, setSelectedMembers] = useState<Set<number>>(new Set());
 
@@ -271,7 +272,7 @@ export default function Members() {
   const [customTitle, setCustomTitle] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState(ROLE_CAPACITIES[2]); // Default: عضو
-  const [selectedCommitteeId, setSelectedCommitteeId] = useState<number>(1);
+  const [selectedCommitteeId, setSelectedCommitteeId] = useState<number>(0);
   const [joiningMechanism, setJoiningMechanism] = useState("مرشح");
   const [govAgency, setGovAgency] = useState("");
   const [email, setEmail] = useState("");
@@ -327,9 +328,7 @@ export default function Members() {
     setCustomTitle("");
     setName("");
     setRole(ROLE_CAPACITIES[2]); // عضو
-    if (allCommittees.length > 0) {
-      setSelectedCommitteeId(allCommittees[0].id);
-    }
+    setSelectedCommitteeId(0);
     setJoiningMechanism("مرشح");
     setGovAgency("");
     setEmail("");
@@ -346,7 +345,29 @@ export default function Members() {
     setEditingMember(null);
     setEditReason("");
     setFormError("");
+    setShowSuccessPrompt(false);
     setIsAddOpen(true);
+  };
+
+  const handleAddNewMemberPrompt = () => {
+    setName("");
+    setEmail("");
+    setPhone("");
+    setNationalId("");
+    setIsActive(true);
+    setNote("");
+    setPersonalPhoto("");
+    setCv("");
+    setCommercialRegister("");
+    setMembershipCertificate("");
+    setAuthorization("");
+    setGovAgency("");
+    setTitle("الأستاذ");
+    setCustomTitle("");
+    setRole(ROLE_CAPACITIES[2]);
+    setSelectedCommitteeId(0);
+    setFormError("");
+    setShowSuccessPrompt(false);
   };
 
   const handleOpenEdit = (m: Member) => {
@@ -371,6 +392,7 @@ export default function Members() {
     setAuthorization(m.authorization || "");
     setEditReason("");
     setFormError("");
+    setShowSuccessPrompt(false);
     setIsAddOpen(true);
     setActiveGearMenuId(null);
   };
@@ -390,6 +412,10 @@ export default function Members() {
     }
     if (title === "غير ذلك" && !customTitle.trim()) {
       setFormError("يرجى تحديد اللقب يدويًا");
+      return;
+    }
+    if (!selectedCommitteeId || Number(selectedCommitteeId) === 0) {
+      setFormError("يرجى اختيار اللجنة");
       return;
     }
     if (joiningMechanism === "ممثل لجهة حكومية" && !govAgency.trim()) {
@@ -450,6 +476,11 @@ export default function Members() {
         }
         return m;
       }));
+      // Reset fields (Edit mode closes modal)
+      setName("");
+      setRole(ROLE_CAPACITIES[2]);
+      setFormError("");
+      setIsAddOpen(false);
     } else {
       // Add
       const newMember: Member = {
@@ -476,13 +507,8 @@ export default function Members() {
         authorization: authorization
       };
       setMembers([newMember, ...members]);
+      setShowSuccessPrompt(true);
     }
-
-    // Reset fields
-    setName("");
-    setRole(ROLE_CAPACITIES[2]);
-    setFormError("");
-    setIsAddOpen(false);
   };
 
   const handleConfirmDelete = () => {
@@ -1268,7 +1294,41 @@ export default function Members() {
 
               {/* Form body container */}
               <div className="overflow-y-auto p-6">
-                <form onSubmit={handleFormSubmit} className="space-y-4">
+                {showSuccessPrompt ? (
+                  <div className="py-12 px-6 text-center space-y-6 flex flex-col items-center justify-center animate-fadeIn">
+                    <div className="w-16 h-16 bg-emerald-55 text-emerald-600 rounded-full flex items-center justify-center shadow-inner border border-emerald-100">
+                      <Check className="w-8 h-8 stroke-[3]" />
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="text-lg font-black text-gray-900">تمت إضافة العضو بنجاح!</h4>
+                      <p className="text-xs text-gray-500 max-w-sm mx-auto leading-relaxed">
+                        تم تسجيل بيانات العضو الجديد وربطه باللجنة بنجاح في قاعدة البيانات الحية.
+                      </p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-md pt-4">
+                      <button
+                        type="button"
+                        onClick={handleAddNewMemberPrompt}
+                        className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                      >
+                        <Plus className="w-4 h-4 stroke-[2.5]" />
+                        <span>إضافة عضو آخر</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddOpen(false);
+                          setShowSuccessPrompt(false);
+                        }}
+                        className="w-full h-11 bg-gray-100 hover:bg-gray-200 text-gray-755 font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2"
+                      >
+                        <Check className="w-4 h-4 stroke-[2.5]" />
+                        <span>حفظ وإنهاء</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <form onSubmit={handleFormSubmit} className="space-y-4">
                 {formError && (
                   <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-black rounded-xl flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 flex-shrink-0" />
@@ -1332,6 +1392,7 @@ export default function Members() {
                     onChange={(e) => setSelectedCommitteeId(Number(e.target.value))}
                     className="w-full h-10 px-2 bg-gray-50 border border-gray-250 rounded-xl text-xs font-extrabold text-right focus:bg-white focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all cursor-pointer"
                   >
+                    <option value={0}>يرجى اختيار اللجنة</option>
                     {allCommittees.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
@@ -1559,6 +1620,7 @@ export default function Members() {
                   </button>
                 </div>
               </form>
+                )}
               </div>
             </motion.div>
           </div>
