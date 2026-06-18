@@ -29,6 +29,7 @@ export default function Layout({ children }: LayoutProps) {
  
   const [userName, setUserName] = useState("شهاب الدين");
   const [userRoleAr, setUserRoleAr] = useState("مدير النظام");
+  const [userPhoto, setUserPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     return subscribeToFirestoreBlocked((blocked) => {
@@ -41,9 +42,10 @@ export default function Layout({ children }: LayoutProps) {
       const stored = localStorage.getItem("current_user");
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed && parsed.name) {
-          setUserName(parsed.name);
-          setUserRoleAr(parsed.roleAr || "أخصائي اللجان");
+        if (parsed) {
+          if (parsed.name) setUserName(parsed.name);
+          if (parsed.roleAr) setUserRoleAr(parsed.roleAr || "أخصائي اللجان");
+          if (parsed.photo) setUserPhoto(parsed.photo);
         }
       }
     } catch (e) { /* ignore */ }
@@ -214,9 +216,18 @@ export default function Layout({ children }: LayoutProps) {
                 
                 <div className="bg-gray-50 p-2 mt-2 border-t border-gray-100">
                   <div className="flex items-center gap-3 px-4 py-3">
-                    <div className="w-9 h-9 rounded-full bg-brand/10 flex items-center justify-center text-brand font-bold border border-brand/20 text-sm">
-                      {userName ? userName.charAt(0) : "ب"}
-                    </div>
+                    {userPhoto ? (
+                      <img 
+                        src={userPhoto} 
+                        alt={userName} 
+                        className="w-9 h-9 rounded-full object-cover border border-gray-200"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-brand/10 flex items-center justify-center text-brand font-bold border border-brand/20 text-sm">
+                        {userName ? userName.charAt(0) : "ب"}
+                      </div>
+                    )}
                     <div className="flex-1 overflow-hidden">
                       <p className="text-sm font-bold text-gray-900 truncate">{userName}</p>
                       <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wide">{userRoleAr}</p>

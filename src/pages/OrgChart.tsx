@@ -27,7 +27,8 @@ import {
   Sparkles,
   Calendar,
   Layers,
-  FileText
+  FileText,
+  Printer
 } from "lucide-react";
 import { useFirestoreCollection } from "../lib/firebaseUtils";
 
@@ -136,6 +137,7 @@ export interface SystemLog {
 
 export default function OrgChart() {
   const [activeTab, setActiveTab] = useState<"hierarchy" | "transfer" | "approvals" | "logs">("hierarchy");
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
   // Find current user's role
   const getLoggedInUser = () => {
@@ -152,7 +154,7 @@ export default function OrgChart() {
 
   // Load state and collections from Firestore / offline sandbox
   const { data: dbEmployees, addDocument: addFirebaseEmp, updateDocument: updateFirebaseEmp, deleteDocument: deleteFirebaseEmp } = useFirestoreCollection<Employee>("employees", []);
-  const { data: dbJoinRequests, addDocument: addFirebaseReq, deleteDocument: deleteFirebaseReq } = useFirestoreCollection<JoinRequest>("join_requests", []);
+  const { data: dbJoinRequests, deleteDocument: deleteFirebaseReq } = useFirestoreCollection<JoinRequest>("join_requests", []);
   const { data: dbApprovedEmails, addDocument: addFirebaseAppr, deleteDocument: deleteFirebaseAppr } = useFirestoreCollection<ApprovedEmail>("approved_emails", []);
   const { data: dbSystemLogs, addDocument: addFirebaseLog } = useFirestoreCollection<SystemLog>("system_logs", []);
   
@@ -177,6 +179,15 @@ export default function OrgChart() {
     try {
       await updateFirebaseEmp(selectedEmployee.id, { committees: updatedComms });
       
+      // Update any physical committee record matching this to set specialist to unassigned or empty
+      const matchedComm = dbCommittees.find(c => c.name === committeeName);
+      if (matchedComm) {
+        await updateFirebaseComm(matchedComm.id, {
+          specialistId: "",
+          specialistName: "غير معين"
+        });
+      }
+
       // Document this removal in System Logs catalog for audit checks
       await addFirebaseLog({
         employeeName: currentUser?.name || "مدير النظام",
@@ -221,7 +232,6 @@ export default function OrgChart() {
   // Generic Self-healing: Merge/clean up duplicate accounts sharing the exact same email address
   useEffect(() => {
     if (dbEmployees && dbEmployees.length > 0) {
-      // Find all duplicate emails
       const emailGroups: Record<string, Employee[]> = {};
       dbEmployees.forEach(emp => {
         if (emp.email) {
@@ -235,16 +245,11 @@ export default function OrgChart() {
 
       Object.entries(emailGroups).forEach(([email, list]) => {
         if (list.length > 1) {
-          // We have duplicates for this email!
-          // We choose of one canonical record to keep:
-          // 1. If currentUser matches one, keep that one
-          // 2. Else keep the one that is active or first
           let canonical = list.find(emp => emp.id === currentUser?.id);
           if (!canonical) {
             canonical = list.find(emp => emp.active) || list[0];
           }
 
-          // Delete all duplicates that are NOT canonical
           const toDelete = list.filter(emp => emp.id !== canonical?.id);
           toDelete.forEach(emp => {
             console.log(`Self-healing deduplication: Deleting duplicate for email [${email}] with ID [${emp.id}], keeping canonical ID [${canonical?.id}]`);
@@ -338,6 +343,18 @@ export default function OrgChart() {
       localStorage.removeItem("app_member_columns_v2");
 
       setPurgeSuccess(true);
+      await addFirebaseLog({
+        employeeName: currentUser?.name || "مدير النظام",
+        time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        operationType: "تهيئة النظام بالكامل",
+        status: "ناجحة",
+        details: "قام مدير النظام بتهيئة وتصفير قاعدة البيانات بالكامل وتطهير التخزين المؤقت."
+      } as any);
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+
     } catch (e) {
       console.error("Purge action failed:", e);
       setPurgeError("حدث خطأ أثناء محاولة تصفير قاعدة البيانات سحابياً. يرجى المحاولة لاحقاً.");
@@ -346,1228 +363,1287 @@ export default function OrgChart() {
     }
   };
 
-  // System Logs search & filters
-  const [logSearchQuery, setLogSearchQuery] = useState("");
-  const [logStatusFilter, setLogStatusFilter] = useState("ALL");
-
-  // Trigger immediate log registration
-  const reportSystemLog = async (type: string, details: string, status: "ناجحة" | "مرفوضة" = "ناجحة") => {
-    let activeUser = "نظام الحوكمة الذكي";
-    try {
-      const stored = localStorage.getItem("current_user");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed?.name) activeUser = parsed.name;
-      }
-    } catch (_) {}
-
-    const newLog: Omit<SystemLog, 'id'> = {
-      employeeName: activeUser,
-      time: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      operationType: type,
-      status,
-      details
-    };
-    await addFirebaseLog(newLog);
-  };
-
-  // 1. ADD / EDIT EMPLOYEE ACTION HANDLER
-  const openAddModal = () => {
-    setIsEditing(false);
-    setOriginalEditId("");
-    setFormCommittees([]);
-    setFormId(Math.floor(1000 + Math.random() * 9000).toString());
-    setFormName("");
-    setFormRole("SPECIALIST");
-    setFormJobTitle("");
-    setFormPhone("");
-    setFormExtension("");
-    setFormEmail("");
-    setFormPhoto(PRESET_AVATARS[Math.floor(Math.random() * PRESET_AVATARS.length)]);
-    setFormActive(true);
-    setFormPassword("123456");
-    setShowFormModal(true);
-  };
-
-  const openEditModal = (emp: Employee) => {
-    setIsEditing(true);
-    setOriginalEditId(emp.id);
-    setFormId(emp.id);
-    setFormCommittees(emp.committees || []);
-    setFormName(emp.name);
-    setFormRole(emp.role);
-    setFormJobTitle(emp.jobTitle);
-    setFormPhone(emp.phone);
-    setFormExtension(emp.extension || "");
-    setFormEmail(emp.email);
-    setFormPhoto(emp.photo);
-    setFormActive(emp.active);
-    setFormPassword(emp.password || "********");
-    setShowFormModal(true);
-  };
-
-  const handleSaveEmployee = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formName || !formEmail) {
-      alert("يرجى ملء الحقول الإلزامية الأساسية.");
-      return;
-    }
-
-    // Role, permission and security checks
-    if (currentUserRole !== "SYS_ADMIN") {
-      if (!isEditing) {
-        alert("عذراً، لا تملك الصلاحية لإضافة موظفين جدد للنظام.");
-        return;
-      }
-      if (originalEditId !== currentUser?.id) {
-        alert("عذراً، يمكنك فقط تعديل بيانات ملفك الشخصي فقط، ولا تملك صلاحية تعديل بيانات موظف آخر.");
-        return;
-      }
-    }
-
-    const originalEmp = dbEmployees.find(emp => emp.id === (isEditing ? originalEditId : formId));
-
-    const roleMapper: Record<string, string> = {
-      SYS_ADMIN: "مدير النظام",
-      MANAG_DIR: "مدير إدارة اللجان",
-      DEPT_HEAD: "رئيس قسم اللجان",
-      SPECIALIST: "أخصائي اللجان"
-    };
-
-    const payload: Omit<Employee, 'id'> = {
-      name: formName,
-      role: isEditing && currentUserRole !== "SYS_ADMIN" && originalEmp ? originalEmp.role : formRole,
-      roleAr: isEditing && currentUserRole !== "SYS_ADMIN" && originalEmp ? originalEmp.roleAr : (roleMapper[formRole] || "أخصائي اللجان"),
-      jobTitle: isEditing && currentUserRole !== "SYS_ADMIN" && originalEmp ? originalEmp.jobTitle : (roleMapper[formRole] || "أخصائي اللجان"),
-      phone: formPhone,
-      extension: formExtension,
-      email: formEmail,
-      photo: formPhoto,
-      active: isEditing && currentUserRole !== "SYS_ADMIN" && originalEmp ? originalEmp.active : formActive,
-      committees: formCommittees,
-      joinDate: isEditing ? (dbEmployees.find(emp => emp.id === originalEditId)?.joinDate || new Date().toISOString().split('T')[0].replace(/-/g, '/')) : new Date().toISOString().split('T')[0].replace(/-/g, '/'),
-      password: formPassword
-    };
-
-    try {
-      if (isEditing) {
-        if (formId !== originalEditId) {
-          // Enforce unique check for new ID
-          const IDExists = dbEmployees.some(emp => emp.id === formId);
-          if (IDExists) {
-            alert("الرقم الوظيفي الجديد مأخوذ بالفعل من قبل موظف آخر.");
-            return;
-          }
-
-          // Create document with new ID
-          await updateFirebaseEmp(formId, payload);
-          // Delete old document
-          await deleteFirebaseEmp(originalEditId);
-
-          // Update loggedInUser in localStorage if self-editing
-          try {
-            const stored = localStorage.getItem("current_user");
-            if (stored) {
-              const parsed = JSON.parse(stored);
-              if (parsed && parsed.id === originalEditId) {
-                localStorage.setItem("current_user", JSON.stringify({ ...payload, id: formId }));
-                window.dispatchEvent(new Event('storage'));
-                setTimeout(() => {
-                  window.location.reload();
-                }, 300);
-              }
-            }
-          } catch (err) {
-            console.error(err);
-          }
-
-          await reportSystemLog("تعديل موظف", `تم تحديث ملف الموظف وتغيير الرقم الوظيفي من [${originalEditId}] إلى [${formId}] بنجاح.`);
-        } else {
-          await updateFirebaseEmp(formId, payload);
-
-          // Update loggedInUser in localStorage if self-editing
-          try {
-            const stored = localStorage.getItem("current_user");
-            if (stored) {
-              const parsed = JSON.parse(stored);
-              if (parsed && parsed.id === formId) {
-                localStorage.setItem("current_user", JSON.stringify({ ...payload, id: formId }));
-                window.dispatchEvent(new Event('storage'));
-                setTimeout(() => {
-                  window.location.reload();
-                }, 300);
-              }
-            }
-          } catch (err) {
-            console.error(err);
-          }
-
-          await reportSystemLog("تعديل موظف", `تم تحديث بيانات الموظف [${formName}] الرقم الوظيفي [${formId}] بنجاح.`);
-        }
-      } else {
-        // Enforce unique check for ID
-        const IDExists = dbEmployees.some(emp => emp.id === formId);
-        const actualId = IDExists ? `${formId}_${Math.floor(Math.random() * 1000)}` : formId;
-        
-        await updateFirebaseEmp(actualId, payload);
-        await reportSystemLog("إنشاء موظف جديد", `تم إدراج كادر جديد للهيكل [${formName}] في النظام بنجاح.`);
-      }
-      setShowFormModal(false);
-    } catch (err: any) {
-      console.error(err);
-      alert("حدث خطأ أثناء حفظ الملف.");
-    }
-  };
-
-  // Toggle active status straight from card
-  const handleToggleActiveStatus = async (emp: Employee) => {
-    if (currentUserRole !== "SYS_ADMIN") {
-      alert("عذراً، تقتصر صلاحية تغيير حالة حساب الموظف (نشط/غير نشط) على مدير النظام فقط.");
-      return;
-    }
-    const nextState = !emp.active;
-    try {
-      await updateFirebaseEmp(emp.id, { active: nextState });
-      await reportSystemLog(
-        "تعديل حالة موظف", 
-        `تم تحويل حالة كادر العمل [${emp.name}] إلى [${nextState ? "نشط" : "غير نشط"}] بنجاح.`
-      );
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // Delete employee
-  const handleDeleteEmployee = async (emp: Employee) => {
-    if (currentUserRole !== "SYS_ADMIN") {
-      alert("عذراً، لا تملك الصلاحية لحذف الموظف. تقتصر هذه العملية على مدير النظام فقط.");
-      return;
-    }
-    if (!window.confirm(`هل أنت متأكد تماماً من حذف الموظف [${emp.name}] من قاعدة بيانات الهيكل الغرفي؟`)) {
-      return;
-    }
-    try {
-      await deleteFirebaseEmp(emp.id);
-      await reportSystemLog("حذف موظف", `تمت إزالة الموظف [${emp.name}] بشكل كامل من النظام.`);
-      if (selectedEmployee?.id === emp.id) setSelectedEmployee(null);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // 2. REGISTRATION APPROVAL & WHITELISTEMAILS
+  // 1. Approve Join Request (اعتماد طلبات الانضمام)
   const handleApproveJoinRequest = async (req: JoinRequest) => {
     try {
+      // Create a random 4-digit employee ID
       const parsedId = Math.floor(1000 + Math.random() * 9000).toString();
-      const payload: Omit<Employee, 'id'> = {
+      
+      const payload: Omit<Employee, "id"> = {
         name: req.name,
         role: "SPECIALIST",
         roleAr: "أخصائي اللجان",
         jobTitle: "أخصائي لجان",
         phone: req.phone,
-        email: req.email,
+        email: req.email.trim().toLowerCase(),
         photo: PRESET_AVATARS[Math.floor(Math.random() * PRESET_AVATARS.length)],
         committees: [],
         active: true,
         joinDate: new Date().toISOString().split('T')[0].replace(/-/g, '/')
       };
 
+      // Set document with generated custom employee number as Firestore ID
       await updateFirebaseEmp(parsedId, payload);
+      
+      // Delete join request
       await deleteFirebaseReq(req.id);
-      await reportSystemLog("اعتماد طلب انضمام", `تمت الموافقة على انضمام الموظف [${req.name}] وتعيينه بالرقم [${parsedId}].`);
-    } catch (err) {
-      console.error(err);
+
+      // Audit log
+      await addFirebaseLog({
+        employeeName: currentUser?.name || "مدير النظام",
+        time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        status: "ناجحة",
+        operationType: "قبول طلب انضمام",
+        details: `تمت الموافقة على طلب انضمام الموظف ${req.name} بالبريد ${req.email} برقم وظيفي [${parsedId}]`
+      } as any);
+
+      alert(`تمت الموافقة بنجاح وتم توليد رقم وظيفي مؤقت للموظف: ${parsedId}`);
+    } catch (error) {
+      console.error(error);
+      alert("فشل في اعتماد طلب الانضمام. يرجى المحاولة لاحقاً.");
     }
   };
 
   const handleRejectJoinRequest = async (req: JoinRequest) => {
-    if (!window.confirm(`هل تود بالتأكيد رفض طلب إنضمام [${req.name}]؟`)) return;
+    if (!window.confirm(`هل أنت متأكد من رفض طلب الموظف: ${req.name}؟`)) return;
     try {
       await deleteFirebaseReq(req.id);
-      await reportSystemLog("رفض طلب انضمام", `تم رفض طلب تسجيل الموظف [${req.name}] وتطهير الطلب من الطابور.`, "مرفوضة");
-    } catch (err) {
-      console.error(err);
+
+      // Audit log
+      await addFirebaseLog({
+        employeeName: currentUser?.name || "مدير النظام",
+        time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        status: "ناجحة",
+        operationType: "رفض طلب انضمام",
+        details: `تم رفض وإلغاء طلب انضمام الموظف ${req.name} بالبريد ${req.email}`
+      } as any);
+    } catch (error) {
+      console.error(error);
     }
   };
 
+  // 2. Add email to approved Whitelist (إضافة للبريد المسموح)
   const handleAddWhitelistEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!whitelistEmailStr || !whitelistNameStr) return;
-
+    if (!whitelistEmailStr.trim() || !whitelistNameStr.trim()) {
+      alert("يرجى إدخال اسم الموظف والبريد الإلكتروني.");
+      return;
+    }
+    const cleanEmail = whitelistEmailStr.trim().toLowerCase();
     try {
-      const generatedId = `whitelist_${Math.random().toString(36).substring(2, 9)}`;
-      let currentAdmin = "شهاب الدين";
-      try {
-        const stored = localStorage.getItem("current_user");
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (parsed?.name) currentAdmin = parsed.name;
-        }
-      } catch (_) {}
-
-      const newItem: ApprovedEmail = {
-        id: generatedId,
-        email: whitelistEmailStr.trim().toLowerCase(),
+      await addFirebaseAppr({
+        email: cleanEmail,
         name: whitelistNameStr.trim(),
         roleAr: whitelistRoleAr,
-        approvedBy: currentAdmin,
+        approvedBy: currentUser?.name || "مدير النظام",
         approvedDate: new Date().toISOString().split('T')[0].replace(/-/g, '/')
-      };
+      });
 
-      await deleteFirebaseAppr(generatedId); // ensure unique keying safely in list
-      // Add domain whitelist item
-      await addFirebaseAppr(newItem);
-      await reportSystemLog("إضافة بريد معتمد", `تم إدراج البريد المعمّد [${whitelistEmailStr}] لصالح الموظف [${whitelistNameStr}].`);
-      
+      await addFirebaseLog({
+        employeeName: currentUser?.name || "مدير النظام",
+        time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        status: "ناجحة",
+        operationType: "إضافة للبريد المسموح Whitelist",
+        details: `تمت إضافة بريد الموظف ${whitelistNameStr} (${cleanEmail}) للبريد المسموح بالنظام لتعيين دور: ${whitelistRoleAr}`
+      } as any);
+
       setWhitelistEmailStr("");
       setWhitelistNameStr("");
-    } catch (err) {
-      console.error(err);
+      alert("تمت إضافة الموظف لقائمة البريد المعتمد بنجاح.");
+    } catch (error) {
+      console.error(error);
     }
   };
 
-  const handleRemoveApprovedEmail = async (approved: ApprovedEmail) => {
-    if (!window.confirm(`هل ترغب فعلاً في حذف هذا البريد المعتمد [${approved.email}]؟`)) return;
+  const handleRemoveWhitelistEmail = async (appId: string, email: string) => {
+    if (!window.confirm("هل أنت متأكد من إلغاء اعتماد هذا البريد؟")) return;
     try {
-      await deleteFirebaseAppr(approved.id);
-      await reportSystemLog("سحب بريد معتمد", `تم سحب الاعتماد المسبق للبريد الإلكتروني [${approved.email}].`);
-    } catch (err) {
-      console.error(err);
+      await deleteFirebaseAppr(appId);
+      await addFirebaseLog({
+        employeeName: currentUser?.name || "مدير النظام",
+        time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        status: "ناجحة",
+        operationType: "حذف من البريد المسموح Whitelist",
+        details: `تم إلغاء اعتماد الموظف ذو البريد ${email} من قائمة البريد المسموح`
+      } as any);
+    } catch (error) {
+      console.error(error);
     }
   };
 
-  // 3. TRANSFER OF ACTIVE DUTIES (نقل وتفويض الأعمال والمسؤوليات)
-  const handleTransferJobs = async (e: React.FormEvent) => {
+  // 3. Save Employee (حفظ بيانات الموظف) - Self and Admin editing logic combined
+  const handleSaveEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formId.trim() || !formName.trim() || !formEmail.trim() || !formPhone.trim()) {
+      alert("يرجى تعبئة كافة الحقول الأساسية لبطاقة الموظف.");
+      return;
+    }
+
+    const cleanEmail = formEmail.trim().toLowerCase();
+    const isSysAdmin = currentUserRole === "SYS_ADMIN";
+
+    // Security Gate check
+    if (!isSysAdmin) {
+      if (!isEditing) {
+        alert("عذراً، لا تملك صلاحية لإضافة موظفين جدد للنظام.");
+        return;
+      }
+      if (originalEditId !== currentUser?.id) {
+        alert("عذراً، تملك فقط الصلاحية لتحديث بيانات بطاقتك الشخصية فقط.");
+        return;
+      }
+    }
+
+    try {
+      const existingEmployee = dbEmployees.find(emp => emp.id === originalEditId);
+
+      // ROLE MAPPER
+      const roleMapper: Record<string, string> = {
+        SYS_ADMIN: "مدير النظام",
+        MANAG_DIR: "مدير إدارة اللجان",
+        DEPT_HEAD: "رئيس قسم اللجان",
+        SPECIALIST: "أخصائي اللجان"
+      };
+
+      // Construction of strict payload: if not Admin, merge existing critical access fields directly
+      // This protects the Specialist from losing email, active stance, or role privileges during self-updates
+      const payload: Omit<Employee, "id"> = {
+        name: formName.trim(),
+        role: isSysAdmin ? formRole : (existingEmployee?.role || "SPECIALIST"),
+        roleAr: isSysAdmin ? (roleMapper[formRole] || "أخصائي اللجان") : (existingEmployee?.roleAr || "أخصائي اللجان"),
+        jobTitle: formJobTitle.trim() || (isSysAdmin ? (roleMapper[formRole] || "أخصائي لجان") : (existingEmployee?.jobTitle || "أخصائي لجان")),
+        phone: formPhone.trim(),
+        extension: formExtension.trim(),
+        email: isEditing && existingEmployee ? existingEmployee.email : cleanEmail, // البريد الإلكتروني هو معرف الحساب ولا يمكن تعديله لضمان عدم الخروج
+        photo: formPhoto,
+        active: isSysAdmin ? formActive : (existingEmployee ? existingEmployee.active : true), // Lock active state
+        committees: formCommittees,
+        password: formPassword.trim() || (existingEmployee?.password || ""),
+        joinDate: existingEmployee?.joinDate || new Date().toISOString().split('T')[0].replace(/-/g, '/')
+      };
+
+      if (isEditing) {
+        // Did the ID change? (Only allowed for system admins)
+        if (formId !== originalEditId) {
+          if (!isSysAdmin) {
+            alert("عذراً، الرقم الوظيفي غير قابل للتعديل.");
+            return;
+          }
+          // Enforce uniqueness
+          const IDTaken = dbEmployees.some(emp => emp.id === formId);
+          if (IDTaken) {
+            alert(`الرقم الوظيفي الجديد [${formId}] مستعمل بالفعل من قبل موظف آخر.`);
+            return;
+          }
+
+          // Transact new ID write and delete old one
+          await updateFirebaseEmp(formId, payload);
+          await deleteFirebaseEmp(originalEditId);
+
+          // Update any committees supervised by originalEditId to use the new formId
+          const assignedComms = dbCommittees.filter(c => c.specialistId === originalEditId);
+          for (const c of assignedComms) {
+            await updateFirebaseComm(c.id, { specialistId: formId });
+          }
+        } else {
+          // Normal merge/update under existing ID
+          await updateFirebaseEmp(originalEditId, payload);
+        }
+
+        // Deep synchronization if modifying the active session
+        const storedUser = localStorage.getItem("current_user");
+        if (storedUser) {
+          const parsed = JSON.parse(storedUser);
+          if (parsed && parsed.id === originalEditId) {
+            const updatedUser = { ...payload, id: formId };
+            localStorage.setItem("current_user", JSON.stringify(updatedUser));
+            
+            // Dispatch reactive storage cross tab update
+            window.dispatchEvent(new Event("storage"));
+            setTimeout(() => {
+              window.location.reload();
+            }, 500);
+          }
+        }
+
+        await addFirebaseLog({
+          employeeName: currentUser?.name || "مدير النظام",
+          time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+          status: "ناجحة",
+          operationType: "تعديل بطاقة موظف",
+          details: `تم تعديل وتحديث بيانات الموظف ${formName} برقم وظيفي [${formId}]`
+        } as any);
+
+        alert("تم حفظ وتحديث بيانات الموظف بنجاح.");
+      } else {
+        // Strict system administrator creation block
+        const IDTaken = dbEmployees.some(emp => emp.id === formId);
+        if (IDTaken) {
+          alert(`الرقم الوظيفي [${formId}] مأخوذ مسبقاً لموظف آخر.`);
+          return;
+        }
+
+        await updateFirebaseEmp(formId, payload);
+
+        await addFirebaseLog({
+          employeeName: currentUser?.name || "مدير النظام",
+          time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+          status: "ناجحة",
+          operationType: "إضافة موظف جديد",
+          details: `قام مدير النظام بإضافة موظف معتمد جديد: ${formName} بالرقم الوظيفي [${formId}]`
+        } as any);
+
+        alert("تمت إضافة الموظف الجديد للهيكل الوظيفي بنجاح.");
+      }
+
+      setShowFormModal(false);
+      setIsEditing(false);
+      resetFormFields();
+    } catch (err) {
+      console.error(err);
+      alert("حدث خطأ غير متوقع أثناء حفظ ملف الموظف.");
+    }
+  };
+
+  const resetFormFields = () => {
+    setFormId("");
+    setFormName("");
+    setFormRole("SPECIALIST");
+    setFormJobTitle("");
+    setFormPhone("");
+    setFormExtension("");
+    setFormEmail("");
+    setFormPhoto(PRESET_AVATARS[0]);
+    setFormActive(true);
+    setFormPassword("");
+    setFormCommittees([]);
+    setOriginalEditId("");
+  };
+
+  const openAddModal = () => {
+    resetFormFields();
+    
+    // Generate an automatic 4-digit ID
+    const autoId = Math.floor(1000 + Math.random() * 9000).toString();
+    setFormId(autoId);
+
+    setIsEditing(false);
+    setShowFormModal(true);
+  };
+
+  const openEditModal = (emp: Employee) => {
+    setOriginalEditId(emp.id);
+    setFormId(emp.id);
+    setFormName(emp.name || "");
+    setFormRole(emp.role || "SPECIALIST");
+    setFormJobTitle(emp.jobTitle || "");
+    setFormPhone(emp.phone || "");
+    setFormExtension(emp.extension || "");
+    setFormEmail(emp.email || "");
+    setFormPhoto(emp.photo || PRESET_AVATARS[0]);
+    setFormActive(emp.active !== false);
+    setFormPassword(emp.password || "");
+    setFormCommittees(emp.committees || []);
+    
+    setIsEditing(true);
+    setShowFormModal(true);
+  };
+
+  const handleDeleteEmployee = async (empId: string, empName: string) => {
+    if (empId === currentUser?.id) {
+      alert("عذراً، لا يمكنك حذف حسابك الشخصي النشط حالياً والمستخدم.");
+      return;
+    }
+    if (empId === "01") {
+      alert("عذراً، لا يمكن حذف حساب المشرف أو المالك الأعلى للنظام.");
+      return;
+    }
+
+    const firstConfirm = window.confirm(`هل أنت متأكد من حذف الموظف: ${empName} وباقته بالكامل نهائياً؟`);
+    if (!firstConfirm) return;
+
+    const secondConfirm = window.confirm(`تنبيه أمني: للحذف، سيتم تطهير بطاقة السجل التنظيمي له بالكامل. هل توافق على الحذف وإدارة الأرشفة اليدوية؟`);
+    if (!secondConfirm) return;
+
+    try {
+      await deleteFirebaseEmp(empId);
+
+      // Unbind from supervised committees
+      const supervised = dbCommittees.filter(c => c.specialistId === empId);
+      for (const c of supervised) {
+        await updateFirebaseComm(c.id, {
+          specialistId: "",
+          specialistName: "غير معين"
+        });
+      }
+
+      await addFirebaseLog({
+        employeeName: currentUser?.name || "مدير النظام",
+        time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        status: "ناجحة",
+        operationType: "حذف بطاقة موظف",
+        details: `تم حذف ملف الموظف ${empName} (الرقم: ${empId}) بالكامل وتفريغ لجانه بالتنظيم.`
+      } as any);
+
+      alert("تم حذف بطاقة الموظف بنجاح.");
+    } catch (error) {
+      console.error(error);
+      alert("فشل في حذف بطاقة الموظف.");
+    }
+  };
+
+  // 4. Transfer Duties and Supervisions (نقل وتفويض الأعمال)
+  const handleTransferDuties = async (e: React.FormEvent) => {
     e.preventDefault();
     setTransferSuccess("");
     setTransferError("");
     
     if (!sourceEmpId || !targetEmpId) {
-      setTransferError("الرجاء الحرص على انتقاء الموظف المنقول منه والموظف البديل أولاً.");
+      setTransferError("يرجى اختيار الموظف المسؤول (المصدر) والموظف البديل (المستهدف) للبدء.");
       return;
     }
-    
+
     if (sourceEmpId === targetEmpId) {
-      setTransferError("الحقلين متطابقان! لا تدعم قواعد النظام محاكاة نقل المهام إلى نفس الشخص.");
+      setTransferError("لا يمكن نقل وتفويض الأعمال لنفس الموظف (المصدر والمستهدف متطابقان).");
       return;
     }
-    
-    const sourceEmp = dbEmployees.find(emp => emp.id === sourceEmpId);
-    const targetEmp = dbEmployees.find(emp => emp.id === targetEmpId);
-    
-    if (!sourceEmp || !targetEmp) {
-      setTransferError("عذراً، لم تنجح خوارزمية البحث في العثور على سجل الموظفين المحددين.");
-      return;
-    }
-    
+
     setIsTransferring(true);
-    let logMsgParts: string[] = [];
-    
     try {
-      // Step A: Transfer Sectoral Committees (اللجان المشرف عليها)
+      const sourceEmp = dbEmployees.find(emp => emp.id === sourceEmpId);
+      const targetEmp = dbEmployees.find(emp => emp.id === targetEmpId);
+
+      if (!sourceEmp || !targetEmp) {
+        setTransferError("تعذر العثور على سجلات الموظفين المحددين بقاعدة البيانات.");
+        setIsTransferring(false);
+        return;
+      }
+
+      let countCommittees = 0;
+      let countTasks = 0;
+      let countEvents = 0;
+      let countRecs = 0;
+
+      // A. Transfer supervised sector committees
       if (transferCommittees) {
-        const commsToTransfer = sourceEmp.committees || [];
-        if (commsToTransfer.length > 0) {
-          // Merge lists avoiding duplication
-          const updatedTargetComms = Array.from(new Set([...(targetEmp.committees || []), ...commsToTransfer]));
-          const updatedSourceComms = (sourceEmp.committees || []).filter(c => !commsToTransfer.includes(c));
-          
-          await updateFirebaseEmp(sourceEmp.id, { committees: updatedSourceComms });
-          await updateFirebaseEmp(targetEmp.id, { committees: updatedTargetComms });
-          
-          // Go to Committees collection and update 'specialist' or specialistId with the target's name
-          for (const commName of commsToTransfer) {
-            const matchedComm = dbCommittees.find((c: any) => c.name === commName);
-            if (matchedComm) {
-              await updateFirebaseComm(String(matchedComm.id), { 
-                specialist: targetEmp.name,
-                specialistId: targetEmp.id,
-                specialistName: targetEmp.name
-              });
-            }
-          }
-          logMsgParts.push(`اللجان المشرف عليها (${commsToTransfer.length} لجنة)`);
+        const matchingComms = dbCommittees.filter(c => c.specialistId === sourceEmpId);
+        countCommittees = matchingComms.length;
+        for (const c of matchingComms) {
+          await updateFirebaseComm(c.id, {
+            specialistId: targetEmpId,
+            specialistName: targetEmp.name
+          });
         }
+
+        // Update employee document arrays
+        const sourceCurrentComms = sourceEmp.committees || [];
+        const targetCurrentComms = targetEmp.committees || [];
+        
+        // Merge without duplicates
+        const updatedTargetComms = Array.from(new Set([...targetCurrentComms, ...sourceCurrentComms]));
+        
+        await updateFirebaseEmp(sourceEmpId, { committees: [] });
+        await updateFirebaseEmp(targetEmpId, { committees: updatedTargetComms });
       }
-      
-      // Step B: Transfer Direct Tasks (المهام الإدارية المباشرة)
+
+      // B. Transfer independent administrative tasks
       if (transferTasks) {
-        const matchingTasks = dbTasks.filter((t: any) => t.assignedTo === sourceEmp.name || t.assignedToId === sourceEmp.id);
-        if (matchingTasks.length > 0) {
-          for (const task of matchingTasks) {
-            await updateFirebaseTask(String(task.id), { 
-              assignedTo: targetEmp.name,
-              assignedToId: targetEmp.id 
-            });
-          }
-          logMsgParts.push(`المهام الإدارية الموجهة (${matchingTasks.length} مهمة)`);
+        const matchingTasks = dbTasks.filter(t => t.assignedToId === sourceEmpId);
+        countTasks = matchingTasks.length;
+        for (const t of matchingTasks) {
+          await updateFirebaseTask(t.id, {
+            assignedToId: targetEmpId,
+            assignedToName: targetEmp.name
+          });
         }
       }
-      
-      // Step C: Transfer Schedule Events & Meetings (الفعاليات المجدولة)
+
+      // C. Transfer upcoming calendar events
       if (transferEvents) {
-        const matchingEvents = dbEvents.filter((evt: any) => Array.isArray(evt.employees) && evt.employees.includes(sourceEmp.name));
-        if (matchingEvents.length > 0) {
-          for (const evt of matchingEvents) {
-            const updatedEmps = evt.employees.map((name: string) => name === sourceEmp.name ? targetEmp.name : name);
-            await updateFirebaseEvent(String(evt.id), { employees: updatedEmps });
+        // Some events may store creator or specialist link
+        const matchingEvents = dbEvents.filter(ev => ev.employeeId === sourceEmpId || ev.specialistId === sourceEmpId);
+        countEvents = matchingEvents.length;
+        for (const ev of matchingEvents) {
+          const updateObj: any = {};
+          if (ev.employeeId === sourceEmpId) updateObj.employeeId = targetEmpId;
+          if (ev.specialistId === sourceEmpId) {
+            updateObj.specialistId = targetEmpId;
+            updateObj.specialistName = targetEmp.name;
           }
-          logMsgParts.push(`الاجتماعات والمحاضر المجدولة (${matchingEvents.length} فعالية)`);
+          await updateFirebaseEvent(ev.id, updateObj);
         }
       }
-      
-      // Step D: Transfer Recommendations Followups (تحديثات متابعة التوصيات والقرارات)
+
+      // D. Transfer specific recommendations and decisions
       if (transferRecs) {
-        const matchingRecs = dbRecommendations.filter((r: any) => r.assignedTo === sourceEmp.name);
-        if (matchingRecs.length > 0) {
-          for (const rec of matchingRecs) {
-            await updateFirebaseRec(String(rec.id), { assignedTo: targetEmp.name });
+        // recommendations assigned to source specialist
+        const matchingRecs = dbRecommendations.filter(rec => rec.assignedId === sourceEmpId || rec.responsibleId === sourceEmpId);
+        countRecs = matchingRecs.length;
+        for (const r of matchingRecs) {
+          const updateObj: any = {};
+          if (r.assignedId === sourceEmpId) {
+            updateObj.assignedId = targetEmpId;
+            updateObj.assignedName = targetEmp.name;
           }
-          logMsgParts.push(`متابعة التوصيات والقرارات (${matchingRecs.length} توصية قطاعية)`);
+          if (r.responsibleId === sourceEmpId) {
+            updateObj.responsibleId = targetEmpId;
+            updateObj.responsibleName = targetEmp.name;
+          }
+          await updateFirebaseRec(r.id, updateObj);
         }
       }
+
+      // Log the transfer action in security logs
+      const detailsMsg = `تم نقل المهام من [${sourceEmp.name}] إلى [${targetEmp.name}] بنجاح. التفاصيل: ${countCommittees} لجان، ${countTasks} مهام، ${countEvents} فعاليات، ${countRecs} توصيات.`;
+      await addFirebaseLog({
+        employeeName: currentUser?.name || "مدير النظام",
+        time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        status: "ناجحة",
+        operationType: "تفويض ونقل المهام",
+        details: detailsMsg
+      } as any);
+
+      setTransferSuccess(`تمت عملية تفويض ونقل الأعمال بنجاح تام! تم ترحيل: ${countCommittees} لجنة، ${countTasks} مهمة إدارية، ${countEvents} فعالية، ${countRecs} توصية ومتابعة.`);
       
-      const summaryMsg = logMsgParts.length > 0 
-        ? `تم تفويض: ${logMsgParts.join("، ")}`
-        : "الموظف المذكور ليس لديه لجان أو مهام أو قرارات نشطة حالياً في قواعد النظام لنقلها.";
-      
-      // Submit log
-      await reportSystemLog(
-        "نقل وتفويض أعمال", 
-        `نظامية النقل: تم ترحيل كامل مسؤوليات الموظف [${sourceEmp.name}] إلى الموظف المستلم [${targetEmp.name}]. حزمة البيانات: ${summaryMsg}`
-      );
-      
-      setTransferSuccess(`تم نقل وتفويض كامل الصلاحيات والمسؤوليات بنجاح من كادر [${sourceEmp.name}] إلى كادر [${targetEmp.name}] وتحديث كافة السجلات والمهام التابعة بحوكمة أمنية تامة!`);
-      
-      // Clear selections
+      // Reset selections
       setSourceEmpId("");
       setTargetEmpId("");
-    } catch (e: any) {
-      console.error(e);
-      setTransferError(`حدث فشل غير متوقع في عملية التفويض الإلكتروني: ${e.message || e}`);
+    } catch (error: any) {
+      console.error(error);
+      setTransferError(`فشلت العملية: ${error.message || "خطأ داخلي أثناء تفويض قواعد البيانات"}`);
     } finally {
       setIsTransferring(false);
     }
   };
 
-  // Filter out other accounts if logged-in user is not the master SYS_ADMIN (khalafshehab@gmail.com)
-  const visibleEmployees = dbEmployees.filter(emp => {
-    if (currentUser?.email === "khalafshehab@gmail.com") {
-      return true;
-    }
-    // Other users do not see other employees (meaning they only see themselves, so they can edit their own profile if they wish)
-    return emp.id === currentUser?.id;
-  });
+  const handlePrintLogs = () => {
+    window.print();
+  };
 
-  // FILTERED STAFF COMPUTATION
-  const filteredEmployees = visibleEmployees.filter(emp => {
-    const matchSearch = 
-      emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      emp.jobTitle.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      emp.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      emp.id.includes(searchTerm);
-      
-    const matchRole = roleFilter === "ALL" ? true : emp.role === roleFilter;
-    const matchStatus = statusFilter === "ALL" ? true : (statusFilter === "ACTIVE" ? emp.active === true : emp.active === false);
+  // Live filtering search matching names, roles, phone and email strings
+  const filteredEmployees = dbEmployees.filter(emp => {
+    const term = searchTerm.toLowerCase().trim();
+    const matchSearch = !term || 
+      emp.name?.toLowerCase().includes(term) ||
+      emp.jobTitle?.toLowerCase().includes(term) ||
+      emp.email?.toLowerCase().includes(term) ||
+      emp.phone?.includes(term) ||
+      emp.id?.includes(term);
+
+    const matchRole = roleFilter === "ALL" || emp.role === roleFilter;
     
+    let matchStatus = true;
+    if (statusFilter === "ACTIVE") matchStatus = emp.active !== false;
+    else if (statusFilter === "INACTIVE") matchStatus = emp.active === false;
+
     return matchSearch && matchRole && matchStatus;
-  });
-
-  // FILTERED AUDIT LOGS COMPUTATION
-  const filteredLogs = dbSystemLogs.filter(log => {
-    const matchSearch = 
-      log.employeeName.toLowerCase().includes(logSearchQuery.toLowerCase()) || 
-      log.operationType.toLowerCase().includes(logSearchQuery.toLowerCase()) || 
-      log.details.toLowerCase().includes(logSearchQuery.toLowerCase());
-      
-    const matchStatus = logStatusFilter === "ALL" ? true : log.status === logStatusFilter;
-    
-    return matchSearch && matchStatus;
   });
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 font-sans pb-12 text-right" dir="rtl">
       
-      {/* 1. TOP HERO REGISTRATION / BAR */}
+      {/* 1. TOP HERO PANEL */}
       <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <span className="text-[10px] bg-blue-50 text-blue-700 font-extrabold px-2.5 py-1 rounded-full border border-blue-150 uppercase tracking-wide">أمن وحوكمة الأنظمة</span>
-          <h1 className="text-xl font-black text-gray-950 mt-2 font-sans">صفحة الهيكل الإداري وضوابط الأمان</h1>
-          <p className="text-xs text-gray-500 font-bold mt-1 max-w-2xl leading-relaxed">
-            البوابة المتكاملة للموظفين، تفويض ونقل حزم اللجان والمهام، ومراقبة تتبع العمليات والاعتمادات.
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <Users className="w-6 h-6 text-brand" />
+            <span>الهيكل الإداري والرقابة الذكية</span>
+          </h1>
+          <p className="text-gray-500 text-xs mt-1">
+            إدارة الموظفين، تفويض ونقل الأعمال، واعتماد حسابات المنسقين الجدد لغرفة مكة المكرمة.
           </p>
         </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {currentUserRole === "SYS_ADMIN" && (
+            <button
+              onClick={openAddModal}
+              className="px-4 py-2.5 bg-brand hover:bg-brand/90 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              <span>إضافة موظف معتمد</span>
+            </button>
+          )}
+
+          {currentUserRole === "SYS_ADMIN" && (
+            <button
+              onClick={() => setShowPurgeConfirm(true)}
+              className="px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-650 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-red-200"
+            >
+              <ShieldAlert className="w-4 h-4 text-red-650 animate-pulse" />
+              <span>تصفير النظام بالكامل</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 2. SUB-TABS SELECTOR RULER */}
+      <div className="flex border-b border-gray-200 gap-1 overflow-x-auto custom-scrollbar pb-1">
+        <button
+          onClick={() => setActiveTab("hierarchy")}
+          className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+            activeTab === "hierarchy"
+              ? "border-brand text-brand font-black"
+              : "border-transparent text-gray-500 hover:text-gray-900"
+          }`}
+        >
+          <Building2 className="w-4 h-4 shrink-0" />
+          <span>الهيكل التنظيمي والموظفين</span>
+          <span className="bg-gray-150 px-2 py-0.5 rounded-full text-[10px] text-gray-600 font-bold">
+            {dbEmployees.length}
+          </span>
+        </button>
+
         {currentUserRole === "SYS_ADMIN" && (
           <button
-            onClick={openAddModal}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs h-11 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-500/10 shrink-0 cursor-pointer"
+            onClick={() => setActiveTab("transfer")}
+            className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === "transfer"
+                ? "border-brand text-brand font-black"
+                : "border-transparent text-gray-500 hover:text-gray-900"
+            }`}
           >
-            <Plus className="w-4 h-4 shrink-0" />
-            <span>إضافة موظف معتمد جديد</span>
+            <ArrowRightLeft className="w-4 h-4 shrink-0" />
+            <span>نقل وتفويض الأعمال</span>
+          </button>
+        )}
+
+        {currentUserRole === "SYS_ADMIN" && (
+          <button
+            onClick={() => setActiveTab("approvals")}
+            className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === "approvals"
+                ? "border-brand text-brand font-black"
+                : "border-transparent text-gray-500 hover:text-gray-900"
+            }`}
+          >
+            <UserCheck className="w-4 h-4 shrink-0" />
+            <span>اعتماد طلبات الانضمام</span>
+            {dbJoinRequests.length > 0 && (
+              <span className="bg-amber-500 px-2 py-0.5 rounded-full text-[10px] text-white font-black animate-bounce">
+                {dbJoinRequests.length}
+              </span>
+            )}
+          </button>
+        )}
+
+        {currentUserRole === "SYS_ADMIN" && (
+          <button
+            onClick={() => setActiveTab("logs")}
+            className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === "logs"
+                ? "border-brand text-brand font-black"
+                : "border-transparent text-gray-500 hover:text-gray-900"
+            }`}
+          >
+            <FileText className="w-4 h-4 shrink-0" />
+            <span>سجل مراقبة العمليات</span>
           </button>
         )}
       </div>
 
-      {/* 2. TABBED DEVIATION CONTROLS */}
-      <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-1.5 select-none">
-        <button
-          onClick={() => setActiveTab("hierarchy")}
-          className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === "hierarchy" ? "bg-slate-900 text-white shadow-sm" : "bg-white text-gray-500 border border-gray-200 hover:text-gray-900"
-          }`}
-        >
-          <Users className="w-4 h-4 shrink-0" />
-          <span>الهيكل الوظيفي والموظفين</span>
-        </button>
-
-        {currentUserRole === "SYS_ADMIN" && (
-          <>
-            <button
-              onClick={() => setActiveTab("transfer")}
-              className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-                activeTab === "transfer" ? "bg-slate-900 text-white shadow-sm" : "bg-white text-gray-500 border border-gray-200 hover:text-gray-900"
-              }`}
-            >
-              <ArrowRightLeft className="w-4 h-4 shrink-0" />
-              <span>نقل وتفويض الأعمال والمهمات ⇄</span>
-            </button>
-            <button
-              onClick={() => setActiveTab("approvals")}
-              className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-                activeTab === "approvals" ? "bg-slate-900 text-white shadow-sm animate-pulse" : "bg-white text-gray-500 border border-gray-200 hover:text-gray-900"
-              }`}
-            >
-              <UserCheck className="w-4 h-4 shrink-0" />
-              <span>اعتماد الموظفين والبريد Whitelist</span>
-            </button>
-            <button
-              onClick={() => setActiveTab("logs")}
-              className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-                activeTab === "logs" ? "bg-slate-900 text-white shadow-sm" : "bg-white text-gray-500 border border-gray-200 hover:text-gray-900"
-              }`}
-            >
-              <Activity className="w-4 h-4 shrink-0" />
-              <span>سجل مراقبة النظام والعمليات</span>
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* 3. MULTI-TAB DISPLAY PANEL */}
-      <AnimatePresence mode="wait">
+      {/* 3. PRESENTATION OF ACTIVE VIEWPORT */}
+      <div className="space-y-6">
         
-        {/* ========================================================== */}
-        {/* TAB A: الهيكل الوظيفي والموظفين */}
-        {/* ========================================================== */}
+        {/* TAB 1: EMPLOYEES & HIERARCHY */}
         {activeTab === "hierarchy" && (
-          <motion.div
-            key="hierarchy"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.15 }}
-            className="space-y-6"
-          >
-            {/* SEARCH AND FILTERS BOX */}
-            <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm flex flex-col md:flex-row gap-3">
-              <div className="relative flex-grow">
-                <Search className="absolute right-3.5 top-3 w-4.5 h-4.5 text-gray-400" />
+          <>
+            {/* Search Filters Toolbar */}
+            <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="relative flex-1 max-w-md">
                 <input
                   type="text"
-                  placeholder="ابحث بالاسم، المسمى الوظيفي، البريد، أو الرقم الوظيفي..."
+                  placeholder="ابحث بحرية عن موظف، رقم وظيفي، بريد أو جوال..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full h-10.5 pr-10 pl-4 bg-gray-50 border border-gray-250 rounded-xl text-xs font-extrabold placeholder-gray-400 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-right"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 pr-10 text-xs focus:outline-none focus:ring-2 focus:ring-brand focus:bg-white transition-all text-right font-medium"
                 />
+                <Search className="absolute top-3.5 right-3.5 text-gray-400 w-4 h-4" />
               </div>
 
-              {/* Filter components */}
-              <div className="flex gap-2.5 flex-wrap">
-                <select
-                  value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value)}
-                  className="h-10.5 px-3 bg-gray-50 border border-gray-250 rounded-xl text-xs font-extrabold outline-none focus:ring-2 focus:ring-blue-500 select-none cursor-pointer"
-                >
-                  <option value="ALL">تصنيف الرتبة (الكل)</option>
-                  <option value="SYS_ADMIN">مدير نظام</option>
-                  <option value="MANAG_DIR">مدير إدارة لجان</option>
-                  <option value="DEPT_HEAD">رئيس قسم لجان</option>
-                  <option value="SPECIALIST">أخصائي لجان</option>
-                </select>
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Role Filter */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-450 font-extrabold whitespace-nowrap">فلترة الدور:</span>
+                  <select
+                    value={roleFilter}
+                    onChange={(e) => setRoleFilter(e.target.value)}
+                    className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 focus:outline-none focus:ring-1 focus:ring-brand"
+                  >
+                    <option value="ALL">جميع المستويات الهيكلية</option>
+                    <option value="SYS_ADMIN">مدراء النظام (أدمن)</option>
+                    <option value="MANAG_DIR">مدير إدارة لجان</option>
+                    <option value="DEPT_HEAD">رئيس قسم لجان</option>
+                    <option value="SPECIALIST">أخصائي لجان</option>
+                  </select>
+                </div>
 
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="h-10.5 px-3 bg-gray-50 border border-gray-250 rounded-xl text-xs font-extrabold outline-none focus:ring-2 focus:ring-blue-500 select-none cursor-pointer"
-                >
-                  <option value="ALL">حالة الحساب (الكل)</option>
-                  <option value="ACTIVE">النشطون فقط</option>
-                  <option value="INACTIVE">غير النشطين</option>
-                </select>
+                {/* Status Filter */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-450 font-extrabold whitespace-nowrap">الحالة:</span>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 focus:outline-none focus:ring-1 focus:ring-brand"
+                  >
+                    <option value="ALL">جميع الحالات</option>
+                    <option value="ACTIVE">الموظفون النشطون</option>
+                    <option value="INACTIVE">المشرفون المعطلون</option>
+                  </select>
+                </div>
+
+                {/* View Mode */}
+                <div className="flex border border-gray-200 rounded-xl overflow-hidden p-0.5 bg-gray-50">
+                  <button
+                    onClick={() => setViewMode("grid")}
+                    className={`px-3 py-1.5 text-[10px] font-black rounded-lg cursor-pointer transition-all ${
+                      viewMode === "grid" ? "bg-white text-brand shadow-sm" : "text-gray-500 hover:text-gray-900"
+                    }`}
+                  >
+                    شبكة بطاقات
+                  </button>
+                  <button
+                    onClick={() => setViewMode("table")}
+                    className={`px-3 py-1.5 text-[10px] font-black rounded-lg cursor-pointer transition-all ${
+                      viewMode === "table" ? "bg-white text-brand shadow-sm" : "text-gray-500 hover:text-gray-900"
+                    }`}
+                  >
+                    جدول عام
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* MAIN STAFF CARDS LIST */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredEmployees.map((emp) => {
-                const totalComms = emp.committees?.length || 0;
-                
-                return (
-                  <div 
-                    key={emp.id} 
-                    className={`bg-white rounded-2xl border transition-all hover:shadow-md cursor-pointer flex flex-col justify-between overflow-hidden relative ${
-                      emp.active ? "border-gray-200" : "border-red-200 bg-red-50/10"
-                    }`}
-                  >
-                    {/* Active toggle capsule on upper left */}
-                    <div className="absolute left-3 top-3 z-10">
-                      {currentUserRole === "SYS_ADMIN" ? (
-                        <button
-                          onClick={() => handleToggleActiveStatus(emp)}
-                          title={emp.active ? "انقر لتحويل الموظف إلى حالة غير نشطة" : "انقر لتنشيط حساب الموظف"}
-                          className={`text-[9.5px] font-black px-2 py-1 rounded-md shadow-sm transition-all flex items-center gap-1.5 cursor-pointer ${
-                            emp.active 
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100" 
-                              : "bg-red-100 text-red-700 border border-red-200 hover:bg-red-150"
-                          }`}
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full ${emp.active ? "bg-emerald-500" : "bg-red-500 animate-ping"}`} />
-                          <span>{emp.active ? "نشط" : "غير نشط"}</span>
-                        </button>
-                      ) : (
-                        <div
-                          className={`text-[9.5px] font-black px-2 py-1 rounded-md shadow-sm flex items-center gap-1.5 ${
-                            emp.active 
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-100" 
-                              : "bg-red-50 text-red-700 border border-red-105"
-                          }`}
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full ${emp.active ? "bg-emerald-500" : "bg-red-500"}`} />
-                          <span>{emp.active ? "نشط" : "غير نشط"}</span>
-                        </div>
-                      )}
-                    </div>
+            {/* Empty view checks */}
+            {filteredEmployees.length === 0 ? (
+              <div className="bg-white rounded-2xl p-12 border border-gray-200 text-center shadow-sm">
+                <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-sm font-bold text-gray-600">عذراً، لم يتم العثور على موظفين معتمدين</h3>
+                <p className="text-gray-400 text-xs mt-1">يرجى تعديل الكلمات البحثية أو فلترة الدور.</p>
+              </div>
+            ) : viewMode === "grid" ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredEmployees.map((emp) => {
+                  const commsCount = emp.committees?.length || 0;
+                  const isSelf = emp.id === currentUser?.id;
+                  const isSAdmin = emp.role === "SYS_ADMIN";
 
-                    {/* Card Inner elements */}
-                    <div className="p-5 space-y-4 text-right flex-grow" onClick={() => setSelectedEmployee(emp)}>
-                      
-                      {/* Avatar header block */}
-                      <div className="flex items-center gap-3.5 pt-2">
-                        <img 
-                          src={emp.photo || PRESET_AVATARS[0]} 
-                          alt={emp.name} 
-                          className="w-13 h-13 rounded-full object-cover border border-gray-150 shadow-sm shrink-0" 
-                        />
-                        <div className="space-y-0.5 truncate">
-                          <h3 className="font-extrabold text-xs text-slate-900 truncate">{emp.name}</h3>
-                          <p className="text-[10px] text-gray-500 font-bold truncate leading-none">{emp.jobTitle}</p>
-                          <span className={`inline-block text-[8.5px] font-black px-1.5 py-0.5 rounded mt-1.5 ${
-                            emp.role === "SYS_ADMIN" ? "bg-rose-50 text-rose-700 border border-rose-100" :
-                            emp.role === "MANAG_DIR" ? "bg-amber-50 text-amber-700 border border-amber-100" :
-                            emp.role === "DEPT_HEAD" ? "bg-purple-50 text-purple-700 border border-purple-100" :
-                            "bg-blue-50 text-blue-700 border border-blue-100"
-                          }`}>
-                            {emp.roleAr}
-                          </span>
+                  // Dynamic Badge color
+                  const badgeColors: Record<string, string> = {
+                    SYS_ADMIN: "bg-red-50 text-red-600 border border-red-200",
+                    MANAG_DIR: "bg-amber-50 text-amber-600 border border-amber-200",
+                    DEPT_HEAD: "bg-teal-50 text-teal-600 border border-teal-200",
+                    SPECIALIST: "bg-blue-50 text-blue-600 border border-blue-200"
+                  };
+
+                  return (
+                    <motion.div
+                      key={emp.id}
+                      layout
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className={`bg-white rounded-xl p-5 border shadow-sm flex flex-col justify-between relative overflow-hidden transition-all hover:shadow-md ${
+                        isSelf ? "ring-2 ring-brand ring-offset-2" : "border-gray-200"
+                      }`}
+                    >
+                      {/* Top profile row */}
+                      <div>
+                        
+                        {/* Status + Online indicator */}
+                        <div className="absolute top-4 left-4 flex items-center gap-1.5">
+                          {emp.active !== false ? (
+                            <span className="flex items-center gap-1 bg-emerald-50 text-emerald-600 text-[9px] px-1.5 py-0.5 rounded-full border border-emerald-200 font-bold">
+                              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>
+                              <span>متصل الآن</span>
+                            </span>
+                          ) : (
+                            <span className="bg-red-50 text-red-500 text-[9px] px-1.5 py-0.5 rounded-full border border-red-100 font-bold">
+                              معطل
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-3.5 mb-4">
+                          <img
+                            src={emp.photo || PRESET_AVATARS[0]}
+                            alt={emp.name}
+                            className="w-14 h-14 rounded-2xl object-crop ring-2 ring-gray-100 bg-gray-50"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div>
+                            <h3 className="font-extrabold text-sm text-gray-900 leading-snug flex items-center gap-1">
+                              <span>الأستاذ/ة {emp.name}</span>
+                              {isSelf && <span className="text-[10px] text-brand bg-brand/10 px-1 py-0.5 rounded font-black">(أنت)</span>}
+                            </h3>
+                            <p className="text-gray-500 text-[10px] font-bold mt-0.5">{emp.jobTitle || "مسؤول بالنظم"}</p>
+                            <span className={`inline-block text-[9px] font-black px-2 py-0.5 mt-2 rounded-md ${badgeColors[emp.role] || "bg-gray-100 text-gray-700"}`}>
+                              {emp.roleAr || "أخصائي"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 border-t border-gray-100 pt-3 text-[11px] text-gray-600 font-semibold">
+                          <div className="flex items-center gap-2">
+                            <Lock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="text-gray-400">الرقم الوظيفي:</span>
+                            <span className="font-mono font-black text-gray-800">{emp.id}</span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Mail className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="text-gray-400">البريد:</span>
+                            <span className="text-gray-800 truncate" style={{ maxWidth: "160px" }}>{emp.email}</span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="text-gray-400">الجوال:</span>
+                            <span className="font-mono text-gray-800">{emp.phone}</span>
+                          </div>
+
+                          {emp.extension && (
+                            <div className="flex items-center gap-2">
+                              <Briefcase className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                              <span className="text-gray-400">التحويلة:</span>
+                              <span className="font-mono font-bold text-brand">{emp.extension}</span>
+                            </div>
+                          )}
+
+                          <div className="mt-4 pt-3 border-t border-gray-50">
+                            <div className="flex items-center justify-between text-xs font-black text-gray-700 mb-1.5">
+                              <span className="flex items-center gap-1">
+                                <Activity className="w-4 h-4 text-brand" />
+                                <span>اللجان تحت الإشراف</span>
+                              </span>
+                              <span className="bg-brand/10 text-brand px-2 py-0.5 rounded-lg text-[10px]">
+                                {commsCount} لجان
+                              </span>
+                            </div>
+                            
+                            {commsCount > 0 ? (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {emp.committees.map((com, index) => (
+                                  <span
+                                    key={index}
+                                    onClick={() => setSelectedEmployee(emp)}
+                                    className="bg-slate-50 hover:bg-slate-100 text-gray-700 border border-gray-200 rounded-md px-1.5 py-0.5 text-[9px] font-bold cursor-pointer transition-all"
+                                  >
+                                    {com}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400 text-[10px] italic">لم يتم ربط أي لجان بعد</span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
-                      {/* Details specs */}
-                      <div className="space-y-2 text-[10.5px] font-bold text-gray-600 border-t border-gray-100 pt-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-400">الرقم الوظيفي:</span>
-                          <span className="font-mono font-black text-gray-800">{emp.id}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-400 font-sans">البريد الإلكتروني:</span>
-                          <span className="font-mono text-gray-800 truncate max-w-[150px]">{emp.email}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-400">رقم الجوال:</span>
-                          <span className="font-mono text-gray-800">{emp.phone}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Bottom stats and action bar */}
-                    <div className="bg-gray-50 border-t border-gray-200 px-4 py-2.5 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-slate-600 font-extrabold text-[10px]">
-                        <Building2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                        <span>تحت الإشراف: <strong>{totalComms} لجان</strong></span>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        {(currentUserRole === "SYS_ADMIN" || emp.id === currentUser?.id) && (
+                      {/* Control buttons */}
+                      <div className="mt-5 pt-3 border-t border-gray-100 flex items-center justify-end gap-1.5">
+                        {(currentUserRole === "SYS_ADMIN" || isSelf) && (
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openEditModal(emp);
-                            }}
-                            className="p-1 px-2 border border-gray-250 bg-white hover:bg-blue-50/50 hover:text-blue-600 rounded-md transition-all text-[10px] font-bold shrink-0 flex items-center gap-1 cursor-pointer"
+                            onClick={() => openEditModal(emp)}
+                            className="p-2 bg-gray-50 hover:bg-brand/10 text-gray-600 hover:text-brand rounded-lg transition-all cursor-pointer border border-gray-200 hover:border-brand/20 flex items-center gap-1.5 text-[10px] font-extrabold"
                           >
-                            <Edit2 className="w-3 h-3" />
+                            <Edit2 className="w-3.5 h-3.5" />
                             <span>تعديل</span>
                           </button>
                         )}
-                        {currentUserRole === "SYS_ADMIN" && (
+
+                        {currentUserRole === "SYS_ADMIN" && !isSelf && !isSAdmin && (
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteEmployee(emp);
-                            }}
-                            disabled={emp.role === "SYS_ADMIN"}
-                            title={emp.role === "SYS_ADMIN" ? "لا يمكن حذف حساب مدير النظام" : ""}
-                            className="p-1 text-red-600 hover:bg-red-50 rounded-md transition-all shrink-0 disabled:opacity-40 cursor-pointer"
+                            onClick={() => handleDeleteEmployee(emp.id, emp.name)}
+                            className="p-2 bg-red-50 hover:bg-red-100 text-red-650 rounded-lg transition-all cursor-pointer border border-red-100 hover:border-red-200"
+                            title="حذف الموظف بالكامل"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>
-                    </div>
-
-                  </div>
-                );
-              })}
-
-              {filteredEmployees.length === 0 && (
-                <div className="col-span-full bg-white rounded-2xl p-12 text-center border border-gray-200 space-y-3">
-                  <span className="text-3xl block">👥</span>
-                  <p className="text-sm text-gray-500 font-extrabold">عذراً، لم يتم العثور على أي كادر موظفين يطابق الفلاتر النشطة حالياً.</p>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* Sub view list table */
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                <div className="overflow-x-auto custom-scrollbar">
+                  <table className="w-full text-right text-xs">
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-4">الرقم الوظيفي</th>
+                        <th className="p-4">الموظف</th>
+                        <th className="p-4">الدور</th>
+                        <th className="p-4">المسمى الوظيفي</th>
+                        <th className="p-4">البريد الإلكتروني</th>
+                        <th className="p-4">الجوال والتحويلة</th>
+                        <th className="p-4">اللجان المشرف عليها</th>
+                        <th className="p-4">حالة الحساب</th>
+                        <th className="p-4 text-left">التحكم</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
+                      {filteredEmployees.map((emp) => {
+                        const isSelf = emp.id === currentUser?.id;
+                        return (
+                          <tr key={emp.id} className={isSelf ? "bg-brand/5" : "hover:bg-gray-50/50"}>
+                            <td className="p-4 font-mono font-black text-gray-900">{emp.id}</td>
+                            <td className="p-4">
+                              <div className="flex items-center gap-2">
+                                <img
+                                  src={emp.photo || PRESET_AVATARS[0]}
+                                  alt={emp.name}
+                                  className="w-8 h-8 rounded-lg object-cover bg-gray-50 shrink-0"
+                                  referrerPolicy="no-referrer"
+                                />
+                                <div>
+                                  <span className="font-extrabold text-gray-900 text-[13px]">الأستاذ/ة {emp.name}</span>
+                                  {isSelf && <span className="mr-1 text-[9px] text-brand bg-brand/10 px-1 py-0.5 rounded font-black">(أنت)</span>}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <span className="text-[10px] px-2 py-0.5 rounded bg-gray-100 text-gray-800 font-bold">
+                                {emp.roleAr || "أخصائي"}
+                              </span>
+                            </td>
+                            <td className="p-4 text-gray-500">{emp.jobTitle}</td>
+                            <td className="p-4 font-mono text-gray-600">{emp.email}</td>
+                            <td className="p-4 font-mono text-gray-600">
+                              <div>{emp.phone}</div>
+                              {emp.extension && <div className="text-[10px] text-brand font-bold">تحويلة: {emp.extension}</div>}
+                            </td>
+                            <td className="p-4">
+                              <span className="bg-gray-100 text-gray-700 px-2.5 py-0.5 rounded-lg text-[10px] font-black">
+                                {(emp.committees || []).length} لجان
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              {emp.active !== false ? (
+                                <span className="text-emerald-600 text-[10px] font-black">● فعال</span>
+                              ) : (
+                                <span className="text-red-500 text-[10px] font-black">● معطل</span>
+                              )}
+                            </td>
+                            <td className="p-4 text-left">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {(currentUserRole === "SYS_ADMIN" || isSelf) && (
+                                  <button
+                                    onClick={() => openEditModal(emp)}
+                                    className="p-1 px-2.5 bg-gray-100 hover:bg-brand/10 text-gray-600 hover:text-brand rounded-md border border-gray-200 text-[10px] font-bold"
+                                  >
+                                    تعديل
+                                  </button>
+                                )}
+                                {currentUserRole === "SYS_ADMIN" && !isSelf && emp.id !== "01" && (
+                                  <button
+                                    onClick={() => handleDeleteEmployee(emp.id, emp.name)}
+                                    className="p-1 bg-red-50 hover:bg-red-100 text-red-650 rounded-md border border-red-100"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-              )}
-            </div>
-          </motion.div>
+              </div>
+            )}
+          </>
         )}
 
-        {/* ========================================================== */}
-        {/* TAB B: نقل وتفويض الأعمال والمسؤوليات */}
-        {/* ========================================================== */}
-        {activeTab === "transfer" && (
-          <motion.div
-            key="transfer"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.15 }}
-            className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-6 max-w-4xl mx-auto text-right"
-          >
-            <div className="flex gap-3 border-b border-gray-150 pb-4">
-              <div className="bg-blue-50 p-2 rounded-xl text-blue-600 shrink-0">
-                <ArrowRightLeft className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-extrabold text-base text-gray-900">نقل وتفويض الأعمال الإلكترونية بين الموظفين</h3>
-                <p className="text-[11px] text-gray-400 font-bold mt-1 leading-relaxed">
-                  نظام حوكمة تلقائي يعمل بمجرد اختيار الموظف المُراد نقل مسؤولياته والموظف المستلم. ستقوم هذه الأداة تلقائياً بالبحث وتعديل وتفويض اللجان والمهام باسم الكادر الجديد.
-                </p>
-              </div>
+        {/* TAB 2: TRANSFER DUTIES & SUPERVISONS */}
+        {activeTab === "transfer" && currentUserRole === "SYS_ADMIN" && (
+          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-6">
+            <div>
+              <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5">
+                <ArrowRightLeft className="w-5 h-5 text-amber-500" />
+                <span>تفويض الصلاحيات وتبديل العهد الإدارية</span>
+              </h2>
+              <p className="text-gray-500 text-xs mt-1">
+                تتيح لك هذه الشاشة نقل اللجان القطاعية، المهام الإدارية، الفعاليات الحالية، والتوصيات فورياً من كاهل موظف أو مشرف لزميلة آخر (عند الانتقال أو الإجازات).
+              </p>
             </div>
 
-            {/* Notification bubbles */}
             {transferSuccess && (
-              <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 p-4 rounded-xl text-xs font-black animate-fadeIn leading-relaxed">
-                ✅ {transferSuccess}
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-700 text-xs font-bold leading-relaxed">
+                <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                <span>{transferSuccess}</span>
               </div>
             )}
+
             {transferError && (
-              <div className="bg-rose-50 text-rose-800 border border-rose-200 p-4 rounded-xl text-xs font-black animate-fadeIn">
-                ⚠️ {transferError}
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-650 text-xs font-bold leading-relaxed">
+                <XCircle className="w-5 h-5 text-red-600 shrink-0" />
+                <span>{transferError}</span>
               </div>
             )}
 
-            <form onSubmit={handleTransferJobs} className="space-y-6">
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <form onSubmit={handleTransferDuties} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
-                {/* SOURCE SELECT ZONE */}
-                <div className="bg-slate-50 border border-slate-250 rounded-2xl p-4 flex flex-col justify-between space-y-4">
-                  <div className="space-y-1">
-                    <span className="text-[10px] bg-amber-100 text-amber-800 font-black px-2 py-0.5 rounded-md">1. نقل صلاحيات وأعمال الموظف (المصدر):</span>
-                    <p className="text-[10.5px] text-gray-400 font-bold">بموجب الاعتماد، سيتم سحب المسؤوليات الحالية المختارة من هذا الحساب.</p>
-                    
-                    <select
-                      value={sourceEmpId}
-                      required
-                      onChange={(e) => setSourceEmpId(e.target.value)}
-                      className="w-full h-11 px-3 bg-white border border-gray-300 rounded-xl text-xs font-extrabold focus:ring-2 focus:ring-blue-500 outline-none mt-2 cursor-pointer"
-                    >
-                      <option value="">-- اختر الموظف الأصلي --</option>
-                      {visibleEmployees.map(emp => (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.name} (الرقم: {emp.id})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* MINI INFOCARD FOR SOURCE */}
-                  {sourceEmpId && (() => {
-                    const emp = dbEmployees.find(e => e.id === sourceEmpId);
-                    if (!emp) return null;
-                    
-                    const commLength = emp.committees?.length || 0;
-                    const taskLength = dbTasks.filter((t: any) => t.assignedTo === emp.name || t.assignedToId === emp.id).length;
-                    const eventLength = dbEvents.filter((ev: any) => Array.isArray(ev.employees) && ev.employees.includes(emp.name)).length;
-                    const recLength = dbRecommendations.filter((r: any) => r.assignedTo === emp.name).length;
-
-                    return (
-                      <div className="bg-white rounded-xl border border-amber-200 p-3.5 space-y-2 animate-fadeIn text-xs">
-                        <div className="flex items-center gap-3">
-                          <img src={emp.photo} alt="" className="w-8 h-8 rounded-full object-cover border" />
-                          <div>
-                            <span className="font-extrabold block text-slate-900">{emp.name}</span>
-                            <span className="text-[10px] text-gray-500 font-bold">{emp.jobTitle}</span>
-                          </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-600 font-extrabold border-t pt-2 mt-1.5 font-sans">
-                          <div>🏛️ اللجان المشرف عليها: <span className="font-mono text-amber-700">{commLength}</span></div>
-                          <div>📋 المهام الصادرة: <span className="font-mono text-amber-700">{taskLength}</span></div>
-                          <div>🕒 فعاليات نشطة: <span className="font-mono text-amber-700">{eventLength}</span></div>
-                          <div>🗳️ توصيات قطاعية: <span className="font-mono text-amber-700">{recLength}</span></div>
-                        </div>
-                      </div>
-                    );
-                  })()}
+                {/* Source Employee Select */}
+                <div className="bg-gray-55/40 p-4 rounded-xl border border-gray-150">
+                  <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">أولاً: الموظف المسؤول المكلف حالياً (المصدر/المنقول منه)</label>
+                  <select
+                    value={sourceEmpId}
+                    onChange={(e) => {
+                      setSourceEmpId(e.target.value);
+                      setTransferSuccess("");
+                      setTransferError("");
+                    }}
+                    className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-xs font-bold text-gray-700"
+                  >
+                    <option value="">-- اختر الموظف لترحيل أعماله --</option>
+                    {dbEmployees.filter(e => e.active !== false).map(emp => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name} ({emp.roleAr}) - الرقم الوظيفي: {emp.id} [لجان: {emp.committees?.length || 0}]
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                {/* TARGET SELECT ZONE */}
-                <div className="bg-slate-50 border border-slate-250 rounded-2xl p-4 flex flex-col justify-between space-y-4">
-                  <div className="space-y-1">
-                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-black px-2 py-0.5 rounded-md">2. نقل وتفويض الأعمال إلى الموظف (المستلم):</span>
-                    <p className="text-[10.5px] text-gray-400 font-bold">بموجب الاعتماد، سيتم إدراج المسؤوليات وتعميد كادر العمل الجديد.</p>
-                    
-                    <select
-                      value={targetEmpId}
-                      required
-                      onChange={(e) => setTargetEmpId(e.target.value)}
-                      className="w-full h-11 px-3 bg-white border border-gray-300 rounded-xl text-xs font-extrabold focus:ring-2 focus:ring-blue-500 outline-none mt-2 cursor-pointer"
-                    >
-                      <option value="">-- اختر الكادر المستلم البديل --</option>
-                      {visibleEmployees.map(emp => (
-                        <option key={emp.id} value={emp.id} disabled={emp.id === sourceEmpId}>
-                          {emp.name} (الرقم: {emp.id}) {emp.id === sourceEmpId ? "(غير مسموح كمنقول منه)" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* MINI INFOCARD FOR TARGET */}
-                  {targetEmpId && (() => {
-                    const emp = dbEmployees.find(e => e.id === targetEmpId);
-                    if (!emp) return null;
-
-                    return (
-                      <div className="bg-white rounded-xl border border-emerald-250 p-3.5 space-y-2 animate-fadeIn text-xs">
-                        <div className="flex items-center gap-3">
-                          <img src={emp.photo} alt="" className="w-8 h-8 rounded-full object-cover border" />
-                          <div>
-                            <span className="font-extrabold block text-slate-900">{emp.name}</span>
-                            <span className="text-[10px] text-gray-500 font-bold">{emp.jobTitle}</span>
-                          </div>
-                        </div>
-                        <div className="text-[10px] text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-150 inline-block font-extrabold mt-1">
-                          ✓ الموظف جاهز ومعتمد كبديل أمني في النظام
-                        </div>
-                      </div>
-                    );
-                  })()}
+                {/* Target Employee Select */}
+                <div className="bg-gray-55/40 p-4 rounded-xl border border-gray-150">
+                  <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">ثانياً: الموظف البديل المستهدف (المستقبل/المنقول إليه)</label>
+                  <select
+                    value={targetEmpId}
+                    onChange={(e) => {
+                      setTargetEmpId(e.target.value);
+                      setTransferSuccess("");
+                      setTransferError("");
+                    }}
+                    className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-xs font-bold text-gray-700"
+                  >
+                    <option value="">-- اختر الموظف البديل لاستلام العهد --</option>
+                    {dbEmployees.filter(e => e.active !== false && e.id !== sourceEmpId).map(emp => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name} ({emp.roleAr}) - الرقم الوظيفي: {emp.id}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-
               </div>
 
-              {/* DETAILS SELECTION CHECKBOXES */}
-              {sourceEmpId && (
-                <div className="bg-slate-50/50 rounded-2xl p-5 border border-gray-200 space-y-4 animate-fadeIn">
-                  <span className="text-xs font-black text-slate-900 block">3. حدد حزم البيانات والمسؤوليات المرغوب بنقلها بالكامل:</span>
+              {/* Scope checkboxes selection */}
+              <div className="bg-slate-50 p-5 rounded-xl border border-gray-200 space-y-3.5">
+                <span className="block text-xs font-black text-gray-800">العناصر والعهد الإدارية المشمولة بالنقل الفوري:</span>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-1">
                   
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <label className={`flex items-center gap-2.5 p-3 rounded-xl border transition-all cursor-pointer select-none ${transferCommittees ? "bg-white border-blue-600/30 text-slate-900" : "bg-white border-gray-200 text-gray-400"}`}>
-                      <input 
-                        type="checkbox" 
-                        checked={transferCommittees} 
-                        onChange={(e) => setTransferCommittees(e.target.checked)} 
-                        className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
-                      />
-                      <div className="text-right">
-                        <span className="text-xs font-black block">اللجان القطاعية</span>
-                        <span className="text-[9.5px] font-bold text-gray-400">
-                          ({(dbEmployees.find(e => e.id === sourceEmpId)?.committees || []).length} لجان)
-                        </span>
-                      </div>
-                    </label>
+                  <label className="flex items-center gap-2.5 cursor-pointer text-xs font-bold text-gray-700 select-none">
+                    <input
+                      type="checkbox"
+                      checked={transferCommittees}
+                      onChange={(e) => setTransferCommittees(e.target.checked)}
+                      className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4 cursor-pointer"
+                    />
+                    <span>إشراف اللجان القطاعية</span>
+                  </label>
 
-                    <label className={`flex items-center gap-2.5 p-3 rounded-xl border transition-all cursor-pointer select-none ${transferTasks ? "bg-white border-blue-600/30 text-slate-900" : "bg-white border-gray-200 text-gray-400"}`}>
-                      <input 
-                        type="checkbox" 
-                        checked={transferTasks} 
-                        onChange={(e) => setTransferTasks(e.target.checked)} 
-                        className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
-                      />
-                      <div className="text-right">
-                        <span className="text-xs font-black block">المهام المباشرة</span>
-                        <span className="text-[9.5px] font-bold text-gray-400">
-                          ({(() => {
-                            const emp = dbEmployees.find(e => e.id === sourceEmpId);
-                            return emp ? dbTasks.filter((t: any) => t.assignedTo === emp.name || t.assignedToId === emp.id).length : 0;
-                          })()} مهمة)
-                        </span>
-                      </div>
-                    </label>
+                  <label className="flex items-center gap-2.5 cursor-pointer text-xs font-bold text-gray-700 select-none">
+                    <input
+                      type="checkbox"
+                      checked={transferTasks}
+                      onChange={(e) => setTransferTasks(e.target.checked)}
+                      className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4 cursor-pointer"
+                    />
+                    <span>المهام الإدارية الداخلية</span>
+                  </label>
 
-                    <label className={`flex items-center gap-2.5 p-3 rounded-xl border transition-all cursor-pointer select-none ${transferEvents ? "bg-white border-blue-600/30 text-slate-900" : "bg-white border-gray-200 text-gray-400"}`}>
-                      <input 
-                        type="checkbox" 
-                        checked={transferEvents} 
-                        onChange={(e) => setTransferEvents(e.target.checked)} 
-                        className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
-                      />
-                      <div className="text-right">
-                        <span className="text-xs font-black block">الفعاليات الحالية</span>
-                        <span className="text-[9.5px] font-bold text-gray-400">
-                          ({(() => {
-                            const emp = dbEmployees.find(e => e.id === sourceEmpId);
-                            return emp ? dbEvents.filter((ev: any) => Array.isArray(ev.employees) && ev.employees.includes(emp.name)).length : 0;
-                          })()} فعالية)
-                        </span>
-                      </div>
-                    </label>
+                  <label className="flex items-center gap-2.5 cursor-pointer text-xs font-bold text-gray-700 select-none">
+                    <input
+                      type="checkbox"
+                      checked={transferEvents}
+                      onChange={(e) => setTransferEvents(e.target.checked)}
+                      className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4 cursor-pointer"
+                    />
+                    <span>جدولة الفعاليات والاجتماعات</span>
+                  </label>
 
-                    <label className={`flex items-center gap-2.5 p-3 rounded-xl border transition-all cursor-pointer select-none ${transferRecs ? "bg-white border-blue-600/30 text-slate-900" : "bg-white border-gray-200 text-gray-400"}`}>
-                      <input 
-                        type="checkbox" 
-                        checked={transferRecs} 
-                        onChange={(e) => setTransferRecs(e.target.checked)} 
-                        className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
-                      />
-                      <div className="text-right">
-                        <span className="text-xs font-black block">متابعة التوصيات</span>
-                        <span className="text-[9.5px] font-bold text-gray-400">
-                          ({(() => {
-                            const emp = dbEmployees.find(e => e.id === sourceEmpId);
-                            return emp ? dbRecommendations.filter((r: any) => r.assignedTo === emp.name).length : 0;
-                          })()} توصية)
-                        </span>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-              )}
+                  <label className="flex items-center gap-2.5 cursor-pointer text-xs font-bold text-gray-700 select-none">
+                    <input
+                      type="checkbox"
+                      checked={transferRecs}
+                      onChange={(e) => setTransferRecs(e.target.checked)}
+                      className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4 cursor-pointer"
+                    />
+                    <span>متابعة التوصيات وقرارات اللجان</span>
+                  </label>
 
-              {/* SECURITY STATEMENTS */}
-              <div className="bg-amber-50 rounded-2xl p-4.5 border border-amber-250 flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                <div className="text-amber-900 font-extrabold text-xs space-y-1">
-                  <span>تنفيذ آمن وإقرار إداري:</span>
-                  <p className="text-[10.5px] text-amber-800 font-bold leading-relaxed">
-                    هذا الخيار سوف يعيد تخصيص كافة الأعمال والمهام المختارة لصالح الكادر المستلم مع تدوين العملية تلقائياً في السجل لمراقبة عمليات النظام بغرفة مكة المكرمة لحمايتها من الانقطاع.
-                  </p>
                 </div>
               </div>
 
-              {/* SUBMIT BUTTON */}
-              <div className="flex items-center justify-end font-sans">
+              <div className="flex justify-end pt-3">
                 <button
                   type="submit"
-                  disabled={isTransferring || !sourceEmpId || !targetEmpId}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-extrabold text-xs h-12 px-8 rounded-xl shadow-lg hover:shadow-blue-500/10 transition-all flex items-center gap-2.5 cursor-pointer shrink-0"
+                  disabled={isTransferring}
+                  className="px-6 py-3 bg-brand hover:bg-brand/95 text-white rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
                 >
                   {isTransferring ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                      <span>جاري نقل وتفويض المسؤوليات التابعة...</span>
+                      <span>جاري تهيئة ونقل الأعمال العشوائية...</span>
                     </>
                   ) : (
                     <>
                       <ArrowRightLeft className="w-4 h-4" />
-                      <span>إقرار ونقل وتفويض الأعمال بالكامل ⇄</span>
+                      <span>تأكيد الإحالة وتفويض المهام</span>
                     </>
                   )}
                 </button>
               </div>
-
             </form>
-          </motion.div>
+          </div>
         )}
 
-        {/* ========================================================== */}
-        {/* TAB C: اعتماد الموظفين والبريد Whitelist */}
-        {/* ========================================================== */}
-        {activeTab === "approvals" && (
-          <motion.div
-            key="approvals"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.15 }}
-            className="space-y-6"
-          >
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              
-              {/* JOIN REQUESTS COLUMN */}
-              <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm space-y-4 text-right">
-                <div className="flex items-center gap-2.5 border-b pb-3 border-gray-150">
-                  <UserCheck className="w-5 h-5 text-blue-600 shrink-0" />
-                  <h3 className="font-extrabold text-sm text-gray-900">طلبات انضمام الموظفين والمنسقين النشطة</h3>
+        {/* TAB 3: JOIN REQUESTS & APPROVED WHITELIST */}
+        {activeTab === "approvals" && currentUserRole === "SYS_ADMIN" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            {/* Left Col: Pending Join requests (size 7) */}
+            <div className="lg:col-span-7 bg-white rounded-2xl p-5 border border-gray-200 shadow-sm space-y-4">
+              <div>
+                <h2 className="text-sm font-black text-gray-900 flex items-center gap-1.5">
+                  <UserCheck className="w-5 h-5 text-amber-500" />
+                  <span>طلبات التسجيل والانضمام المعلقة ({dbJoinRequests.length})</span>
+                </h2>
+                <p className="text-gray-500 text-[11px] mt-0.5">
+                  يرسل الموظفون وعاملو الأقسام والمنسقون الجدد طلب انضمام بالاسم، الجوال والبريد. يمكنك مراجعتها واعتمادها فورياً هنا.
+                </p>
+              </div>
+
+              {dbJoinRequests.length === 0 ? (
+                <div className="p-8 border border-dashed border-gray-200 rounded-xl text-center">
+                  <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
+                  <span className="text-[11px] font-bold text-gray-500 block">لا توجد طلبات انضمام معلقة حالياً.</span>
+                  <span className="text-gray-405 text-[10px]">كافة الحسابات مراجعة ومفعلة.</span>
                 </div>
-
-                <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+              ) : (
+                <div className="space-y-3">
                   {dbJoinRequests.map((req) => (
-                    <div key={req.id} className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3 transition-all hover:bg-slate-100/50">
-                      <div className="flex justify-between items-start gap-2">
-                        <div>
-                          <p className="font-extrabold text-xs text-slate-900">{req.name}</p>
-                          <p className="text-[10px] text-gray-500 font-bold mt-0.5 bg-blue-50 px-1 py-0.5 rounded border border-blue-100 w-max">{req.requestedRoleAr || "أخصائي لجان"}</p>
+                    <div
+                      key={req.id}
+                      className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                    >
+                      <div className="space-y-1.5">
+                        <span className="font-extrabold text-xs text-gray-900 block">
+                          الأستاذ/ة {req.name}
+                        </span>
+                        
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-gray-500 font-semibold font-mono">
+                          <span className="flex items-center gap-1">
+                            <Mail className="w-3.5 h-3.5 text-gray-400" />
+                            <span>{req.email}</span>
+                          </span>
+
+                          <span className="flex items-center gap-1">
+                            <Phone className="w-3.5 h-3.5 text-gray-400" />
+                            <span>{req.phone}</span>
+                          </span>
+
+                          <span className="flex items-center gap-1 text-brand">
+                            <Calendar className="w-3.5 h-3.5 text-brand" />
+                            <span>تاريخ التقديم: {req.requestDate}</span>
+                          </span>
                         </div>
-                        <span className="text-[9.5px] font-mono font-bold text-gray-400">{req.requestDate}</span>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[10.5px] font-bold text-slate-600 font-sans border-t pt-2.5">
-                        <div className="truncate">📧 {req.email}</div>
-                        <div>📞 {req.phone}</div>
-                      </div>
-
-                      <div className="flex items-center gap-2 pt-1">
+                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                         <button
                           onClick={() => handleApproveJoinRequest(req)}
-                          className="flex-grow bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-extrabold py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                          className="px-3 py-1.5 bg-brand hover:bg-brand/90 text-white rounded-lg text-[10px] font-black cursor-pointer transition-all flex items-center gap-1 shadow-sm"
                         >
                           <Check className="w-3.5 h-3.5" />
-                          <span>قبول الطلب واعتماد الكادر</span>
+                          <span>اعتماد</span>
                         </button>
                         <button
                           onClick={() => handleRejectJoinRequest(req)}
-                          className="px-3 bg-red-50 hover:bg-red-100 text-red-700 text-[10px] font-extrabold py-2 rounded-lg transition-all cursor-pointer"
+                          className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-[10px] font-black cursor-pointer transition-all flex items-center gap-1 border border-red-100"
                         >
-                          رفض
+                          <X className="w-3.5 h-3.5" />
+                          <span>رفض</span>
                         </button>
                       </div>
                     </div>
                   ))}
-
-                  {dbJoinRequests.length === 0 && (
-                    <div className="p-8 text-center bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
-                      <p className="text-xs text-gray-500 font-extrabold">لا يوجد طلبات انضمام تتطلب المراجعة حالياً.</p>
-                    </div>
-                  )}
                 </div>
+              )}
+            </div>
+
+            {/* Right Col: approved email Whitelist (size 5) */}
+            <div className="lg:col-span-5 bg-white rounded-2xl p-5 border border-gray-200 shadow-sm space-y-5">
+              <div>
+                <h2 className="text-sm font-black text-gray-900 flex items-center gap-1.5">
+                  <Lock className="w-5 h-5 text-brand" />
+                  <span>البريد الإلكتروني المسموح لوظائف Whitelist</span>
+                </h2>
+                <p className="text-gray-550 text-[11px] mt-0.5">
+                  إعداد مسبق لعناوين البريد الإلكتروني للمنسقين لتسجيل الدخول المباشر فور تسجيلهم، دون قيود أو طلب مراجعة.
+                </p>
               </div>
 
-              {/* WHITELIST EMAIL MANAGEMENT */}
-              <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm space-y-4">
-                <div className="flex items-center gap-2.5 border-b pb-3 border-gray-150">
-                  <Mail className="w-5 h-5 text-blue-600 shrink-0" />
-                  <h3 className="font-extrabold text-sm text-gray-900">عناوين البريد المسموح بتسجيلها (Whitelist)</h3>
-                </div>
-
-                <form onSubmit={handleAddWhitelistEmail} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-                  <span className="text-[10.5px] font-black text-slate-800 block">إضافة بريد معتمد ومصرح مسبقاً بالتسجيل:</span>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Form to Add Whitelist email */}
+              <form onSubmit={handleAddWhitelistEmail} className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
+                <span className="block text-[11px] font-black text-gray-800">إضافة اعتماد بريد موظف معتمد:</span>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
                     <input
                       type="text"
-                      placeholder="اسم الموظف أو المسمى..."
-                      required
+                      placeholder="اسم الموظف"
                       value={whitelistNameStr}
                       onChange={(e) => setWhitelistNameStr(e.target.value)}
-                      className="h-10 px-3 bg-white border border-gray-300 rounded-xl text-xs font-black outline-none focus:ring-2 focus:ring-blue-500 text-right"
-                    />
-                    <input
-                      type="email"
-                      placeholder="امتداد البريد المعتمد..."
-                      required
-                      value={whitelistEmailStr}
-                      onChange={(e) => setWhitelistEmailStr(e.target.value)}
-                      className="h-10 px-3 bg-white border border-gray-300 rounded-xl text-xs font-black outline-none focus:ring-2 focus:ring-blue-500 text-left font-mono"
+                      className="w-full bg-white border border-gray-300 rounded-lg px-2.5 py-2 text-[10px] sm:text-xs font-bold text-gray-700"
                     />
                   </div>
+                  <div>
+                    <input
+                      type="email"
+                      placeholder="X.XXXX@makkahchamber.sa"
+                      dir="ltr"
+                      value={whitelistEmailStr}
+                      onChange={(e) => setWhitelistEmailStr(e.target.value)}
+                      className="w-full bg-white border border-gray-300 rounded-lg px-2.5 py-2 text-[10px] sm:text-xs text-left font-semibold"
+                    />
+                  </div>
+                </div>
 
-                  <div className="flex flex-col sm:flex-row gap-3 pt-1">
+                <div className="flex items-center justify-between gap-2.5 pt-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-black text-gray-500 whitespace-nowrap">تعيين دور:</span>
                     <select
                       value={whitelistRoleAr}
                       onChange={(e) => setWhitelistRoleAr(e.target.value)}
-                      className="h-10 px-3 bg-white border border-gray-300 rounded-xl text-xs font-extrabold outline-none focus:ring-2 focus:ring-blue-500 select-none cursor-pointer flex-grow"
+                      className="bg-white border border-gray-200 rounded-lg py-1 px-2 text-[11px] font-bold"
                     >
                       <option value="أخصائي لجان">أخصائي لجان</option>
-                      <option value="رئيس قسم لجان">رئيس قسم لجان</option>
-                                            <option value="مدير إدارة اللجان">مدير إدارة اللجان</option>
+                      <option value="رئيس قسم اللجان">رئيس قسم لجان</option>
+                      <option value="مدير إدارة اللجان">مدير إدارة لجان</option>
                     </select>
-                    
-                    <button
-                      type="submit"
-                      className="h-10 px-6 bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold rounded-xl transition-all shadow-md shadow-blue-500/10 cursor-pointer text-center shrink-0"
-                    >
-                      تعميد وإضافة للقائمة
-                    </button>
                   </div>
-                </form>
 
-                {/* whitelisted list */}
-                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                  {dbApprovedEmails.map((approved) => (
-                    <div key={approved.id} className="bg-slate-50/50 border border-gray-250 rounded-xl p-3 flex justify-between items-center transition-all hover:bg-slate-100/50">
-                      <div>
-                        <p className="font-extrabold text-xs text-slate-900">{approved.name}</p>
-                        <p className="text-[10px] font-mono text-indigo-700 font-bold mt-0.5">{approved.email}</p>
-                        <span className="text-[9px] text-gray-400 font-bold block mt-1">تاريخ الاعتماد: {approved.approvedDate} (بواسطة: {approved.approvedBy})</span>
+                  <button
+                    type="submit"
+                    className="p-2 px-3.5 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-black rounded-lg cursor-pointer transition-all"
+                  >
+                    إضافة للقائمة المسموحة
+                  </button>
+                </div>
+              </form>
+
+              {/* whitelist entries list */}
+              <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+                {dbApprovedEmails && dbApprovedEmails.length === 0 ? (
+                  <span className="text-[10px] font-bold text-gray-400 block text-center pt-3">لا توجد عناوين بريدية معتمدة بشكل مسبق.</span>
+                ) : (
+                  dbApprovedEmails?.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-3 bg-white border border-gray-200 rounded-xl flex items-center justify-between gap-3 text-xs leading-none"
+                    >
+                      <div className="space-y-1">
+                        <span className="font-extrabold text-[11px] text-gray-900 block">{item.name}</span>
+                        <span className="font-mono text-[10px] text-gray-400 block">{item.email}</span>
+                        <span className="text-[9px] text-brand font-black block">لدور ومستوى: {item.roleAr}</span>
                       </div>
 
                       <button
-                        onClick={() => handleRemoveApprovedEmail(approved)}
-                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
-                        title="إلغاء اعتماد هذا البريد وسحب الصلاحية"
+                        onClick={() => handleRemoveWhitelistEmail(item.id, item.email)}
+                        className="p-1.5 bg-red-50 hover:bg-red-100 text-red-650 rounded-lg cursor-pointer transition-all border border-red-100 shrink-0"
+                        title="إلغاء Whitelist"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                  ))}
-
-                  {dbApprovedEmails.length === 0 && (
-                    <div className="p-6 text-center text-gray-400 italic text-xs font-bold bg-gray-50/50 rounded-xl">
-                      لا يوجد أي عناوين بريد إلكتروني معتمدة حالياً.
-                    </div>
-                  )}
-                </div>
-
+                  ))
+                )}
               </div>
-
             </div>
-          </motion.div>
+
+          </div>
         )}
 
-        {/* ========================================================== */}
-        {/* TAB D: سجل مراقبة النظام والعمليات */}
-        {/* ========================================================== */}
-        {activeTab === "logs" && (
-          <motion.div
-            key="logs"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.15 }}
-            className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm space-y-4 text-right"
-          >
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b pb-3.5 border-gray-150">
-              <div className="flex items-center gap-2">
-                <Activity className="w-5 h-5 text-blue-600 shrink-0 animate-pulse" />
-                <h3 className="font-extrabold text-sm text-gray-900">سجل مراقبة العمليات والتحقق الفيدرالي</h3>
-              </div>
-              <span className="text-[10px] bg-slate-100 text-slate-700 font-black px-2.5 py-1 rounded-md border text-left">
-                العدد الكلي للعمليات المسجلة: {dbSystemLogs.length} عمليات
-              </span>
-            </div>
-
-            {/* إعادة الضبط الشامل للنظام */}
-            {currentUserRole === "SYS_ADMIN" && (
-              <div className="bg-red-50 border border-red-200 rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-right">
-                <div className="space-y-1">
-                  <h4 className="font-black text-red-800 text-xs sm:text-sm flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping shrink-0"></span>
-                    إعادة تهيئة النظام بالكامل (سحابياً ومحلياً)
-                  </h4>
-                  <p className="text-xs text-red-700 font-bold">
-                    سيقوم هذا الإجراء الاختياري بحذف كافة اللجان، الأعضاء، الاجتماعات والفعاليات، التوصيات، المهام، والتقارير المدرجة مسبقاً في قاعدة بيانات النظام السحابية ومستودع المتصفح بالكامل.
-                  </p>
-                  <p className="text-[10px] text-red-600 font-black">
-                    * سيتم الحفاظ على استمرارية تسجيل دخولك دون انقطاع.
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    setPurgeSuccess(false);
-                    setPurgeError("");
-                    setShowPurgeConfirm(true);
-                  }}
-                  disabled={isPurging}
-                  className="bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-black px-5 py-2.5 rounded-xl border border-red-700 shadow-md hover:shadow-lg transition-all shrink-0 flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
-                >
-                  <Trash2 className="w-4 h-4 shrink-0" />
-                  إعادة بناء النظام بالكامل
-                </button>
-              </div>
-            )}
-
-            {/* SEACH BAR FOR AUDIT LOGS */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              <div className="relative">
-                <Search className="absolute right-3.5 top-3 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="ابحث باسم الموظف أو محتوى العملية..."
-                  value={logSearchQuery}
-                  onChange={(e) => setLogSearchQuery(e.target.value)}
-                  className="w-full h-10 pr-9 bg-gray-50 border border-gray-250 rounded-xl text-xs font-extrabold placeholder-gray-400 outline-none focus:ring-2 focus:ring-blue-500"
-                />
+        {/* TAB 4: SYSTEM EVENT / MONITORING LOGS */}
+        {activeTab === "logs" && currentUserRole === "SYS_ADMIN" && (
+          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-4">
+            
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
+              <div>
+                <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5">
+                  <ShieldAlert className="w-5 h-5 text-red-650" />
+                  <span>سجل مراقبة العمليات الأمني (Audit Logs)</span>
+                </h2>
+                <p className="text-gray-550 text-xs mt-0.5">
+                  شاشة الأمن والرقابة الإدارية: ترصد حركات تسجيل الدخول، تعديل وتوثيق المحاضر والخطط، الحذف والترحيل.
+                </p>
               </div>
 
-              <select
-                value={logStatusFilter}
-                onChange={(e) => setLogStatusFilter(e.target.value)}
-                className="h-10 bg-gray-50 border border-gray-250 rounded-xl text-xs font-extrabold outline-none focus:ring-2 focus:ring-blue-500 select-none cursor-pointer"
+              <button
+                onClick={handlePrintLogs}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-gray-205"
               >
-                <option value="ALL">تصفية حسب الحالة (الكل)</option>
-                <option value="ناجحة">ناجحة مائة بالمائة</option>
-                <option value="مرفوضة">مرفوضة / تنبيهات أمنية</option>
-              </select>
+                <Printer className="w-4 h-4" />
+                <span>طباعة السجلات A4</span>
+              </button>
             </div>
 
-            {/* AUDIT LOG TABLE ROW */}
-            <div className="overflow-x-auto border border-gray-250 rounded-xl">
-              <table className="w-full text-right border-collapse text-xs">
-                <thead>
-                  <tr className="bg-slate-100 text-slate-800 font-black border-b border-gray-250 select-none">
-                    <th className="p-3">اسم كادر العملية</th>
-                    <th className="p-3">الوقت والتاريخ</th>
-                    <th className="p-3 font-sans">فئة العملية</th>
-                    <th className="p-3">تفاصيل الإجراء الإداري والمعاملة</th>
-                    <th className="p-3 text-center">أمنية الإجراء</th>
+            <div className="overflow-x-auto custom-scrollbar rounded-xl border border-gray-200">
+              <table className="w-full text-right text-xs">
+                <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="p-4">تدرج التاريخ والتوقيت</th>
+                    <th className="p-4">اسم الموظف المبادر</th>
+                    <th className="p-4">نوعية العملية والتوثيق</th>
+                    <th className="p-4">الحالة</th>
+                    <th className="p-4">تفاصيل الإجراء والمستند المترتب</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredLogs.slice().reverse().map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-50 font-bold text-gray-700 transition-all font-sans">
-                      <td className="p-3 text-slate-900 font-extrabold">{log.employeeName}</td>
-                      <td className="p-3 font-mono text-[10.5px] text-gray-500">{log.time}</td>
-                      <td className="p-3">
-                        <span className="bg-slate-200/50 text-slate-800 text-[10px] font-black px-2 py-0.5 rounded border border-slate-300">
-                          {log.operationType}
-                        </span>
-                      </td>
-                      <td className="p-3 max-w-sm truncate text-gray-600" title={log.details}>{log.details}</td>
-                      <td className="p-3 text-center">
-                        <span className={`inline-block text-[9.5px] font-black px-2 py-0.5 rounded-full ${
-                          log.status === "ناجحة" 
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-250" 
-                            : "bg-red-50 text-red-700 border border-red-250"
-                        }`}>
-                          {log.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-
-                  {filteredLogs.length === 0 && (
+                <tbody className="divide-y divide-gray-100 font-medium text-gray-600">
+                  {dbSystemLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-12 text-center text-gray-500 italic font-extrabold bg-slate-50/50">
-                        مرحباً! لا تتوفر أي قيود تدوين مطابقة للبحث حالياً.
-                      </td>
+                      <td colSpan={5} className="p-8 text-center text-gray-400 italic">لا توجد سجلات مراقبة مسجلة حالياً.</td>
                     </tr>
+                  ) : (
+                    dbSystemLogs.slice().reverse().map((log) => (
+                      <tr key={log.id} className="hover:bg-gray-50/50">
+                        <td className="p-4 font-mono text-[10px] text-gray-500 whitespace-nowrap">{log.time}</td>
+                        <td className="p-4 font-extrabold text-gray-900 whitespace-nowrap">{log.employeeName}</td>
+                        <td className="p-4 whitespace-nowrap">
+                          <span className="bg-blue-50 text-brand px-2 py-0.5 rounded text-[10px] font-bold border border-blue-100">
+                            {log.operationType}
+                          </span>
+                        </td>
+                        <td className="p-4 whitespace-nowrap">
+                          {log.status === "ناجحة" ? (
+                            <span className="text-emerald-605 font-bold">✓ ناجحة</span>
+                          ) : (
+                            <span className="text-red-500 font-bold">✗ مرفوضة</span>
+                          )}
+                        </td>
+                        <td className="p-4 text-gray-550 leading-relaxed font-semibold">{log.details}</td>
+                      </tr>
+                    ))
                   )}
                 </tbody>
               </table>
             </div>
-          </motion.div>
+          </div>
         )}
 
-      </AnimatePresence>
+      </div>
 
-      {/* ========================================================== */}
-      {/* 4. MODALS ZONE: ADD / EDIT EMPLOYEE */}
-      {/* ========================================================== */}
+      {/* 4. MODAL DIALOG: ADD/EDIT EMPLOYEE */}
       <AnimatePresence>
         {showFormModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-            {/* Dark background overlay with scale fade */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            
+            {/* Backdrop blur overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1575,464 +1651,275 @@ export default function OrgChart() {
               onClick={() => setShowFormModal(false)}
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
             />
-            
+
             <motion.div
-              initial={{ scale: 0.9, y: 15, opacity: 0 }}
-              animate={{ scale: 1, y: 0, opacity: 1 }}
-              exit={{ scale: 0.9, y: 15, opacity: 0 }}
-              transition={{ type: "spring", damping: 20, stiffness: 280 }}
-              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right"
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-white rounded-3xl border border-gray-200 shadow-2xl p-6 sm:p-8 w-full max-w-2xl relative z-10 max-h-[90vh] overflow-y-auto custom-scrollbar"
             >
-              {/* Header block with solid header representation - identical to Committees */}
-              <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-600 text-white rounded-xl">
-                    {isEditing ? <Edit2 className="w-5 h-5 stroke-[2.5]" /> : <Plus className="w-5 h-5 stroke-[2.5]" />}
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-gray-900 text-sm leading-tight">
-                      {isEditing ? `تعديل ملف الموظف: ${formName || "الكادر"}` : "إدراج كادر جديد للهيكل الوظيفي"}
-                    </h3>
-                    <p className="text-xs text-gray-500 font-medium">يرجى التأكد من تسجيل البيانات بعناية لربطها بالنظام</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowFormModal(false)}
-                  className="p-1.5 hover:bg-gray-200/50 text-gray-500 rounded-lg transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+              <button
+                onClick={() => setShowFormModal(false)}
+                className="absolute top-5 left-5 text-gray-400 hover:text-gray-600 cursor-pointer p-1 rounded-full hover:bg-gray-100 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="text-right border-b border-gray-100 pb-4 mb-5">
+                <span className="text-[11px] font-black text-brand tracking-widest uppercase block mb-1">بطاقات العمل والبيانات</span>
+                <h3 className="text-base font-bold text-gray-900">
+                  {isEditing ? `تعديل بيانات الموظف: الأستاذ/ة ${formName}` : "إضافة بطاقة موظف معتمد جديد"}
+                </h3>
               </div>
 
-              {/* Modal body form */}
-              <form onSubmit={handleSaveEmployee} className="p-6 space-y-4">
+              <form onSubmit={handleSaveEmployee} className="space-y-5">
                 
-                <div className="bg-blue-50/50 border border-blue-150 p-3.5 rounded-2xl flex items-center gap-3">
-                  <span className="text-xl">👤</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  
+                  {/* employee ID */}
                   <div>
-                    <span className="font-extrabold text-blue-900 block text-xs">ملف الكادر الشخصي الرسمي</span>
-                    <p className="text-[10px] text-gray-400 font-bold leading-none mt-0.5">يرجى التأكد من مطابقة بيانات الهيكل للبيانات المعتمدة بالغرفة.</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-black text-gray-700">الرقم الوظيفي (ID) <span className="text-red-500">*</span></label>
+                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">الرقم الوظيفي</label>
                     <input
                       type="text"
                       required
+                      placeholder="امثلة: 1002"
                       value={formId}
                       onChange={(e) => setFormId(e.target.value)}
-                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-right outline-none transition-all"
+                      disabled={isEditing && currentUserRole !== "SYS_ADMIN"} // Locked for employees
+                      className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs focus:ring-1 focus:ring-brand focus:outline-none font-bold text-right disabled:opacity-50"
                     />
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-black text-gray-700">الاسم الثلاثي للموظف <span className="text-red-500">*</span></label>
+                  {/* Employee Name */}
+                  <div>
+                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">الاسم الثلاثي واللقب</label>
                     <input
                       type="text"
                       required
                       placeholder="خالد إبراهيم مدني"
                       value={formName}
                       onChange={(e) => setFormName(e.target.value)}
-                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-right outline-none transition-all"
+                      className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs focus:ring-1 focus:ring-brand focus:outline-none font-extrabold text-right transition-all"
                     />
                   </div>
-                </div>
 
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-black text-gray-700">الصلاحيات في النظام <span className="text-red-500">*</span></label>
-                  <select
-                    value={formRole}
-                    onChange={(e) => setFormRole(e.target.value as any)}
-                    className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-3 text-xs font-black text-right focus:ring-2 focus:ring-blue-500/20 outline-none transition-all cursor-pointer"
-                  >
-                    {(() => {
-                      const rolesTakenElsewhere = {
-                        SYS_ADMIN: false,
-                        MANAG_DIR: false,
-                        DEPT_HEAD: false,
-                      };
-
-                      dbEmployees.forEach(emp => {
-                        if (emp.id !== (isEditing ? originalEditId : formId)) {
-                          if (emp.role === "SYS_ADMIN") rolesTakenElsewhere.SYS_ADMIN = true;
-                          if (emp.role === "MANAG_DIR") rolesTakenElsewhere.MANAG_DIR = true;
-                          if (emp.role === "DEPT_HEAD") rolesTakenElsewhere.DEPT_HEAD = true;
-                        }
-                      });
-
-                      return (
-                        <>
-                          <option value="SPECIALIST">أخصائي لجان (SPECIALIST)</option>
-                          
-                          {(!rolesTakenElsewhere.DEPT_HEAD || formRole === "DEPT_HEAD") && (
-                            <option value="DEPT_HEAD">رئيس قسم لجان (DEPT_HEAD)</option>
-                          )}
-                          
-                          {(!rolesTakenElsewhere.MANAG_DIR || formRole === "MANAG_DIR") && (
-                            <option value="MANAG_DIR">مدير إدارة لجان (MANAG_DIR)</option>
-                          )}
-                          
-                          {((!rolesTakenElsewhere.SYS_ADMIN && (formEmail?.trim().toLowerCase() === "khalafshehab@gmail.com" || formEmail?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com")) || formRole === "SYS_ADMIN") && (
-                            <option value="SYS_ADMIN">مدير نظام الرقابة (SYS_ADMIN)</option>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-black text-gray-700">البريد الإلكتروني للغرفة <span className="text-red-500">*</span></label>
+                  {/* Email */}
+                  <div>
+                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5 block">
+                      البريد الإلكتروني المعتمد 
+                      {isEditing && <span className="text-amber-650 mr-2">(معرف الحساب - غير قابل للتعديل)</span>}
+                    </label>
                     <input
                       type="email"
                       required
-                      placeholder="abdullah@makkahchamber.sa"
+                      placeholder="X.XXXX@makkahchamber.sa"
                       value={formEmail}
                       onChange={(e) => setFormEmail(e.target.value)}
-                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-left font-mono outline-none transition-all"
+                      disabled={isEditing} // Locked for all users on edit
+                      dir="ltr"
+                      className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs focus:ring-1 focus:ring-brand focus:outline-none font-semibold text-left transition-all disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed disabled:opacity-80"
                     />
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-black text-gray-700">رقم الجوال <span className="text-red-500">*</span></label>
+                  {/* Phone */}
+                  <div>
+                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">رقم الجوال الشخصي</label>
                     <input
-                      type="text"
+                      type="tel"
                       required
-                      placeholder="+966500000000"
+                      placeholder="+9665xxxxxxxx"
                       value={formPhone}
                       onChange={(e) => setFormPhone(e.target.value)}
-                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-left font-mono outline-none transition-all"
+                      dir="ltr"
+                      className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs focus:ring-1 focus:ring-brand focus:outline-none font-semibold text-left transition-all"
                     />
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-black text-gray-700">التحويلة الداخلية (اختياري)</label>
+                  {/* Extension */}
+                  <div>
+                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">رقم التحويلة الداخلية (اختياري)</label>
                     <input
                       type="text"
-                      placeholder="104"
+                      placeholder="مثال: 584"
                       value={formExtension}
                       onChange={(e) => setFormExtension(e.target.value)}
-                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-left font-mono outline-none transition-all"
+                      dir="ltr"
+                      className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs focus:ring-1 focus:ring-brand focus:outline-none font-bold text-left transition-all"
                     />
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-black text-gray-700">كلمة المرور المشفرة <span className="text-red-500">*</span></label>
+                  {/* Job title */}
+                  <div>
+                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">المسمى الوظيفي الفعلي</label>
                     <input
                       type="text"
-                      required
-                      value={formPassword}
-                      onChange={(e) => setFormPassword(e.target.value)}
-                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-left font-mono outline-none transition-all"
+                      placeholder="أخصائي لجان قطاعية وتنمية الاستثمار"
+                      value={formJobTitle}
+                      onChange={(e) => setFormJobTitle(e.target.value)}
+                      className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs focus:ring-1 focus:ring-brand focus:outline-none font-bold text-right"
                     />
                   </div>
-                </div>
 
-                {/* Drag and drop profile picture upload */}
-                <div className="space-y-1.5 text-right">
-                  <label className="block text-xs font-black text-gray-700">صورة الموظف</label>
-                  <div
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                        const file = e.dataTransfer.files[0];
-                        const reader = new FileReader();
-                        reader.onload = (event) => {
-                          if (event.target?.result) {
-                            compressImage(event.target.result as string, (resized) => {
-                              setFormPhoto(resized);
-                            });
-                          }
-                        };
-                        reader.readAsDataURL(file);
-                      }
-                    }}
-                    className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all relative flex flex-col items-center justify-center min-h-32 ${
-                      formPhoto
-                        ? "border-emerald-300 bg-emerald-50/20"
-                        : "border-gray-200 bg-gray-50/50 hover:bg-gray-100/70"
-                    }`}
-                  >
-                    <input
-                      type="file"
-                      id="employee-photo-upload"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files[0]) {
-                          const file = e.target.files[0];
-                          const reader = new FileReader();
-                          reader.onload = (event) => {
-                            if (event.target?.result) {
-                              compressImage(event.target.result as string, (resized) => {
-                                setFormPhoto(resized);
-                              });
-                            }
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                    />
-                    <label htmlFor="employee-photo-upload" className="cursor-pointer block space-y-2 w-full">
-                      {formPhoto ? (
-                        <div className="flex flex-col items-center gap-2">
-                          <img 
-                            src={formPhoto} 
-                            alt="Preview" 
-                            className="w-16 h-16 rounded-full object-cover border border-emerald-300 shadow-sm" 
-                          />
-                          <p className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100 px-2 py-0.5 rounded-full">
-                            ✓ تم تحميل الصورة بنجاح
-                          </p>
-                          <p className="text-[10px] text-gray-500 font-bold">انقر أو اسحب صورة أخرى للاستبدال</p>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center gap-1">
-                          <span className="text-2xl">📸</span>
-                          <span className="text-xs font-black text-gray-700">اسحب الصورة هنا أو انقر للإدراج</span>
-                          <p className="text-[10px] text-gray-500 font-bold">يمكنك رفع صورة شخصية للموظف مباشرة</p>
-                        </div>
-                      )}
-                    </label>
-
-                    {formPhoto && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          setFormPhoto("");
-                        }}
-                        className="absolute left-3 top-3 p-1.5 hover:bg-red-50 text-red-500 rounded-lg transition-colors cursor-pointer"
-                        title="حذف الصورة"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Active switch slider */}
-                <div className="bg-slate-50 p-3.5 rounded-2xl border border-gray-200 flex justify-between items-center text-right">
+                  {/* System role (admin editing only) */}
                   <div>
-                    <span className="font-black text-slate-800 block text-xs">هل الحساب فعال ومصرح باستخدامه؟</span>
-                    <span className="text-[10px] text-gray-400 font-bold leading-normal">الموظف غير الفعال سيتم منعه من تحرير وتوقيع محاضر اللجان تلقائياً.</span>
+                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">صلاحية ودور الموظف بالنظام</label>
+                    <select
+                      value={formRole}
+                      onChange={(e: any) => setFormRole(e.target.value)}
+                      disabled={currentUserRole !== "SYS_ADMIN"}
+                      className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-gray-700 disabled:opacity-50"
+                    >
+                      <option value="SPECIALIST">أخصائي لجان (SPECIALIST)</option>
+                      <option value="DEPT_HEAD">رئيس قسم لجان (DEPT_HEAD)</option>
+                      <option value="MANAG_DIR">مدير إدارة لجان (MANAG_DIR)</option>
+                      <option value="SYS_ADMIN">مدير نظام كامل (SYS_ADMIN)</option>
+                    </select>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setFormActive(!formActive)}
-                    className={`w-12 h-6.5 rounded-full p-1 transition-all cursor-pointer shrink-0 flex ${
-                      formActive ? "bg-emerald-600 justify-end" : "bg-gray-300 justify-start"
-                    }`}
-                  >
-                    <span className="w-4.5 h-4.5 bg-white rounded-full shadow-sm" />
-                  </button>
+
+                  {/* Active checkbox */}
+                  {currentUserRole === "SYS_ADMIN" && (
+                    <div className="flex items-center gap-3 bg-gray-50/50 border border-gray-200 rounded-xl px-3.5 py-2.5 mt-5">
+                      <input
+                        type="checkbox"
+                        id="formActiveCheck"
+                        checked={formActive}
+                        onChange={(e) => setFormActive(e.target.checked)}
+                        className="rounded border-gray-300 text-brand focus:ring-brand cursor-pointer w-4 h-4"
+                      />
+                      <label htmlFor="formActiveCheck" className="text-xs font-extrabold text-gray-700 cursor-pointer select-none">
+                        تنشيط الحساب والسماح بالدخول الفوري بالبريد
+                      </label>
+                    </div>
+                  )}
+                  
                 </div>
 
-                {/* ربط الموظف باللجان الفعالة */}
-                <div className="space-y-1.5 text-right">
-                  <label className="block text-xs font-black text-gray-700">ربط الموظف باللجان الفعالة</label>
-                  <p className="text-[10px] text-gray-400 font-bold leading-normal">
-                    يمكن ربط هذا الموظف بلجنة واحدة أو أكثر من اللجان النشطة بالغرفة المكرمة.
-                  </p>
-                  <div className="border border-gray-200 rounded-xl p-3 bg-white max-h-36 overflow-y-auto space-y-1.5">
-                    {(() => {
-                      const assignedCommitteesElsewhere = new Set<string>();
-                      dbEmployees.forEach(emp => {
-                        if (emp.id !== (isEditing ? originalEditId : formId)) {
-                          if (Array.isArray(emp.committees)) {
-                            emp.committees.forEach(c => assignedCommitteesElsewhere.add(c));
-                          }
-                        }
-                      });
-
-                      const visibleComms = dbCommittees
-                        ? dbCommittees.filter((comm: any) => {
-                            if (comm.active === false) return false;
-                            const isMine = formCommittees.includes(comm.name);
-                            const isElsewhere = assignedCommitteesElsewhere.has(comm.name);
-                            return isMine || !isElsewhere;
-                          })
-                        : [];
-
-                      if (visibleComms.length === 0) {
-                        return <p className="text-[11px] text-gray-400 font-bold text-center py-2">لا توجد لجان فعالة حالياً لتخصيصها.</p>;
-                      }
-
-                      return visibleComms.map((comm: any) => (
-                        <label key={comm.id} className="flex items-center gap-2 text-xs font-bold text-gray-700 cursor-pointer hover:bg-slate-50 p-1 rounded transition-all">
-                          <input
-                            type="checkbox"
-                            checked={formCommittees.includes(comm.name)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setFormCommittees(prev => [...prev, comm.name]);
-                              } else {
-                                setFormCommittees(prev => prev.filter(c => c !== comm.name));
+                {/* Avatar selection rule wrapper */}
+                <div className="border border-gray-200 rounded-xl p-4 space-y-2.5">
+                  <span className="block text-[11px] font-black text-gray-500">اختر صورة الموظف الرمزية:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {PRESET_AVATARS.map((av, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => setFormPhoto(av)}
+                        className={`w-10 h-10 rounded-xl overflow-hidden ring-2 cursor-pointer transition-all ${
+                          formPhoto === av ? "ring-brand scale-105" : "ring-transparent hover:scale-102"
+                        }`}
+                      >
+                        <img src={av} alt="avatar option" className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                    
+                    {/* Custom Base64 upload file selector */}
+                    <label className="w-10 h-10 rounded-xl border-2 border-dashed border-gray-300 hover:border-brand flex items-center justify-center cursor-pointer text-gray-400 hover:text-brand transition-all relative">
+                      <Plus className="w-5 h-5 shrink-0" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              if (reader.result) {
+                                compressImage(reader.result.toString(), (comp) => {
+                                  setFormPhoto(comp);
+                                });
                               }
-                            }}
-                            className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span>{comm.name}</span>
-                        </label>
-                      ));
-                    })()}
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
                   </div>
                 </div>
 
-                {/* Buttons block - identical to Committees */}
-                <div className="flex items-center gap-3 pt-4 border-t border-gray-150">
-                  <button
-                    type="submit"
-                    className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 hover:shadow-md text-white font-black text-sm rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <Check className="w-4 h-4" />
-                    <span>{isEditing ? "حفظ التعديلات الحالية" : "إضافة وتعميد الموظف"}</span>
-                  </button>
+                <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-2.5">
                   <button
                     type="button"
                     onClick={() => setShowFormModal(false)}
-                    className="px-6 h-11 bg-gray-100 hover:bg-gray-200 text-gray-750 font-extrabold text-sm rounded-xl transition-all cursor-pointer"
+                    className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-black cursor-pointer transition-all"
                   >
-                    إلغاء الأمر
+                    إلغاء التراجع
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 bg-brand hover:bg-brand/90 text-white rounded-xl text-xs font-black cursor-pointer shadow-md transition-all flex items-center gap-1"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>حفظ التعديلات</span>
                   </button>
                 </div>
-
               </form>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
-      {/* ========================================================== */}
-      {/* 5. MODALS ZONE: PERSONAL STAFF DETAILS VIEW */}
-      {/* ========================================================== */}
+      {/* 5. AUXILIARY MODAL: SINGLE EMPLOYEE COMMITTEES UNDER MANAGEMENT VIEW */}
       <AnimatePresence>
         {selectedEmployee && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div className="fixed inset-0" onClick={() => setSelectedEmployee(null)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedEmployee(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
             
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-3xl p-6 border border-gray-200 shadow-2xl max-w-md w-full relative z-10 text-right space-y-4"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl border border-gray-200 shadow-xl p-5 w-full max-w-md relative z-10 text-right"
             >
-              <div className="flex items-center gap-4 border-b border-gray-150 pb-4">
-                <img 
-                  src={selectedEmployee.photo} 
-                  alt={selectedEmployee.name} 
-                  className="w-16 h-16 rounded-full object-cover border-2 border-blue-100 shadow-sm shrink-0" 
-                />
-                <div className="truncate flex-grow">
-                  <h3 className="font-extrabold text-sm text-slate-900 truncate">{selectedEmployee.name}</h3>
-                  <p className="text-[10.5px] text-gray-500 font-bold truncate leading-none mt-1">{selectedEmployee.jobTitle}</p>
-                  
-                  <span className={`inline-block text-[9px] font-black px-2 py-0.5 rounded-full mt-2 ${
-                    selectedEmployee.role === "SYS_ADMIN" ? "bg-rose-50 text-rose-700 border border-rose-150" :
-                    selectedEmployee.role === "MANAG_DIR" ? "bg-amber-50 text-amber-700 border border-amber-150" :
-                    selectedEmployee.role === "DEPT_HEAD" ? "bg-purple-50 text-purple-700 border border-purple-150" :
-                    "bg-blue-50 text-blue-700 border border-blue-150"
-                  }`}>
-                    {selectedEmployee.roleAr}
-                  </span>
-                </div>
-              </div>
+              <button
+                onClick={() => setSelectedEmployee(null)}
+                className="absolute top-4 left-4 text-gray-400 hover:text-gray-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
 
-              {/* dossier content */}
-              <div className="space-y-3 leading-normal font-sans text-xs">
-                
-                <div className="grid grid-cols-2 gap-2 text-right">
-                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                    <span className="text-[9px] text-gray-400 font-bold block mb-1">الرقم الوظيفي:</span>
-                    <span className="font-mono font-black text-slate-800">{selectedEmployee.id}</span>
-                  </div>
-                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                    <span className="text-[9px] text-gray-400 font-bold block mb-1">تاريخ التعيين:</span>
-                    <span className="font-mono font-black text-slate-800">{selectedEmployee.joinDate}</span>
-                  </div>
-                </div>
+              <h3 className="font-extrabold text-sm text-gray-900 mb-2">
+                اللجان القطاعية المربوطة بالأخصائي: {selectedEmployee.name}
+              </h3>
+              <p className="text-[11px] text-gray-500 mb-4 font-semibold">
+                تحرير اللجان المرتبطة بالمشرف المباشر. يمكنك إلغاء ارتباط المشرف باللجان لتفويضها لموظف آخر.
+              </p>
 
-                <div className="space-y-1">
-                  <span className="text-[9.5px] text-gray-400 font-black block">البريد الإلكتروني للغرفة:</span>
-                  <p className="font-mono text-indigo-700 font-bold bg-slate-50 p-2 rounded-lg border border-slate-200 text-left truncate">{selectedEmployee.email}</p>
-                </div>
-
-                <div className="space-y-1">
-                  <span className="text-[9.5px] text-gray-400 font-black block">رقم الجوال المعتمد:</span>
-                  <p className="font-mono text-slate-800 font-bold bg-slate-50 p-2 rounded-lg border border-slate-200 text-left">{selectedEmployee.phone}</p>
-                </div>
-
-                {selectedEmployee.extension && (
-                  <div className="space-y-1">
-                    <span className="text-[9.5px] text-gray-400 font-black block">التحويلة الداخلية (Extension):</span>
-                    <p className="font-mono text-slate-800 font-bold bg-slate-50 p-2 rounded-lg border border-slate-200 text-left">{selectedEmployee.extension}</p>
-                  </div>
+              <div className="space-y-2 border-t border-gray-100 pt-3 max-h-60 overflow-y-auto custom-scrollbar">
+                {(selectedEmployee.committees || []).length === 0 ? (
+                  <span className="text-gray-450 text-xs block text-center py-4">لم يتم ربط هذا الموظف بأي لجان بعد.</span>
+                ) : (
+                  selectedEmployee.committees.map((comName, idx) => (
+                    <div key={idx} className="p-2.5 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between gap-3 text-xs">
+                      <span className="font-bold text-gray-800">{comName}</span>
+                      
+                      {currentUserRole === "SYS_ADMIN" && (
+                        <button
+                          onClick={() => handleRemoveCommitteeFromEmployee(comName)}
+                          className="p-1 px-2 text-[10px] bg-red-50 hover:bg-red-100 text-red-650 rounded border border-red-100 cursor-pointer transition-all"
+                        >
+                          إلغاء الارتباط
+                        </button>
+                      )}
+                    </div>
+                  ))
                 )}
-
-                {/* Committees under custody */}
-                <div className="space-y-1.5 border-t border-gray-150 pt-3">
-                  <div className="flex justify-between items-center">
-                    <span className="font-extrabold text-slate-800 text-[11px]">اللجان المشرف عليها والمطروحة عهدتها:</span>
-                    <span className="text-[9.5px] bg-blue-50 text-blue-700 font-black px-1.5 rounded">{(selectedEmployee.committees || []).length} لجان</span>
-                  </div>
-                  <div className="bg-slate-50 border border-slate-100 p-2 rounded-xl max-h-24 overflow-y-auto space-y-1 pr-1.5">
-                    {(selectedEmployee.committees || []).length === 0 ? (
-                      <p className="text-gray-400 italic text-[10.5px] font-bold">لم تخصص له أي لجان رسمية بعد.</p>
-                    ) : (
-                      <div className="space-y-1.5">
-                        {(selectedEmployee.committees || []).map((c, i) => (
-                          <div key={i} className="flex items-center justify-between gap-1.5 text-gray-700 text-[10.5px] font-bold bg-white p-2 rounded-lg border border-gray-200 shadow-sm hover:border-gray-350 transition-all">
-                            <div className="flex items-center gap-1.5 truncate">
-                              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full shrink-0" />
-                              <span className="truncate" title={c}>{c}</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveCommitteeFromEmployee(c)}
-                              className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors cursor-pointer shrink-0"
-                              title="حذف اللجنة من تحت إشراف الموظف"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
               </div>
-
-              {/* Close footer button */}
-              <div className="border-t border-gray-100 pt-3 flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <span className={`w-2 h-2 rounded-full ${selectedEmployee.active ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
-                  <span className="text-[10px] text-gray-500 font-bold">حالة الكادر الحالية: {selectedEmployee.active ? "نشط ومصرح" : "محظور/غير نشط"}</span>
-                </div>
-                
-                <button
-                  onClick={() => setSelectedEmployee(null)}
-                  className="px-4.5 py-2 bg-slate-900 hover:bg-slate-950 text-white font-extrabold text-[10.5px] rounded-xl cursor-pointer"
-                >
-                  إغلاق الدوسيه
-                </button>
-              </div>
-
             </motion.div>
           </div>
         )}
+      </AnimatePresence>
 
+      {/* 6. MODAL DIALOG: SYSTEM PURGE DANGER CONFIRM */}
+      <AnimatePresence>
         {showPurgeConfirm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            {/* Dark background overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2040,92 +1927,56 @@ export default function OrgChart() {
               onClick={() => { if (!isPurging) setShowPurgeConfirm(false); }}
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
             />
-            
+
             <motion.div
-              initial={{ scale: 0.9, y: 15, opacity: 0 }}
-              animate={{ scale: 1, y: 0, opacity: 1 }}
-              exit={{ scale: 0.9, y: 15, opacity: 0 }}
-              transition={{ type: "spring", damping: 20, stiffness: 280 }}
-              className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right p-6 space-y-6"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl border border-gray-200 shadow-2xl p-6 w-full max-w-md relative z-10 text-center space-y-5"
             >
-              <div className="flex items-center gap-3 border-b pb-3.5 border-gray-150">
-                <div className="p-2 bg-red-100 text-red-600 rounded-xl">
-                  <Trash2 className="w-6 h-6 stroke-[2.5]" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-red-900 text-sm sm:text-base leading-tight">
-                    تأكيد تصفير وتطهير النظام بالكامل
-                  </h3>
-                  <p className="text-xs text-gray-500 font-medium">إجراء حاسم ولا يمكن التراجع عنه</p>
-                </div>
+              <div className="w-14 h-14 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto ring-4 ring-red-110">
+                <ShieldAlert className="w-8 h-8 text-red-650 animate-bounce" />
               </div>
 
-              {!purgeSuccess ? (
-                <>
-                  <div className="space-y-3 font-semibold text-xs text-slate-750 line-clamp-none bg-red-50/50 border border-red-100 p-4 rounded-2xl leading-relaxed text-right">
-                    <p className="font-black text-red-800 text-sm">أنت على وشك حذف كافة بيانات النظام سحابياً ومحلياً!</p>
-                    <p>سيقوم هذا الإجراء فورياً بمسح العناصر التالية:</p>
-                    <ul className="list-disc leading-loose list-inside pr-2 font-bold space-y-1 text-slate-750">
-                      <li>اللجان القطاعية وتفويضاتها بالكامل</li>
-                      <li>جميع أعضاء اللجان والمستخدمين الخارجيين</li>
-                      <li>كافة الاجتماعات الدوريّة والفعاليات المسجلة</li>
-                      <li>جميع التوصيات وحالات حوكمتها والاعتمادات السحابية</li>
-                      <li>جميع قوالب المستندات المدرجة</li>
-                      <li>مهام العمل وسجلات المراقبة والتنبيهات الأمنية</li>
-                    </ul>
-                    <p className="text-[10px] text-red-650 font-black mt-2">
-                       * سيتم استثناء حساب المشرف الإداري الحالي لتظل متصلاً بالنظام.
-                    </p>
-                  </div>
+              <div className="space-y-1.5">
+                <h3 className="text-base font-black text-gray-900">تأكيد أمني قصوى: إعادة ضبط المصنع الشامل</h3>
+                <p className="text-xs text-red-650 leading-relaxed font-extrabold pr-2">
+                  تنبيه: سيؤدي هذا الإجراء إلى حذف وتصفير وحصار كافة اللجان القطاعية، الموظفين، الأعضاء، الاجتماعات، المحاضر، التوصيات والمهام الإدارية نهائياً من قاعدة الجناح السحابي Firestore والتخزين المؤقت المحلي!
+                </p>
+                <p className="text-[11px] text-gray-450 leading-relaxed font-bold">
+                  سيتم الاحتفاظ فقط بحساب مدير النظام الرئيسي (شهاب الدين) لمنع فقدان التحكم.
+                </p>
+              </div>
 
+              {purgeSuccess ? (
+                <div className="p-3 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-black animate-pulse">
+                  ✓ تم تصفير قاعدة البيانات بنجاح! جاري تحويل وتحديث النافذة...
+                </div>
+              ) : (
+                <div className="space-y-3 pt-2">
                   {purgeError && (
-                    <div className="bg-red-50 text-red-700 border border-red-100 p-3 rounded-xl text-xs font-bold">
-                      {purgeError}
-                    </div>
+                    <p className="text-[11px] text-red-600 font-bold bg-red-50 p-2.5 rounded-lg border border-red-100">{purgeError}</p>
                   )}
 
-                  <div className="flex gap-2.5 justify-end">
-                    <button
-                      type="button"
-                      disabled={isPurging}
-                      onClick={() => setShowPurgeConfirm(false)}
-                      className="px-4.5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-705 font-extrabold text-[11px] rounded-xl cursor-pointer transition-all disabled:opacity-50"
-                    >
-                      إلغاء التراجع
-                    </button>
+                  <div className="flex items-center gap-2.5">
                     <button
                       type="button"
                       disabled={isPurging}
                       onClick={handlePurgeEntireSystem}
-                      className="px-5 py-2.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white font-extrabold text-[11px] rounded-xl cursor-pointer shadow-md hover:shadow-lg transition-all shrink-0 flex items-center gap-2 disabled:opacity-50"
+                      className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black shadow-md cursor-pointer disabled:opacity-50 transition-all"
                     >
-                      {isPurging ? (
-                        <>
-                          <span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full shrink-0"></span>
-                          جاري تصفير ومسح السحابة...
-                        </>
-                      ) : (
-                        "نعم، امسح كل شيء الآن"
-                      )}
+                      {isPurging ? "جاري الحذف والتصفير..." : "نعم، متأكد تصفير الكل"}
+                    </button>
+                    
+                    <button
+                      type="button"
+                      disabled={isPurging}
+                      onClick={() => setShowPurgeConfirm(false)}
+                      className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-black cursor-pointer transition-all"
+                    >
+                      تراجع وإلغاء
                     </button>
                   </div>
-                </>
-              ) : (
-                <div className="space-y-5 text-center py-4">
-                  <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto scale-110">
-                    <Check className="w-7 h-7 stroke-[3]" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">تم مسح قاعدة البيانات بنجاح!</h4>
-                    <p className="text-xs text-gray-500 font-medium">أصبح المشروع خاماً وجديداً بنسبة مائة بالمائة كلياً.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => window.location.reload()}
-                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg transition-all active:scale-95 cursor-pointer"
-                  >
-                    تحديث وتحميل النظام الجديد الآن
-                  </button>
                 </div>
               )}
             </motion.div>
