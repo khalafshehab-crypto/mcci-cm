@@ -121,7 +121,7 @@ export default function Committees() {
   const [membersCount, setMembersCount] = useState(10);
   const [meetingsCount, setMeetingsCount] = useState(0);
   const [desc, setDesc] = useState("");
-  const [specialist, setSpecialist] = useState(dynamicEmployees[0] || EMPLOYEES[0]);
+  const [specialist, setSpecialist] = useState("غير محدد");
   const [isActive, setIsActive] = useState(true);
   const [formationLetter, setFormationLetter] = useState("");
   
@@ -361,7 +361,7 @@ export default function Committees() {
     setMembersCount(10);
     setMeetingsCount(0);
     setDesc("");
-    setSpecialist(dynamicEmployees[0] || EMPLOYEES[0]);
+    setSpecialist("غير محدد");
     setIsActive(true);
     setFormationLetter("");
     setPresident("");
@@ -381,7 +381,7 @@ export default function Committees() {
     setMembersCount(comm.membersCount);
     setMeetingsCount(comm.meetingsCount);
     setDesc(comm.desc);
-    setSpecialist(comm.specialist || dynamicEmployees[0] || EMPLOYEES[0]);
+    setSpecialist(comm.specialist || "غير محدد");
     setIsActive(comm.active);
     setFormationLetter(comm.formationLetter || "");
     setPresident(comm.president || "");
@@ -464,7 +464,7 @@ export default function Committees() {
     setMembersCount(10);
     setMeetingsCount(0);
     setDesc("");
-    setSpecialist(dynamicEmployees[0] || EMPLOYEES[0]);
+    setSpecialist("غير محدد");
     setIsActive(true);
     setFormationLetter("");
     setPresident("");

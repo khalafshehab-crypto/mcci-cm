@@ -500,9 +500,8 @@ export default function OrgChart() {
 
     try {
       const existingEmployee = dbEmployees.find(emp => 
-        emp.id === originalEditId || 
-        emp.email?.trim().toLowerCase() === currentUser?.email?.trim().toLowerCase() ||
-        (isEditing && emp.email?.trim().toLowerCase() === cleanEmail)
+        (originalEditId && emp.id === originalEditId) || 
+        emp.email?.trim().toLowerCase() === cleanEmail
       );
 
       const targetEditId = existingEmployee ? existingEmployee.id : originalEditId;
