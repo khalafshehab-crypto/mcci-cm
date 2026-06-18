@@ -361,6 +361,23 @@ export default function Home() {
   const { data: dbMembers } = useFirestoreCollection<any>("members", []);
   const { data: dbRecs } = useFirestoreCollection<any>("recommendations", []);
   const { data: dbTasks } = useFirestoreCollection<any>("tasks", []);
+  const { data: dbEmployees } = useFirestoreCollection<any>("employees", []);
+
+  const [currentUserRole, setCurrentUserRole] = useState("SPECIALIST");
+  const [currentUserName, setCurrentUserName] = useState("شهاب الدين");
+  
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("current_user");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed) {
+          if (parsed.name) setCurrentUserName(parsed.name);
+          if (parsed.role) setCurrentUserRole(parsed.role);
+        }
+      }
+    } catch(e) {}
+  }, []);
 
   const [openCards, setOpenCards] = useState<Record<string, boolean>>({
     meetings: true,
@@ -691,39 +708,56 @@ export default function Home() {
   }, [dbRecs, dbTasks, dbEvents]);
 
   // Dynamic Online Staff loaded directly from the database of employees
-  const [onlineStaff, setOnlineStaff] = useState<any[]>(() => {
+  const [onlineStaff, setOnlineStaff] = useState<any[]>([]);
+
+  useEffect(() => {
     try {
-      const saved = localStorage.getItem("app_employees");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Filter out inactive ones
-          const activeEmps = parsed.filter(emp => emp.active !== false);
-          const listToUse = activeEmps.length > 0 ? activeEmps : parsed;
-          return listToUse.slice(0, 7).map((emp, index) => {
-            const words = emp.name.split(" ");
-            const avatar = words.length >= 2 ? (words[0][0] + " " + (words[1][0] || "")) : (words[0][0] || "م");
-            const colors = ["bg-blue-600", "bg-teal-600", "bg-indigo-600", "bg-purple-600", "bg-amber-500", "bg-rose-500", "bg-emerald-600"];
-            const color = colors[index % colors.length];
-            
-            // Allocate realistic diverse statuses for active work simulation
-            const possibleStatuses = ["متصل", "في اجتماع", "مشغول", "خارج المكتب", "غير متصل"];
-            const status = possibleStatuses[index % possibleStatuses.length];
+      const sourceList = (dbEmployees && dbEmployees.length > 0) ? dbEmployees : (() => {
+        try {
+          const saved = localStorage.getItem("app_employees");
+          return saved ? JSON.parse(saved) : [];
+        } catch (_) { return []; }
+      })();
 
-            return {
-              name: emp.name,
-              title: emp.jobTitle || emp.roleAr || "أخصائي لجان",
-              avatar: avatar.trim(),
-              color,
-              status
-            };
-          });
-        }
+      if (Array.isArray(sourceList) && sourceList.length > 0) {
+        // Filter out system administrator accounts if logged-in user is not a system administrator
+        const isSysAdmin = currentUserRole === "SYS_ADMIN";
+        const allowedEmps = sourceList.filter(emp => {
+          if (!isSysAdmin && (emp.role === "SYS_ADMIN" || emp.id === "01" || emp.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || emp.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com")) {
+            return false;
+          }
+          return true;
+        });
+
+        // Filter out inactive ones
+        const activeEmps = allowedEmps.filter(emp => emp.active !== false);
+        const listToUse = activeEmps.length > 0 ? activeEmps : allowedEmps;
+
+        const mapped = listToUse.slice(0, 7).map((emp, index) => {
+          const nameStr = emp.name || "";
+          const words = nameStr.split(" ");
+          const avatar = words.length >= 2 ? (words[0][0] + " " + (words[1][0] || "")) : ((words[0] && words[0][0]) || "م");
+          const colors = ["bg-blue-600", "bg-teal-600", "bg-indigo-600", "bg-purple-600", "bg-amber-500", "bg-rose-500", "bg-emerald-600"];
+          const color = colors[index % colors.length];
+          
+          // Allocate realistic diverse statuses for active work simulation
+          const possibleStatuses = ["متصل", "في اجتماع", "مشغول", "خارج المكتب", "متصل"];
+          const status = possibleStatuses[index % possibleStatuses.length];
+
+          return {
+            name: emp.name,
+            title: emp.jobTitle || emp.roleAr || "أخصائي لجان",
+            avatar: avatar.trim(),
+            color,
+            status
+          };
+        });
+        setOnlineStaff(mapped);
       }
-    } catch (e) {}
-
-    return [];
-  });
+    } catch (e) {
+      console.error("Error formatting online staff lists", e);
+    }
+  }, [dbEmployees, currentUserRole]);
 
   // Modals and Interactive Reference Form State
   const [selectedAlarm, setSelectedAlarm] = useState<Alarm | null>(null);

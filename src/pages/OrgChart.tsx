@@ -491,14 +491,21 @@ export default function OrgChart() {
         alert("عذراً، لا تملك صلاحية لإضافة موظفين جدد للنظام.");
         return;
       }
-      if (originalEditId !== currentUser?.id) {
+      const myEmp = dbEmployees.find(emp => emp.id === currentUser?.id || emp.email?.trim().toLowerCase() === currentUser?.email?.trim().toLowerCase());
+      if (originalEditId !== currentUser?.id && !(myEmp && originalEditId === myEmp.id)) {
         alert("عذراً، تملك فقط الصلاحية لتحديث بيانات بطاقتك الشخصية فقط.");
         return;
       }
     }
 
     try {
-      const existingEmployee = dbEmployees.find(emp => emp.id === originalEditId);
+      const existingEmployee = dbEmployees.find(emp => 
+        emp.id === originalEditId || 
+        emp.email?.trim().toLowerCase() === currentUser?.email?.trim().toLowerCase() ||
+        (isEditing && emp.email?.trim().toLowerCase() === cleanEmail)
+      );
+
+      const targetEditId = existingEmployee ? existingEmployee.id : originalEditId;
 
       // ROLE MAPPER
       const roleMapper: Record<string, string> = {
@@ -527,7 +534,7 @@ export default function OrgChart() {
 
       if (isEditing) {
         // Did the ID change? (Only allowed for system admins)
-        if (formId !== originalEditId) {
+        if (formId !== targetEditId) {
           if (!isSysAdmin) {
             alert("عذراً، الرقم الوظيفي غير قابل للتعديل.");
             return;
@@ -541,23 +548,23 @@ export default function OrgChart() {
 
           // Transact new ID write and delete old one
           await updateFirebaseEmp(formId, payload);
-          await deleteFirebaseEmp(originalEditId);
+          await deleteFirebaseEmp(targetEditId);
 
-          // Update any committees supervised by originalEditId to use the new formId
-          const assignedComms = dbCommittees.filter(c => c.specialistId === originalEditId);
+          // Update any committees supervised by targetEditId to use the new formId
+          const assignedComms = dbCommittees.filter(c => c.specialistId === targetEditId);
           for (const c of assignedComms) {
             await updateFirebaseComm(c.id, { specialistId: formId });
           }
         } else {
           // Normal merge/update under existing ID
-          await updateFirebaseEmp(originalEditId, payload);
+          await updateFirebaseEmp(targetEditId, payload);
         }
 
         // Deep synchronization if modifying the active session
         const storedUser = localStorage.getItem("current_user");
         if (storedUser) {
           const parsed = JSON.parse(storedUser);
-          if (parsed && parsed.id === originalEditId) {
+          if (parsed && (parsed.id === targetEditId || parsed.email?.trim().toLowerCase() === cleanEmail)) {
             const updatedUser = { ...payload, id: formId };
             localStorage.setItem("current_user", JSON.stringify(updatedUser));
             
@@ -828,6 +835,12 @@ export default function OrgChart() {
 
   // Live filtering search matching names, roles, phone and email strings
   const filteredEmployees = dbEmployees.filter(emp => {
+    // Hide system administrators from any logged-in user who is NOT a system administrator
+    const isSysAdmin = currentUserRole === "SYS_ADMIN";
+    if (!isSysAdmin && (emp.role === "SYS_ADMIN" || emp.id === "01" || emp.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || emp.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com")) {
+      return false;
+    }
+
     const term = searchTerm.toLowerCase().trim();
     const matchSearch = !term || 
       emp.name?.toLowerCase().includes(term) ||

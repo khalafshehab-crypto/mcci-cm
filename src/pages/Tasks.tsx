@@ -45,7 +45,22 @@ export default function Tasks() {
     const q = query(collection(db, "employees"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
-        setEmployeesList(snapshot.docs.map(doc => doc.data().name).filter(Boolean));
+        let emps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+        let isSysAdmin = false;
+        try {
+          const savedUser = localStorage.getItem("current_user");
+          if (savedUser) {
+            const parsed = JSON.parse(savedUser);
+            if (parsed && (parsed.role === "SYS_ADMIN" || parsed.roleAr === "مدير النظام" || parsed.email === "khalafshehab@gmail.com")) {
+              isSysAdmin = true;
+            }
+          }
+        } catch (_) {}
+
+        if (!isSysAdmin) {
+          emps = emps.filter(e => e.role !== "SYS_ADMIN" && e.id !== "01");
+        }
+        setEmployeesList(emps.map(e => e.name).filter(Boolean));
       }
     });
     return () => unsubscribe();

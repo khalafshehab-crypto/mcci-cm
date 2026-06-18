@@ -181,7 +181,19 @@ export default function Recommendations() {
 
   // Resolve dynamic entities or fallbacks
   const listEmployees = useMemo(() => {
-    return dbEmployees.length > 0 ? dbEmployees.map((e: any) => e.name) : DEFAULT_EMPLOYEES;
+    let isSysAdmin = false;
+    try {
+      const savedUser = localStorage.getItem("current_user");
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        if (parsed && (parsed.role === "SYS_ADMIN" || parsed.roleAr === "مدير النظام" || parsed.email === "khalafshehab@gmail.com")) {
+          isSysAdmin = true;
+        }
+      }
+    } catch (_) {}
+
+    const sourceList = isSysAdmin ? dbEmployees : dbEmployees.filter((e: any) => e.role !== "SYS_ADMIN" && e.id !== "01");
+    return sourceList.length > 0 ? sourceList.map((e: any) => e.name) : DEFAULT_EMPLOYEES;
   }, [dbEmployees]);
 
   const listCommittees = useMemo(() => {

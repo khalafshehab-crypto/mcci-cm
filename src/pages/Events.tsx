@@ -179,7 +179,21 @@ export default function Events() {
      return comm;
   }).filter(c => c && c.active !== false);
 
-  const dynamicEmployees = dbEmployees.length > 0 ? dbEmployees.map(e => e.name).filter(Boolean) : EMPLOYEES;
+  const dynamicEmployees = React.useMemo(() => {
+     let isSysAdmin = false;
+     try {
+       const savedUser = localStorage.getItem("current_user");
+       if (savedUser) {
+         const parsed = JSON.parse(savedUser);
+         if (parsed && (parsed.role === "SYS_ADMIN" || parsed.roleAr === "مدير النظام" || parsed.email === "khalafshehab@gmail.com")) {
+           isSysAdmin = true;
+         }
+       }
+     } catch (_) {}
+
+     const sourceList = isSysAdmin ? dbEmployees : dbEmployees.filter(e => e.role !== "SYS_ADMIN" && e.id !== "01");
+     return sourceList.length > 0 ? sourceList.map(e => e.name).filter(Boolean) : EMPLOYEES;
+  }, [dbEmployees]);
 
   const setEvents = (action: React.SetStateAction<EventItem[]>) => {
     let nextEvents = typeof action === 'function' ? action(events) : action;
