@@ -560,6 +560,17 @@ export default function OrgChart() {
           await updateFirebaseEmp(targetEditId, payload);
         }
 
+        // Bidirectional sync for committees
+        for (const comm of dbCommittees) {
+          if (formCommittees.includes(comm.name)) {
+            if (comm.specialist !== formName) {
+              await updateFirebaseComm(comm.id, { specialist: formName });
+            }
+          } else if (comm.specialist === formName || (existingEmployee && comm.specialist === existingEmployee.name)) {
+            await updateFirebaseComm(comm.id, { specialist: "غير محدد" });
+          }
+        }
+
         // Deep synchronization if modifying the active session
         const storedUser = localStorage.getItem("current_user");
         if (storedUser) {
@@ -597,6 +608,15 @@ export default function OrgChart() {
         }
 
         await updateFirebaseEmp(formId, payload);
+
+        // Bidirectional sync for committees on create
+        for (const comm of dbCommittees) {
+          if (formCommittees.includes(comm.name)) {
+            if (comm.specialist !== formName) {
+              await updateFirebaseComm(comm.id, { specialist: formName });
+            }
+          }
+        }
 
         await addFirebaseLog({
           employeeName: currentUser?.name || "مدير النظام",
@@ -1810,6 +1830,92 @@ export default function OrgChart() {
                       </label>
                     </div>
                   )}
+
+                  {/* Committees Linkage (ربط الموظف باللجان) */}
+                  <div className="col-span-1 sm:col-span-2 border border-gray-200 bg-gray-50/50 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-gray-150 pb-2.5">
+                      <span className="text-xs font-extrabold text-gray-700 block">
+                        الربط والتحميل على اللجان القطاعية
+                      </span>
+                      <span className="text-[10px] text-brand bg-brand/10 px-2.5 py-1 rounded-full font-extrabold">
+                        {formCommittees.length} لجان مسندة
+                      </span>
+                    </div>
+
+                    {[ "SYS_ADMIN", "DEPT_HEAD", "MANAG_DIR" ].includes(currentUserRole) ? (
+                      <>
+                        <p className="text-[11px] text-gray-500 font-bold leading-normal">
+                          يمكنك اختيار لجنة أو أكثر ليسند تنظيمها وإدارتها لهذا الموظف:
+                        </p>
+                        {dbCommittees && dbCommittees.filter((c: any) => c && c.active !== false).length > 0 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 max-h-48 overflow-y-auto pr-1">
+                            {dbCommittees
+                              .filter((c: any) => c && c.active !== false)
+                              .map((comm: any) => {
+                                const isSelected = formCommittees.includes(comm.name);
+                                return (
+                                  <label
+                                    key={comm.id || comm.name}
+                                    className={`flex items-center gap-3.5 px-3 py-2.5 rounded-lg border text-right cursor-pointer transition-all select-none ${
+                                      isSelected
+                                        ? "bg-brand/5 border-brand text-brand font-bold"
+                                        : "bg-white border-gray-200 hover:border-gray-300 text-gray-700"
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setFormCommittees([...formCommittees, comm.name]);
+                                        } else {
+                                          setFormCommittees(formCommittees.filter((name) => name !== comm.name));
+                                        }
+                                      }}
+                                      className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4 cursor-pointer"
+                                    />
+                                    <div className="flex flex-col text-right">
+                                      <span className="text-xs font-bold">{comm.name}</span>
+                                      {comm.specialist && comm.specialist !== "غير محدد" && comm.specialist !== "غير معين" && comm.specialist !== formName && (
+                                        <span className="text-[10px] text-amber-600 font-bold mt-0.5">
+                                          (مكلف حالياً للأخصائي: {comm.specialist})
+                                        </span>
+                                      )}
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                          </div>
+                        ) : (
+                          <div className="text-center p-4 bg-white border border-dashed border-gray-200 rounded-lg">
+                            <span className="text-xs text-gray-400 font-bold">لا توجد لجان قطاعية نشطة مسجلة في النظام حالياً</span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-[11px] text-gray-400 font-bold leading-normal">
+                          عرض اللجان المسندة حالياً لهذا الموظف (يمكن تعديلها فقط بواسطة مدراء النظام والقطاعات):
+                        </p>
+                        {formCommittees.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {formCommittees.map((cName) => (
+                              <span
+                                key={cName}
+                                className="inline-flex items-center bg-brand/5 border border-brand/20 text-brand px-2.5 py-1 rounded-md text-xs font-bold"
+                              >
+                                {cName}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400 block italic mt-1 text-right">
+                            لا يوجد لجان قطاعية مسندة لهذا الموظف حتى الآن.
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
                   
                 </div>
 
