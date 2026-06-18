@@ -89,7 +89,7 @@ function getSeedData(collectionName: string): any[] {
     defaultData = [
       {
         id: "01",
-        name: "شهاب الدين",
+        name: "مدير النظام",
         role: "SYS_ADMIN",
         roleAr: "مدير النظام",
         jobTitle: "مدير النظام",

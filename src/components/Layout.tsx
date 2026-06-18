@@ -27,7 +27,7 @@ export default function Layout({ children }: LayoutProps) {
   const [isDatabaseBlocked, setIsDatabaseBlocked] = useState(false);
   const location = useLocation();
  
-  const [userName, setUserName] = useState("شهاب الدين");
+  const [userName, setUserName] = useState("مدير النظام");
   const [userRoleAr, setUserRoleAr] = useState("مدير النظام");
   const [userPhoto, setUserPhoto] = useState<string | null>(null);
 

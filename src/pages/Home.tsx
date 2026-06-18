@@ -364,7 +364,7 @@ export default function Home() {
   const { data: dbEmployees } = useFirestoreCollection<any>("employees", []);
 
   const [currentUserRole, setCurrentUserRole] = useState("SPECIALIST");
-  const [currentUserName, setCurrentUserName] = useState("شهاب الدين");
+  const [currentUserName, setCurrentUserName] = useState("مدير النظام");
   
   useEffect(() => {
     try {
@@ -647,7 +647,7 @@ export default function Home() {
           description: t.description || "",
           dept: "إدارة اللجان والفعاليات",
           committee: "العامة واللوائح التنظيمية",
-          responsible: t.assignedTo || "شهاب الدين",
+          responsible: t.assignedTo || "مدير النظام",
           isUrgent: t.status === "متأخرة" || t.priority === "عاجلة",
           dateStr: t.dueDate || "2026/06/11",
           status: t.status === "متأخرة" ? "متأخر" : t.status === "منجزة" ? "تمت الإحالة" : t.status === "جاري العمل عليها" ? "قيد الانتظار" : "جديد",
@@ -720,10 +720,20 @@ export default function Home() {
       })();
 
       if (Array.isArray(sourceList) && sourceList.length > 0) {
-        // Filter out system administrator accounts if logged-in user is not a system administrator
-        const isSysAdmin = currentUserRole === "SYS_ADMIN";
+        // Filter out master administrator accounts unless logged-in user is the master administrator
+        const storedUser = localStorage.getItem("current_user");
+        let isMasterAdmin = false;
+        if (storedUser) {
+          try {
+            const parsed = JSON.parse(storedUser);
+            if (parsed && (parsed.email === "khalafshehab@gmail.com" || parsed.email === "khalafshehab-crypto@gmail.com" || parsed.id === "01")) {
+              isMasterAdmin = true;
+            }
+          } catch (_) {}
+        }
+        
         const allowedEmps = sourceList.filter(emp => {
-          if (!isSysAdmin && (emp.role === "SYS_ADMIN" || emp.id === "01" || emp.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || emp.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com")) {
+          if (!isMasterAdmin && (emp.role === "SYS_ADMIN" || emp.id === "01" || emp.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || emp.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com")) {
             return false;
           }
           return true;

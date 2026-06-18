@@ -40,8 +40,8 @@ interface Committee {
 }
 
 const EMPLOYEES = [
-  "شهاب الدين",
-  ];
+  "مدير النظام",
+];
 
 import { useFirestoreCollection } from '../lib/firebaseUtils';
 
@@ -83,7 +83,26 @@ export default function Committees() {
 
   useEffect(() => {
     if (dbEmployees && dbEmployees.length > 0) {
-      setDynamicEmployees(dbEmployees.map((e: any) => e.name).filter(Boolean));
+      let isMasterAdmin = false;
+      try {
+        const stored = localStorage.getItem("current_user");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && (parsed.email === "khalafshehab@gmail.com" || parsed.email === "khalafshehab-crypto@gmail.com" || parsed.id === "01")) {
+            isMasterAdmin = true;
+          }
+        }
+      } catch (_) {}
+
+      const sourceList = isMasterAdmin ? dbEmployees : dbEmployees.filter((e: any) => 
+        e && 
+        e.id !== "01" && 
+        e.name !== "شهاب الدين" && 
+        e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
+        e.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com"
+      );
+
+      setDynamicEmployees(sourceList.map((e: any) => e.name).filter(Boolean));
       
       // Update local storage so any other legacy pages have it
       localStorage.setItem("app_employees", JSON.stringify(dbEmployees));
@@ -215,7 +234,7 @@ export default function Committees() {
 
     try {
       const stored = localStorage.getItem("current_user");
-      let activeUser = "شهاب الدين";
+      let activeUser = "مدير النظام";
       if (stored) {
         try {
           const parsed = JSON.parse(stored);

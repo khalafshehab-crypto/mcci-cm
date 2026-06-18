@@ -78,7 +78,7 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
 
       const adminEmp = {
         id: "01",
-        name: "شهاب الدين",
+        name: "مدير النظام",
         role: "SYS_ADMIN",
         roleAr: "مدير النظام",
         jobTitle: "مشرف النظام",
@@ -126,7 +126,7 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
 
     if (pendingReq) {
       setMessage({
-        text: `طلب انضمامك بالبريد الإلكتروني [${emailLower}] قيد المراجعة حالياً من قبل مشرف النظام (شهاب الدين). ستتمكن من الدخول بمجرد اعتماد طلبك من لوحة الهيكل التنظيمي.`,
+        text: `طلب انضمامك بالبريد الإلكتروني [${emailLower}] قيد المراجعة حالياً من قبل إدارة النظام والرقابة. ستتمكن من الدخول بمجرد اعتماد طلبك من لوحة الهيكل التنظيمي.`,
         type: "info"
       });
       await logSystemAction("مستعلم", `محاولة دخول فاشلة - طلب الانضمام قيد الدراسة [${emailLower}]`, "مرفوضة");
@@ -275,7 +275,7 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
       await logSystemAction(regName.trim(), `تم إرسال طلب انضمام جديد بنجاح للبريد [${emailLower}]`, "ناجحة");
 
       setMessage({
-        text: `تم تقديم طلب الانضمام بنجاح! سينظر فيه مشرف النظام والرقابة (شهاب الدين) ويعتمده قريباً. بمجرد اعتماده، ستتمكن من تسجيل الدخول الفوري ببريدك الإلكتروني مباشرة.`,
+        text: `تم تقديم طلب الانضمام بنجاح! سينظر فيه مشرف النظام والرقابة ويعتمده قريباً. بمجرد اعتماده، ستتمكن من تسجيل الدخول الفوري ببريدك الإلكتروني مباشرة.`,
         type: "success"
       });
 

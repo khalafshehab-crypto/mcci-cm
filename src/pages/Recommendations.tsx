@@ -86,7 +86,7 @@ interface RecommendationItem {
   linkedEventId?: string;      // ID of linked event if applicable
 }
 
-const DEFAULT_EMPLOYEES = ["شهاب الدين", "أحمد الحربي", "ياسر المحمادي", "مروان الأنصاري"];
+const DEFAULT_EMPLOYEES = ["مدير النظام", "أحمد الحربي", "ياسر المحمادي", "مروان الأنصاري"];
 const DEFAULT_COMMITTEES = [
   "لجنة الاستثمار والتمويل",
   "لجنة التغذية والإعاشة",
@@ -116,7 +116,7 @@ export default function Recommendations() {
   const { addDocument: addFirebaseLog } = useFirestoreCollection<any>("system_logs", []);
 
   const [selectedRecId, setSelectedRecId] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState({ name: "شهاب الدين", role: "أخصائي اللجان" });
+  const [currentUser, setCurrentUser] = useState({ name: "مدير النظام", role: "أخصائي اللجان" });
 
   // View mode toggle: "grouped" (تجميع باسم الفعالية) vs "individual" (سجل جدول شامل)
   const [viewType, setViewType] = useState<"grouped" | "individual">("grouped");
@@ -181,18 +181,24 @@ export default function Recommendations() {
 
   // Resolve dynamic entities or fallbacks
   const listEmployees = useMemo(() => {
-    let isSysAdmin = false;
+    let isMasterAdmin = false;
     try {
       const savedUser = localStorage.getItem("current_user");
       if (savedUser) {
         const parsed = JSON.parse(savedUser);
-        if (parsed && (parsed.role === "SYS_ADMIN" || parsed.roleAr === "مدير النظام" || parsed.email === "khalafshehab@gmail.com")) {
-          isSysAdmin = true;
+        if (parsed && (parsed.email === "khalafshehab@gmail.com" || parsed.email === "khalafshehab-crypto@gmail.com" || parsed.id === "01")) {
+          isMasterAdmin = true;
         }
       }
     } catch (_) {}
 
-    const sourceList = isSysAdmin ? dbEmployees : dbEmployees.filter((e: any) => e.role !== "SYS_ADMIN" && e.id !== "01");
+    const sourceList = isMasterAdmin ? dbEmployees : dbEmployees.filter((e: any) => 
+      e && 
+      e.id !== "01" && 
+      e.name !== "شهاب الدين" && 
+      e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
+      e.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com"
+    );
     return sourceList.length > 0 ? sourceList.map((e: any) => e.name) : DEFAULT_EMPLOYEES;
   }, [dbEmployees]);
 

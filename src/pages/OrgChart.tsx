@@ -170,6 +170,21 @@ export default function OrgChart() {
     }
   }, [dbEmployees]);
 
+  const safeDbEmployees = React.useMemo(() => {
+    const isMaster = currentUser && (currentUser.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || currentUser.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com");
+    if (isMaster) {
+      return dbEmployees;
+    }
+    return dbEmployees.filter(emp => 
+      emp && 
+      emp.id !== "01" && 
+      emp.id !== "1" &&
+      emp.name !== "شهاب الدين" && 
+      emp.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
+      emp.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com"
+    );
+  }, [dbEmployees, currentUser]);
+
   // UI state for search, filters, modals, and actions
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
@@ -860,10 +875,9 @@ export default function OrgChart() {
   };
 
   // Live filtering search matching names, roles, phone and email strings
-  const filteredEmployees = dbEmployees.filter(emp => {
-    // Hide system administrators from any logged-in user who is NOT a system administrator
-    const isSysAdmin = currentUserRole === "SYS_ADMIN";
-    if (!isSysAdmin && (emp.role === "SYS_ADMIN" || emp.id === "01" || emp.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || emp.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com")) {
+  const filteredEmployees = safeDbEmployees.filter(emp => {
+    const isMaster = currentUser && (currentUser.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || currentUser.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com");
+    if (!isMaster && (emp.role === "SYS_ADMIN" || emp.id === "01" || emp.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || emp.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com")) {
       return false;
     }
 
@@ -935,7 +949,7 @@ export default function OrgChart() {
           <Building2 className="w-4 h-4 shrink-0" />
           <span>الهيكل التنظيمي والموظفين</span>
           <span className="bg-gray-150 px-2 py-0.5 rounded-full text-[10px] text-gray-600 font-bold">
-            {dbEmployees.length}
+            {safeDbEmployees.length}
           </span>
         </button>
 
@@ -1345,7 +1359,7 @@ export default function OrgChart() {
                     className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-xs font-bold text-gray-700"
                   >
                     <option value="">-- اختر الموظف لترحيل أعماله --</option>
-                    {dbEmployees.filter(e => e.active !== false).map(emp => (
+                    {safeDbEmployees.filter(e => e.active !== false).map(emp => (
                       <option key={emp.id} value={emp.id}>
                         {emp.name} ({emp.roleAr}) - الرقم الوظيفي: {emp.id} [لجان: {emp.committees?.length || 0}]
                       </option>
@@ -1366,7 +1380,7 @@ export default function OrgChart() {
                     className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-xs font-bold text-gray-700"
                   >
                     <option value="">-- اختر الموظف البديل لاستلام العهد --</option>
-                    {dbEmployees.filter(e => e.active !== false && e.id !== sourceEmpId).map(emp => (
+                    {safeDbEmployees.filter(e => e.active !== false && e.id !== sourceEmpId).map(emp => (
                       <option key={emp.id} value={emp.id}>
                         {emp.name} ({emp.roleAr}) - الرقم الوظيفي: {emp.id}
                       </option>
@@ -2075,7 +2089,7 @@ export default function OrgChart() {
                   تنبيه: سيؤدي هذا الإجراء إلى حذف وتصفير وحصار كافة اللجان القطاعية، الموظفين، الأعضاء، الاجتماعات، المحاضر، التوصيات والمهام الإدارية نهائياً من قاعدة الجناح السحابي Firestore والتخزين المؤقت المحلي!
                 </p>
                 <p className="text-[11px] text-gray-450 leading-relaxed font-bold">
-                  سيتم الاحتفاظ فقط بحساب مدير النظام الرئيسي (شهاب الدين) لمنع فقدان التحكم.
+                  سيتم الاحتفاظ فقط بحساب مدير النظام الرئيسي لمنع فقدان التحكم.
                 </p>
               </div>
 

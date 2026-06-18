@@ -38,7 +38,7 @@ export default function Tasks() {
   }, []);
 
   const [employeesList, setEmployeesList] = useState<string[]>([
-    "شهاب الدين"
+    "مدير النظام"
   ]);
 
   useEffect(() => {
@@ -46,19 +46,25 @@ export default function Tasks() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
         let emps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
-        let isSysAdmin = false;
+        let isMasterAdmin = false;
         try {
           const savedUser = localStorage.getItem("current_user");
           if (savedUser) {
             const parsed = JSON.parse(savedUser);
-            if (parsed && (parsed.role === "SYS_ADMIN" || parsed.roleAr === "مدير النظام" || parsed.email === "khalafshehab@gmail.com")) {
-              isSysAdmin = true;
+            if (parsed && (parsed.email === "khalafshehab@gmail.com" || parsed.email === "khalafshehab-crypto@gmail.com" || parsed.id === "01")) {
+              isMasterAdmin = true;
             }
           }
         } catch (_) {}
 
-        if (!isSysAdmin) {
-          emps = emps.filter(e => e.role !== "SYS_ADMIN" && e.id !== "01");
+        if (!isMasterAdmin) {
+          emps = emps.filter(e => 
+            e && 
+            e.id !== "01" && 
+            e.name !== "شهاب الدين" && 
+            e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
+            e.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com"
+          );
         }
         setEmployeesList(emps.map(e => e.name).filter(Boolean));
       }
@@ -68,7 +74,7 @@ export default function Tasks() {
 
   // Filters state
   const [searchQuery, setSearchQuery] = useState("");
-  const [currentUserName, setCurrentUserName] = useState("شهاب الدين");
+  const [currentUserName, setCurrentUserName] = useState("مدير النظام");
   useEffect(() => {
     try {
       const stored = localStorage.getItem("current_user");

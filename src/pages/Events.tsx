@@ -60,7 +60,7 @@ const DEFAULT_PREPARATIONS = [
 ];
 
 const EMPLOYEES = [
-  "شهاب الدين"
+  "مدير النظام"
 ];
 
 
@@ -180,18 +180,24 @@ export default function Events() {
   }).filter(c => c && c.active !== false);
 
   const dynamicEmployees = React.useMemo(() => {
-     let isSysAdmin = false;
+     let isMasterAdmin = false;
      try {
        const savedUser = localStorage.getItem("current_user");
        if (savedUser) {
          const parsed = JSON.parse(savedUser);
-         if (parsed && (parsed.role === "SYS_ADMIN" || parsed.roleAr === "مدير النظام" || parsed.email === "khalafshehab@gmail.com")) {
-           isSysAdmin = true;
+         if (parsed && (parsed.email === "khalafshehab@gmail.com" || parsed.email === "khalafshehab-crypto@gmail.com" || parsed.id === "01")) {
+           isMasterAdmin = true;
          }
        }
      } catch (_) {}
 
-     const sourceList = isSysAdmin ? dbEmployees : dbEmployees.filter(e => e.role !== "SYS_ADMIN" && e.id !== "01");
+     const sourceList = isMasterAdmin ? dbEmployees : dbEmployees.filter(e => 
+        e && 
+        e.id !== "01" && 
+        e.name !== "شهاب الدين" && 
+        e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
+        e.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com"
+     );
      return sourceList.length > 0 ? sourceList.map(e => e.name).filter(Boolean) : EMPLOYEES;
   }, [dbEmployees]);
 
