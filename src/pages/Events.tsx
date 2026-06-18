@@ -223,6 +223,9 @@ export default function Events() {
   const [filterQuery, setFilterQuery] = useState("");
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  const [selectedCommIdForCards, setSelectedCommIdForCards] = useState<number | null>(null);
+  const [selectedEventKindForCards, setSelectedEventKindForCards] = useState<string | null>(null);
+  const [selectedClassificationForCards, setSelectedClassificationForCards] = useState<string | null>(null);
 
   const canUserEditCommittee = (committeeName: string): boolean => {
     try {
@@ -361,6 +364,11 @@ export default function Events() {
 
   // Helper to update specific event workflow fields and commit to parent and localStorage
   const updateEventWorkflow = (eventId: number, updates: Partial<EventItem>) => {
+    const targetEvent = events.find(e => String(e.id) === String(eventId));
+    if (targetEvent && !canUserEditCommittee(targetEvent.committeeName)) {
+      alert("عذراً، لا تملك الصلاحية لتعديل فعاليات هذه اللجنة. يمكنك فقط إدارة فعاليات اللجان المكلف بها.");
+      return;
+    }
     setEvents(prev => prev.map(evt => {
       if (String(evt.id) === String(eventId)) {
         const updated = { ...evt, ...updates };
@@ -581,6 +589,58 @@ ${formattedItems}
       e.committeeName.toLowerCase().includes(term)
     );
   });
+
+  const getEventTimeValue = (evt: EventItem) => {
+    try {
+      if (!evt.date) return 0;
+      const dt = new Date(`${evt.date}T${evt.time || "00:00"}`);
+      return isNaN(dt.getTime()) ? 0 : dt.getTime();
+    } catch (_) {
+      return 0;
+    }
+  };
+
+  const isEventCompleted = (evt: EventItem): boolean => {
+    const stepValues = [
+      !!evt.committeeConfirmed,
+      !!evt.invitationSent,
+      !!evt.attendanceConfirmed,
+      !!evt.preparationsConfirmed,
+      !!(evt.agenda && evt.agenda.length > 0 && evt.agendaTransferred),
+      !!evt.minutesSaved,
+      !!evt.exportedRecommendationsToPage
+    ];
+    return stepValues.filter(Boolean).length === 7;
+  };
+
+  const getEventClassification = (title: string): string => {
+    if (title.includes("الدوري") || title.includes("دوري")) return "دوري";
+    if (title.includes("الاستثنائي") || title.includes("استثنائي")) return "استثنائي";
+    if (title.includes("فريق العمل") || title.includes("فريق عمل")) return "فريق عمل";
+    if (title.includes("الطارئ") || title.includes("طارئ")) return "طارئ";
+    return "دوري";
+  };
+
+  const sortedTableEvents = React.useMemo(() => {
+    const list = [...filteredEvents];
+    const nowTimestamp = Date.now();
+    
+    return list.sort((a, b) => {
+      const aComp = isEventCompleted(a);
+      const bComp = isEventCompleted(b);
+      
+      if (aComp && !bComp) return 1;
+      if (!aComp && bComp) return -1;
+      
+      const timeValA = getEventTimeValue(a);
+      const timeValB = getEventTimeValue(b);
+      
+      const diffA = Math.abs(timeValA - nowTimestamp);
+      const diffB = Math.abs(timeValB - nowTimestamp);
+      
+      return diffA - diffB;
+    });
+  }, [filteredEvents]);
 
   const resetForm = () => {
     setNewTitle("");
@@ -1045,7 +1105,7 @@ ${formattedItems}
             </button>
           </div>
           
-          {/* 2. Add Event Button - Elegant Blue Accent */}
+          {/* Add Event Button */}
           <button
             type="button"
             onClick={handleOpenAdd}
@@ -1069,7 +1129,7 @@ ${formattedItems}
           {/* Vertical divider */}
           <div className="h-8 w-px bg-gray-300 hidden sm:block mx-1"></div>
 
-          {/* 3. Brief Quick Statistic Badge */}
+          {/* Brief Quick Statistic Badge */}
           <div className="flex gap-2">
             <div className="bg-white px-3.5 py-1.5 rounded-xl text-center shadow-inner" style={{ borderWidth: '0px' }}>
               <span className="text-[10px] font-black text-gray-400 block leading-tight">إجمالي الفعاليات</span>
@@ -1100,151 +1160,445 @@ ${formattedItems}
           </button>
         </div>
       ) : viewMode === "grid" ? (
-        <div className="space-y-8 text-right">
-          {Object.entries(
-            filteredEvents.reduce((acc, evt) => {
-              const cName = evt.committeeName || "عام / غير محدد";
-              if (!acc[cName]) acc[cName] = [];
-              acc[cName].push(evt);
-              return acc;
-            }, {} as Record<string, EventItem[]>)
-          ).map(([committeeName, commEvents]) => (
-            <div 
-              key={committeeName} 
-              className="bg-white border border-gray-150 rounded-2xl p-6 shadow-sm space-y-4 text-right"
-              id={`committee-grouped-${committeeName}`}
-            >
-              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-xl bg-brand/5 border border-brand/10 flex items-center justify-center text-brand">
-                    <Users2 className="w-5 h-5 font-black" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-black text-gray-800">{committeeName}</h3>
-                    <p className="text-[10px] text-gray-400 font-bold">اللجنة القطاعية المنظمة للفعاليات</p>
-                  </div>
-                </div>
-                <span className="text-[10px] text-brand bg-brand/10 px-3 py-1 rounded-full font-black">
-                  {(commEvents as EventItem[]).length} فعاليات مسجلة
-                </span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <AnimatePresence mode="popLayout">
-                  {(commEvents as EventItem[]).map((evt) => (
-                    <motion.div
-                key={evt.id}
-                id={`event-card-${evt.id}`}
-                layout
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.3 }}
-                className="bg-[#e8e4e4] hover:bg-[#e2dede] transition-colors duration-300 rounded-2xl p-5 border border-gray-200 shadow-sm hover:shadow-md relative group flex flex-col justify-between"
+        <div className="space-y-6 text-right">
+          {/* Elegant Breadcrumbs Navigator */}
+          <div className="bg-white border border-gray-150 rounded-2xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-black text-gray-700">
+              <button
+                onClick={() => {
+                  setSelectedCommIdForCards(null);
+                  setSelectedEventKindForCards(null);
+                  setSelectedClassificationForCards(null);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+                  selectedCommIdForCards === null
+                    ? "bg-brand text-white shadow-sm"
+                    : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                }`}
               >
-                {/* Title & Actions inside grid */}
-                <div className="absolute top-4 left-4 z-20">
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>الرئيسية (لوحة اللجان)</span>
+              </button>
+
+              {selectedCommIdForCards !== null && (
+                <>
+                  <span className="text-gray-400 font-bold font-mono">/</span>
                   <button
-                    onClick={() => setActiveGearMenuId(activeGearMenuId === evt.id ? null : evt.id)}
-                    className="p-1.5 bg-white/80 hover:bg-white text-gray-600 hover:text-gray-950 rounded-lg border border-gray-200/80 shadow-sm transition-all cursor-pointer"
-                    title="التحكم بالفعالية"
+                    onClick={() => {
+                      setSelectedEventKindForCards(null);
+                      setSelectedClassificationForCards(null);
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+                      selectedEventKindForCards === null
+                        ? "bg-[#dfba6b] text-[#1e293b] shadow-sm font-black"
+                        : "bg-gray-50 text-gray-500 hover:bg-gray-100"
+                    }`}
                   >
-                    <Settings className="w-4 h-4 animate-hover-spin" />
-                  </button>
-                  
-                  {activeGearMenuId === evt.id && (
-                    <>
-                      <div 
-                        className="fixed inset-0 z-30" 
-                        onClick={() => setActiveGearMenuId(null)} 
-                      />
-                      <div className="absolute left-0 bottom-full mb-1.5 w-36 bg-white rounded-xl shadow-xl border border-gray-200 py-1 z-40 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEdit(evt)}
-                          className="w-full px-3 py-2 text-xs font-black text-gray-700 hover:bg-blue-50 hover:text-blue-650 flex items-center justify-end gap-2 transition-colors cursor-pointer"
-                        >
-                          <span>تعديل</span>
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveGearMenuId(null);
-                            setViewMode("table");
-                            setExpandedEventId(evt.id);
-                          }}
-                          className="w-full px-3 py-2 text-xs font-black text-blue-600 hover:bg-blue-50 flex items-center justify-end gap-2 transition-colors cursor-pointer"
-                        >
-                          <span>تجهيز الفعالية</span>
-                          <Activity className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenDelete(evt)}
-                          className="w-full px-3 py-2 text-xs font-black text-red-600 hover:bg-red-50 flex items-center justify-end gap-2 transition-colors cursor-pointer"
-                        >
-                          <span>حذف</span>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex flex-wrap gap-1.5 items-center">
-                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black ring-1 ${getStatusColor(evt.status)}`}>
-                      {evt.status}
-                    </span>
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wide border ${getEventKindStyle(evt.title)}`}>
-                      {getEventKindStr(evt.title)}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wide bg-[#e0f2fe] text-blue-800 border border-blue-200">
-                      {evt.type}
-                    </span>
-                  </div>
-                  
-                  <h3 className="text-base font-black text-gray-900 leading-tight pt-0.5 max-w-[85%]">{evt.title}</h3>
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500 font-bold mb-2">
                     <Users2 className="w-3.5 h-3.5" />
-                    <span>{evt.committeeName}</span>
-                  </div>
-                </div>
+                    <span>
+                      {rawCommittees.find((c) => c.id === selectedCommIdForCards)?.name || "اللجنة المحددة"}
+                    </span>
+                  </button>
+                </>
+              )}
 
-                <div className="mt-4 pt-4 border-t border-gray-300 space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold text-gray-600">
-                  <div className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span dir="ltr">{evt.date} {evt.time || ""}</span>
+              {selectedEventKindForCards !== null && (
+                <>
+                  <span className="text-gray-400 font-bold font-mono">/</span>
+                  <button
+                    onClick={() => {
+                      setSelectedClassificationForCards(null);
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+                      selectedClassificationForCards === null
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "bg-gray-50 text-gray-500 hover:bg-gray-100"
+                    }`}
+                  >
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>نوع الفعالية: {selectedEventKindForCards}</span>
+                  </button>
+                </>
+              )}
+
+              {selectedClassificationForCards !== null && (
+                <>
+                  <span className="text-gray-400 font-bold font-mono">/</span>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white shadow-sm font-black">
+                    <Sliders className="w-3.5 h-3.5 animate-pulse" />
+                    <span>تصنيف الفعالية: {selectedClassificationForCards}</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <PlayCircle className="w-3.5 h-3.5" />
-                    <span>{evt.type}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5" />
-                    <span>{evt.location}</span>
-                  </div>
-                </div>
-                
-                {evt.employees.length > 0 && (
-                  <div className="text-[10px] text-gray-500 line-clamp-1 border-t border-dashed border-gray-300 pt-2 flex items-center gap-1">
-                    <span className="font-black">الموظفين:</span> {evt.employees.join("، ")}
-                  </div>
-                )}
-                {evt.members && evt.members.length > 0 && (
-                  <div className="text-[10px] text-brand line-clamp-1 border-t border-dashed border-gray-300 pt-2 flex items-center gap-1 font-bold">
-                    <Users className="w-3 h-3" />
-                    <span>أعضاء ({evt.members.length})</span>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          ))}
-                </AnimatePresence>
-              </div>
+                </>
+              )}
             </div>
-          ))}
+
+            <div className="text-[11px] text-gray-500 font-bold">
+              مجموع النتائج الحالية:{" "}
+              <span className="text-brand font-black">
+                {(() => {
+                  if (selectedCommIdForCards === null) {
+                    return filteredEvents.length;
+                  }
+                  const commEvts = filteredEvents.filter((e) => e.committeeId === selectedCommIdForCards);
+                  if (selectedEventKindForCards === null) {
+                    return commEvts.length;
+                  }
+                  const kindEvts = commEvts.filter((e) => getEventKindStr(e.title) === selectedEventKindForCards);
+                  if (selectedClassificationForCards === null) {
+                    return kindEvts.length;
+                  }
+                  return kindEvts.filter((e) => getEventClassification(e.title) === selectedClassificationForCards).length;
+                })()}
+              </span>{" "}
+              فعاليات مسجلة
+            </div>
+          </div>
+
+          {/* Level 1: Committees List view */}
+          {selectedCommIdForCards === null ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {committees.map((comm) => {
+                const commEvents = filteredEvents.filter((e) => e.committeeId === comm.id);
+                const president = allMembers.find((m) => m.committeeId === comm.id && m.active !== false && m.role === "رئيس")?.name || comm.president || "غير محدد";
+                const specialist = comm.specialist || "غير محدد";
+
+                return (
+                  <motion.div
+                    key={comm.id}
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-white border-2 border-slate-100 hover:border-[#dfba6b]/60 hover:shadow-lg transition-all duration-300 rounded-3xl p-6 relative group flex flex-col justify-between space-y-5"
+                  >
+                    {/* Committee Header & Icon */}
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-brand/5 border border-brand/10 flex items-center justify-center text-brand shrink-0">
+                          <Users2 className="w-6 h-6 font-black" />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-black text-gray-900 leading-tight truncate group-hover:text-brand transition-colors">
+                            {comm.name}
+                          </h3>
+                          <span className="inline-block px-2 py-0.5 rounded-full text-[9px] bg-brand/10 text-brand font-black mt-1">
+                            {commEvents.length} فعاليات مسجلة
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Committee Info details */}
+                      <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-100 space-y-2.5 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-400 font-bold text-[10px]">رئيس اللجنة:</span>
+                          <span className="text-gray-800 font-extrabold">{president}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-400 font-bold text-[10px]">الأخصائي المسؤول:</span>
+                          <span className="text-gray-800 font-extrabold">{specialist}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Navigation triggering Button */}
+                    <button
+                      onClick={() => setSelectedCommIdForCards(comm.id)}
+                      className="w-full py-3 bg-brand text-white hover:bg-[#dfba6b] hover:text-[#1e293b] font-black text-xs rounded-xl transition-all duration-300 shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <span>المزيد من التفاصيل (حسب نوع الفعالية)</span>
+                      <span>←</span>
+                    </button>
+                  </motion.div>
+                );
+              })}
+            </div>
+          ) : /* Level 2: Event Kinds inside selected Committee */
+          selectedEventKindForCards === null ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black text-gray-800">تصفح فعاليات اللجنة حسب النوع</h3>
+                <button
+                  onClick={() => setSelectedCommIdForCards(null)}
+                  className="text-xs text-brand font-black hover:underline"
+                >
+                  الرجوع لقائمة اللجان الرئيسية ↑
+                </button>
+              </div>
+
+              {(() => {
+                const commEvents = filteredEvents.filter((e) => e.committeeId === selectedCommIdForCards);
+                const uniqueKinds = Array.from(new Set(commEvents.map((e) => getEventKindStr(e.title))));
+
+                if (uniqueKinds.length === 0) {
+                  return (
+                    <div className="bg-white border border-gray-150 rounded-2xl p-10 text-center text-gray-500 font-bold text-sm">
+                      لا توجد أية فعاليات مسجلة لهذه اللجنة حالياً.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {uniqueKinds.map((kind) => {
+                      const count = commEvents.filter((e) => getEventKindStr(e.title) === kind).length;
+                      return (
+                        <motion.div
+                          key={kind}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="bg-white border-2 border-slate-100 hover:border-blue-300 hover:shadow-lg transition-all duration-300 rounded-3xl p-6 flex flex-col justify-between space-y-4"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-2xl bg-blue-55/70 text-blue-800 border border-blue-100 flex items-center justify-center font-black">
+                              <Calendar className="w-6 h-6" />
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-black text-gray-800">{kind}</h4>
+                              <p className="text-[10px] text-gray-400 font-bold">بناءً على تصنيف الفعاليات المجدولة</p>
+                            </div>
+                          </div>
+
+                          <span className="inline-block self-start px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-black rounded-lg">
+                            {count} فعاليات مسجلة
+                          </span>
+
+                          <button
+                            onClick={() => setSelectedEventKindForCards(kind)}
+                            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <span>تصفح حسب التصنيف</span>
+                            <span>←</span>
+                          </button>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          ) : /* Level 3: Classifications inside selected Event Kind & Committee */
+          selectedClassificationForCards === null ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black text-gray-800">
+                  فرز فعاليات النوع (<span className="text-blue-600">{selectedEventKindForCards}</span>) حسب التصنيف
+                </h3>
+                <button
+                  onClick={() => setSelectedEventKindForCards(null)}
+                  className="text-xs text-brand font-black hover:underline"
+                >
+                  الرجوع خطوة للأعلى (عناوين أنواع الفعاليات) ↑
+                </button>
+              </div>
+
+              {(() => {
+                const kindEvents = filteredEvents.filter(
+                  (e) => e.committeeId === selectedCommIdForCards && getEventKindStr(e.title) === selectedEventKindForCards
+                );
+                const activeClassifications = Array.from(new Set(kindEvents.map((e) => getEventClassification(e.title))));
+
+                if (activeClassifications.length === 0) {
+                  return (
+                    <div className="bg-white border border-gray-150 rounded-2xl p-10 text-center text-gray-500 font-bold text-sm">
+                      لا يوجد أي تصنيف للفعاليات المدرجة حالياً.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {activeClassifications.map((cls) => {
+                      const count = kindEvents.filter((e) => getEventClassification(e.title) === cls).length;
+                      return (
+                        <motion.div
+                          key={cls}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="bg-white border-2 border-slate-100 hover:border-emerald-300 hover:shadow-lg transition-all duration-300 rounded-3xl p-6 flex flex-col justify-between space-y-4"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-2xl bg-emerald-55/70 text-emerald-800 border border-emerald-100 flex items-center justify-center font-black animate-pulse">
+                              <Sliders className="w-6 h-6" />
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-black text-gray-800">{cls}</h4>
+                              <p className="text-[10px] text-gray-400 font-bold">نمط الإضافة في الجداول المبرمجة</p>
+                            </div>
+                          </div>
+
+                          <span className="inline-block self-start px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-black rounded-lg">
+                            {count} فعاليات مسجلة
+                          </span>
+
+                          <button
+                            onClick={() => setSelectedClassificationForCards(cls)}
+                            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <span>عرض جميع الفعاليات الـ {cls}</span>
+                            <span>←</span>
+                          </button>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          ) : (
+            /* Level 4: Show actual individual events */
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-black text-gray-800">
+                    قائمة الفعاليات الـ (<span className="text-emerald-600">{selectedClassificationForCards}</span>) من نوع (
+                    <span className="text-blue-600">{selectedEventKindForCards}</span>) لـ (
+                    <span className="text-brand">
+                      {rawCommittees.find((c) => c.id === selectedCommIdForCards)?.name}
+                    </span>
+                    )
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setSelectedClassificationForCards(null)}
+                  className="text-xs text-brand font-black hover:underline"
+                >
+                  الرجوع خطوة للأعلى (الفرز والتصنيفات) ↑
+                </button>
+              </div>
+
+              {(() => {
+                const finalList = filteredEvents.filter(
+                  (e) =>
+                    e.committeeId === selectedCommIdForCards &&
+                    getEventKindStr(e.title) === selectedEventKindForCards &&
+                    getEventClassification(e.title) === selectedClassificationForCards
+                );
+
+                if (finalList.length === 0) {
+                  return (
+                    <div className="bg-white border border-gray-150 rounded-2xl p-10 text-center text-gray-500 font-bold text-sm">
+                      لا تتوفر أية فعاليات تطابق شروط الفرز الحالية.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <AnimatePresence mode="popLayout">
+                      {finalList.map((evt) => (
+                        <motion.div
+                          key={evt.id}
+                          id={`event-card-${evt.id}`}
+                          layout
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          transition={{ duration: 0.3 }}
+                          className="bg-[#e8e4e4] hover:bg-[#e2dede] transition-colors duration-300 rounded-3xl p-5 border border-gray-200 shadow-sm hover:shadow-md relative group flex flex-col justify-between"
+                        >
+                          {/* Title & Actions inside grid card */}
+                          <div className="absolute top-4 left-4 z-20">
+                            <button
+                              onClick={() => setActiveGearMenuId(activeGearMenuId === evt.id ? null : evt.id)}
+                              className="p-1.5 bg-white/80 hover:bg-white text-gray-600 hover:text-gray-950 rounded-lg border border-gray-200/80 shadow-sm transition-all cursor-pointer"
+                              title="التحكم بالفعالية"
+                            >
+                              <Settings className="w-4 h-4 animate-hover-spin" />
+                            </button>
+
+                            {activeGearMenuId === evt.id && (
+                              <>
+                                <div className="fixed inset-0 z-30" onClick={() => setActiveGearMenuId(null)} />
+                                <div className="absolute left-0 bottom-full mb-1.5 w-36 bg-white rounded-xl shadow-xl border border-gray-200 py-1 z-40 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEdit(evt)}
+                                    className="w-full px-3 py-2 text-xs font-black text-gray-700 hover:bg-blue-50 hover:text-blue-650 flex items-center justify-end gap-2 transition-colors cursor-pointer"
+                                  >
+                                    <span>تعديل</span>
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveGearMenuId(null);
+                                      setViewMode("table");
+                                      setExpandedEventId(evt.id);
+                                    }}
+                                    className="w-full px-3 py-2 text-xs font-black text-blue-600 hover:bg-blue-50 flex items-center justify-end gap-2 transition-colors cursor-pointer"
+                                  >
+                                    <span>تجهيز الفعالية</span>
+                                    <Activity className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenDelete(evt)}
+                                    className="w-full px-3 py-2 text-xs font-black text-red-600 hover:bg-red-50 flex items-center justify-end gap-2 transition-colors cursor-pointer"
+                                  >
+                                    <span>حذف</span>
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+
+                          <div className="space-y-4">
+                            <div className="flex flex-wrap gap-1.5 items-center">
+                              <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black ring-1 ${getStatusColor(evt.status)}`}>
+                                {evt.status}
+                              </span>
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wide border ${getEventKindStyle(
+                                  evt.title
+                                )}`}
+                              >
+                                {getEventKindStr(evt.title)}
+                              </span>
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wide bg-[#e0f2fe] text-blue-800 border border-blue-200">
+                                {evt.type}
+                              </span>
+                            </div>
+
+                            <h3 className="text-base font-black text-gray-900 leading-tight pt-0.5 max-w-[85%]">
+                              {evt.title}
+                            </h3>
+                            <div className="flex items-center gap-1.5 text-xs text-gray-500 font-bold mb-2">
+                              <Users2 className="w-3.5 h-3.5" />
+                              <span>{evt.committeeName}</span>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 pt-4 border-t border-gray-300 space-y-2">
+                            <div className="flex items-center justify-between text-xs font-bold text-gray-600">
+                              <div className="flex items-center gap-1 text-right" dir="rtl">
+                                <Clock className="w-3.5 h-3.5 shrink-0" />
+                                <span className="text-[10px]">{evt.date} {evt.time || ""}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <MapPin className="w-3.5 h-3.5" />
+                                <span>{evt.location}</span>
+                              </div>
+                            </div>
+
+                            {evt.employees && evt.employees.length > 0 && (
+                              <div className="text-[10px] text-gray-500 line-clamp-1 border-t border-dashed border-gray-300 pt-2 flex items-center gap-1">
+                                <span className="font-black">الموظفين:</span> {evt.employees.join("، ")}
+                              </div>
+                            )}
+                            {evt.members && evt.members.length > 0 && (
+                              <div className="text-[10px] text-brand line-clamp-1 border-t border-dashed border-gray-300 pt-2 flex items-center gap-1 font-bold">
+                                <Users className="w-3 h-3" />
+                                <span>أعضاء ({evt.members.length})</span>
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
         </div>
       ) : (
         /* TABLE REGISTER VIEW LAYOUT (سجل الفعاليات) */
@@ -1274,7 +1628,7 @@ ${formattedItems}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-[#e8e4e4]/85">
-                {filteredEvents.map((evt, idx) => {
+                {sortedTableEvents.map((evt, idx) => {
                   const isExpanded = expandedEventId === evt.id;
                   const nextStep = getCalculatedNextStep(evt);
                   return (
