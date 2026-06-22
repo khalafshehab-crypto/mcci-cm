@@ -82,7 +82,27 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
     ...options.headers,
   };
 
-  const response = await fetch(`https://www.googleapis.com/${endpoint}`, {
+  // Dynamically route to correct specific API subdomains for reliable CORS and routing behavior
+  let url = `https://www.googleapis.com/${endpoint}`;
+  if (endpoint.startsWith("sheets/")) {
+    url = `https://sheets.googleapis.com/${endpoint.substring(7)}`;
+  } else if (endpoint.startsWith("docs/")) {
+    url = `https://docs.googleapis.com/${endpoint.substring(5)}`;
+  } else if (endpoint.startsWith("slides/")) {
+    url = `https://slides.googleapis.com/${endpoint.substring(7)}`;
+  } else if (endpoint.startsWith("gmail/")) {
+    url = `https://gmail.googleapis.com/${endpoint.substring(6)}`;
+  } else if (endpoint.startsWith("calendar/")) {
+    url = `https://calendar.googleapis.com/${endpoint.substring(9)}`;
+  } else if (endpoint.startsWith("tasks/")) {
+    url = `https://tasks.googleapis.com/${endpoint.substring(6)}`;
+  } else if (endpoint.startsWith("forms/")) {
+    url = `https://forms.googleapis.com/${endpoint.substring(6)}`;
+  } else if (endpoint.startsWith("chat/")) {
+    url = `https://chat.googleapis.com/${endpoint.substring(5)}`;
+  }
+
+  const response = await fetch(url, {
     ...options,
     headers,
   });
@@ -216,10 +236,29 @@ function makeEmailRaw(to: string, subject: string, bodyHtml: string): string {
 
 export async function sendGmailMessage(to: string, subject: string, bodyHtml: string): Promise<any> {
   const raw = makeEmailRaw(to, subject, bodyHtml);
-  return fetchGoogleAPI("gmail/v1/users/me/messages/send", {
+  const token = getCachedAccessToken();
+  if (!token) {
+    throw new Error("Authentication required: No active Google Workspace connection.");
+  }
+
+  const response = await fetch("/api/gmail-send", {
     method: "POST",
-    body: JSON.stringify({ raw }),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ token, raw }),
   });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    let parsedErr;
+    try {
+      parsedErr = JSON.parse(errText);
+    } catch (e) {}
+    throw new Error(parsedErr?.error?.message || `Proxy API error (${response.status}): ${errText}`);
+  }
+
+  return response.json();
 }
 
 /**

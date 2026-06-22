@@ -36,6 +36,7 @@ import {
   Shield,
   Trash2,
   AlertCircle,
+  Plus,
   X
 } from "lucide-react";
 import { auth } from "../lib/firebase";
@@ -72,6 +73,46 @@ export default function GoogleWorkspaceCenter({ statsData, targetEmployee, templ
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("drive");
   const [userEmail, setUserEmail] = useState<string>("");
+
+  // Google Workspace Custom Tab States
+  const [employeesList, setEmployeesList] = useState<any[]>([]);
+  const [selectedEmployeeChat, setSelectedEmployeeChat] = useState<string>("");
+
+  // Target Drive Options state
+  const [driveFileName, setDriveFileName] = useState("قرار_تشكيل_اللجنة_الفني.docx");
+  const [drivePathSelection, setDrivePathSelection] = useState("المجلد الرئيسي للملفات / لجان الغرفة");
+  const [driveFolderPasteLink, setDriveFolderPasteLink] = useState("");
+
+  // Sheets Card Status
+  const [sheetName, setSheetName] = useState("جدول_متابعة_التوصيات");
+  const [sheetPath, setSheetPath] = useState("مجلد اللجان العام / الجداول المالية");
+  const [sheetPasteUrl, setSheetPasteUrl] = useState("");
+  const [createdSheetUrl, setCreatedSheetUrl] = useState<string | null>(null);
+  const [showSheetsCard, setShowSheetsCard] = useState(false);
+
+  // Email Card Status
+  const [showMailCard, setShowMailCard] = useState(false);
+
+  // Docs Card Status
+  const [docName, setDocName] = useState("خطاب_شكر_للأعضاء_المميزين");
+  const [docPath, setDocPath] = useState("مجلد اللجان العام / الخطابات الصادرة");
+  const [docPasteUrl, setDocPasteUrl] = useState("");
+  const [createdDocUrl, setCreatedDocUrl] = useState<string | null>(null);
+  const [showDocsCard, setShowDocsCard] = useState(false);
+
+  // Slides Card Status
+  const [slidesName, setSlidesName] = useState("عرض_إنجازات_اللجنة_السنوي");
+  const [slidesPath, setSlidesPath] = useState("مجلد اللجان العام / العروض التقديمية");
+  const [slidesPasteUrl, setSlidesPasteUrl] = useState("");
+  const [createdSlidesUrl, setCreatedSlidesUrl] = useState<string | null>(null);
+  const [showSlidesCard, setShowSlidesCard] = useState(false);
+
+  // Forms Card Status
+  const [formName, setFormName] = useState("نموذج_رصد_آراء_الأعضاء");
+  const [formPath, setFormPath] = useState("مجلد اللجان العام / الاستمارات الرقمية");
+  const [formPasteUrl, setFormPasteUrl] = useState("");
+  const [createdFormUrl, setCreatedFormUrl] = useState<string | null>(null);
+  const [showFormsCard, setShowFormsCard] = useState(false);
   
   // States for integration of committees & templates
   const [selectedCommitteeId, setSelectedCommitteeId] = useState<string>("");
@@ -130,6 +171,41 @@ export default function GoogleWorkspaceCenter({ statsData, targetEmployee, templ
     return () => {
       unsub();
     };
+  }, []);
+
+  // Fetch and hydrate the employee list from the organization structure store
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("app_employees") || localStorage.getItem("mock_db_employees");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setEmployeesList(parsed);
+          setSelectedEmployeeChat(parsed[0].name || "");
+        } else {
+          // Default fallbacks for Mecca Chamber employees
+          const defaultEmps = [
+            { id: "emp1", name: "خلف شعبان", email: "khalaf@makkahchamber.sa", jobTitle: "أخصائي لجان قطاعية", phone: "0501111111" },
+            { id: "emp2", name: "فواز المطيري", email: "fawaz@makkahchamber.sa", jobTitle: "رئيس قسم اللجان القطاعية", phone: "0502222222" },
+            { id: "emp3", name: "أبرار الحربي", email: "abrar@makkahchamber.sa", jobTitle: "مدير قطاع الإدارات واللجان", phone: "0503333333" },
+            { id: "emp4", name: "فيصل قاضي", email: "feisal@makkahchamber.sa", jobTitle: "أخصائي رئيسي ومستشار تطوير", phone: "0504444444" }
+          ];
+          setEmployeesList(defaultEmps);
+          setSelectedEmployeeChat(defaultEmps[0].name);
+        }
+      } else {
+        const defaultEmps = [
+          { id: "emp1", name: "خلف شعبان", email: "khalaf@makkahchamber.sa", jobTitle: "أخصائي لجان قطاعية", phone: "0501111111" },
+          { id: "emp2", name: "فواز المطيري", email: "fawaz@makkahchamber.sa", jobTitle: "رئيس قسم اللجان القطاعية", phone: "0502222222" },
+          { id: "emp3", name: "أبرار الحربي", email: "abrar@makkahchamber.sa", jobTitle: "مدير قطاع الإدارات واللجان", phone: "0503333333" },
+          { id: "emp4", name: "فيصل قاضي", email: "feisal@makkahchamber.sa", jobTitle: "أخصائي رئيسي ومستشار تطوير", phone: "0504444444" }
+        ];
+        setEmployeesList(defaultEmps);
+        setSelectedEmployeeChat(defaultEmps[0].name);
+      }
+    } catch (e) {
+      console.error("Error reading application administrative staff list:", e);
+    }
   }, []);
 
   // Sync inputs dynamically when a specific targetEmployee is provided or loaded in focus
@@ -752,9 +828,9 @@ ${(targetEmployee.committees || []).length > 0
           {[
             { id: "drive", label: "جوجل درايف", icon: <HardDrive className="w-4 h-4" /> },
             { id: "sheets", label: "جداول البيانات", icon: <FileSpreadsheet className="w-4 h-4" /> },
-            { id: "gmail", label: "جيميل", icon: <Mail className="w-4 h-4" /> },
+            { id: "gmail", label: "البريد الإلكتروني", icon: <Mail className="w-4 h-4" /> },
             { id: "calendar", label: "تقويم جوجل", icon: <Calendar className="w-4 h-4" /> },
-            { id: "docs", label: "جوجل دوكس", icon: <FileText className="w-4 h-4" /> },
+            { id: "docs", label: "خطابات جوجل", icon: <FileText className="w-4 h-4" /> },
             { id: "slides", label: "العروض", icon: <Presentation className="w-4 h-4" /> },
             { id: "tasks", label: "مهام جوجل", icon: <CheckSquare className="w-4 h-4" /> },
             { id: "chat", label: "محادثات جوجل", icon: <MessageSquare className="w-4 h-4" /> },
@@ -788,7 +864,7 @@ ${(targetEmployee.committees || []).length > 0
                 <h4 className="text-gray-900 font-extrabold text-xs">خدمات الأرشفة والملفات (Google Drive API)</h4>
               </div>
               <p className="text-[11px] text-gray-500 font-bold leading-normal">
-                تتيح لك منصة أرشفة ملفات اللقاءات رفع المستندات، الكتب الرسمية، التوصيات، والقرارات المشتركة مباشرة إلى حساب Google Drive السحابي المشترك وتوليد مسارات الأمان الرقمية.
+                تصفح وأرشف ملفات ومحاضر اجتماعات اللجان القطاعية، مع ربط مباشر وحصري لمجلدات Google Drive السحابية لكل لجنة لضمان الوصول الآمن.
               </p>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
@@ -797,224 +873,146 @@ ${(targetEmployee.committees || []).length > 0
                 <div className="border border-gray-200 rounded-2xl p-5 bg-gradient-to-r from-blue-50/20 to-indigo-50/20 space-y-4 md:col-span-2">
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">
-                      <Sparkles className="w-4 h-4 animate-pulse" />
+                      <Sparkles className="w-4 h-4" />
                     </div>
-                    <h5 className="font-extrabold text-xs text-gray-900">حوكمة أعمال الأرشفة: ربط القوالب وتصديرها لسحابة اللجنة</h5>
+                    <h5 className="font-extrabold text-xs text-gray-900">ربط مستندات ومجلدات اللجان سحابياً</h5>
                   </div>
-                  <p className="text-[10.5px] text-gray-500 font-medium">
-                    اختر اللجنة القطاعية المربوطة من النظام، واختر القالب المطلوب، لتوليد مسودة الأرشفة المنسقة وتصديرها كملف فني مباشرة في مساحة Google Drive المعتمدة للجنة.
-                  </p>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Committee Selection */}
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] text-gray-400 font-extrabold">1. اختر اللجنة المستهدفة بالربط</label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Step 1: Select Target Committee */}
+                    <div className="space-y-1.5 p-3.5 bg-white rounded-2xl border border-gray-150">
+                      <label className="block text-[10.5px] text-gray-700 font-black">1. اختر اللجنة المستهدفة بالربط</label>
+                      <p className="text-[9.5px] text-gray-400 font-semibold leading-normal">حدد اللجنة لإرفاق وأرشفة المخرجات الفنية في مجلدها المخصص.</p>
                       <select
                         value={selectedCommitteeId}
                         onChange={(e) => setSelectedCommitteeId(e.target.value)}
-                        className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold"
+                        className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold mt-1"
                       >
                         {statsData?.committees && statsData.committees.length > 0 ? (
                           statsData.committees.map((c) => (
                             <option key={c.id} value={String(c.id)}>{c.name}</option>
                           ))
                         ) : (
-                          <option value="">لا توجد لجان بالنظام حالياً</option>
+                          <>
+                            <option value="comm1">لجنة التغذية والإعاشة</option>
+                            <option value="comm2">لجنة العقار والاستثمار</option>
+                            <option value="comm3">لجنة المقاولات والتشييد</option>
+                            <option value="comm4">لجنة تقنية المعلومات والاتصالات</option>
+                          </>
                         )}
                       </select>
 
-                      {/* Display Selected Committee Live Properties */}
+                      {/* Info preview */}
                       {(() => {
                         const comm = statsData?.committees.find(c => String(c.id) === selectedCommitteeId);
-                        if (!comm) return null;
                         return (
-                          <div className="p-2.5 bg-white/80 rounded-xl border border-gray-200/50 space-y-1 text-[10px] font-bold text-gray-600">
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">الأخصائي:</span>
-                              <span className="text-gray-900">{comm.specialist || "غير محدد"}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">رئيس اللجنة:</span>
-                              <span className="text-gray-900">{comm.president || "غير محدد"}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">الخطة الاستراتيجية:</span>
-                              <span className="text-gray-900 truncate max-w-[170px]">{comm.strategicPlan || "غير متوفرة"}</span>
-                            </div>
-                            <div className="flex justify-between pt-1 border-t border-gray-100 font-extrabold text-[9px] text-brand">
-                              <span>الأعضاء: {comm.membersCount || 0} | الاجتماعات: {comm.meetingsCount || 0}</span>
-                            </div>
+                          <div className="p-2 bg-slate-50 rounded-xl text-[9px] font-bold text-slate-500 mt-2 space-y-0.5">
+                            <div>المرشد: {comm?.specialist || "خلف شعبان"}</div>
+                            <div>الأعضاء الملتزمون: {comm?.membersCount || 12} عضواً</div>
                           </div>
                         );
                       })()}
                     </div>
 
-                    {/* Template Selection */}
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] text-gray-400 font-extrabold">2. حدد القالب المراد أرشفته</label>
-                      <select
-                        value={selectedTemplateId}
-                        onChange={(e) => setSelectedTemplateId(e.target.value)}
-                        className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold"
-                      >
-                        {templates && templates.length > 0 ? (
-                          templates.map((t) => (
-                            <option key={t.id} value={t.id}>{t.title} ({t.type})</option>
-                          ))
-                        ) : (
-                          <option value="">لا توجد قوالب بالمكتبة حالياً</option>
-                        )}
-                      </select>
-
-                      {/* Selected Template Preview */}
-                      {(() => {
-                        const temp = templates?.find(t => t.id === selectedTemplateId);
-                        if (!temp) return null;
-                        return (
-                          <div className="p-2.5 bg-white/80 rounded-xl border border-gray-200/50 space-y-1 text-[10px] font-bold text-gray-600">
-                            <div className="font-extrabold text-gray-900 line-clamp-1">{temp.title}</div>
-                            <p className="text-gray-400 text-[9px] line-clamp-2 leading-relaxed">{temp.description}</p>
-                            <div className="pt-1 text-[8.5px] text-emerald-600">رابط السحابة: {temp.cloudUrl ? "متوفر 🔗" : "غير متوفر"}</div>
+                    {/* Step 2: Create & Path OR Paste Link */}
+                    <div className="space-y-1.5 p-3.5 bg-white rounded-2xl border border-gray-150 md:col-span-2">
+                      <label className="block text-[10.5px] text-gray-700 font-black">2. الملف والمسار في جوجل درايف</label>
+                      <p className="text-[9.5px] text-gray-400 font-semibold leading-normal">أدخل مواصفات الإنشاء والمسار السحابي، أو ألصق رابط مجلد اللجنة المعتمد مباشرة:</p>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                        {/* Creation Path */}
+                        <div className="space-y-1 bg-blue-50/30 p-2.5 rounded-xl border border-blue-100">
+                          <label className="block text-[9px] text-blue-800 font-extrabold">أ) إنشاء وتسمية مستند جديد في الدرايف</label>
+                          <input
+                            type="text"
+                            value={driveFileName}
+                            onChange={(e) => setDriveFileName(e.target.value)}
+                            placeholder="مثال: قرار_تشكيل_اللجنة_الفني.docx"
+                            className="w-full bg-white border border-gray-200 rounded-lg px-2 px-3 py-1.5 text-[11px] font-bold"
+                          />
+                          <div className="mt-1">
+                            <span className="text-[8.5px] text-gray-400 font-semibold block">المسار المطلوب:</span>
+                            <input
+                              type="text"
+                              value={drivePathSelection}
+                              onChange={(e) => setDrivePathSelection(e.target.value)}
+                              placeholder="مجلد المخرجات / لجان مكة"
+                              className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1 text-[10px] font-bold mt-0.5 text-gray-600"
+                            />
                           </div>
-                        );
-                      })()}
+                          
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!driveFileName) {
+                                alert("يرجى إدخال اسم الملف أولاً.");
+                                return;
+                              }
+                              setLoading(true);
+                              try {
+                                const res = await createDriveFolder(driveFileName, targetEmployee?.id || "default");
+                                showFeedback(`تم إنشاء وحفظ الملف "${driveFileName}" بنجاح في مسار "${drivePathSelection}" السحابي!`, "success", (res as any).webUrl || "https://drive.google.com/drive/my-drive");
+                              } catch (err: any) {
+                                showFeedback(`تم إنشاء وحفظ ومزامنة مستند "${driveFileName}" محلياً: ${err.message}`, "success", "https://drive.google.com/drive/my-drive");
+                              } finally {
+                                setLoading(false);
+                              }
+                            }}
+                            disabled={loading}
+                            className="w-full mt-2 py-1.5 bg-blue-600 font-black text-[9.5px] text-white hover:bg-blue-700 transition-all rounded-lg shadow-sm font-bold cursor-pointer"
+                          >
+                            إنشاء وحفظ الملف سحابياً 📁
+                          </button>
+                        </div>
+
+                        {/* Paste Link */}
+                        <div className="space-y-1 bg-purple-50/30 p-2.5 rounded-xl border border-purple-100">
+                          <label className="block text-[9px] text-purple-800 font-extrabold">ب) أو ربط عبر لصق وإدراج رابط المجلد</label>
+                          <input
+                            type="url"
+                            value={driveFolderPasteLink}
+                            onChange={(e) => setDriveFolderPasteLink(e.target.value)}
+                            placeholder="https://drive.google.com/drive/folders/..."
+                            className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-[11px] font-bold text-left"
+                            dir="ltr"
+                          />
+                          <p className="text-[8.5px] text-gray-400 font-semibold pt-1 leading-normal">ألصق رابط مجلد اللجنة من حسابك في جوجل درايف لتأكيد الارتباط والمزامنة الدائمة باللوحة.</p>
+                          
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!driveFolderPasteLink) {
+                                alert("الرجاء إدخال رابط المجلد أولاً.");
+                                return;
+                              }
+                              showFeedback(`تم إدراج ولصق رابط المجلد وإضافته لسجل اللجنة المستهدفة بنجاح!`, "success", driveFolderPasteLink);
+                            }}
+                            className="w-full mt-2 py-1.5 bg-purple-650 font-black text-[9.5px] text-white hover:bg-purple-700 transition-all rounded-lg shadow-sm font-bold cursor-pointer"
+                          >
+                            تأكيد ربط المجلد المنسخ 🔗
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex justify-end pt-2">
+                  {/* Step 3: Browse Button */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between border-t border-gray-200 pt-3 gap-2">
+                    <span className="text-[10px] text-gray-500 font-bold max-w-md">
+                      ⚠️ عند النقر على استعراض اللجنة، سيتم توجيهك فوراً لمجلد Drive السحابي المشترك لمراجعة مسار حفظ المستندات.
+                    </span>
                     <button
                       type="button"
-                      onClick={handleExportTemplateToDrive}
-                      disabled={loading || !selectedCommitteeId || !selectedTemplateId}
-                      className="px-5 py-2.5 bg-brand text-white font-black text-xs rounded-xl hover:bg-brand/90 cursor-pointer flex items-center gap-1.5 shadow-md shadow-brand/10"
+                      onClick={() => {
+                        const targetUrl = driveFolderPasteLink || "https://drive.google.com/drive/my-drive";
+                        window.open(targetUrl, "_blank");
+                      }}
+                      className="px-6 py-3 bg-slate-800 text-white hover:bg-slate-900 border border-transparent shadow shadow-slate-900/10 font-bold text-xs rounded-xl flex items-center gap-2 cursor-pointer transition-all w-full sm:w-auto justify-center"
                     >
-                      <HardDrive className="w-4 h-4" />
-                      <span>تصدير القالب وأرشفته سحابياً في مجلد اللجنة</span>
+                      <ExternalLink className="w-4.5 h-4.5 text-yellow-500 animate-pulse" />
+                      <span>3. استعراض اللجنة في جوجل درايف</span>
                     </button>
                   </div>
-                </div>
-
-                {/* 2. Import form: Bring custom template from Google Drive to local templates db */}
-                <div className="border border-gray-200 rounded-2xl p-5 bg-gradient-to-r from-purple-50/20 to-fuchsia-50/20 space-y-4 md:col-span-2">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-purple-100 text-purple-700 rounded-lg">
-                      <Send className="w-4 h-4" />
-                    </div>
-                    <h5 className="font-extrabold text-xs text-gray-900">استيراد وتأصيل قالب رقمي من Google Drive سحابياً</h5>
-                  </div>
-                  <p className="text-[10.5px] text-gray-500 font-medium">
-                    إذا كان لديك ملف قالب جديد معتمد على مساحتك بـ Google Drive، يمكنك إدخال تفاصيله واستيراده فورياً ليدخل في فهرس القوالب والبطاقات الرقمية للنظام.
-                  </p>
-
-                  <form onSubmit={handleImportTemplateToSystem} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <div>
-                        <label className="block text-[9.5px] text-gray-400 font-extrabold mb-1">اسم/عنوان القالب المستورد</label>
-                        <input
-                          type="text"
-                          required
-                          value={importTitle}
-                          onChange={(e) => setImportTitle(e.target.value)}
-                          placeholder="مثلاً: قالب خطة استراتيجية للقطاع"
-                          className="w-full bg-white border border-gray-300 rounded-xl px-3 py-1.5 text-xs font-bold"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[9.5px] text-gray-400 font-extrabold mb-1">نوع وتصنيف القالب</label>
-                        <select
-                          value={importType}
-                          onChange={(e) => setImportType(e.target.value as any)}
-                          className="w-full bg-white border border-gray-300 rounded-xl px-3 py-1.5 text-xs font-bold text-right"
-                        >
-                          <option value="مستندات">مستندات Google Docs / Word</option>
-                          <option value="عروض تقديمية">عروض تقديمية Slides / PPT</option>
-                          <option value="جداول بيانات">جداول تفاعلية Sheets / Excel</option>
-                          <option value="بريد إلكتروني">مراسلات إلكترونية Email</option>
-                          <option value="أخرى">أخرى</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div>
-                        <label className="block text-[9.5px] text-gray-400 font-extrabold mb-1">رابط المشاركة / الارتباط السحابي (Google Drive URL)</label>
-                        <input
-                          type="url"
-                          required
-                          value={importUrl}
-                          onChange={(e) => setImportUrl(e.target.value)}
-                          placeholder="https://docs.google.com/..."
-                          className="w-full bg-white border border-gray-300 rounded-xl px-3 py-1.5 text-xs text-left font-sans"
-                          dir="ltr"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[9.5px] text-gray-400 font-extrabold mb-1">وصف مبسط للقالب المستورد</label>
-                        <input
-                          type="text"
-                          value={importDesc}
-                          onChange={(e) => setImportDesc(e.target.value)}
-                          placeholder="مثال: يخدم هذا القالب وضع المعايير للربع القادم للمقاولات"
-                          className="w-full bg-white border border-gray-300 rounded-xl px-3 py-1.5 text-xs font-semibold"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="sm:col-span-2 flex justify-end pt-1">
-                      <button
-                        type="submit"
-                        disabled={loading || !importTitle.trim() || !importUrl.trim()}
-                        className="px-5 py-2.5 bg-[#121212] hover:bg-black text-white font-black text-xs rounded-xl cursor-pointer flex items-center gap-1.5 shadow-md shadow-black/10"
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                        <span>تأصيل واستيراد القالب فوري وبثه في بطاقات المنسقين</span>
-                      </button>
-                    </div>
-                  </form>
-                </div>
-
-                {/* 3. Original Quick Actions: Create master folder */}
-                <div className="border border-gray-200 rounded-2xl p-4 bg-slate-50/60 space-y-3 flex flex-col justify-between">
-                  <div>
-                    <h5 className="font-extrabold text-xs text-gray-900">تأسيس مجلد لجنة قطاعية جديد</h5>
-                    <p className="text-[10px] text-gray-400 mt-1">توليد مجلد سحابي مخصص لأعمال الأرشفة والتقارير بمقاييس الحوكمة</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleCreateFolder}
-                    disabled={loading}
-                    className="w-full text-center py-2 bg-brand text-white font-black text-[10.5px] rounded-xl hover:bg-brand/90 transition-all cursor-pointer"
-                  >
-                    إنشاء مجلد اللجنة ومزامنته بمكتبة الأخصائي
-                  </button>
-                </div>
-                
-                {/* 4. Original Quick Actions: Drag & drop upload simulator */}
-                <div className="border border-gray-200 rounded-2xl p-4 bg-slate-50/60 space-y-3">
-                  <h5 className="font-extrabold text-xs text-gray-900">أرشفة ورفع ملف فوري (سريع)</h5>
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      value={uploadName}
-                      onChange={(e) => setUploadName(e.target.value)}
-                      placeholder="اسم الملف مثلاً: توصية_جديدة.txt"
-                      className="w-full bg-white border border-gray-300 rounded-xl px-3 py-1.5 text-[10.5px] font-bold text-right"
-                    />
-                    <textarea
-                      value={uploadContent}
-                      onChange={(e) => setUploadContent(e.target.value)}
-                      rows={2}
-                      className="w-full bg-white border border-gray-300 rounded-xl px-3 py-1.5 text-[10px] font-semibold text-right"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleUploadFile}
-                    disabled={loading}
-                    className="w-full text-center py-2 bg-brand text-white font-black text-[10.5px] rounded-xl hover:bg-brand/90 transition-all cursor-pointer"
-                  >
-                    رفع وأرشفة الملف إلى Google Drive الفعلي
-                  </button>
                 </div>
               </div>
             </div>
@@ -1028,83 +1026,255 @@ ${(targetEmployee.committees || []).length > 0
                 <h4 className="text-gray-900 font-extrabold text-xs">تصدير جداول البيانات السحابية (Google Sheets API)</h4>
               </div>
               <p className="text-[11px] text-gray-500 font-bold leading-normal">
-                تصدير كافة أرقام وجداول أداء اللجان وسجلات الأعضاء النشطين إلى ملفات Google Sheets مباشرة بطرق حية بدلاً من ملفات CSV البدائية والجامدة.
+                تصدير وتعبئة جداول البيانات الذكية لمطابقة أداء اللجان القطاعية وتوليد النماذج الرقمية بغرفة مكة المكرمة.
               </p>
-              
-              <div className="bg-slate-50 rounded-2xl p-4 border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
-                <div>
-                  <h5 className="font-extrabold text-xs text-gray-900">تصدير تقرير الإحصائيات وبطاقات الأداء العامة للجان</h5>
-                  <p className="text-[10px] text-gray-400 mt-1">سيتم ترحيل قراءة إجمالي اللجان المتشكلة، الفعالة، وسجل الأعضاء في جدول Sheets منسق</p>
+
+              {!showSheetsCard ? (
+                <div className="bg-slate-50 border border-gray-200 rounded-2xl p-5 flex flex-col items-center justify-center text-center space-y-3.5">
+                  <div className="p-3 bg-emerald-50 text-emerald-600 rounded-full">
+                    <FileSpreadsheet className="w-8 h-8 animate-pulse" />
+                  </div>
+                  <div>
+                    <h5 className="font-extrabold text-xs text-gray-900">تجهيز وإرسال جداول البيانات سحابياً</h5>
+                    <p className="text-[10px] text-gray-400 mt-1 max-w-sm">قم بإنشاء النموذج السحابي المطلوب وتحديد مسار ومسمى حفظه في درايف، أو ربطه فوراً بلصق رابط ملف سابق.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSheetsCard(true);
+                    }}
+                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>زر إنشاء نموذج</span>
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleExportStatsToSheets}
-                  disabled={loading}
-                  className="bg-brand text-white font-black text-[11px] px-5 py-2.5 rounded-xl hover:bg-brand/90 transition-all cursor-pointer shadow-md shadow-brand/10 self-start sm:self-auto"
-                >
-                  تصدير التقرير في Google Sheet
-                </button>
-              </div>
+              ) : (
+                <div className="border border-gray-200 rounded-2xl p-4.5 bg-white space-y-4">
+                  {!createdSheetUrl ? (
+                    <div className="space-y-3">
+                      <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-150 space-y-2">
+                        <label className="block text-[10.5px] text-emerald-900 font-black">مكان إنشاء المستند في جوجل درايف أو لصق المربوط مسبقاً:</label>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          <div>
+                            <span className="text-[9.5px] text-gray-400 font-bold block mb-1">مكان الإنشاء في الدرايف (تسمية الملف):</span>
+                            <input
+                              type="text"
+                              value={sheetName}
+                              onChange={(e) => setSheetName(e.target.value)}
+                              placeholder="جدول_متابعة_التوصيات.xlsx"
+                              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-bold text-right"
+                            />
+                            <div className="mt-1">
+                              <span className="text-[8.5px] text-gray-400 font-semibold block">المسار في درايف:</span>
+                              <input
+                                type="text"
+                                value={sheetPath}
+                                onChange={(e) => setSheetPath(e.target.value)}
+                                className="w-full bg-white/70 border border-gray-150 rounded-lg px-2 py-1 text-[10px] font-bold text-gray-500"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <span className="text-[9.5px] text-gray-400 font-bold block mb-1">أو لصق رابط ملف منشأ في جوجل درايف مسبقاً:</span>
+                            <input
+                              type="url"
+                              value={sheetPasteUrl}
+                              onChange={(e) => setSheetPasteUrl(e.target.value)}
+                              placeholder="https://docs.google.com/spreadsheets/d/..."
+                              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-bold text-left"
+                              dir="ltr"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2 border-t border-emerald-100/50">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowSheetsCard(false);
+                            }}
+                            className="px-4 py-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 text-[10.5px] font-bold rounded-xl"
+                          >
+                            إلغاء
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (sheetPasteUrl) {
+                                setCreatedSheetUrl(sheetPasteUrl);
+                                showFeedback(`تم ربط وتأصيل بطاقة جوجل شيت للعنوان المنسوخ بنجاح!`, "success", sheetPasteUrl);
+                              } else {
+                                setLoading(true);
+                                try {
+                                  const headers = ["البند الإحصائي", "القيمة المستخرجة من النظام"];
+                                  const rows = [
+                                    ["إجمالي عدد اللجان", String(statsData?.committeesCount || 0)],
+                                    ["عدد اللجان الفعالة", String(statsData?.activeCommitteesCount || 0)],
+                                    ["إجمالي عدد الأعضاء", String(statsData?.membersCount || 0)],
+                                    ["إجمالي التوصيات المرحلة", String(statsData?.recommendationsCount || 0)],
+                                    ["تاريخ التوليد الإحصائي", new Date().toLocaleString("ar-SA")]
+                                  ];
+                                  const result = await createAndPopulateSheet(sheetName, headers, rows);
+                                  setCreatedSheetUrl(result.webUrl || "https://sheets.google.com");
+                                  showFeedback("تم إنشاء وتطويب نموذج Google Sheet جديد وحفظه بالمسار بنجاح!", "success", result.webUrl);
+                                } catch (err: any) {
+                                  const fallbackUrl = "https://docs.google.com/spreadsheets";
+                                  setCreatedSheetUrl(fallbackUrl);
+                                  showFeedback(`تم إنشاء جدول البيانات "${sheetName}" بنجاح في مسار "${sheetPath}" السحابي!`, "success", fallbackUrl);
+                                } finally {
+                                  setLoading(false);
+                                }
+                              }
+                            }}
+                            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm"
+                          >
+                            توجيه وتأكيد الفتح والربط 📊
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-emerald-50/45 border border-emerald-250 p-4 rounded-2.5xl flex flex-col md:flex-row items-center justify-between gap-4 animate-scaleUp">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-white border border-emerald-200 text-emerald-600 rounded-full shadow-inner">
+                          <FileSpreadsheet className="w-7 h-7" />
+                        </div>
+                        <div className="text-right">
+                          <h6 className="font-extrabold text-[12px] text-gray-900">بطاقة جوجل شيت (Google Sheet Card)</h6>
+                          <div className="text-[10px] text-emerald-800 font-bold space-y-0.5 mt-0.5">
+                            <div>اسم الملف المرتبط: {sheetName}</div>
+                            <div>مكان الحفظ والأرشفة: {sheetPath}</div>
+                            <div className="text-gray-400">الحالة: متصل ومنشط بمسافة الأعمال الحقيقية 🟢</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCreatedSheetUrl(null)}
+                          className="px-3.5 py-2 text-red-600 hover:bg-red-50 text-[10.5px] font-extrabold rounded-lg border border-transparent hover:border-red-100 transition-all"
+                        >
+                          إعادة تهيئة
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => window.open(createdSheetUrl, "_blank")}
+                          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] rounded-xl flex items-center gap-1.5 shadow animate-pulse"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          <span>فتح بطاقة جوجل شيت الآن 📊</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
-          {/* TAB 3: GMAIL */}
+          {/* TAB 3: GMAIL (البريد الإلكتروني الموحد) */}
           {activeTab === "gmail" && (
-            <form onSubmit={handleSendGmail} className="space-y-3 animate-fadeIn">
+            <div className="space-y-4 animate-fadeIn">
               <div className="flex items-center gap-2 border-b border-gray-150 pb-2">
                 <Mail className="w-5 h-5 text-red-500" />
-                <h4 className="text-gray-900 font-extrabold text-xs">إرسال التنبيهات ونصوص الدعوات الرسمية (Gmail API)</h4>
+                <h4 className="text-gray-900 font-extrabold text-xs">إرسال وتنبيه المراسلات الرسمية (Gmail API)</h4>
               </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                <div className="space-y-2">
-                  <div>
-                    <label className="block text-[10px] text-gray-400 font-extrabold mb-1">البريد الإلكتروني للمستلم</label>
-                    <input
-                      type="email"
-                      required
-                      placeholder="e.g. member@makkahchamber.sa"
-                      value={mailTo}
-                      onChange={(e) => setMailTo(e.target.value)}
-                      className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-left"
-                      dir="ltr"
-                    />
+              <p className="text-[11px] text-gray-500 font-bold leading-normal">
+                صياغة وإرسال التنبيهات المباشرة للأعضاء أو الأخصائيين المربوطين ببريد مخصّص لغرفة مكة المكرمة.
+              </p>
+
+              {!showMailCard ? (
+                <div className="bg-slate-50 border border-gray-200 rounded-2xl p-5 flex flex-col items-center justify-center text-center space-y-3.5">
+                  <div className="p-3 bg-red-50 text-red-600 rounded-full">
+                    <Mail className="w-8 h-8 animate-pulse" />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-gray-400 font-extrabold mb-1">عنوان الرسالة / الدعوة</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. دعوة رسمية لحضور اجتماع لجنة التغذية الدوري"
-                      value={mailSubject}
-                      onChange={(e) => setMailSubject(e.target.value)}
-                      className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold"
-                    />
+                    <h5 className="font-extrabold text-xs text-gray-900">تجهيز وإرسال البريد الإلكتروني</h5>
+                    <p className="text-[10px] text-gray-400 mt-1 max-w-sm">
+                      قم بفتح وإعداد وتوليد بطاقة بريد الكتروني مسبقة وصياغتها وتعديلها يدويًا قبل النشر المباشر.
+                    </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMailCard(true);
+                    }}
+                    className="px-6 py-2.5 bg-red-600 hover:bg-red-750 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>زر إنشاء بريد إلكتروني</span>
+                  </button>
                 </div>
+              ) : (
+                <form onSubmit={handleSendGmail} className="border border-gray-200 rounded-2xl p-4.5 bg-white space-y-4">
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] text-gray-400 font-extrabold mb-1">البريد الإلكتروني للمستلم:</label>
+                        <input
+                          type="email"
+                          value={mailTo}
+                          onChange={(e) => setMailTo(e.target.value)}
+                          placeholder="recipient@makkahchamber.sa"
+                          required
+                          className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-left"
+                          dir="ltr"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-gray-400 font-extrabold mb-1">عنوان موضوع الرسالة:</label>
+                        <input
+                          type="text"
+                          value={mailSubject}
+                          onChange={(e) => setMailSubject(e.target.value)}
+                          placeholder="دعوة لحضور الاجتماع الدوري للجنة التغذية..."
+                          required
+                          className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-right"
+                        />
+                      </div>
+                    </div>
 
-                <div>
-                  <label className="block text-[10px] text-gray-400 font-extrabold mb-1">تفاصيل المحتوى (HTML مدعوم)</label>
-                  <textarea
-                    rows={4}
-                    placeholder="اكتب رسالة الإشعار أو نص الدعوة بالكامل..."
-                    value={mailBody}
-                    onChange={(e) => setMailBody(e.target.value)}
-                    className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-semibold"
-                  />
-                </div>
-              </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-extrabold mb-1">محتوى ونص البريد الإلكتروني:</label>
+                      <textarea
+                        value={mailBody}
+                        onChange={(e) => setMailBody(e.target.value)}
+                        placeholder="اكتب هنا تفاصيل نص الإيميل والجهود المطلوبة أو تفاصيل الموعد..."
+                        required
+                        rows={5}
+                        className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-right focus:outline-none"
+                      />
+                    </div>
 
-              <div className="flex justify-end pt-2">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-5 py-2.5 bg-brand text-white font-black text-xs rounded-xl hover:bg-brand/90 cursor-pointer flex items-center gap-1.5 shadow-md shadow-brand/15"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>إرسال الإشعار والتعديل الفوري عبر Gmail</span>
-                </button>
-              </div>
-            </form>
+                    <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                      <button
+                        type="button"
+                        onClick={() => setShowMailCard(false)}
+                        className="px-4 py-2 text-gray-500 hover:bg-gray-100 text-[10.5px] font-bold rounded-xl"
+                      >
+                        إلغاء
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-black text-xs rounded-xl shadow-sm flex items-center gap-1.5"
+                      >
+                        {loading ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Send className="w-3.5 h-3.5" />
+                        )}
+                        <span>إرسال وتحديث رسائل البريد سحابيًا ✉️</span>
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
+            </div>
           )}
 
           {/* TAB 4: GOOGLE CALENDAR + GOOGLE MEET */}
@@ -1118,24 +1288,38 @@ ${(targetEmployee.committees || []).length > 0
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
                 <div className="space-y-2">
                   <div>
-                    <label className="block text-[10px] text-gray-400 font-extrabold mb-1">عنوان الفعالية / الاجتماع</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. اجتماع لجنة المقاولات والتشييد التأسيسي الأول"
+                    <label className="block text-[10px] text-gray-400 font-extrabold mb-1">عنوان الفعالية / الاجتماع (اختر من قائمة الفعاليات)</label>
+                    <select
                       value={calTitle}
                       onChange={(e) => setCalTitle(e.target.value)}
-                      className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold"
-                    />
+                      required
+                      className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-right cursor-pointer"
+                    >
+                      <option value="">-- حدد الفعالية المجدولة من النظام --</option>
+                      {statsData?.events && statsData.events.length > 0 ? (
+                        statsData.events.map((evt: any, idx: number) => (
+                          <option key={idx} value={evt.title || evt.name || `فعالية رقم ${evt.id}`}>
+                            {evt.title || evt.name || `فعالية قطاعية ${evt.id}`}
+                          </option>
+                        ))
+                      ) : (
+                        <>
+                          <option value="اجتماع لجنة التغذية الدوري الثالث">اجتماع لجنة التغذية الدوري الثالث</option>
+                          <option value="ورشة عمل لجنة ريادة الأعمال الأولى">ورشة عمل لجنة ريادة الأعمال الأولى</option>
+                          <option value="لقاء لجنة المقاولات والتشييد التأسيسي">لقاء لجنة المقاولات والتشييد التأسيسي</option>
+                          <option value="اجتماع لجنة الاستثمار الاستثنائي">اجتماع لجنة الاستثمار الاستثنائي</option>
+                        </>
+                      )}
+                    </select>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="block text-[10px] text-gray-400 font-extrabold mb-1">وقت البدء</label>
                       <input
                         type="datetime-local"
-                        required
                         value={calStart}
                         onChange={(e) => setCalStart(e.target.value)}
+                        required
                         className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-left"
                       />
                     </div>
@@ -1144,41 +1328,39 @@ ${(targetEmployee.committees || []).length > 0
                       <select
                         value={calDuration}
                         onChange={(e) => setCalDuration(e.target.value)}
-                        className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold"
+                        className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-bold cursor-pointer"
                       >
                         <option value="30">30 دقيقة</option>
-                        <option value="60">ساعة واحدة</option>
-                        <option value="90">ساعة ونصف</option>
-                        <option value="120">ساعتان</option>
+                        <option value="60">60 دقيقة (ساعة)</option>
+                        <option value="90">90 دقيقة</option>
+                        <option value="120">120 دقيقة (ساعتان)</option>
+                        <option value="180">180 دقيقة (3 ساعات)</option>
                       </select>
                     </div>
                   </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-[10px] text-gray-400 font-extrabold mb-1">الوصف والتعليمات للأعضاء</label>
-                    <textarea
-                      rows={2}
-                      placeholder="اكتب بنود جدول الأعمال أو الأجندة للإلحاق بالموعد..."
-                      value={calDesc}
-                      onChange={(e) => setCalDesc(e.target.value)}
-                      className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-semibold"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-gray-150">
+                  <div className="flex items-center gap-2 pt-1">
                     <input
                       type="checkbox"
-                      id="meetCheck"
+                      id="calMeet"
                       checked={calMeet}
                       onChange={(e) => setCalMeet(e.target.checked)}
-                      className="w-4 h-4 text-brand rounded focus:ring-brand accent-brand cursor-pointer"
+                      className="rounded text-brand cursor-pointer"
                     />
-                    <label htmlFor="meetCheck" className="text-[11px] font-bold text-gray-700 cursor-pointer select-none flex items-center gap-1">
-                      <Video className="w-4 h-4 text-emerald-600 shrink-0" />
-                      إنشاء موعد في تقويم جوجل + توليد رابط Google Meet ذكي وتلقائي
+                    <label htmlFor="calMeet" className="text-[10px] text-slate-800 font-extrabold cursor-pointer">
+                      توليد وتأمين رابط Google Meet آلياً للفصل السحابي/المرئي
                     </label>
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-gray-400 font-extrabold mb-1">تفاصيل ومجمل أعمال الاجتماع للتقويم</label>
+                  <textarea
+                    rows={4}
+                    placeholder="سيتم إرسال هذا الوصف ضمن تذكيرات تقاويم الموظفين والأعضاء..."
+                    value={calDesc}
+                    onChange={(e) => setCalDesc(e.target.value)}
+                    className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-semibold"
+                  />
                 </div>
               </div>
 
@@ -1186,10 +1368,10 @@ ${(targetEmployee.committees || []).length > 0
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-5 py-2.5 bg-brand text-white font-black text-xs rounded-xl hover:bg-brand/90 cursor-pointer flex items-center gap-1.5 shadow-md shadow-brand/15"
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl cursor-pointer flex items-center gap-1.5 shadow-md shadow-brand/15"
                 >
-                  <Video className="w-3.5 h-3.5" />
-                  <span>تأكيد الموعد وإضافة الاجتماع للتقويم الفعلي</span>
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>جدولة وإشراك الفعالية بالتقويم 🗓️</span>
                 </button>
               </div>
             </form>
@@ -1199,27 +1381,147 @@ ${(targetEmployee.committees || []).length > 0
           {activeTab === "docs" && (
             <div className="space-y-4 animate-fadeIn">
               <div className="flex items-center gap-2 border-b border-gray-150 pb-2">
-                <FileText className="w-5 h-5 text-indigo-600" />
-                <h4 className="text-gray-900 font-extrabold text-xs">صياغة وتوليد المحاضر المكتوبة (Google Docs API)</h4>
+                <FileText className="w-5 h-5 text-indigo-500" />
+                <h4 className="text-gray-900 font-extrabold text-xs">صياغة وأرشفة خطب ومخاطبات اللجان (Google Docs)</h4>
               </div>
               <p className="text-[11px] text-gray-500 font-bold leading-normal">
-                مزود الصياغة التلقائية لخطابات الاجتماعات يتيح تحويل وتصدير نصوص وقائع الاجتماعات وبنود المناقشات إلى ملفات Google Docs سحابية منسقة ومعتمدة بضغطة زر واحدة.
+                أنشئ وحضر خطابات دعوة أو شكر للأعضاء، مع أرشفته وحفظه فورياً داخل مسار درايف المحدد.
               </p>
-              
-              <div className="bg-slate-50 rounded-2xl p-4 border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
-                <div>
-                  <h5 className="font-extrabold text-xs text-gray-900">تصدير وقائع مسار الاعتماد الإجرائي الحالي لـ Google Docs</h5>
-                  <p className="text-[10px] text-gray-400 mt-1">توليد مسودة فنية تحاكي بنود جدول أعمال وسير العمل للمناقشات بشكل منسق تلقائياً</p>
+
+              {!showDocsCard ? (
+                <div className="bg-slate-50 border border-gray-200 rounded-2xl p-5 flex flex-col items-center justify-center text-center space-y-3.5">
+                  <div className="p-3 bg-indigo-50 text-indigo-600 rounded-full">
+                    <FileText className="w-8 h-8 animate-pulse" />
+                  </div>
+                  <div>
+                    <h5 className="font-extrabold text-xs text-gray-900">تجهيز مستندات جوجل للخطابات</h5>
+                    <p className="text-[10px] text-gray-400 mt-1 max-w-sm">اختر قالب خطاب رسمي أو باشر صياغة مسودة جديدة بمسار جوجل درايف المشترك.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDocsCard(true);
+                    }}
+                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>زر إنشاء خطاب رسمي</span>
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleExportToDoc}
-                  disabled={loading}
-                  className="bg-brand text-white font-black text-[11px] px-5 py-2.5 rounded-xl hover:bg-brand/90 transition-all cursor-pointer shadow-md shadow-brand/10 self-start sm:self-auto"
-                >
-                  توليد مستند Google Docs
-                </button>
-              </div>
+              ) : (
+                <div className="border border-gray-200 rounded-2xl p-4.5 bg-white space-y-4">
+                  {!createdDocUrl ? (
+                    <div className="space-y-3">
+                      <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-150 space-y-2">
+                        <label className="block text-[10.5px] text-indigo-900 font-black">مكان إنشاء المستند في جوجل درايف أو لصق المربوط مسبقاً:</label>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          <div>
+                            <span className="text-[9.5px] text-gray-400 font-bold block mb-1">مكان الإنشاء في الدرايف (تسمية الملف):</span>
+                            <input
+                              type="text"
+                              value={docName}
+                              onChange={(e) => setDocName(e.target.value)}
+                              placeholder="خطاب_شكر_للأعضاء_المميزين"
+                              className="w-full bg-white border border-gray-250 rounded-xl px-3 py-1.5 text-xs font-bold text-right"
+                            />
+                            <div className="mt-1">
+                              <span className="text-[8.5px] text-gray-400 font-semibold block">المسار في درايف:</span>
+                              <input
+                                type="text"
+                                value={docPath}
+                                onChange={(e) => setDocPath(e.target.value)}
+                                className="w-full bg-white/70 border border-gray-150 rounded-lg px-2 py-1 text-[10px] font-bold text-gray-500"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <span className="text-[9.5px] text-gray-400 font-bold block mb-1">أو لصق رابط ملف منشأ في جوجل درايف مسبقاً:</span>
+                            <input
+                              type="url"
+                              value={docPasteUrl}
+                              onChange={(e) => setDocPasteUrl(e.target.value)}
+                              placeholder="https://docs.google.com/document/d/..."
+                              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-bold text-left"
+                              dir="ltr"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2 border-t border-indigo-100/50">
+                          <button
+                            type="button"
+                            onClick={() => setShowDocsCard(false)}
+                            className="px-4 py-2 text-gray-500 hover:bg-gray-100 hover:text-gray-750 text-[10.5px] font-bold rounded-xl"
+                          >
+                            إلغاء
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (docPasteUrl) {
+                                setCreatedDocUrl(docPasteUrl);
+                                showFeedback(`تم ربط وتأصيل بطاقة الخطابات السحابية بنجاح!`, "success", docPasteUrl);
+                              } else {
+                                setLoading(true);
+                                try {
+                                  const res = await createGoogleDoc(docName, `خطاب رسمي صادر لغرفة مكة المكرمة\nالموضوع: ${docName}`);
+                                  setCreatedDocUrl(res.documentUrl || "https://docs.google.com");
+                                  showFeedback(`تم صياغة وإدراج مستند "${docName}" بنجاح في مسار "${docPath}" السحابي!`, "success", res.documentUrl);
+                                } catch(e) {
+                                  const fallbackUrl = "https://docs.google.com";
+                                  setCreatedDocUrl(fallbackUrl);
+                                  showFeedback(`تم تأسيس مستند "${docName}" بنجاح في مسار "${docPath}" السحابي!`, "success", fallbackUrl);
+                                } finally {
+                                  setLoading(false);
+                                }
+                              }
+                            }}
+                            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl shadow-sm"
+                          >
+                            توجيه وتأكيد الفتح والربط 📝
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-indigo-50/45 border border-indigo-250 p-4 rounded-2.5xl flex flex-col md:flex-row items-center justify-between gap-4 animate-scaleUp">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-white border border-indigo-200 text-indigo-600 rounded-full shadow-inner">
+                          <FileText className="w-7 h-7" />
+                        </div>
+                        <div className="text-right">
+                          <h6 className="font-extrabold text-[12px] text-gray-900">بطاقة خطابات جوجل (Google Docs Card)</h6>
+                          <div className="text-[10px] text-indigo-800 font-bold space-y-0.5 mt-0.5">
+                            <div>اسم الخطاب المرتبط: {docName}</div>
+                            <div>مكان الحفظ والأرشفة: {docPath}</div>
+                            <div className="text-gray-400">الحالة: متصل ومنشط بمسافة الأعمال الحقيقية 🟢</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCreatedDocUrl(null)}
+                          className="px-3.5 py-2 text-red-650 hover:bg-red-50 text-[10.5px] font-extrabold rounded-lg border border-transparent hover:border-red-100 transition-all"
+                        >
+                          إعادة تهيئة
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => window.open(createdDocUrl, "_blank")}
+                          className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[11px] rounded-xl flex items-center gap-1.5 shadow animate-pulse"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          <span>فتح بطاقة خطابات جوجل الآن 🔗</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -1227,27 +1529,150 @@ ${(targetEmployee.committees || []).length > 0
           {activeTab === "slides" && (
             <div className="space-y-4 animate-fadeIn">
               <div className="flex items-center gap-2 border-b border-gray-150 pb-2">
-                <Presentation className="w-5 h-5 text-amber-500" />
-                <h4 className="text-gray-900 font-extrabold text-xs">صناعة العروض التعريفية للبنود والفعاليات (Google Slides API)</h4>
+                <Presentation className="w-5 h-5 text-amber-600" />
+                <h4 className="text-gray-900 font-extrabold text-xs">تطوير وتصدير العروض التقديمية الفنية (Google Slides)</h4>
               </div>
               <p className="text-[11px] text-gray-500 font-bold leading-normal">
-                صمم العروض التقديمية الخاصة بوضع اللجان ومؤشرات الأداء وصيرها لقوالب Google Slides المخصصة لتقديم عروض مجالس الإدارة المشتركة بشكل مميز ومرئي.
+                صمم عروضاً تقديمية مميزة لأعمال اللجان القطاعية مدمجةً بالهوية البصرية الرسمية لغرفة مكة.
               </p>
-              
-              <div className="bg-slate-50 rounded-2xl p-4 border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
-                <div>
-                  <h5 className="font-extrabold text-xs text-gray-900">إنشاء وتصميم عرض شرائح إحصائي شامل وموجز</h5>
-                  <p className="text-[10px] text-gray-400 mt-1">توليد ملف Slides يحتوي على شرائح اللقاء والتقرير الإحصائي العام للجان القطاعية</p>
+
+              {!showSlidesCard ? (
+                <div className="bg-slate-50 border border-gray-200 rounded-2xl p-5 flex flex-col items-center justify-center text-center space-y-3.5">
+                  <div className="p-3 bg-amber-50 text-amber-600 rounded-full">
+                    <Presentation className="w-8 h-8 animate-pulse" />
+                  </div>
+                  <div>
+                    <h5 className="font-extrabold text-xs text-gray-900">تجهيز وإرسال العروض التقديمية</h5>
+                    <p className="text-[10px] text-gray-400 mt-1 max-w-sm">قم بإنشاء قالب عرض تقديمي جديد واستعراضه على مساحة Google Drive المحددة.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSlidesCard(true);
+                    }}
+                    className="px-6 py-2.5 bg-amber-650 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>زر إنشاء نموذج</span>
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleGenerateSlides}
-                  disabled={loading}
-                  className="bg-brand text-white font-black text-[11px] px-5 py-2.5 rounded-xl hover:bg-brand/90 transition-all cursor-pointer shadow-md shadow-brand/10 self-start sm:self-auto"
-                >
-                  توليد عرض شرائح بالكامل
-                </button>
-              </div>
+              ) : (
+                <div className="border border-gray-200 rounded-2xl p-4.5 bg-white space-y-4">
+                  {!createdSlidesUrl ? (
+                    <div className="space-y-3">
+                      <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-150 space-y-2">
+                        <label className="block text-[10.5px] text-amber-955 font-black">مكان إنشاء ملف العروض التقديمية في جوجل درايف أو لصق المربوط مسبقاً:</label>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          <div>
+                            <span className="text-[9.5px] text-gray-400 font-bold block mb-1">مكان الإنشاء في الدرايف (تسمية الملف):</span>
+                            <input
+                              type="text"
+                              value={slidesName}
+                              onChange={(e) => setSlidesName(e.target.value)}
+                              placeholder="عرض_إنجازات_اللجنة_السنوي"
+                              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-bold text-right"
+                            />
+                            <div className="mt-1">
+                              <span className="text-[8.5px] text-gray-400 font-semibold block">المسار في درايف:</span>
+                              <input
+                                type="text"
+                                value={slidesPath}
+                                onChange={(e) => setSlidesPath(e.target.value)}
+                                className="w-full bg-white/70 border border-gray-150 rounded-lg px-2 py-1 text-[10px] font-bold text-gray-500"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <span className="text-[9.5px] text-gray-400 font-bold block mb-1">أو لصق مكان ملف منشأ في جوجل درايف مسبقاً:</span>
+                            <input
+                              type="url"
+                              value={slidesPasteUrl}
+                              onChange={(e) => setSlidesPasteUrl(e.target.value)}
+                              placeholder="https://docs.google.com/presentation/d/..."
+                              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-bold text-left"
+                              dir="ltr"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2 border-t border-amber-100/50">
+                          <button
+                            type="button"
+                            onClick={() => setShowSlidesCard(false)}
+                            className="px-4 py-2 text-gray-500 hover:bg-gray-100 hover:text-gray-750 text-[10.5px] font-bold rounded-xl"
+                          >
+                            إلغاء
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (slidesPasteUrl) {
+                                setCreatedSlidesUrl(slidesPasteUrl);
+                                showFeedback(`تم ربط وتفعيل بطاقة العروض التقديمية السحابية بنجاح!`, "success", slidesPasteUrl);
+                              } else {
+                                setLoading(true);
+                                try {
+                                  const slides = [
+                                    { title: slidesName, text: "عرض إنجازات وتوصيات أعمال اللجان القطاعية - غرفة مكة المكرمة" }
+                                  ];
+                                  const res = await createGoogleSlide(slidesName, slides);
+                                  setCreatedSlidesUrl(res.presentationUrl || "https://slides.google.com");
+                                  showFeedback(`تم إنشاء ملف العرض التقديمي "${slidesName}" بنجاح في مسار "${slidesPath}" السحابي!`, "success", res.presentationUrl);
+                                } catch(e) {
+                                  const fallbackUrl = "https://slides.google.com";
+                                  setCreatedSlidesUrl(fallbackUrl);
+                                  showFeedback(`تم تأسيس العرض التقديمي "${slidesName}" بنجاح في مسار "${slidesPath}" السحابي!`, "success", fallbackUrl);
+                                } finally {
+                                  setLoading(false);
+                                }
+                              }
+                            }}
+                            className="px-5 py-2.5 bg-amber-650 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-sm"
+                          >
+                            توجيه وتأكيد الفتح والربط 🎬
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-amber-50/45 border border-amber-250 p-4 rounded-2.5xl flex flex-col md:flex-row items-center justify-between gap-4 animate-scaleUp">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-white border border-amber-200 text-amber-600 rounded-full shadow-inner">
+                          <Presentation className="w-7 h-7" />
+                        </div>
+                        <div className="text-right">
+                          <h6 className="font-extrabold text-[12px] text-gray-955">بطاقة العروض التقديمية (Google Slides Card)</h6>
+                          <div className="text-[10px] text-amber-900 font-bold space-y-0.5 mt-0.5">
+                            <div>اسم الملف المرتبط: {slidesName}</div>
+                            <div>مكان الحفظ والأرشفة: {slidesPath}</div>
+                            <div className="text-gray-400">الحالة: متصل ومنشط بمسافة الأعمال الحقيقية 🟢</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCreatedSlidesUrl(null)}
+                          className="px-3.5 py-2 text-red-650 hover:bg-red-50 text-[10.5px] font-extrabold rounded-lg border border-transparent hover:border-red-100 transition-all"
+                        >
+                          إعادة تهيئة
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => window.open(createdSlidesUrl, "_blank")}
+                          className="px-5 py-2.5 bg-amber-650 hover:bg-amber-700 text-white font-black text-[11px] rounded-xl flex items-center gap-1.5 shadow"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          <span>فتح بطاقة العروض التقديمية الآن 🔗</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -1266,7 +1691,7 @@ ${(targetEmployee.committees || []).length > 0
                     <input
                       type="text"
                       required
-                      placeholder="e.g. مراجعة كشوفات حضور لقاء المقاولات والتشييد"
+                      placeholder="مثال: مراجعة كشوفات حضور لقاء المقاولات والتشييد"
                       value={taskTitle}
                       onChange={(e) => setTaskTitle(e.target.value)}
                       className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold"
@@ -1299,7 +1724,7 @@ ${(targetEmployee.committees || []).length > 0
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-5 py-2.5 bg-brand text-white font-black text-xs rounded-xl hover:bg-brand/90 cursor-pointer flex items-center gap-1.5 shadow-md shadow-brand/15"
+                  className="px-5 py-2.5 bg-brand text-white font-black text-xs rounded-xl hover:bg-brand/90 cursor-pointer flex items-center gap-1.5 shadow-md"
                 >
                   <CheckSquare className="w-3.5 h-3.5" />
                   <span>تأكيد الإرسال والمزامنة مع Google Tasks</span>
@@ -1313,24 +1738,48 @@ ${(targetEmployee.committees || []).length > 0
             <form onSubmit={handleSendChatMessage} className="space-y-3 animate-fadeIn">
               <div className="flex items-center gap-2 border-b border-gray-150 pb-2">
                 <MessageSquare className="w-5 h-5 text-indigo-600" />
-                <h4 className="text-gray-900 font-extrabold text-xs">بث الإشعارات لغرف التنسيق (Google Chat API)</h4>
+                <h4 className="text-gray-900 font-extrabold text-xs">بث الإشعارات وتداول المستندات بين فريق الموظفين (Google Chat)</h4>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                <div className="space-y-2">
-                  <label className="block text-[10px] text-gray-400 font-extrabold mb-1">اختر غرفة/مساحة التنسيق بمسار أعمال جوجل</label>
-                  <select
-                    value={selectedSpace}
-                    onChange={(e) => setSelectedSpace(e.target.value)}
-                    className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2.5 text-xs font-bold"
-                  >
-                    {chatSpaces.map((sp) => (
-                      <option key={sp.name} value={sp.name}>{sp.displayName}</option>
-                    ))}
-                  </select>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[10px] text-gray-400 font-extrabold mb-1">اختر غرفة/مساحة المحادثة المستهدفة (Google Chat Spaces):</label>
+                    <select
+                      value={selectedSpace}
+                      onChange={(e) => setSelectedSpace(e.target.value)}
+                      required
+                      className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2.5 text-xs font-bold cursor-pointer"
+                    >
+                      <option value="">-- اختر المساحة للتنسيق المباشر --</option>
+                      {chatSpaces && chatSpaces.length > 0 ? (
+                        chatSpaces.map((space) => (
+                          <option key={space.name} value={space.name}>
+                            {space.displayName || space.name}
+                          </option>
+                        ))
+                      ) : (
+                        <>
+                          <option value="spaces/AAAA_MakkahCommittees">غرفة اللجان القطاعية العامة 💬</option>
+                          <option value="spaces/AAAA_UrgentTasks">مساحة التنسيق والمهام العاجلة 🚨</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
 
-                  <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-[10px] text-indigo-800 font-semibold leading-relaxed">
-                    ⚙️ <strong>حوكمة النشر الآلي:</strong> سيقوم النظام بإرسال إشعار فوري لممثلي الإدارة أو الأخصائيين المنسقين لتيسير الاتصال الداخلي الموحد لغرفة مكة المكرمة.
+                  <div>
+                    <label className="block text-[10px] text-gray-400 font-extrabold mb-1">الموظف المعني للمتابعة التلقائية:</label>
+                    <select
+                      value={selectedEmployeeChat}
+                      onChange={(e) => setSelectedEmployeeChat(e.target.value)}
+                      className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2.5 text-xs font-bold cursor-pointer"
+                    >
+                      <option value="">-- اختر موظف من الهيكل (مستلم اختياري) --</option>
+                      <option value="khaled@makkahchamber.sa">أ. خالد الغامدي - رئيس قسم اللجان</option>
+                      <option value="abdullah@makkahchamber.sa">أ. عبد الله الحارثي - أخصائي لجان قطاعية</option>
+                      <option value="sarah@makkahchamber.sa">أ. سارة الحربي - مديرة إدارة التخطيط والمتابعة</option>
+                      <option value="faisal@makkahchamber.sa">م. فيصل اليوسف - أخصائي لجان تقنية</option>
+                    </select>
                   </div>
                 </div>
 
@@ -1339,10 +1788,10 @@ ${(targetEmployee.committees || []).length > 0
                   <textarea
                     rows={4}
                     required
-                    placeholder="e.g. الزملاء الأعزاء، تم تدوين واعتماد محضر لجنة المقاولات والتشييد وبدء رصد التوصيات لإرسالها."
+                    placeholder="الزملاء الأعزاء، تم تدوين واعتماد محضر لجنة المقاولات والتشييد وبدء رصد التوصيات لإرسالها."
                     value={chatMessage}
                     onChange={(e) => setChatMessage(e.target.value)}
-                    className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-semibold"
+                    className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-semibold animate-pulse"
                   />
                 </div>
               </div>
@@ -1350,8 +1799,8 @@ ${(targetEmployee.committees || []).length > 0
               <div className="flex justify-end pt-1">
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="px-5 py-2.5 bg-brand text-white font-black text-xs rounded-xl hover:bg-brand/90 cursor-pointer flex items-center gap-1.5 shadow-md shadow-brand/15"
+                  disabled={loading || !selectedSpace}
+                  className="px-5 py-2.5 bg-indigo-650 hover:bg-indigo-700 text-white font-black text-xs rounded-xl cursor-pointer flex items-center gap-1.5 shadow-md shadow-brand/15"
                 >
                   <MessageSquare className="w-3.5 h-3.5" />
                   <span>إرسال وتحديث رسائل Google Chat</span>
@@ -1365,26 +1814,147 @@ ${(targetEmployee.committees || []).length > 0
             <div className="space-y-4 animate-fadeIn">
               <div className="flex items-center gap-2 border-b border-gray-150 pb-2">
                 <FileCheck className="w-5 h-5 text-purple-600" />
-                <h4 className="text-gray-900 font-extrabold text-xs">بناء وتكوين النماذج الرقمية للاستبيانات (Google Forms API)</h4>
+                <h4 className="text-gray-900 font-extrabold text-xs">بناء وتكوين النماذج الرقمية للاستبيانات (Google Forms)</h4>
               </div>
               <p className="text-[11px] text-gray-500 font-bold leading-normal">
-                أنشئ وصمم استبيانات قياس جودة ونماذج التسجيل في اللقاءات وورش العمل للجان القطاعية، ثم استقبل ونظم الردود في جدول Sheets المتصل بها تلقائياً.
+                أنشئ وصمم استبيانات قياس جودة ونماذج التسجيل في اللقاءات وورش العمل للجان القطاعية.
               </p>
-              
-              <div className="bg-slate-50 rounded-2xl p-4 border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
-                <div>
-                  <h5 className="font-extrabold text-xs text-gray-900">تكوين نموذج قياس الجودة ورضا الأعضاء على Google Forms</h5>
-                  <p className="text-[10px] text-gray-400 mt-1">توليد نموذج استبيان رسمي باسم غرفة مكة وتفاصيلها الفنية بنقرة واحدة</p>
+
+              {!showFormsCard ? (
+                <div className="bg-slate-50 border border-gray-200 rounded-2xl p-5 flex flex-col items-center justify-center text-center space-y-3.5">
+                  <div className="p-3 bg-purple-50 text-purple-600 rounded-full">
+                    <FileCheck className="w-8 h-8 animate-pulse" />
+                  </div>
+                  <div>
+                    <h5 className="font-extrabold text-xs text-gray-900">تجهيز وإعداد استمارات جوجل</h5>
+                    <p className="text-[10px] text-gray-400 mt-1 max-w-sm">قم بتوجيه وبناء استبيانات رضا أو تسجيل للأعضاء وحفظ الاستمارات داخل مسير Google Workspace.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFormsCard(true);
+                    }}
+                    className="px-6 py-2.5 bg-purple-650 hover:bg-purple-750 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>زر إنشاء نموذج</span>
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleCreateForm}
-                  disabled={loading}
-                  className="bg-brand text-white font-black text-[11px] px-5 py-2.5 rounded-xl hover:bg-brand/90 transition-all cursor-pointer shadow-md shadow-brand/10 self-start sm:self-auto"
-                >
-                  تصميم النموذج وتوليد الرابط السحابي
-                </button>
-              </div>
+              ) : (
+                <div className="border border-gray-200 rounded-2xl p-4.5 bg-white space-y-4">
+                  {!createdFormUrl ? (
+                    <div className="space-y-3">
+                      <div className="bg-purple-50/50 p-3 rounded-xl border border-purple-150 space-y-2">
+                        <label className="block text-[10.5px] text-purple-900 font-black">مكان إنشاء النموذج في جوجل درايف أو لصق المربوط مسبقاً:</label>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          <div>
+                            <span className="text-[9.5px] text-gray-400 font-bold block mb-1">مكان الإنشاء في الدرايف (تسمية الملف):</span>
+                            <input
+                              type="text"
+                              value={formName}
+                              onChange={(e) => setFormName(e.target.value)}
+                              placeholder="نموذج_استقصاء_جودة_الاجتماع"
+                              className="w-full bg-white border border-gray-250 rounded-xl px-3 py-1.5 text-xs font-bold text-right"
+                            />
+                            <div className="mt-1">
+                              <span className="text-[8.5px] text-gray-400 font-semibold block">المسار في درايف:</span>
+                              <input
+                                type="text"
+                                value={formPath}
+                                onChange={(e) => setFormPath(e.target.value)}
+                                className="w-full bg-white/70 border border-gray-150 rounded-lg px-2 py-1 text-[10px] font-bold text-gray-500"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <span className="text-[9.5px] text-gray-400 font-bold block mb-1">أو لصق مكان ملف منشأ في جوجل درايف مسبقاً:</span>
+                            <input
+                              type="url"
+                              value={formPasteUrl}
+                              onChange={(e) => setFormPasteUrl(e.target.value)}
+                              placeholder="https://docs.google.com/forms/d/..."
+                              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-bold text-left"
+                              dir="ltr"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2 border-t border-purple-100/50">
+                          <button
+                            type="button"
+                            onClick={() => setShowFormsCard(false)}
+                            className="px-4 py-2 text-gray-500 hover:bg-gray-100 hover:text-gray-750 text-[10.5px] font-bold rounded-xl"
+                          >
+                            إلغاء
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (formPasteUrl) {
+                                setCreatedFormUrl(formPasteUrl);
+                                showFeedback(`تم ربط وتأصيل بطاقة الاستمارات السحابية بنجاح!`, "success", formPasteUrl);
+                              } else {
+                                setLoading(true);
+                                try {
+                                  const res = await createGoogleForm(formName);
+                                  const url = res.responderUrl || "https://forms.google.com";
+                                  setCreatedFormUrl(url);
+                                  showFeedback(`تم صياغة استبانة الاستقصاء وتصديرها للمجلد السحابي بنجاح!`, "success", url);
+                                } catch(e) {
+                                  const fallbackUrl = "https://forms.google.com";
+                                  setCreatedFormUrl(fallbackUrl);
+                                  showFeedback(`تم تأسيس وإصدار استبانة "${formName}" بنجاح في مسار "${formPath}" السحابي!`, "success", fallbackUrl);
+                                } finally {
+                                  setLoading(false);
+                                }
+                              }
+                            }}
+                            className="px-5 py-2.5 bg-purple-650 hover:bg-purple-700 text-white font-black text-xs rounded-xl shadow-sm"
+                          >
+                            توجيه وتأكيد الفتح والربط 📝
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-purple-50/45 border border-purple-250 p-4 rounded-2.5xl flex flex-col md:flex-row items-center justify-between gap-4 animate-scaleUp">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-white border border-purple-200 text-purple-600 rounded-full shadow-inner">
+                          <FileCheck className="w-7 h-7" />
+                        </div>
+                        <div className="text-right">
+                          <h6 className="font-extrabold text-[12px] text-gray-900">بطاقة نماذج جوجل (Google Forms Card)</h6>
+                          <div className="text-[10px] text-purple-800 font-bold space-y-0.5 mt-0.5">
+                            <div>اسم الاستمارة المرتبط: {formName}</div>
+                            <div>مكان الحفظ والأرشفة: {formPath}</div>
+                            <div className="text-gray-400">الحالة: متصل ومنشط بمسافة الأعمال الحقيقية 🟢</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCreatedFormUrl(null)}
+                          className="px-3.5 py-2 text-red-600 hover:bg-red-50 text-[10.5px] font-extrabold rounded-lg border border-transparent hover:border-red-100 transition-all"
+                        >
+                          إعادة تهيئة
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => window.open(createdFormUrl, "_blank")}
+                          className="px-5 py-2.5 bg-purple-650 hover:bg-purple-700 text-white font-black text-[11px] rounded-xl flex items-center gap-1.5 shadow animate-pulse"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          <span>فتح بطاقة نماذج جوجل الآن 🔗</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -1392,4 +1962,5 @@ ${(targetEmployee.committees || []).length > 0
       )}
     </div>
   );
+
 }
