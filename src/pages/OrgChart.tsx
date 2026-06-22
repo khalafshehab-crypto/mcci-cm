@@ -31,6 +31,7 @@ import {
   Printer
 } from "lucide-react";
 import { useFirestoreCollection } from "../lib/firebaseUtils";
+import GoogleWorkspaceCenter from "../components/GoogleWorkspaceCenter";
 
 // AVATAR PRESETS - Professional placeholders for visual ease
 const PRESET_AVATARS = [
@@ -137,7 +138,7 @@ export interface SystemLog {
 }
 
 export default function OrgChart() {
-  const [activeTab, setActiveTab] = useState<"hierarchy" | "transfer" | "approvals" | "logs">("hierarchy");
+  const [activeTab, setActiveTab] = useState<"hierarchy" | "transfer" | "approvals" | "logs" | "permissions">("hierarchy");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
   // Find current user's role
@@ -164,6 +165,7 @@ export default function OrgChart() {
   const { data: dbTasks, updateDocument: updateFirebaseTask } = useFirestoreCollection<any>("tasks", []);
   const { data: dbEvents, updateDocument: updateFirebaseEvent } = useFirestoreCollection<any>("events", []);
   const { data: dbRecommendations, updateDocument: updateFirebaseRec } = useFirestoreCollection<any>("recommendations", []);
+  const { data: dbMembers } = useFirestoreCollection<any>("members", []);
 
   useEffect(() => {
     if (dbEmployees && dbEmployees.length > 0) {
@@ -188,6 +190,7 @@ export default function OrgChart() {
 
   // UI state for search, filters, modals, and actions
   const [searchTerm, setSearchTerm] = useState("");
+  const [permSearchTerm, setPermSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
@@ -993,6 +996,20 @@ export default function OrgChart() {
 
         {currentUserRole === "SYS_ADMIN" && (
           <button
+            onClick={() => setActiveTab("permissions")}
+            className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === "permissions"
+                ? "border-brand text-brand font-black"
+                : "border-transparent text-gray-500 hover:text-gray-900"
+            }`}
+          >
+            <Lock className="w-4 h-4 shrink-0" />
+            <span>صلاحيات عرض الصفحات</span>
+          </button>
+        )}
+
+        {currentUserRole === "SYS_ADMIN" && (
+          <button
             onClick={() => setActiveTab("logs")}
             className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
               activeTab === "logs"
@@ -1630,6 +1647,215 @@ export default function OrgChart() {
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* TAB 5: CUSTOM PAGE VIEW PERMISSIONS (صلاحيات عرض صفحات النظام) */}
+        {activeTab === "permissions" && currentUserRole === "SYS_ADMIN" && (
+          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-6 animate-fadeIn">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
+              <div>
+                <h2 className="text-base font-black text-gray-900 flex items-center gap-1.5">
+                  <Lock className="w-5 h-5 text-indigo-600 shrink-0" />
+                  <span>صلاحيات عرض صفحات النظام المخصصة (من صلاحيات مدير النظام)</span>
+                </h2>
+                <p className="text-gray-500 text-xs mt-1">
+                  تتيح لك هذه اللوحة الرقابية تحديد الصفحات وأوراق العمل المسموح لكل أخصائي أو موظف تصفحها ضمن النظام. ضع علامة صح أمام المكون لتفعيله، أو أزلها لحجب المكون عن الموظف فورياً وبصورة حية.
+                </p>
+              </div>
+
+              {/* Quick Search */}
+              <div className="relative w-full sm:w-64">
+                <input
+                  type="text"
+                  placeholder="ابحث عن موظف لتعديل صلاحياته..."
+                  value={permSearchTerm}
+                  onChange={(e) => setPermSearchTerm(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-250 rounded-xl px-4 py-2 pr-9 text-xs focus:outline-none focus:ring-2 focus:ring-brand font-semibold text-right"
+                />
+                <Search className="absolute top-2.5 right-3 text-gray-400 w-3.5 h-3.5" />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto custom-scrollbar rounded-xl border border-gray-200 shadow-inner bg-slate-50/20">
+              <table className="w-full text-right text-xs">
+                <thead className="bg-[#fcfdfd] border-b border-gray-200 text-gray-700 font-extrabold text-[10.5px]">
+                  <tr>
+                    <th className="p-4 whitespace-nowrap">الموظف / الأخصائي</th>
+                    <th className="p-4 text-center whitespace-nowrap">الرئيسية 🏠</th>
+                    <th className="p-4 text-center whitespace-nowrap">تشكيل اللجان 👥</th>
+                    <th className="p-4 text-center whitespace-nowrap">سجل الأعضاء 📇</th>
+                    <th className="p-4 text-center whitespace-nowrap">الفعاليات 📅</th>
+                    <th className="p-4 text-center whitespace-nowrap">التوصيات 🏆</th>
+                    <th className="p-4 text-center whitespace-nowrap">المهام الإدارية 📋</th>
+                    <th className="p-4 text-center whitespace-nowrap">التقارير 📊</th>
+                    <th className="p-4 text-center whitespace-nowrap">المكتبة الرقمية 📚</th>
+                    <th className="p-4 text-center whitespace-nowrap">الهيكل الإداري ⚙️</th>
+                    <th className="p-4 text-center whitespace-nowrap bg-indigo-50/50">تحكم كلي</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-150 font-bold text-gray-600 bg-white">
+                  {(() => {
+                    const SYSTEM_PAGES = [
+                      { path: "/", label: "الرئيسية" },
+                      { path: "/committees", label: "تشكيل اللجان" },
+                      { path: "/members", label: "سجل الأعضاء" },
+                      { path: "/events", label: "الفعاليات" },
+                      { path: "/recommendations", label: "التوصيات" },
+                      { path: "/tasks", label: "المهام" },
+                      { path: "/reports", label: "التقارير" },
+                      { path: "/library", label: "المكتبة" },
+                      { path: "/org-chart", label: "الهيكل" }
+                    ];
+
+                    const filteredPermEmployees = safeDbEmployees.filter(emp => 
+                      !permSearchTerm ||
+                      emp.name.toLowerCase().includes(permSearchTerm.toLowerCase()) ||
+                      emp.id.includes(permSearchTerm) ||
+                      (emp.email && emp.email.toLowerCase().includes(permSearchTerm.toLowerCase())) ||
+                      (emp.jobTitle && emp.jobTitle.toLowerCase().includes(permSearchTerm.toLowerCase())) ||
+                      (emp.roleAr && emp.roleAr.toLowerCase().includes(permSearchTerm.toLowerCase()))
+                    );
+
+                    if (filteredPermEmployees.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={11} className="p-10 text-center text-gray-400 italic">
+                            لا يوجد موظفون يطابقون معايير البحث الحالية.
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return filteredPermEmployees.map((emp) => {
+                      const currentAllowed = (emp.allowedPages && emp.allowedPages.length > 0)
+                        ? emp.allowedPages
+                        : SYSTEM_PAGES.map(p => p.path);
+
+                      const handleCheckboxToggle = async (path: string) => {
+                        let updatedAllowed: string[];
+                        if (currentAllowed.includes(path)) {
+                          updatedAllowed = currentAllowed.filter(p => p !== path);
+                        } else {
+                          updatedAllowed = [...currentAllowed, path];
+                        }
+                        
+                        try {
+                          await updateFirebaseEmp(emp.id, { allowedPages: updatedAllowed });
+                          
+                          await addFirebaseLog({
+                            employeeName: currentUser?.name || "مدير النظام",
+                            time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+                            operationType: "تعديل صلاحيات الوصول",
+                            status: "ناجحة",
+                            details: `تم تعديل صلاحيات الموظف [${emp.name}]. الصفحات المصرحة: ${updatedAllowed.length}`
+                          });
+                        } catch (err: any) {
+                          alert("فشل التعديل: " + err.message);
+                        }
+                      };
+
+                      const toggleAll = async (grantAll: boolean) => {
+                        const updatedAllowed = grantAll ? SYSTEM_PAGES.map(p => p.path) : [];
+                        try {
+                          await updateFirebaseEmp(emp.id, { allowedPages: updatedAllowed });
+                          
+                          await addFirebaseLog({
+                            employeeName: currentUser?.name || "مدير النظام",
+                            time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+                            operationType: grantAll ? "منح صلاحيات كلي" : "سحب صلاحيات كلي",
+                            status: "ناجحة",
+                            details: grantAll 
+                              ? `تم منح كافة صلاحيات الصفحات للموظف [${emp.name}]`
+                              : `تم حجب كافة صلاحيات الصفحات عن الموظف [${emp.name}]`
+                          });
+                        } catch (err: any) {
+                          alert("فشل المزامنة: " + err.message);
+                        }
+                      };
+
+                      const hasAll = SYSTEM_PAGES.every(p => currentAllowed.includes(p.path));
+                      const hasNone = currentAllowed.length === 0;
+
+                      return (
+                        <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
+                          {/* Employee Info Card */}
+                          <td className="p-4 flex items-center gap-3">
+                            {emp.photo ? (
+                              <img
+                                src={emp.photo}
+                                alt={emp.name}
+                                className="w-9 h-9 rounded-full object-cover border border-gray-200"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <div className="w-9 h-9 rounded-full bg-brand/10 text-brand flex items-center justify-center font-black text-xs">
+                                {emp.name ? emp.name.charAt(0) : "م"}
+                              </div>
+                            )}
+                            <div className="space-y-0.5 text-right">
+                              <span className="font-extrabold text-xs text-gray-900 block">
+                                {emp.name}
+                              </span>
+                              <div className="flex items-center gap-1.5 text-[10px] text-gray-400 font-bold">
+                                <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-[9px] font-black">{emp.roleAr}</span>
+                                <span className="truncate max-w-[120px]" title={emp.email}>{emp.email}</span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* SYSTEM PAGES CHECKBOXES */}
+                          {SYSTEM_PAGES.map((page) => {
+                            const isChecked = currentAllowed.includes(page.path);
+                            return (
+                              <td key={page.path} className="p-4 text-center">
+                                <div className="flex items-center justify-center">
+                                  <label className="relative flex items-center justify-center p-2 cursor-pointer group">
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => handleCheckboxToggle(page.path)}
+                                      className="sr-only peer"
+                                    />
+                                    <div className="w-5 h-5 bg-gray-50 border border-gray-300 rounded-md transition-all duration-200 flex items-center justify-center peer-checked:bg-emerald-600 peer-checked:border-emerald-750 peer-checked:shadow-sm group-hover:scale-105">
+                                      {isChecked && <Check className="w-3.5 h-3.5 text-white stroke-[4]" />}
+                                    </div>
+                                  </label>
+                                </div>
+                              </td>
+                            );
+                          })}
+
+                          {/* Quick Admin Toggles */}
+                          <td className="p-4 text-center bg-indigo-50/10">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => toggleAll(true)}
+                                disabled={hasAll}
+                                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-[9px] rounded-lg border border-emerald-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="تفعيل الكل"
+                              >
+                                الكل ✔️
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => toggleAll(false)}
+                                disabled={hasNone}
+                                className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-800 font-extrabold text-[9px] rounded-lg border border-red-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="حجب كلي"
+                              >
+                                حجب ❌
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 

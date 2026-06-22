@@ -21,6 +21,8 @@ import {
   FileSpreadsheet,
   Download
 } from "lucide-react";
+import { getCachedAccessToken, createAndPopulateSheet } from "../lib/googleApi";
+
 
 
 interface Committee {
@@ -203,8 +205,71 @@ export default function Committees() {
   const handleExportToGoogleSheets = () => {
     const sorted = [...committees].sort((a, b) => a.name.localeCompare(b.name, "ar"));
     const activeHeaders = EXPORT_FIELDS_META.filter(f => selectedExportFields.includes(f.key));
-    const csvHeaders = activeHeaders.map(h => h.label).join(",");
+    const token = getCachedAccessToken();
 
+    // Mapping payload values function
+    const getFieldVal = (comm: any, index: number, hKey: string) => {
+      let val = "";
+      if (hKey === "alphabetical") {
+        val = String(index + 1);
+      } else if (hKey === "president") {
+        val = comm.president || "غير محدد";
+      } else if (hKey === "membersCount") {
+        val = String(comm.membersCount);
+      } else if (hKey === "specialist") {
+        val = comm.specialist || "غير محدد";
+      } else if (hKey === "meetingsCount") {
+        val = String(comm.meetingsCount);
+      } else if (hKey === "recommendationsCount") {
+        val = String(comm.recommendationsCount || 0);
+      } else if (hKey === "eventsCount") {
+        val = String(comm.eventsCount || 0);
+      } else if (hKey === "ratingIssues") {
+        val = comm.ratingIssues || "لا يوجد قضايا تقدير";
+      } else if (hKey === "strategicPlan") {
+        val = comm.strategicPlan || "غير مدرجة";
+      } else if (hKey === "status") {
+        val = comm.active ? "فعالة / نشطة" : "غير فعالة";
+      } else if (hKey === "notes") {
+        val = "بيانات لجان قطاعية مستخرجة آلياً";
+      } else if (hKey === "desc") {
+        val = comm.desc || "";
+      }
+      return val;
+    };
+
+    if (token) {
+      // 🚀 Real Google Sheets API integration path
+      const title = `سجل اللجان القطاعية المصدّرة - غرفة مكة - ${new Date().toLocaleDateString("ar-SA")}`;
+      const headers = activeHeaders.map(h => h.label);
+      const rows = sorted.map((comm, index) => {
+        return activeHeaders.map(h => getFieldVal(comm, index, h.key));
+      });
+
+      createAndPopulateSheet(title, headers, rows)
+        .then((result) => {
+          alert(`🎉 تم تصدير اللجان بنجاح كملف Google Sheets حقيقي متزامن! جاري فتح الملف الآن...`);
+          window.open(result.webUrl, "_blank");
+        })
+        .catch((err) => {
+          console.error("Sheets API error:", err);
+          alert(`فشل التصدير التلقائي لـ Google Sheets (${err.message}). جاري التراجع لتنزيل الملف المحلي.`);
+          // Trigger fallback manually
+          triggerLocalCsvFallback(sorted, activeHeaders);
+        });
+      
+      logActionToSystem("تصدير اللجان إلى Google Sheets السحابي حياً");
+      setIsExportOpen(false);
+      return;
+    }
+
+    // Classic CSV fallback
+    triggerLocalCsvFallback(sorted, activeHeaders);
+    setIsExportOpen(false);
+  };
+
+  const triggerLocalCsvFallback = (sorted: any[], activeHeaders: any[]) => {
+    const csvHeaders = activeHeaders.map(h => h.label).join(",");
     const csvRows = sorted.map((comm, index) => {
       return activeHeaders.map(h => {
         let val = "";
@@ -248,6 +313,10 @@ export default function Committees() {
     link.click();
     document.body.removeChild(link);
 
+    logActionToSystem("تصدير اللجان إلى Google Sheets (ملف محلي)");
+  };
+
+  const logActionToSystem = (actionDesc: string) => {
     try {
       const stored = localStorage.getItem("current_user");
       let activeUser = "مدير النظام";
@@ -263,14 +332,13 @@ export default function Committees() {
         id: Date.now().toString(),
         user: activeUser,
         time: new Date().toISOString().replace('T', ' ').substring(0, 19),
-        action: "تصدير اللجان إلى Google Sheets",
+        action: actionDesc,
         status: "ناجح"
       });
       localStorage.setItem("app_logs", JSON.stringify(logs));
     } catch(e){}
-
-    setIsExportOpen(false);
   };
+
 
   // Live Auto-Synchronization of Committee Statistics from custom pages
   useEffect(() => {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, FormEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import GoogleWorkspaceCenter from "../components/GoogleWorkspaceCenter";
 import { 
   FileText, Search, Plus, X, Trash2, Edit2, LayoutGrid, List, AlertTriangle, Check, BookOpen, Clock, Settings, Copy, ChevronDown, ChevronUp, CheckCircle2, FileSpreadsheet, Paperclip, ChevronLeft, Download, Library as LibraryIcon, ExternalLink, Share2, Mail, FileJson, Presentation, RefreshCw, Send
 } from "lucide-react";
@@ -21,6 +22,20 @@ export interface TemplateItem {
 export default function Library() {
   const [templates, setTemplates] = useState<TemplateItem[]>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
+  const [committees, setCommittees] = useState<any[]>([]);
+  const [showWorkspaceCenter, setShowWorkspaceCenter] = useState(false);
+
+  useEffect(() => {
+    const qComms = query(collection(db, "committees"));
+    const unsubscribeComms = onSnapshot(qComms, (snapshot) => {
+      const dbComms = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setCommittees(dbComms);
+    });
+    return () => unsubscribeComms();
+  }, []);
 
   useEffect(() => {
     const q = query(collection(db, "templates"));
@@ -120,6 +135,52 @@ export default function Library() {
 
   // Share form state
   const [shareEmail, setShareEmail] = useState("");
+
+  const handleImportTemplate = async (title: string, desc: string, type: any, url: string) => {
+    try {
+      const newDoc = {
+        title,
+        description: desc,
+        type,
+        creator: "أخصائي الحوكمة السحابية",
+        cloudUrl: url,
+        downloadUrl: url,
+        lastUpdated: new Date().toISOString().split('T')[0],
+        isFavorite: false
+      };
+      await addDoc(collection(db, "templates"), newDoc);
+      await addDoc(collection(db, "system_logs"), {
+        type: "استيراد قالب",
+        details: `تم استيراد القالب '${title}' من Google Drive وتوثيقه في المكتبة الرقمية.`,
+        status: "ناجحة",
+        timestamp: new Date().toISOString()
+      });
+    } catch(err) {
+      console.error("Error importing template:", err);
+      throw err;
+    }
+  };
+
+  const wsStatsData = {
+    committeesCount: committees.length,
+    activeCommitteesCount: committees.filter(c => c.status === "فعالة").length,
+    membersCount: 0,
+    recommendationsCount: 0,
+    tasksCount: 0,
+    committees: committees.map(c => ({
+      id: c.id,
+      name: c.name,
+      president: c.president || "أ. خالد الزهراني",
+      specialist: c.specialist || "أخصائي حوكمة اللجان",
+      strategicPlan: c.strategicPlan || "الخطة التشغيلية المعتمدة لتمكين الأعمال",
+      membersCount: c.membersCount || 8,
+      meetingsCount: c.meetingsCount || 3,
+      eventsCount: c.eventsCount || 2,
+      recommendationsCount: c.recommendationsCount || 5
+    })),
+    members: [],
+    events: []
+  };
 
   const handleSave = async (e: FormEvent) => {
     e.preventDefault();
@@ -306,6 +367,17 @@ export default function Library() {
 
           <button 
             type="button"
+            onClick={() => setShowWorkspaceCenter(!showWorkspaceCenter)}
+            className={`h-10 px-4 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all duration-200 cursor-pointer shrink-0 w-full lg:w-auto ${
+              showWorkspaceCenter ? "bg-amber-600 hover:bg-amber-700 text-white animate-pulse" : "bg-emerald-600 hover:bg-emerald-700 text-white"
+            }`}
+          >
+            <RefreshCw className={`w-4 h-4 ${showWorkspaceCenter ? 'animate-spin' : ''}`} />
+            <span>{showWorkspaceCenter ? "إغلاق بوابة Google Workspace" : "ربط ومزامنة Google Workspace 🌐"}</span>
+          </button>
+
+          <button 
+            type="button"
             onClick={() => setIsAddOpen(true)}
              className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer shrink-0 w-full lg:w-auto"
           >
@@ -314,6 +386,38 @@ export default function Library() {
           </button>
         </div>
       </div>
+
+      {/* -------------------- Unified Google Workspace Integration Center -------------------- */}
+      <AnimatePresence>
+        {showWorkspaceCenter && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="bg-white rounded-2xl border border-gray-250 shadow-lg p-5 print:hidden space-y-4"
+          >
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="text-sm font-black text-gray-900">البوابة السحابية الموحدة وتكامل قوالب اللجان</h3>
+                <p className="text-[10.5px] text-gray-400 mt-0.5">تتبع الاتصال بجميع قنوات Google العشرة وإدارة أرشفة واعتلاء المستندات الرقمية</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWorkspaceCenter(false)}
+                className="p-1 px-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-[10px] font-bold rounded-lg"
+              >
+                إخفاء
+              </button>
+            </div>
+            
+            <GoogleWorkspaceCenter 
+              statsData={wsStatsData}
+              templates={displayedTemplates}
+              onImportTemplate={handleImportTemplate}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="min-h-[400px]">
         {filteredTemplates.length === 0 ? (

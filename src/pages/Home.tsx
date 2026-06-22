@@ -46,7 +46,6 @@ import {
   Cell
 } from "recharts";
 
-
 const COLORS = ["#246fff", "#0ea5e9", "#6366f1", "#8b5cf6", "#a855f7"];
 
 const DEFAULT_PREPARATIONS = [
@@ -268,6 +267,34 @@ const isDateInNextWeek = (d: Date) => {
   return d >= nextSunday && d <= nextSaturday;
 };
 
+const getWeekTimeframe = (dateStr: string): "current" | "next" | "other" => {
+  if (!dateStr) return "other";
+  try {
+    const parts = dateStr.replace(/\//g, "-").split("-");
+    if (parts.length === 3) {
+      let year = parseInt(parts[0]);
+      let month = parseInt(parts[1]) - 1;
+      let day = parseInt(parts[2]);
+
+      // If formatted as DD-MM-YYYY
+      if (parts[0].length < 4 && parts[2].length === 4) {
+        year = parseInt(parts[2]);
+        month = parseInt(parts[1]) - 1;
+        day = parseInt(parts[0]);
+      }
+
+      const testDate = new Date(year, month, day);
+      if (!isNaN(testDate.getTime())) {
+        if (isDateInCurrentWeek(testDate)) return "current";
+        if (isDateInNextWeek(testDate)) return "next";
+      }
+    }
+  } catch (err) {
+    console.error("Error calculating timeframe for alarm", err);
+  }
+  return "other";
+};
+
 
 export interface Alarm {
   id: string;
@@ -279,8 +306,8 @@ export interface Alarm {
   responsible: string;
   isUrgent: boolean;
   dateStr: string;
-  status: "جديد" | "قيد الانتظار" | "تمت الإحالة" | "متأخر";
-  timeframe: "current" | "next";
+  status: string;
+  timeframe: "current" | "next" | "other";
 }
 
 import { useFirestoreCollection } from '../lib/firebaseUtils';
@@ -607,6 +634,15 @@ export default function Home() {
   const [snoozeAlarmId, setSnoozeAlarmId] = useState<string | null>(null);
   const [snoozeHours, setSnoozeHours] = useState<number>(24);
 
+  const [manuallyUrgentAlarms, setManuallyUrgentAlarms] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem("app_urgent_alarms_override");
+      return saved ? JSON.parse(saved) : {};
+    } catch (_) {
+      return {};
+    }
+  });
+
   // Active alarms list dynamic generator
   const [alarms, setAlarms] = useState<Alarm[]>([]);
 
@@ -617,95 +653,122 @@ export default function Home() {
     try {
       const recs = dbRecs;
       if (Array.isArray(recs)) {
-        recs.forEach((r: any) => {
-            list.push({
-              id: r.id || `rec-${Math.random()}`,
-              type: "recommendation",
-              title: `توصية البند: ${r.title}`,
-              description: r.description || "",
-              dept: r.committeeName || "إدارة اللجان",
-              committee: r.committeeName || "العامة",
-              responsible: r.assignedTo || "أخصائي اللجنة",
-              isUrgent: r.status === "متأخرة" || r.status === "جديدة",
-              dateStr: r.date || "2026/06/11",
-              status: r.status === "متأخرة" ? "متأخر" : r.status === "منجزة" ? "تمت الإحالة" : r.status === "جاري العمل عليها" ? "قيد الانتظار" : "جديد",
-              timeframe: (r.date && r.date.includes("06/11")) ? "current" : "next"
-            });
+        // Exclude completed recommendations
+        const activeRecs = recs.filter((r: any) => r.status !== "منجزة" && r.status !== "مكتملة");
+        activeRecs.forEach((r: any) => {
+          const alarmId = r.id || `rec-${Math.random()}`;
+          // Default is normal (false) unless manually marked urgent
+          const isUrgent = !!manuallyUrgentAlarms[alarmId];
+
+          const normalStatus = r.status === "متأخرة" ? "متأخر" : r.status === "منجزة" ? "تمت الإحالة" : r.status === "جاري العمل عليها" ? "قيد الانتظار" : "جديد";
+
+          list.push({
+            id: alarmId,
+            type: "recommendation",
+            title: `توصية البند: ${r.title}`,
+            description: r.description || "",
+            dept: r.committeeName || "إدارة اللجان",
+            committee: r.committeeName || "العامة",
+            responsible: r.assignedTo || "أخصائي اللجنة",
+            isUrgent: isUrgent,
+            dateStr: r.date || "2026/06/11",
+            status: isUrgent ? "عاجل جداً" : normalStatus,
+            timeframe: getWeekTimeframe(r.date || "2026/06/11")
           });
-        }
+        });
+      }
     } catch (e) {}
 
     // 2. Core Dynamic Tasks
     try {
       const parsedTasks = dbTasks;
+      if (Array.isArray(parsedTasks)) {
+        // Exclude completed tasks
+        const activeTasks = parsedTasks.filter((t: any) => t.status !== "منجزة" && t.status !== "مكتملة" && t.status !== "منجز");
+        activeTasks.forEach((t: any) => {
+          const alarmId = t.id || `task-${Math.random()}`;
+          // Default is normal (false) unless manually marked urgent
+          const isUrgent = !!manuallyUrgentAlarms[alarmId];
 
-      parsedTasks.forEach((t: any) => {
-        list.push({
-          id: t.id || `task-${Math.random()}`,
-          type: "task",
-          title: t.title,
-          description: t.description || "",
-          dept: "إدارة اللجان والفعاليات",
-          committee: "العامة واللوائح التنظيمية",
-          responsible: t.assignedTo || "مدير النظام",
-          isUrgent: t.status === "متأخرة" || t.priority === "عاجلة",
-          dateStr: t.dueDate || "2026/06/11",
-          status: t.status === "متأخرة" ? "متأخر" : t.status === "منجزة" ? "تمت الإحالة" : t.status === "جاري العمل عليها" ? "قيد الانتظار" : "جديد",
-          timeframe: "current"
+          const normalStatus = t.status === "متأخرة" ? "متأخر" : t.status === "منجزة" ? "تمت الإحالة" : t.status === "جاري العمل عليها" ? "قيد الانتظار" : "جديد";
+
+          list.push({
+            id: alarmId,
+            type: "task",
+            title: t.title,
+            description: t.description || "",
+            dept: "إدارة اللجان والفعاليات",
+            committee: "العامة واللوائح التنظيمية",
+            responsible: t.assignedTo || "مدير النظام",
+            isUrgent: isUrgent,
+            dateStr: t.dueDate || "2026/06/11",
+            status: isUrgent ? "عاجل جداً" : normalStatus,
+            timeframe: getWeekTimeframe(t.dueDate || "2026/06/11")
+          });
         });
-      });
+      }
     } catch (e) {}
 
     // 3. Core Dynamic Events
     try {
       const evts = dbEvents;
       if (Array.isArray(evts)) {
-        evts.forEach((evt: any) => {
-            const currentPreps = evt.preparationsChecklist !== undefined ? evt.preparationsChecklist : [];
-            let prepStatus: "جديد" | "قيد الانتظار" | "تمت الإحالة" | "متأخر" = "جديد";
-            if (evt.preparationsConfirmed) {
-              prepStatus = "تمت الإحالة";
-            } else if (currentPreps.length > 0) {
-              prepStatus = "قيد الانتظار";
-            } else if (evt.status === "متأخر" || evt.status === "متأخرة") {
-              prepStatus = "متأخر";
-            }
+        // Exclude completed events
+        const activeEvts = evts.filter((evt: any) => 
+          evt.status !== "منتهية" && 
+          evt.status !== "مكتملة" && 
+          !(evt.minutesSaved && evt.exportedRecommendationsToPage)
+        );
+        activeEvts.forEach((evt: any) => {
+          const alarmId = `evt-${evt.id || Math.random()}`;
+          // Default is normal (false) unless manually marked urgent
+          const isUrgent = !!manuallyUrgentAlarms[alarmId];
 
-            const stepsStatus: string[] = [];
-            stepsStatus.push(evt.committeeConfirmed ? "تم تأكيد الموعد" : "جاري تأكيد الموعد");
-            stepsStatus.push(evt.invitationSent ? "تم إرسال الدعوات" : "جاري إرسال الدعوات");
-            stepsStatus.push(evt.attendanceConfirmed ? "تم تأكيد حضور الأعضاء" : "جاري تأكيد الحضور");
-            stepsStatus.push(evt.preparationsConfirmed ? "تم اكتمال التجهيزات والضيافة" : "جاري تجهيز اللقاء");
-            if (evt.agendaTransferred || (evt.agenda && evt.agenda.length > 0)) {
-              stepsStatus.push("تم اعتماد جدول الأعمال");
-            }
-            if (evt.minutesSaved) {
-              stepsStatus.push("تم تدوين المحضر");
-            }
-            if (evt.exportedRecommendationsToPage) {
-              stepsStatus.push("تم ترحيل التوصيات");
-            }
-            const dynamicDescription = stepsStatus.join(" - ");
+          const currentPreps = evt.preparationsChecklist !== undefined ? evt.preparationsChecklist : [];
+          let prepStatus: "جديد" | "قيد الانتظار" | "تمت الإحالة" | "متأخر" = "جديد";
+          if (evt.preparationsConfirmed) {
+            prepStatus = "تمت الإحالة";
+          } else if (currentPreps.length > 0) {
+            prepStatus = "قيد الانتظار";
+          } else if (evt.status === "متأخر" || evt.status === "متأخرة") {
+            prepStatus = "متأخر";
+          }
 
-            list.push({
-              id: `evt-${evt.id || Math.random()}`,
-              type: "event",
-              title: `تجهيز فعالية: ${evt.title}`,
-              description: dynamicDescription || evt.notes || "تجهيز وحصر نصاب الحضور والورقة الترحيبية وتنسيق الضيافة",
-              dept: "إدارة الفعاليات",
-              committee: evt.committeeName || "العامة",
-              responsible: (Array.isArray(evt.employees) && evt.employees[0]) || "أخصائي اللجنة",
-              isUrgent: evt.status === "عاجل" || evt.status === "تأكيد فوري" || evt.status === "تجهيز الفعاليات",
-              dateStr: evt.date || "2026/06/11",
-              status: prepStatus,
-              timeframe: "current"
-            });
+          const stepsStatus: string[] = [];
+          stepsStatus.push(evt.committeeConfirmed ? "تم تأكيد الموعد" : "جاري تأكيد الموعد");
+          stepsStatus.push(evt.invitationSent ? "تم إرسال الدعوات" : "جاري إرسال الدعوات");
+          stepsStatus.push(evt.attendanceConfirmed ? "تم تأكيد حضور الأعضاء" : "جاري تأكيد الحضور");
+          stepsStatus.push(evt.preparationsConfirmed ? "تم اكتمال التجهيزات والضيافة" : "جاري تجهيز اللقاء");
+          if (evt.agendaTransferred || (evt.agenda && evt.agenda.length > 0)) {
+            stepsStatus.push("تم اعتماد جدول الأعمال");
+          }
+          if (evt.minutesSaved) {
+            stepsStatus.push("تم تدوين المحضر");
+          }
+          if (evt.exportedRecommendationsToPage) {
+            stepsStatus.push("تم ترحيل التوصيات");
+          }
+          const dynamicDescription = stepsStatus.join(" - ");
+
+          list.push({
+            id: alarmId,
+            type: "event",
+            title: `تجهيز فعالية: ${evt.title}`,
+            description: dynamicDescription || evt.notes || "تجهيز وحصر نصاب الحضور والورقة الترحيبية وتنسيق الضيافة",
+            dept: "إدارة الفعاليات",
+            committee: evt.committeeName || "العامة",
+            responsible: (Array.isArray(evt.employees) && evt.employees[0]) || "أخصائي اللجنة",
+            isUrgent: isUrgent,
+            dateStr: evt.date || "2026/06/11",
+            status: isUrgent ? "عاجل جداً" : prepStatus,
+            timeframe: getWeekTimeframe(evt.date || "2026/06/11")
           });
-        }
+        });
+      }
     } catch (e) {}
 
     setAlarms(list);
-  }, [dbRecs, dbTasks, dbEvents]);
+  }, [dbRecs, dbTasks, dbEvents, manuallyUrgentAlarms]);
 
   // Dynamic Online Staff loaded directly from the database of employees
   const [onlineStaff, setOnlineStaff] = useState<any[]>([]);
@@ -1084,6 +1147,34 @@ export default function Home() {
     setAlarms(prev => [newChatAlarm, ...prev]);
   };
 
+  const handleMarkUrgent = async (alarm: Alarm, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const isUrgentNow = !manuallyUrgentAlarms[alarm.id];
+    const updated = { ...manuallyUrgentAlarms, [alarm.id]: isUrgentNow };
+    setManuallyUrgentAlarms(updated);
+    localStorage.setItem("app_urgent_alarms_override", JSON.stringify(updated));
+
+    try {
+      if (alarm.type === "event") {
+        const rawId = alarm.id.replace("evt-", "");
+        await updateDoc(doc(db, "events", rawId), {
+          status: isUrgentNow ? "عاجل" : "دوري",
+          isUrgentOverride: isUrgentNow
+        });
+      } else if (alarm.type === "task") {
+        await updateDoc(doc(db, "tasks", alarm.id), {
+          priority: isUrgentNow ? "عاجلة" : "عادية"
+        });
+      } else if (alarm.type === "recommendation") {
+        await updateDoc(doc(db, "recommendations", alarm.id), {
+          status: isUrgentNow ? "متأخرة" : "جديدة"
+        });
+      }
+    } catch (err) {
+      console.error("Error setting urgent status in database:", err);
+    }
+  };
+
   // Filtered Alarm calculations
   const filteredAlarms = alarms.filter(a => {
     // 1. Filter out if recently ignored
@@ -1119,6 +1210,73 @@ export default function Home() {
     return true;
   });
 
+  // Helper to parse dateStr and optional time to a numeric timestamp for sorting (ascending - nearest first in date and time)
+  const getAlarmTimestamp = (alarm: Alarm) => {
+    if (!alarm.dateStr) return 0;
+    try {
+      let timeStr = "12:00 PM";
+      if (alarm.type === "event") {
+        const rawId = alarm.id.replace("evt-", "");
+        const matched = dbEvents?.find((e: any) => String(e.id) === rawId);
+        if (matched && matched.time) {
+          timeStr = matched.time;
+        }
+      }
+      
+      const dateParts = alarm.dateStr.replace(/\//g, "-").split("-");
+      if (dateParts.length === 3) {
+        let year = parseInt(dateParts[0]);
+        let month = parseInt(dateParts[1]) - 1;
+        let day = parseInt(dateParts[2]);
+        
+        if (dateParts[0].length < 4 && dateParts[2].length === 4) {
+          year = parseInt(dateParts[2]);
+          month = parseInt(dateParts[1]) - 1;
+          day = parseInt(dateParts[0]);
+        }
+        
+        const d = new Date(year, month, day);
+        
+        if (timeStr) {
+          const tMatch = timeStr.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+          if (tMatch) {
+            let hrs = parseInt(tMatch[1]);
+            const mins = parseInt(tMatch[2]);
+            const ampm = tMatch[3];
+            if (ampm) {
+              if (ampm.toUpperCase() === "PM" && hrs < 12) hrs += 12;
+              if (ampm.toUpperCase() === "AM" && hrs === 12) hrs = 0;
+            }
+            d.setHours(hrs, mins, 0, 0);
+          }
+        }
+        return d.getTime();
+      }
+    } catch (e) {
+      console.error("Error sorting alarm timestamp", e);
+    }
+    return 0;
+  };
+
+  // Sort: Urgent items come first (assigned "عاجل جداً" manually). 
+  // Urgent items appear at the absolute top of the list without being bound by chronological order.
+  // Normal/non-urgent items are sorted chronologically with nearest first in date & time.
+  filteredAlarms.sort((a, b) => {
+    // 1. First sort by isUrgent (urgent items float to the top)
+    if (a.isUrgent && !b.isUrgent) return -1;
+    if (!a.isUrgent && b.isUrgent) return 1;
+    
+    // 2. If both are urgent, we do not restrict/bind them by chronological order (maintain original order or return 0)
+    if (a.isUrgent && b.isUrgent) {
+      return 0; 
+    }
+    
+    // 3. If both are normal/non-urgent, they are sorted by nearest date and time first (chronological ascending)
+    const timeA = getAlarmTimestamp(a);
+    const timeB = getAlarmTimestamp(b);
+    return timeA - timeB;
+  });
+
   const handlePrintMeetings = () => {
     window.print();
   };
@@ -1152,6 +1310,7 @@ export default function Home() {
         }
       `}} />
 
+
       {/* -------------------- مركز الإشعارات والموظفين المتصلين -------------------- */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 print:hidden">
         
@@ -1159,24 +1318,24 @@ export default function Home() {
         <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-250 shadow-sm overflow-hidden flex flex-col justify-between">
           
           {/* ترويسة مركز التنبيهات مع فلاتر سريعة */}
-          <div className="p-4 bg-slate-50 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-right">
+          <div className="p-4 bg-slate-50 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-right animate-fade-in">
             <div className="flex items-center gap-2.5">
               <div className="p-2 bg-red-100 text-red-700 rounded-xl relative">
                 <Bell className="w-5 h-5 animate-bounce" />
                 {filteredAlarms.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-600 text-white font-mono text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white animate-pulse">
+                  <span className="absolute -top-1 -right-1 bg-red-650 text-white font-mono text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white animate-pulse">
                     {filteredAlarms.length}
                   </span>
                 )}
               </div>
-              <div>
+              <div className="text-right">
                 <h3 className="font-extrabold text-gray-900 text-sm">مركز عمليات الإشعارات والتنبيهات المبرمجة</h3>
-                <p style={{ width: '200px' }} className="text-[10px] text-gray-500 font-bold">تنبيهات مبرمجة لمتابعة استحقاق المهام والتوصيات وأعمال اللجان</p>
+                <p style={{ width: '250px' }} className="text-[10px] text-gray-500 font-bold mt-0.5">تنبيهات مبرمجة لمتابعة استحقاق المهام والتوصيات وأعمال اللجان</p>
               </div>
             </div>
 
             {/* أدوات الفرز والتصفية المدمجة في مركز التنبيهات */}
-            <div className="flex flex-wrap gap-2 items-center">
+            <div className="flex flex-wrap gap-2 items-center justify-end">
               {/* تصنيف النوع */}
               <select 
                 value={notifTypeFilter} 
@@ -1207,7 +1366,7 @@ export default function Home() {
                 className={`text-[10px] sm:text-xs font-black px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 cursor-pointer select-none ${
                   notifUrgentFilter 
                     ? "bg-red-600 text-white border-red-600 shadow-sm" 
-                    : "bg-white text-gray-700 border-gray-300 hover:bg-slate-55"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-slate-50"
                 }`}
               >
                 <AlertCircle className="w-3 h-3" />
@@ -1219,8 +1378,8 @@ export default function Home() {
           {/* قائمة التنبيهات النشطة بصرياً */}
           <div className="p-4 space-y-2.5 max-h-[360px] overflow-y-auto custom-scrollbar">
             {filteredAlarms.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center space-y-2">
-                <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+              <div className="flex flex-col items-center justify-center py-10 text-center space-y-2 text-center w-full">
+                <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 mx-auto">
                   <Check className="w-5 h-5 stroke-[3]" />
                 </div>
                 <div className="space-y-0.5">
@@ -1236,11 +1395,22 @@ export default function Home() {
                   <motion.div
                     key={a.id}
                     layoutId={`alarm-card-${a.id}`}
-                    className={`p-3 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-3 transition-all ${
+                    onClick={() => {
+                      if (a.type === "event") {
+                        const rawId = a.id.replace("evt-", "");
+                        navigate("/events", { state: { selectedEventId: rawId } });
+                      } else if (a.type === "task") {
+                        navigate("/tasks", { state: { selectedTaskId: a.id } });
+                      } else if (a.type === "recommendation") {
+                        navigate("/recommendations", { state: { selectedRecId: a.id } });
+                      }
+                    }}
+                    className={`p-3 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-3 transition-colors cursor-pointer duration-350 hover:shadow-md ${
                       isUrgentAndCritical
-                        ? "bg-red-50/75 border-red-200 hover:border-red-300 shadow-sm"
-                        : "bg-slate-50/75 border-gray-200 hover:border-brand/20"
+                        ? "bg-red-50/75 border-red-250 hover:border-red-350 shadow-sm"
+                        : "bg-slate-50/75 border-gray-250 hover:border-brand/30"
                     }`}
+                    title="انقر للانتقال السريع والتحكم الفوري بهذا البند"
                   >
                     {/* الجانب الأيمن: النص والمؤشر */}
                     <div className="flex items-start gap-3 flex-1">
@@ -1315,7 +1485,7 @@ export default function Home() {
                     </div>
 
                     {/* الجانب الأيسر: أزرار التحكم بالتنبيه */}
-                    <div className="flex items-center gap-1.5 shrink-0 justify-end">
+                    <div className="flex items-center gap-1.5 shrink-0 justify-end" onClick={(e) => e.stopPropagation()}>
                       {/* زر عرض التفاصيل للتوجيه والإحالة */}
                       <button
                         type="button"
@@ -1323,7 +1493,7 @@ export default function Home() {
                         className="px-2.5 py-1.5 bg-brand hover:bg-brand/90 text-white rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" />
-                        <span>عرض التفاصيل والتوجيه</span>
+                        <span>عرض التفاصيل للتوجيه</span>
                       </button>
 
                       {/* زر الإهمال (يخفي التنبيه مؤقتا للمدة المحددة بالساعات) */}
@@ -1363,18 +1533,34 @@ export default function Home() {
                           </button>
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSnoozeAlarmId(a.id);
-                            setSnoozeHours(24);
-                          }}
-                          title="إهمال مخصص للمدة المطلوبة بالساعات (الحد الأقصى 24 ساعة)"
-                          className="px-2 py-1.5 bg-slate-200 hover:bg-amber-100 hover:text-amber-800 text-gray-600 rounded-lg text-[10px] font-black transition-all cursor-pointer"
-                        >
-                          <span>إهمال مؤقت</span>
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => handleMarkUrgent(a, e)}
+                            title="تحديد هذا التنبيه بشكل عاجل جداً وفوري وبثه في قواعد البيانات"
+                            className={`px-2 py-1.5 rounded-lg text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 border ${
+                              manuallyUrgentAlarms[a.id]
+                                ? "bg-red-600 text-white border-red-650 hover:bg-red-700"
+                                : "bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
+                            }`}
+                          >
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span>عاجل جداً</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSnoozeAlarmId(a.id);
+                              setSnoozeHours(24);
+                            }}
+                            title="إهمال مخصص للمدة المطلوبة بالساعات (الحد الأقصى 24 ساعة)"
+                            className="px-2 py-1.5 bg-slate-200 hover:bg-amber-100 hover:text-amber-800 text-gray-600 rounded-lg text-[10px] font-black transition-all cursor-pointer"
+                          >
+                            <span>إهمال مؤقت</span>
+                          </button>
+                        </div>
                       )}
                     </div>
 

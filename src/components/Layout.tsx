@@ -305,7 +305,24 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Main Content Area */}
       <main className="w-full mt-6 space-y-4">
-        {children}
+        {pages.some(p => p.path === location.pathname) && !filteredPages.some(p => p.path === location.pathname) ? (
+          <div className="bg-white rounded-3xl border border-red-150 p-10 text-center space-y-4 max-w-xl mx-auto shadow-xl my-10 animate-fadeIn">
+            <div className="w-20 h-20 bg-red-50 text-red-600 rounded-full flex items-center justify-center text-4xl mx-auto font-black shadow-inner border border-red-100">
+              🚫
+            </div>
+            <h2 className="text-xl font-black text-gray-900">عذراً، هذه الصفحة غير مصرحة لحسابك</h2>
+            <p className="text-gray-500 text-xs leading-relaxed max-w-md mx-auto">
+              تلقينا توجيهاً إدارياً بتقييد وصول حسابك لورقة العمل الحالية. يرجى مراجعة <strong>مدير النظام الأعلى</strong> أو الأخصائي لتهيئة وإضافة علامة الصح الخاصة بملفك الشخصي.
+            </p>
+            <div className="pt-4 flex justify-center gap-3">
+              <Link to="/" className="px-6 py-2.5 bg-brand text-white font-black text-xs rounded-xl hover:bg-brand/90 transition-all inline-block shadow-md">
+                العودة للوحة الرئيسية
+              </Link>
+            </div>
+          </div>
+        ) : (
+          children
+        )}
       </main>
     </div>
   );
