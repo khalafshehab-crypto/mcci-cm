@@ -1,6 +1,6 @@
 // src/lib/firebaseUtils.ts
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, addDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, addDoc, deleteDoc, doc, setDoc } from './firebase';
 import { db, auth } from './firebase';
 import { getLocalCollection, saveLocalCollection } from './mockFirebase';
 
@@ -31,10 +31,13 @@ export interface FirestoreErrorInfo {
 }
 
 // Global flag to track whether active Firestore is blocked (insufficient permissions, etc.)
-let isFirestoreBlocked = false;
+let isFirestoreBlocked = !db || db.type === "dummy_firestore";
 const blockedListeners = new Set<(blocked: boolean) => void>();
 
 export function setFirestoreBlocked(blocked: boolean) {
+  if (db) {
+    db.isBlocked = blocked;
+  }
   if (isFirestoreBlocked !== blocked) {
     isFirestoreBlocked = blocked;
     blockedListeners.forEach(listener => {
@@ -59,12 +62,12 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+      userId: auth?.currentUser?.uid,
+      email: auth?.currentUser?.email,
+      emailVerified: auth?.currentUser?.emailVerified,
+      isAnonymous: auth?.currentUser?.isAnonymous,
+      tenantId: auth?.currentUser?.tenantId,
+      providerInfo: auth?.currentUser?.providerData?.map((provider: any) => ({
         providerId: provider.providerId,
         email: provider.email,
       })) || []
@@ -105,6 +108,10 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
         // If not blocked, establish the real-time Firestore listener
         if (!unsubscribe && !localCleanup) {
           try {
+            if (!db || db.type === "dummy_firestore") {
+              setFirestoreBlocked(true);
+              return;
+            }
             const q = query(collection(db, collectionName));
             unsubscribe = onSnapshot(q, (snapshot) => {
               if (!active) return;

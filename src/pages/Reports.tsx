@@ -1,6 +1,6 @@
 import React, { useState, useEffect, FormEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query } from '../lib/firebase';
 import { db } from '../lib/firebase';
 import { 
   FileText, Search, Plus, X, Trash2, Edit2, LayoutGrid, List, AlertTriangle, Check, BookOpen, Clock, Activity, BarChart, FileBarChart, Filter, Settings, FileSpreadsheet, Download, RefreshCw, BarChart2

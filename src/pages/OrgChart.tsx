@@ -28,7 +28,9 @@ import {
   Calendar,
   Layers,
   FileText,
-  Printer
+  Printer,
+  Database,
+  FolderLock
 } from "lucide-react";
 import { useFirestoreCollection } from "../lib/firebaseUtils";
 import GoogleWorkspaceCenter from "../components/GoogleWorkspaceCenter";
@@ -138,8 +140,14 @@ export interface SystemLog {
 }
 
 export default function OrgChart() {
-  const [activeTab, setActiveTab] = useState<"hierarchy" | "transfer" | "approvals" | "logs" | "permissions">("hierarchy");
+  const [activeTab, setActiveTab] = useState<"hierarchy" | "transfer" | "approvals" | "logs" | "permissions" | "master_data">("hierarchy");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+
+  // Local state for administrative master data console
+  const [selectedSubCol, setSelectedSubCol] = useState<string>("committees");
+  const [masterSearchQuery, setMasterSearchQuery] = useState<string>("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmDeleteCol, setConfirmDeleteCol] = useState<string | null>(null);
 
   // Find current user's role
   const getLoggedInUser = () => {
@@ -160,12 +168,16 @@ export default function OrgChart() {
   const { data: dbApprovedEmails, addDocument: addFirebaseAppr, deleteDocument: deleteFirebaseAppr } = useFirestoreCollection<ApprovedEmail>("approved_emails", []);
   const { data: dbSystemLogs, addDocument: addFirebaseLog } = useFirestoreCollection<SystemLog>("system_logs", []);
   
-  // Auxiliary collections to facilitate deep background transfer
-  const { data: dbCommittees, updateDocument: updateFirebaseComm } = useFirestoreCollection<any>("committees", []);
-  const { data: dbTasks, updateDocument: updateFirebaseTask } = useFirestoreCollection<any>("tasks", []);
-  const { data: dbEvents, updateDocument: updateFirebaseEvent } = useFirestoreCollection<any>("events", []);
-  const { data: dbRecommendations, updateDocument: updateFirebaseRec } = useFirestoreCollection<any>("recommendations", []);
-  const { data: dbMembers } = useFirestoreCollection<any>("members", []);
+  // Auxiliary collections to facilitate deep background transfer and comprehensive administrator control console
+  const { data: dbCommittees, updateDocument: updateFirebaseComm, deleteDocument: deleteFirebaseComm } = useFirestoreCollection<any>("committees", []);
+  const { data: dbTasks, updateDocument: updateFirebaseTask, deleteDocument: deleteFirebaseTask } = useFirestoreCollection<any>("tasks", []);
+  const { data: dbEvents, updateDocument: updateFirebaseEvent, deleteDocument: deleteFirebaseEvent } = useFirestoreCollection<any>("events", []);
+  const { data: dbRecommendations, updateDocument: updateFirebaseRec, deleteDocument: deleteFirebaseRec } = useFirestoreCollection<any>("recommendations", []);
+  const { data: dbMembers, updateDocument: updateFirebaseMember, deleteDocument: deleteFirebaseMember } = useFirestoreCollection<any>("members", []);
+
+  const { data: dbReports, deleteDocument: deleteFirebaseReport } = useFirestoreCollection<any>("reports", []);
+  const { data: dbKpis, deleteDocument: deleteFirebaseKpi } = useFirestoreCollection<any>("kpis", []);
+  const { data: dbTemplates, deleteDocument: deleteFirebaseTemplate } = useFirestoreCollection<any>("templates", []);
 
   useEffect(() => {
     if (dbEmployees && dbEmployees.length > 0) {
@@ -187,6 +199,84 @@ export default function OrgChart() {
       emp.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com"
     );
   }, [dbEmployees, currentUser]);
+
+  const masterFilteredData = React.useMemo(() => {
+    const term = masterSearchQuery.trim().toLowerCase();
+    let source: any[] = [];
+    if (selectedSubCol === "committees") source = dbCommittees || [];
+    else if (selectedSubCol === "members") source = dbMembers || [];
+    else if (selectedSubCol === "events") source = dbEvents || [];
+    else if (selectedSubCol === "recommendations") source = dbRecommendations || [];
+    else if (selectedSubCol === "tasks") source = dbTasks || [];
+    else if (selectedSubCol === "reports") source = dbReports || [];
+    else if (selectedSubCol === "kpis") source = dbKpis || [];
+    else if (selectedSubCol === "templates") source = dbTemplates || [];
+
+    if (!term) return source;
+    return source.filter((item) => {
+      if (!item) return false;
+      try {
+        const strToSearch = JSON.stringify(item).toLowerCase();
+        return strToSearch.includes(term);
+      } catch (_) {
+        return false;
+      }
+    });
+  }, [selectedSubCol, masterSearchQuery, dbCommittees, dbMembers, dbEvents, dbRecommendations, dbTasks, dbReports, dbKpis, dbTemplates]);
+
+  const handleDeleteMasterItem = async (itemId: string, collectionName: string) => {
+    try {
+      if (!itemId) return;
+      if (collectionName === "committees") {
+        await deleteFirebaseComm(itemId);
+      } else if (collectionName === "members") {
+        await deleteFirebaseMember(itemId);
+      } else if (collectionName === "events") {
+        await deleteFirebaseEvent(itemId);
+      } else if (collectionName === "recommendations") {
+        await deleteFirebaseRec(itemId);
+      } else if (collectionName === "tasks") {
+        await deleteFirebaseTask(itemId);
+      } else if (collectionName === "reports") {
+        await deleteFirebaseReport(itemId);
+      } else if (collectionName === "kpis") {
+        await deleteFirebaseKpi(itemId);
+      } else if (collectionName === "templates") {
+        await deleteFirebaseTemplate(itemId);
+      }
+
+      // Add a clean log to the audit log tracker
+      await addFirebaseLog({
+        time: new Date().toISOString().replace('T', ' ').slice(0, 19),
+        employeeName: currentUser?.name || "مدير النظام",
+        operationType: "حذف إداري شامل",
+        status: "ناجحة",
+        details: `قام مدير النظام بحذف سجل ذو المعرف (${itemId}) نهائياً من مستوعب (${collectionName})`
+      });
+
+      // Clear state
+      setConfirmDeleteId(null);
+      setConfirmDeleteCol(null);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleToggleMasterCommitteesActive = async (item: any) => {
+    try {
+      if (!item || !item.id) return;
+      const nextActive = item.active === false ? true : false;
+      await updateFirebaseComm(item.id, { active: nextActive });
+      
+      await addFirebaseLog({
+        time: new Date().toISOString().replace('T', ' ').slice(0, 19),
+        employeeName: currentUser?.name || "مدير النظام",
+        operationType: "تعديل حالة لجنة",
+        status: "ناجحة",
+        details: `قام مدير النظام بتغيير حالة فاعلية لجنة (${item.name}) إلى (${nextActive ? 'نشطة' : 'غير نشطة'})`
+      });
+    } catch (_) {}
+  };
 
   // UI state for search, filters, modals, and actions
   const [searchTerm, setSearchTerm] = useState("");
@@ -1019,6 +1109,23 @@ export default function OrgChart() {
           >
             <FileText className="w-4 h-4 shrink-0" />
             <span>سجل مراقبة العمليات</span>
+          </button>
+        )}
+
+        {currentUserRole === "SYS_ADMIN" && (
+          <button
+            onClick={() => setActiveTab("master_data")}
+            className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === "master_data"
+                ? "border-brand text-brand font-black"
+                : "border-transparent text-gray-500 hover:text-gray-900"
+            }`}
+          >
+            <Database className="w-4 h-4 shrink-0" />
+            <span>لوحة مستوعبات البيانات الموحدة</span>
+            <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[9px] font-black">
+              أدمن
+            </span>
           </button>
         )}
       </div>
@@ -1921,6 +2028,576 @@ export default function OrgChart() {
                     ))
                   )}
                 </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: MASTER DATA EXPLORER & CONTROL PANEL */}
+        {activeTab === "master_data" && currentUserRole === "SYS_ADMIN" && (
+          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-6">
+            
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
+              <div>
+                <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5">
+                  <Database className="w-5 h-5 text-gray-800" />
+                  <span>لوحة مستوعبات البيانات الموحدة للأدمن (Master Data Console)</span>
+                </h2>
+                <p className="text-gray-550 text-xs mt-0.5">
+                  أنت مسجل كمدير نظام (SYS_ADMIN). تتيح لك هذه الشاشة الوصول الشامل والسيطرة الكاملة على كافة مستوعبات المحتوى المسجل في النظام وحذفه أو تعديل حالته.
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Stats Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-center">
+                <span className="block text-gray-400 text-[10px] font-bold">إجمالي اللجان</span>
+                <span className="text-lg font-black text-slate-800">{dbCommittees.length}</span>
+              </div>
+              <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-center">
+                <span className="block text-gray-400 text-[10px] font-bold">إجمالي الأعضاء</span>
+                <span className="text-lg font-black text-slate-800">{dbMembers.length}</span>
+              </div>
+              <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-center">
+                <span className="block text-gray-400 text-[10px] font-bold">إجمالي الفعاليات</span>
+                <span className="text-lg font-black text-slate-800">{dbEvents.length}</span>
+              </div>
+              <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-center">
+                <span className="block text-gray-400 text-[10px] font-bold">إجمالي التوصيات</span>
+                <span className="text-lg font-black text-slate-800">{dbRecommendations.length}</span>
+              </div>
+            </div>
+
+            {/* Sub-Collection Pill Selectors Container */}
+            <div className="flex flex-wrap gap-2 border-b border-gray-100 pb-4">
+              {[
+                { key: "committees", label: "اللجان القطاعية", count: dbCommittees.length },
+                { key: "members", label: "أعضاء اللجان", count: dbMembers.length },
+                { key: "events", label: "الفعاليات والاجتماعات", count: dbEvents.length },
+                { key: "recommendations", label: "التوصيات المدرجة", count: dbRecommendations.length },
+                { key: "tasks", label: "المهام الإدارية", count: dbTasks.length },
+                { key: "reports", label: "التقارير الدورية", count: dbReports.length },
+                { key: "kpis", label: "مؤشرات الأداء", count: dbKpis.length },
+                { key: "templates", label: "النماذج والقوالب المؤسسية", count: dbTemplates.length }
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => {
+                    setSelectedSubCol(tab.key);
+                    setMasterSearchQuery("");
+                    setConfirmDeleteId(null);
+                  }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer border ${
+                    selectedSubCol === tab.key
+                      ? "bg-brand text-white border-brand shadow-sm shadow-blue-100"
+                      : "bg-gray-50 hover:bg-gray-100 text-gray-600 border-gray-200"
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[9px] ${
+                    selectedSubCol === tab.key ? "bg-white/20 text-white" : "bg-gray-200 text-gray-600"
+                  }`}>
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Global Search and Search Bar */}
+            <div className="relative">
+              <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-450 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="البحث الفوري الشامل في هذا الجدول المختار للتحكم ومراجعة التفاصيل الكلية..."
+                value={masterSearchQuery}
+                onChange={(e) => setMasterSearchQuery(e.target.value)}
+                className="w-full pr-10 pl-4 py-2 text-xs font-semibold bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-brand focus:bg-white text-right"
+              />
+            </div>
+
+            {/* Inline Deletion Confirmation Overlay banner */}
+            {confirmDeleteId && confirmDeleteCol === selectedSubCol && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-red-50 border border-red-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-red-900"
+              >
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 shrink-0 text-red-600" />
+                  <p className="text-xs font-bold leading-relaxed">
+                    تحذير إداري: هل أنت متأكد تماماً من رغبتك في حذف هذا السجل ذو المعرف <strong>({confirmDeleteId})</strong> نهائياً من قاعدة البيانات للـ ({confirmDeleteCol})؟ لا يمكن التراجع عن هذا الإجراء!
+                  </p>
+                </div>
+                <div className="flex gap-2 self-end sm:self-center">
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteMasterItem(confirmDeleteId, selectedSubCol)}
+                    className="px-3 py-1 bg-red-650 text-white text-[11px] font-black rounded-lg cursor-pointer hover:bg-red-700 transition"
+                  >
+                    نعم، احذف السجل
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConfirmDeleteId(null);
+                      setConfirmDeleteCol(null);
+                    }}
+                    className="px-3 py-1 bg-white border border-gray-350 text-gray-700 text-[11px] font-bold rounded-lg cursor-pointer animate-none"
+                  >
+                    تراجع
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Table explorer */}
+            <div className="overflow-x-auto custom-scrollbar rounded-xl border border-gray-200">
+              <table className="w-full text-right text-xs">
+                
+                {/* 1. Committees Collection Table UI */}
+                {selectedSubCol === "committees" && (
+                  <>
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-4">اسم اللجنة</th>
+                        <th className="p-4">الأخصائي المسؤول</th>
+                        <th className="p-4">رئيس اللجنة</th>
+                        <th className="p-4">الأهداف والوصف</th>
+                        <th className="p-4">الحالة العامة</th>
+                        <th className="p-4">إجراءات الإدارة</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 font-medium text-gray-650">
+                      {masterFilteredData.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-8 text-center text-gray-400 italic">لا نتائج مطابقة لفلترة اللجان.</td>
+                        </tr>
+                      ) : (
+                        masterFilteredData.map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50/55">
+                            <td className="p-4 font-black text-gray-900 whitespace-nowrap">{item.name}</td>
+                            <td className="p-4 font-extrabold text-blue-800 whitespace-nowrap">{item.specialist || "غير معين"}</td>
+                            <td className="p-4 whitespace-nowrap">{item.president || "لم يحدد"}</td>
+                            <td className="p-4 max-w-xs truncate text-gray-500">{item.desc || "بلا وصف تفصيلي"}</td>
+                            <td className="p-4 whitespace-nowrap font-bold">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleMasterCommitteesActive(item)}
+                                className={`px-2 py-0.5 rounded text-[10px] font-black border text-center cursor-pointer ${
+                                  item.active !== false
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    : "bg-red-50 text-red-650 border-red-200"
+                                }`}
+                              >
+                                {item.active !== false ? "✓ لجنة فعالة" : "✗ غير فعالة"}
+                              </button>
+                            </td>
+                            <td className="p-4 whitespace-nowrap font-bold">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfirmDeleteId(item.id);
+                                  setConfirmDeleteCol("committees");
+                                }}
+                                className="p-1.5 text-red-550 hover:text-red-700 hover:bg-red-50 rounded transition cursor-pointer"
+                                title="حذف بالكامل"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </>
+                )}
+
+                {/* 2. Members Collection Table UI */}
+                {selectedSubCol === "members" && (
+                  <>
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-4">الاسم بالكامل</th>
+                        <th className="p-4">رقم الهوية الوطنية</th>
+                        <th className="p-4">اللقب والمنصب</th>
+                        <th className="p-4">رقم الجوال</th>
+                        <th className="p-4">البريد الإلكتروني</th>
+                        <th className="p-4">آلية الانضمام وحالة العضوية</th>
+                        <th className="p-4">إجراءات الإدارة</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 font-medium text-gray-650">
+                      {masterFilteredData.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="p-8 text-center text-gray-400 italic">لا توجد سجلات أعضاء مطابقة للفرز.</td>
+                        </tr>
+                      ) : (
+                        masterFilteredData.map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50/55">
+                            <td className="p-4 font-black text-gray-900 whitespace-nowrap">
+                              {(item.prefix || "") + " " + (item.name || "")}
+                            </td>
+                            <td className="p-4 font-mono select-all whitespace-nowrap">{item.nationalId || "-"}</td>
+                            <td className="p-4 whitespace-nowrap font-semibold">
+                              <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-[9px] font-bold border border-blue-100">
+                                {item.title || "عضو"}
+                              </span>
+                            </td>
+                            <td className="p-4 font-mono select-all whitespace-nowrap">{item.phone || "-"}</td>
+                            <td className="p-4 font-mono select-all text-xs text-slate-500 whitespace-nowrap">{item.email || "-"}</td>
+                            <td className="p-4 whitespace-nowrap">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                                item.active !== false && item.status !== "غير فعال"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : "bg-red-50 text-red-650 border-red-200"
+                              }`}>
+                                {item.active !== false && item.status !== "غير فعال" ? "نشط" : "غير نشط"}
+                              </span>
+                            </td>
+                            <td className="p-4 whitespace-nowrap font-bold">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfirmDeleteId(item.id);
+                                  setConfirmDeleteCol("members");
+                                }}
+                                className="p-1.5 text-red-550 hover:text-red-700 hover:bg-red-50 rounded transition cursor-pointer"
+                                title="حذف"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </>
+                )}
+
+                {/* 3. Events Collection Table UI */}
+                {selectedSubCol === "events" && (
+                  <>
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-4">عنوان الفعالية</th>
+                        <th className="p-4">التصنيف واللجنة</th>
+                        <th className="p-4">تاريخ الانعقاد والوقت</th>
+                        <th className="p-4">القاعة المخصصة</th>
+                        <th className="p-4">الأخصائي والمنسق</th>
+                        <th className="p-4">حالة جدول الأعمال والمشروع</th>
+                        <th className="p-4">إجراءات الإدارة</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 font-medium text-gray-650">
+                      {masterFilteredData.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="p-8 text-center text-gray-400 italic">لا توجد فعاليات مجدولة مطابقة للفرز.</td>
+                        </tr>
+                      ) : (
+                        masterFilteredData.map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50/55">
+                            <td className="p-4 font-black text-slate-900 truncate max-w-xs">{item.title}</td>
+                            <td className="p-4 whitespace-nowrap font-bold">
+                              <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[9px] font-bold border border-blue-100">
+                                {item.committeeName || item.committee || "مبسطة"}
+                              </span>
+                            </td>
+                            <td className="p-4 whitespace-nowrap text-xs font-bold font-mono">
+                              {item.date} <span className="text-gray-400 font-semibold">{item.time}</span>
+                            </td>
+                            <td className="p-4 whitespace-nowrap text-gray-700 font-black">{item.room || "غير محدد"}</td>
+                            <td className="p-4 whitespace-nowrap">{item.employee || item.specialist || "مدير النظام"}</td>
+                            <td className="p-4 whitespace-nowrap">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                                item.minutesSaved 
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : "bg-amber-50 text-amber-700 border-amber-200"
+                              }`}>
+                                {item.minutesSaved ? "مكتمل ومرحل" : "مجدول بالانتظار"}
+                              </span>
+                            </td>
+                            <td className="p-4 whitespace-nowrap font-bold">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfirmDeleteId(item.id);
+                                  setConfirmDeleteCol("events");
+                                }}
+                                className="p-1.5 text-red-555 hover:text-red-700 hover:bg-red-50 rounded transition cursor-pointer"
+                                title="حذف الفعالية"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </>
+                )}
+
+                {/* 4. Recommendations Collection Table UI */}
+                {selectedSubCol === "recommendations" && (
+                  <>
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-4">نص التوصية</th>
+                        <th className="p-4">اللجنة الصادرة</th>
+                        <th className="p-4">الموظف المكلف بالتنسيق</th>
+                        <th className="p-4">مسؤول المتابعة بالمحضر</th>
+                        <th className="p-4">مستوى الاعتماد الحالي</th>
+                        <th className="p-4">حالة التوصية العاجلة</th>
+                        <th className="p-4">إجراءات الإدارة</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 font-medium text-gray-650">
+                      {masterFilteredData.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="p-8 text-center text-gray-400 italic">لا توجد توصيات مطابقة للتصفية.</td>
+                        </tr>
+                      ) : (
+                        masterFilteredData.map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50/55">
+                            <td className="p-4 font-semibold text-gray-800">{item.title || item.text || item.description || "توصية عامة"}</td>
+                            <td className="p-4 whitespace-nowrap font-bold text-blue-700">{item.committeeName || item.dept || "إشرافية"}</td>
+                            <td className="p-4 whitespace-nowrap text-slate-500 font-bold">{item.assignedTo || "غير محدد"}</td>
+                            <td className="p-4 whitespace-nowrap font-bold text-gray-800">{item.responsible || "أخصائي الحوكمة"}</td>
+                            <td className="p-4 whitespace-nowrap font-bold">
+                              <span className="bg-purple-50 text-purple-700 border border-purple-205 px-2 py-0.5 rounded text-[10px] font-black">
+                                {item.approvalStage || "مكتملة"}
+                              </span>
+                            </td>
+                            <td className="p-4 whitespace-nowrap">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                                item.status === "منجزة"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : item.status === "متأخرة"
+                                  ? "bg-rose-50 text-rose-700 border-rose-200"
+                                  : "bg-blue-50 text-blue-800 border-blue-200"
+                              }`}>
+                                {item.status || "جديدة"}
+                              </span>
+                            </td>
+                            <td className="p-4 whitespace-nowrap font-bold">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfirmDeleteId(item.id);
+                                  setConfirmDeleteCol("recommendations");
+                                }}
+                                className="p-1.5 text-red-555 hover:text-red-700 hover:bg-red-50 rounded transition cursor-pointer"
+                                title="حذف التوصية ومسح أثرها"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </>
+                )}
+
+                {/* 5. Tasks Collection Table UI */}
+                {selectedSubCol === "tasks" && (
+                  <>
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-4">عنوان المهمة الإدارية</th>
+                        <th className="p-4">المكلف بالإنجاز بالكامل</th>
+                        <th className="p-4">موعد الاستلام والانتهاء</th>
+                        <th className="p-4">الأولوية والخطورة</th>
+                        <th className="p-4">حالة المهمة</th>
+                        <th className="p-4">إجراءات الإدارة</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 font-medium text-gray-655">
+                      {masterFilteredData.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-8 text-center text-gray-400 italic">لا نتائج مطابقة لفلترة المهام.</td>
+                        </tr>
+                      ) : (
+                        masterFilteredData.map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50/55">
+                            <td className="p-4 font-black text-gray-800 whitespace-nowrap">{item.title}</td>
+                            <td className="p-4 whitespace-nowrap font-black text-purple-800">{item.assignedTo || "غير معين"}</td>
+                            <td className="p-4 whitespace-nowrap font-semibold font-mono">{item.dueDate || "-"}</td>
+                            <td className="p-4 whitespace-nowrap text-center font-bold">
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                item.priority === "high" || item.priority === "urgent"
+                                  ? "bg-red-100 text-red-800"
+                                  : "bg-amber-100 text-amber-800"
+                              }`}>
+                                {item.priority === "high" ? "عالية" : item.priority === "urgent" ? "حرجة جداً" : "عادية"}
+                              </span>
+                            </td>
+                            <td className="p-4 whitespace-nowrap font-bold">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                                item.status === "منجزة"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : item.status === "متأخرة"
+                                  ? "bg-rose-50 text-rose-700 border-rose-200"
+                                  : "bg-blue-50 text-blue-700 border-blue-200"
+                              }`}>
+                                {item.status || "جديدة"}
+                              </span>
+                            </td>
+                            <td className="p-4 whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfirmDeleteId(item.id);
+                                  setConfirmDeleteCol("tasks");
+                                }}
+                                className="p-1.5 text-red-550 hover:text-red-700 hover:bg-red-50 rounded transition cursor-pointer"
+                                title="إلغاء وحذف"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </>
+                )}
+
+                {/* 6. Reports Collection Table UI */}
+                {selectedSubCol === "reports" && (
+                  <>
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-4">نوع/رقم التقرير الدورى</th>
+                        <th className="p-4">منشئ التقرير</th>
+                        <th className="p-4">النطاق والتواريخ المعتمدة</th>
+                        <th className="p-4">تاريخ التوثيق</th>
+                        <th className="p-4">التحكم الكلي</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 font-medium text-gray-655">
+                      {masterFilteredData.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="p-8 text-center text-gray-400 italic">لا تتوفر أية تقارير مطبوعة حتى الآن.</td>
+                        </tr>
+                      ) : (
+                        masterFilteredData.map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50/55">
+                            <td className="p-4 font-black text-gray-900 whitespace-nowrap">
+                              تقرير حوكمة {item.type === "annual" ? "سنوي" : item.type === "quarterly" ? "ربع سنوي" : "شهري"}
+                            </td>
+                            <td className="p-4 whitespace-nowrap font-bold text-blue-700">{item.creator || "معد النظام تلقائياً"}</td>
+                            <td className="p-4 font-semibold text-gray-400 whitespace-nowrap">{item.timeframe || "-"}</td>
+                            <td className="p-4 font-mono text-[10px] whitespace-nowrap">{item.createdAt || "-"}</td>
+                            <td className="p-4 whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfirmDeleteId(item.id);
+                                  setConfirmDeleteCol("reports");
+                                }}
+                                className="p-1.5 text-red-550 hover:text-red-700 hover:bg-red-50 rounded transition cursor-pointer"
+                                title="إتلاف التقرير"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </>
+                )}
+
+                {/* 7. KPIs Collection Table UI */}
+                {selectedSubCol === "kpis" && (
+                  <>
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-400 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-4">رقم واسم المؤشر</th>
+                        <th className="p-4">المعيار الملحق</th>
+                        <th className="p-4">معد المؤشر</th>
+                        <th className="p-4">التدريج الزمنى</th>
+                        <th className="p-4">التحكم الإدارى الكلي</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 font-medium text-gray-655">
+                      {masterFilteredData.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="p-8 text-center text-gray-400 italic">لم تسجل أية عينات مؤشر أداء بعد.</td>
+                        </tr>
+                      ) : (
+                        masterFilteredData.map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50/55">
+                            <td className="p-4 font-black whitespace-nowrap">{item.title || "مؤشر حوكمة اللجان"}</td>
+                            <td className="p-4 font-bold text-amber-700 whitespace-nowrap">{item.benchmark || "-"}</td>
+                            <td className="p-4 whitespace-nowrap text-blue-700 font-bold">{item.creator || "مدير النظام"}</td>
+                            <td className="p-4 font-semibold text-gray-400 whitespace-nowrap">{item.timeframe || "-"}</td>
+                            <td className="p-4 whitespace-nowrap font-bold">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfirmDeleteId(item.id);
+                                  setConfirmDeleteCol("kpis");
+                                }}
+                                className="p-1.5 text-red-550 hover:text-red-700 hover:bg-red-50 rounded transition cursor-pointer"
+                                title="شطب مؤشر"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </>
+                )}
+
+                {/* 8. Templates Collection Table UI */}
+                {selectedSubCol === "templates" && (
+                  <>
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-400 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-4">اسم النموذج المؤسسي</th>
+                        <th className="p-4">عائلة التصنيف</th>
+                        <th className="p-4">الموظف الأخصائى المنشئ</th>
+                        <th className="p-4">تاريخ المرفق والتحميل الفوري</th>
+                        <th className="p-4">التحكم</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 font-medium text-gray-655">
+                      {masterFilteredData.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="p-8 text-center text-gray-400 italic">لا تتوفر أية قوالب نماذج مسجلة في هذا المستوعب.</td>
+                        </tr>
+                      ) : (
+                        masterFilteredData.map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50/55">
+                            <td className="p-4 font-black whitespace-nowrap">{item.title}</td>
+                            <td className="p-4 font-bold text-purple-700 whitespace-nowrap">{item.classification || "مستندات عامة"}</td>
+                            <td className="p-4 whitespace-nowrap font-black text-gray-800">{item.specialist || item.uploaderName || "غير محدد"}</td>
+                            <td className="p-4 text-xs max-w-xs truncate text-slate-500">{item.fileLink || "رابط متصل بجوجل درايف"}</td>
+                            <td className="p-4 whitespace-nowrap font-bold">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfirmDeleteId(item.id);
+                                  setConfirmDeleteCol("templates");
+                                }}
+                                className="p-1.5 text-red-550 hover:text-red-700 hover:bg-red-50 rounded transition cursor-pointer"
+                                title="حذف بالكامل من المكتبة"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </>
+                )}
+
               </table>
             </div>
           </div>

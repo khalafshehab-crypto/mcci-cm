@@ -76,12 +76,6 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
     throw new Error("Authentication required: No active Google Workspace connection.");
   }
 
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-    ...options.headers,
-  };
-
   // Dynamically route to correct specific API subdomains for reliable CORS and routing behavior
   let url = `https://www.googleapis.com/${endpoint}`;
   if (endpoint.startsWith("sheets/")) {
@@ -102,9 +96,23 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
     url = `https://chat.googleapis.com/${endpoint.substring(5)}`;
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
+  const reqHeaders = {
+    "Content-Type": "application/json",
+    ...options.headers,
+  };
+
+  const response = await fetch("/api/google-proxy", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      token,
+      url,
+      method: options.method || "GET",
+      body: options.body,
+      headers: reqHeaders,
+    }),
   });
 
   if (!response.ok) {
@@ -166,13 +174,20 @@ export async function uploadFileToDrive(name: string, content: string, mimeType:
     `${content}\r\n` +
     `--${boundary}--`;
 
-  const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+  const response = await fetch("/api/google-proxy", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": `multipart/related; boundary=${boundary}`,
+      "Content-Type": "application/json",
     },
-    body: multipartBody,
+    body: JSON.stringify({
+      token,
+      url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+      method: "POST",
+      body: multipartBody,
+      headers: {
+        "Content-Type": `multipart/related; boundary=${boundary}`,
+      },
+    }),
   });
 
   if (!response.ok) {

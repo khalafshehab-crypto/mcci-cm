@@ -171,7 +171,7 @@ const exportRecommendationsToLocalStorage = async (evt: EventItem, selectedAgend
   }
 };
 
-import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc, setDoc } from '../lib/firebase';
 import { db } from '../lib/firebase';
 import { useFirestoreCollection } from '../lib/firebaseUtils';
 

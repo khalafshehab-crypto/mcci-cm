@@ -66,9 +66,10 @@ const CustomModernBar = (props: any) => {
   const name = payload?.name || "";
   const rx = Math.min(width / 2, 8); // clean rounded radius cap on top
   
-  // Safe unique IDs for gradients
-  const glowId = `glow-modern-${name.replace(/[^\w]/g, '') || Math.random().toString(36).substring(7)}`;
-  const highlightGradId = `highlight-modern-${name.replace(/[^\w]/g, '') || Math.random().toString(36).substring(7)}`;
+  // Safe unique stable IDs for gradients based on name hash
+  const safeName = encodeURIComponent(name).replace(/%/g, "_");
+  const glowId = `glow-modern-${safeName}`;
+  const highlightGradId = `highlight-modern-${safeName}`;
   
   return (
     <g 
@@ -312,7 +313,7 @@ export interface Alarm {
 
 import { useFirestoreCollection } from '../lib/firebaseUtils';
 import { formatCommitteeNameArabic } from '../lib/arabicUtils';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc } from '../lib/firebase';
 import { db } from '../lib/firebase';
 
 const getStepsForEventAlarm = (e: any) => {

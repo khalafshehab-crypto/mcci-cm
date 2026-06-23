@@ -48,6 +48,57 @@ async function startServer() {
     }
   });
 
+  // API route for Generic Google Proxy to bypass CORS lock in the browser for Drive, Sheets, Slides, Docs, etc.
+  app.post("/api/google-proxy", async (req, res) => {
+    try {
+      const { token, url, method, body, headers } = req.body;
+      if (!token) {
+        return res.status(400).json({ error: { message: "Access token is required" } });
+      }
+      if (!url) {
+        return res.status(400).json({ error: { message: "URL is required" } });
+      }
+
+      const reqHeaders: Record<string, string> = {
+        "Authorization": `Bearer ${token}`,
+        ...headers,
+      };
+
+      const fetchOptions: RequestInit = {
+        method: method || "GET",
+        headers: reqHeaders,
+      };
+
+      if (body) {
+        fetchOptions.body = typeof body === "string" ? body : JSON.stringify(body);
+      }
+
+      console.log(`[Google Proxy] Forwarding ${method || "GET"} request to ${url}`);
+      const response = await fetch(url, fetchOptions);
+
+      if (response.status === 204) {
+        return res.status(204).end();
+      }
+
+      const responseData = await response.text();
+      if (!response.ok) {
+        return res.status(response.status).json({ error: { message: responseData } });
+      }
+
+      let parsed = {};
+      try {
+        parsed = JSON.parse(responseData);
+      } catch (e) {
+        parsed = { rawData: responseData };
+      }
+
+      return res.json(parsed);
+    } catch (err: any) {
+      console.error("Google Proxy Error:", err);
+      return res.status(500).json({ error: { message: err.message || "Internal Server Error" } });
+    }
+  });
+
   // API health check
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });

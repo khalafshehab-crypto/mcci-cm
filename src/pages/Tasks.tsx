@@ -1,6 +1,6 @@
 import React, { useState, useEffect, FormEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query } from '../lib/firebase';
 import { db } from '../lib/firebase';
 import { 
   CheckSquare, Search, Plus, X, Trash2, Edit2, LayoutGrid, List, AlertTriangle, Check, BookOpen, Clock, AlignLeft, Send, Filter, Users, Settings, Copy, ChevronDown, ChevronUp, Sparkles, Sliders, ArrowLeftRight, Archive, CheckCircle2, AlertCircle, FileSpreadsheet, Paperclip, ChevronLeft, Calendar

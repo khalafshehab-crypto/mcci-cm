@@ -196,7 +196,7 @@ function AttachmentInput({ label, value, onChange, id }: AttachmentInputProps) {
   );
 }
 
-import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc } from '../lib/firebase';
 import { db } from '../lib/firebase';
 import { useFirestoreCollection } from '../lib/firebaseUtils';
 
