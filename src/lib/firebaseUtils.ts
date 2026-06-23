@@ -1,6 +1,17 @@
 // src/lib/firebaseUtils.ts
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, addDoc, deleteDoc, doc, setDoc } from './firebase';
+import { 
+  collection, 
+  onSnapshot, 
+  query, 
+  addDoc, 
+  deleteDoc, 
+  doc, 
+  setDoc,
+  setFirestoreBlocked,
+  subscribeToFirestoreBlocked,
+  isUseMock
+} from './firebase';
 import { db, auth } from './firebase';
 import { getLocalCollection, saveLocalCollection } from './mockFirebase';
 
@@ -30,33 +41,7 @@ export interface FirestoreErrorInfo {
   }
 }
 
-// Global flag to track whether active Firestore is blocked (insufficient permissions, etc.)
-let isFirestoreBlocked = !db || db.type === "dummy_firestore";
-const blockedListeners = new Set<(blocked: boolean) => void>();
-
-export function setFirestoreBlocked(blocked: boolean) {
-  if (db) {
-    db.isBlocked = blocked;
-  }
-  if (isFirestoreBlocked !== blocked) {
-    isFirestoreBlocked = blocked;
-    blockedListeners.forEach(listener => {
-      try {
-        listener(blocked);
-      } catch (e) {
-        console.error("Error invoking Firestore block listener:", e);
-      }
-    });
-  }
-}
-
-export function subscribeToFirestoreBlocked(listener: (blocked: boolean) => void) {
-  blockedListeners.add(listener);
-  listener(isFirestoreBlocked);
-  return () => {
-    blockedListeners.delete(listener);
-  };
-}
+// Block state managed globally via firebase.ts
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo: FirestoreErrorInfo = {
@@ -79,6 +64,26 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   setFirestoreBlocked(true);
 }
 
+// Wrap any Firestore Promise with a timeout to prevent hanging infinitely on security rules or connections
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, defaultValue: T): Promise<T> {
+  let timeoutId: any;
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timeoutId = setTimeout(() => {
+      console.warn(`Firestore task timed out after ${timeoutMs}ms. Forcing fallback mode.`);
+      setFirestoreBlocked(true);
+      resolve(defaultValue);
+    }, timeoutMs);
+  });
+
+  return Promise.race([
+    promise.then((res) => {
+      clearTimeout(timeoutId);
+      return res;
+    }),
+    timeoutPromise
+  ]);
+}
+
 export function useFirestoreCollection<T>(collectionName: string, initialData: T[] = []) {
   const [data, setData] = useState<T[]>(initialData);
   const [loading, setLoading] = useState(true);
@@ -87,6 +92,15 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
     let unsubscribe: (() => void) | null = null;
     let localCleanup: (() => void) | null = null;
     let active = true;
+    let hasLoaded = false;
+
+    // Safety timeout: if we don't receive data within 1200ms, assume Firestore is blocked/slow and fallback
+    const safetyTimeout = setTimeout(() => {
+      if (active && !hasLoaded) {
+        console.warn(`Firestore subscription loading timed out for '${collectionName}'. Setting blocked state.`);
+        setFirestoreBlocked(true);
+      }
+    }, 1200);
 
     // Listen to changes in the Firestore blocked state
     const unsubscribeBlocked = subscribeToFirestoreBlocked((blocked) => {
@@ -115,6 +129,7 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
             const q = query(collection(db, collectionName));
             unsubscribe = onSnapshot(q, (snapshot) => {
               if (!active) return;
+              hasLoaded = true;
               const docs = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
@@ -170,6 +185,7 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
 
     return () => {
       active = false;
+      clearTimeout(safetyTimeout);
       unsubscribeBlocked();
       if (unsubscribe) {
         try {
@@ -191,19 +207,24 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
     list.push(localItem);
     saveLocalCollection(collectionName, list);
 
-    if (!isFirestoreBlocked) {
+    if (!isUseMock()) {
       try {
-        const docRef = await addDoc(collection(db, collectionName), item);
+        const docRef = await withTimeout(
+          addDoc(collection(db, collectionName), item),
+          1200,
+          null
+        );
         
-        // Sync the local storage collection's fallback ID with the actual Firestore ID
-        const freshList = getLocalCollection(collectionName);
-        const index = freshList.findIndex(x => String(x.id) === String(newId));
-        if (index >= 0) {
-          freshList[index].id = docRef.id;
-          saveLocalCollection(collectionName, freshList);
+        if (docRef) {
+          // Sync the local storage collection's fallback ID with the actual Firestore ID
+          const freshList = getLocalCollection(collectionName);
+          const index = freshList.findIndex(x => String(x.id) === String(newId));
+          if (index >= 0) {
+            freshList[index].id = docRef.id;
+            saveLocalCollection(collectionName, freshList);
+          }
+          return docRef.id;
         }
-        
-        return docRef.id;
       } catch(e) {
         handleFirestoreError(e, OperationType.CREATE, collectionName);
         return newId;
@@ -222,9 +243,13 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
     }
     saveLocalCollection(collectionName, list);
 
-    if (!isFirestoreBlocked) {
+    if (!isUseMock()) {
       try {
-        await setDoc(doc(db, collectionName, String(id)), item, { merge: true });
+        await withTimeout(
+          setDoc(doc(db, collectionName, String(id)), item, { merge: true }),
+          1200,
+          null
+        );
       } catch(e) {
         handleFirestoreError(e, OperationType.UPDATE, `${collectionName}/${id}`);
       }
@@ -236,9 +261,13 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
     const filtered = list.filter(item => String(item.id) !== String(id));
     saveLocalCollection(collectionName, filtered);
 
-    if (!isFirestoreBlocked) {
+    if (!isUseMock()) {
       try {
-        await deleteDoc(doc(db, collectionName, String(id)));
+        await withTimeout(
+          deleteDoc(doc(db, collectionName, String(id))),
+          1200,
+          null
+        );
       } catch(e) {
         handleFirestoreError(e, OperationType.DELETE, `${collectionName}/${id}`);
       }
@@ -255,9 +284,13 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
     }
     saveLocalCollection(collectionName, list);
 
-    if (!isFirestoreBlocked) {
+    if (!isUseMock()) {
       try {
-        await setDoc(doc(db, collectionName, String(id)), item);
+        await withTimeout(
+          setDoc(doc(db, collectionName, String(id)), item),
+          1200,
+          null
+        );
       } catch(e) {
         handleFirestoreError(e, OperationType.WRITE, `${collectionName}/${id}`);
       }
@@ -266,3 +299,5 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
 
   return { data, loading, addDocument, updateDocument, deleteDocument, setDocument };
 }
+
+export { setFirestoreBlocked, subscribeToFirestoreBlocked, isUseMock };

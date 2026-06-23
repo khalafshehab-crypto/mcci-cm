@@ -212,9 +212,11 @@ export default function OrgChart() {
     else if (selectedSubCol === "kpis") source = dbKpis || [];
     else if (selectedSubCol === "templates") source = dbTemplates || [];
 
+    // Filter out null or undefined elements to avoid runtime crashes during mapping/filtering
+    source = (source || []).filter(item => item && typeof item === "object");
+
     if (!term) return source;
     return source.filter((item) => {
-      if (!item) return false;
       try {
         const strToSearch = JSON.stringify(item).toLowerCase();
         return strToSearch.includes(term);
@@ -2053,33 +2055,33 @@ export default function OrgChart() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-center">
                 <span className="block text-gray-400 text-[10px] font-bold">إجمالي اللجان</span>
-                <span className="text-lg font-black text-slate-800">{dbCommittees.length}</span>
+                <span className="text-lg font-black text-slate-800">{dbCommittees?.length || 0}</span>
               </div>
               <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-center">
                 <span className="block text-gray-400 text-[10px] font-bold">إجمالي الأعضاء</span>
-                <span className="text-lg font-black text-slate-800">{dbMembers.length}</span>
+                <span className="text-lg font-black text-slate-800">{dbMembers?.length || 0}</span>
               </div>
               <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-center">
                 <span className="block text-gray-400 text-[10px] font-bold">إجمالي الفعاليات</span>
-                <span className="text-lg font-black text-slate-800">{dbEvents.length}</span>
+                <span className="text-lg font-black text-slate-800">{dbEvents?.length || 0}</span>
               </div>
               <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-center">
                 <span className="block text-gray-400 text-[10px] font-bold">إجمالي التوصيات</span>
-                <span className="text-lg font-black text-slate-800">{dbRecommendations.length}</span>
+                <span className="text-lg font-black text-slate-800">{dbRecommendations?.length || 0}</span>
               </div>
             </div>
 
             {/* Sub-Collection Pill Selectors Container */}
             <div className="flex flex-wrap gap-2 border-b border-gray-100 pb-4">
               {[
-                { key: "committees", label: "اللجان القطاعية", count: dbCommittees.length },
-                { key: "members", label: "أعضاء اللجان", count: dbMembers.length },
-                { key: "events", label: "الفعاليات والاجتماعات", count: dbEvents.length },
-                { key: "recommendations", label: "التوصيات المدرجة", count: dbRecommendations.length },
-                { key: "tasks", label: "المهام الإدارية", count: dbTasks.length },
-                { key: "reports", label: "التقارير الدورية", count: dbReports.length },
-                { key: "kpis", label: "مؤشرات الأداء", count: dbKpis.length },
-                { key: "templates", label: "النماذج والقوالب المؤسسية", count: dbTemplates.length }
+                { key: "committees", label: "اللجان القطاعية", count: dbCommittees?.length || 0 },
+                { key: "members", label: "أعضاء اللجان", count: dbMembers?.length || 0 },
+                { key: "events", label: "الفعاليات والاجتماعات", count: dbEvents?.length || 0 },
+                { key: "recommendations", label: "التوصيات المدرجة", count: dbRecommendations?.length || 0 },
+                { key: "tasks", label: "المهام الإدارية", count: dbTasks?.length || 0 },
+                { key: "reports", label: "التقارير الدورية", count: dbReports?.length || 0 },
+                { key: "kpis", label: "مؤشرات الأداء", count: dbKpis?.length || 0 },
+                { key: "templates", label: "النماذج والقوالب المؤسسية", count: dbTemplates?.length || 0 }
               ].map((tab) => (
                 <button
                   key={tab.key}

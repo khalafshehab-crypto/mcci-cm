@@ -66,8 +66,35 @@ try {
   };
 }
 
+let isFirestoreBlocked = !db || db.type === "dummy_firestore";
+const blockedListeners = new Set<(blocked: boolean) => void>();
+
+export function setFirestoreBlocked(blocked: boolean) {
+  if (db) {
+    db.isBlocked = blocked;
+  }
+  if (isFirestoreBlocked !== blocked) {
+    isFirestoreBlocked = blocked;
+    blockedListeners.forEach(listener => {
+      try {
+        listener(blocked);
+      } catch (e) {
+        console.error("Error invoking Firestore block listener:", e);
+      }
+    });
+  }
+}
+
+export function subscribeToFirestoreBlocked(listener: (blocked: boolean) => void) {
+  blockedListeners.add(listener);
+  listener(isFirestoreBlocked);
+  return () => {
+    blockedListeners.delete(listener);
+  };
+}
+
 export function isUseMock() {
-  return !db || db.type === "dummy_firestore" || db.isBlocked === true;
+  return isFirestoreBlocked;
 }
 
 export function collection(dbRef: any, collectionName: string): any {
@@ -106,12 +133,39 @@ export function query(collectionRef: any, ...queryConstraints: any[]): any {
   }
 }
 
+// Wrap core firebase promises with a timeout to prevent hanging on connection or rules issues
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number
+): Promise<{ result: T | null; timedOut: boolean }> {
+  let timeoutId: any;
+  const timeoutPromise = new Promise<{ result: T | null; timedOut: boolean }>((resolve) => {
+    timeoutId = setTimeout(() => {
+      console.warn(`Firebase core operation timed out after ${timeoutMs}ms. Activating local mock database fallback.`);
+      setFirestoreBlocked(true);
+      resolve({ result: null, timedOut: true });
+    }, timeoutMs);
+  });
+
+  return Promise.race([
+    promise.then((res) => {
+      clearTimeout(timeoutId);
+      return { result: res, timedOut: false };
+    }),
+    timeoutPromise
+  ]);
+}
+
 export async function addDoc(collectionRef: any, data: any): Promise<any> {
   if (isUseMock()) {
     return mockFb.addDoc(collectionRef, data);
   }
   try {
-    return await fbAddDoc(collectionRef, data);
+    const { result, timedOut } = await withTimeout(fbAddDoc(collectionRef, data), 1200);
+    if (timedOut) {
+      return mockFb.addDoc(collectionRef, data);
+    }
+    return result;
   } catch (e) {
     console.warn("addDoc fallback on crash", e);
     return mockFb.addDoc(collectionRef, data);
@@ -123,7 +177,10 @@ export async function setDoc(docRef: any, data: any, options?: any): Promise<any
     return mockFb.setDoc(docRef, data, options);
   }
   try {
-    return await fbSetDoc(docRef, data, options);
+    const { timedOut } = await withTimeout(fbSetDoc(docRef, data, options), 1200);
+    if (timedOut) {
+      return mockFb.setDoc(docRef, data, options);
+    }
   } catch (e) {
     console.warn("setDoc fallback on crash", e);
     return mockFb.setDoc(docRef, data, options);
@@ -135,7 +192,10 @@ export async function updateDoc(docRef: any, data: any): Promise<any> {
     return mockFb.updateDoc(docRef, data);
   }
   try {
-    return await fbUpdateDoc(docRef, data);
+    const { timedOut } = await withTimeout(fbUpdateDoc(docRef, data), 1200);
+    if (timedOut) {
+      return mockFb.updateDoc(docRef, data);
+    }
   } catch (e) {
     console.warn("updateDoc fallback on crash", e);
     return mockFb.updateDoc(docRef, data);
@@ -147,7 +207,10 @@ export async function deleteDoc(docRef: any): Promise<any> {
     return mockFb.deleteDoc(docRef);
   }
   try {
-    return await fbDeleteDoc(docRef);
+    const { timedOut } = await withTimeout(fbDeleteDoc(docRef), 1200);
+    if (timedOut) {
+      return mockFb.deleteDoc(docRef);
+    }
   } catch (e) {
     console.warn("deleteDoc fallback on crash", e);
     return mockFb.deleteDoc(docRef);
