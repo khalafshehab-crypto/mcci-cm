@@ -318,7 +318,10 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
               className="w-full h-full object-contain"
               referrerPolicy="no-referrer"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = "https://drive.google.com/thumbnail?id=1pAVRkqNXJmtVRpCl1fy3wuQS6hpmJPKt&sz=w500";
+                const target = e.target as HTMLImageElement;
+                if (!target.src.includes('thumbnail')) {
+                   target.src = "https://drive.google.com/thumbnail?id=1pAVRkqNXJmtVRpCl1fy3wuQS6hpmJPKt&sz=w500";
+                }
               }}
             />
           </div>
