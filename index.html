@@ -6,8 +6,23 @@
     <title>نظام إدارة اللجان - نسخة V4</title>
   </head>
   <body>
+    <script>
+      window.onerror = function(msg, url, lineNo, columnNo, error) {
+        if (msg && msg.toString().toLowerCase().includes('script error')) {
+          return true; // suppresses the error
+        }
+        return false;
+      };
+      window.addEventListener('error', function(e) {
+        if (e.message && e.message.toLowerCase().includes('script error')) {
+          e.preventDefault();
+          e.stopPropagation();
+          return true;
+        }
+      }, true);
+    </script>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/src/main.tsx" crossorigin="anonymous"></script>
   </body>
 </html>
 

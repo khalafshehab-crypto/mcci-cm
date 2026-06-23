@@ -313,7 +313,7 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
         <div className="text-center mb-8">
           <div className="mx-auto w-24 h-24 bg-white rounded-2xl flex items-center justify-center shadow-lg shadow-black/10 mb-4 ring-4 ring-slate-800 p-2.5 overflow-hidden">
             <img 
-              src="https://lh3.googleusercontent.com/d/1pAVRkqNXJmtVRpCl1fy3wuQS6hpmJPKt" 
+              src="https://drive.google.com/thumbnail?id=1pAVRkqNXJmtVRpCl1fy3wuQS6hpmJPKt&sz=w500" 
               alt="شعار غرفة مكة المكرمة"
               className="w-full h-full object-contain"
               referrerPolicy="no-referrer"

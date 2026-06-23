@@ -37,7 +37,7 @@ try {
 }
 
 try {
-  db = fbGetFirestore(app);
+  db = fbGetFirestore(app, firebaseAppletConfig.firestoreDatabaseId || "(default)");
   if (db) {
     db.isBlocked = !db || db.type === "dummy_firestore";
   }
@@ -161,7 +161,7 @@ export async function addDoc(collectionRef: any, data: any): Promise<any> {
     return mockFb.addDoc(collectionRef, data);
   }
   try {
-    const { result, timedOut } = await withTimeout(fbAddDoc(collectionRef, data), 1200);
+    const { result, timedOut } = await withTimeout(fbAddDoc(collectionRef, data), 8000);
     if (timedOut) {
       return mockFb.addDoc(collectionRef, data);
     }
@@ -178,7 +178,7 @@ export async function setDoc(docRef: any, data: any, options?: any): Promise<any
   }
   try {
     const promise = options !== undefined ? fbSetDoc(docRef, data, options) : fbSetDoc(docRef, data);
-    const { timedOut } = await withTimeout(promise, 1200);
+    const { timedOut } = await withTimeout(promise, 8000);
     if (timedOut) {
       return mockFb.setDoc(docRef, data, options);
     }
@@ -193,7 +193,7 @@ export async function updateDoc(docRef: any, data: any): Promise<any> {
     return mockFb.updateDoc(docRef, data);
   }
   try {
-    const { timedOut } = await withTimeout(fbUpdateDoc(docRef, data), 1200);
+    const { timedOut } = await withTimeout(fbUpdateDoc(docRef, data), 8000);
     if (timedOut) {
       return mockFb.updateDoc(docRef, data);
     }
@@ -208,7 +208,7 @@ export async function deleteDoc(docRef: any): Promise<any> {
     return mockFb.deleteDoc(docRef);
   }
   try {
-    const { timedOut } = await withTimeout(fbDeleteDoc(docRef), 1200);
+    const { timedOut } = await withTimeout(fbDeleteDoc(docRef), 8000);
     if (timedOut) {
       return mockFb.deleteDoc(docRef);
     }

@@ -220,7 +220,7 @@ export default function Layout({ children }: LayoutProps) {
           >
             <div className="w-11 h-11 bg-white rounded-xl shadow-md border border-gray-100 flex items-center justify-center p-1 flex-shrink-0 overflow-hidden">
               <img 
-                src="https://lh3.googleusercontent.com/d/1pAVRkqNXJmtVRpCl1fy3wuQS6hpmJPKt" 
+                src="https://drive.google.com/thumbnail?id=1pAVRkqNXJmtVRpCl1fy3wuQS6hpmJPKt&sz=w500" 
                 alt="شعار غرفة مكة"
                 className="w-full h-full object-contain"
                 referrerPolicy="no-referrer"

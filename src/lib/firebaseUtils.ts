@@ -94,13 +94,13 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
     let active = true;
     let hasLoaded = false;
 
-    // Safety timeout: if we don't receive data within 1200ms, assume Firestore is blocked/slow and fallback
+    // Safety timeout: if we don't receive data within 8000ms, assume Firestore is blocked/slow and fallback
     const safetyTimeout = setTimeout(() => {
       if (active && !hasLoaded) {
         console.warn(`Firestore subscription loading timed out for '${collectionName}'. Setting blocked state.`);
         setFirestoreBlocked(true);
       }
-    }, 1200);
+    }, 8000);
 
     // Listen to changes in the Firestore blocked state
     const unsubscribeBlocked = subscribeToFirestoreBlocked((blocked) => {
@@ -211,7 +211,7 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
       try {
         const docRef = await withTimeout(
           addDoc(collection(db, collectionName), item),
-          1200,
+          8000,
           null
         );
         
@@ -247,7 +247,7 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
       try {
         await withTimeout(
           setDoc(doc(db, collectionName, String(id)), item, { merge: true }),
-          1200,
+          8000,
           null
         );
       } catch(e) {
@@ -265,7 +265,7 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
       try {
         await withTimeout(
           deleteDoc(doc(db, collectionName, String(id))),
-          1200,
+          8000,
           null
         );
       } catch(e) {
@@ -288,7 +288,7 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
       try {
         await withTimeout(
           setDoc(doc(db, collectionName, String(id)), item),
-          1200,
+          8000,
           null
         );
       } catch(e) {
