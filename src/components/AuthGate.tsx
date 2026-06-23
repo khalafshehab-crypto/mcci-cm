@@ -168,7 +168,7 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
       if (err.code === "auth/popup-blocked") {
         friendlyError = "تم حظر النافذة المنبثقة من قبل متصفحك. يرجى السماح بالنوافذ المنبثقة لغرفة مكة، أو استخدم خيار الدخول المباشر بالبريد بالأسفل.";
       } else if (err.code === "auth/unauthorized-domain") {
-        friendlyError = "اسم النطاق (domain) غير مصرح به في إعدادات OAuth بكونسول Firebase لمشروع mcci-cm.";
+        friendlyError = "اسم النطاق (domain) غير مصرح به في إعدادات OAuth بكونسول Firebase. يرجى إضافة هذا النطاق.";
       } else if (err.message) {
         friendlyError = `تنبيه: ${err.message}. يرجى محاولة استخدام تسجيل الدخول المباشر بالبريد بالأسفل.`;
       }
