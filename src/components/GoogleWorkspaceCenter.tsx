@@ -65,7 +65,27 @@ interface GoogleWorkspaceCenterProps {
     email: string;
     committees: string[];
     active: boolean;
+    gender?: "MALE" | "FEMALE" | string;
   };
+}
+
+function getEmployeePrefix(emp?: { name?: string; gender?: "MALE" | "FEMALE" | string }) {
+  if (!emp) return "الأستاذ";
+  if (emp.gender === "FEMALE") return "الأستاذة";
+  if (emp.gender === "MALE") return "الأستاذ";
+  // Fallback heuristic: guess based on name endings
+  const name = emp.name || "";
+  const femaleKeywords = [
+    "فاطمة", "عائشة", "مريم", "سارة", "نورة", "هند", "أمل", "خلود", "أروى", "منى", 
+    "مها", "رنا", "رشا", "عبير", "ريم", "منى", "غادة", "دلال", "وفاء", "نهى", "منال", 
+    "تهاني", "نجلاء", "ريهام", "دينا", "سلمى", "إيمان", "زينب", "رقية", "أسماء", "هدير",
+    "يسرى", "ليلى", "نجاح", "بسمة", "هدى"
+  ];
+  const hasFemaleKeyword = femaleKeywords.some(kw => name.includes(kw));
+  if (hasFemaleKeyword || name.trim().endsWith("ة") || name.trim().endsWith("ى") || name.trim().endsWith("اء")) {
+    return "الأستاذة";
+  }
+  return "الأستاذ";
 }
 
 export default function GoogleWorkspaceCenter({ statsData, targetEmployee, templates, onImportTemplate }: GoogleWorkspaceCenterProps) {
@@ -211,26 +231,24 @@ export default function GoogleWorkspaceCenter({ statsData, targetEmployee, templ
   // Sync inputs dynamically when a specific targetEmployee is provided or loaded in focus
   useEffect(() => {
     if (targetEmployee) {
+      const labelPrefix = getEmployeePrefix(targetEmployee);
+      const respectsLabel = labelPrefix === "الأستاذة" ? "المحترمة" : "المحترم";
+
       // 1. Pre-fill Gmail recipients and copy text in pure elegant Arabic matching user context
       setMailTo(targetEmployee.email || "");
-      setMailSubject(`متابعة أعمال وتجهيزات اللجان القطاعية - الأستاذ/ة ${targetEmployee.name}`);
+      setMailSubject(`متابعة أعمال وتجهيزات اللجان القطاعية - ${labelPrefix} ${targetEmployee.name}`);
       setMailBody(`السلام عليكم ورحمة الله وبركاته،
-
-الأستاذ/ة ${targetEmployee.name} المحترم/ة (${targetEmployee.jobTitle || "الأخصائي المسؤول"})،
-
-نود التنسيق معكم لمراجعة وتحديث حالة أعمال ومستندات اللجان التي تقع تحت إشرافكم التنظيمي حالياً:
+\n${labelPrefix} ${targetEmployee.name} ${respectsLabel} (${targetEmployee.jobTitle || "الأخصائي المسؤول"})،
+\nنود التنسيق معكم لمراجعة وتحديث حالة أعمال ومستندات اللجان التي تقع تحت إشرافكم التنظيمي حالياً:
 ${(targetEmployee.committees || []).length > 0 
   ? (targetEmployee.committees || []).map(com => `• ${com}`).join("\n") 
   : "• لا توجد لجان مخصصة تحت إشرافكم المباشر حالياً."}
-
-يرجى استكمال ومراجعة جدول الأعمال، ومحاضر الاجتماعات، وحالة التجهيزات لضمان دقة التقارير.
-
-شاكرين لكم عظيم جهودكم وتكاملكم المستمر.
-
-إدارة تكامل الخدمات - غرفة مكة المكرمة`);
+\nيرجى استكمال ومراجعة جدول الأعمال، ومحاضر الاجتماعات، وحالة التجهيزات لضمان دقة التقارير.
+\nشاكرين لكم عظيم جهودكم وتكاملكم المستمر.
+\nإدارة تكامل الخدمات - غرفة مكة المكرمة`);
 
       // 2. Pre-fill Calendar Invitation with precise context
-      setCalTitle(`مراجعة وتكامل أداء اللجان - الأستاذ/ة ${targetEmployee.name}`);
+      setCalTitle(`مراجعة وتكامل أداء اللجان - ${labelPrefix} ${targetEmployee.name}`);
       setCalDesc(`جلسة عمل ومتابعة فنية لمراجعة مسار اعتماد التوصيات والتقارير وسجلات الأعضاء تحت إشراف الأخصائي: ${targetEmployee.name}.
 اللجان المرتبطة: ${(targetEmployee.committees || []).join("، ") || "لا يوجد"}`);
       

@@ -31,6 +31,7 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
   const [regName, setRegName] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regPhone, setRegPhone] = useState("");
+  const [regGender, setRegGender] = useState<"MALE" | "FEMALE">("MALE");
 
   // Login State
   const [loginEmail, setLoginEmail] = useState("");
@@ -268,7 +269,8 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
         phone: regPhone.trim(),
         requestedRole: "SPECIALIST",
         requestedRoleAr: "أخصائي لجان",
-        requestDate: new Date().toISOString().split('T')[0].replace(/-/g, '/')
+        requestDate: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
+        gender: regGender
       };
 
       await addFirebaseJoinReq(payload);
@@ -283,6 +285,7 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
       setRegName("");
       setRegEmail("");
       setRegPhone("");
+      setRegGender("MALE");
 
     } catch (err: any) {
       console.error(err);
@@ -505,6 +508,19 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
                 />
                 <Mail className="absolute top-3 right-3 text-slate-500 w-4.5 h-4.5 shrink-0" />
               </div>
+            </div>
+
+            {/* Gender Selection */}
+            <div>
+              <label className="block text-[11px] text-slate-400 font-extrabold mb-1.5 text-right">الجنس (لتحديد اللقب تلقائياً بقواعد اللغة العربية)</label>
+              <select
+                value={regGender}
+                onChange={(e: any) => setRegGender(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700/60 rounded-xl px-4 py-2.5 text-slate-100 text-xs text-right focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-medium cursor-pointer"
+              >
+                <option value="MALE">ذكر (الأستاذ)</option>
+                <option value="FEMALE">أنثى (الأستاذة)</option>
+              </select>
             </div>
 
             {/* Submit application */}

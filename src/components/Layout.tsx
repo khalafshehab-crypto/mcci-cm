@@ -79,7 +79,15 @@ export default function Layout({ children }: LayoutProps) {
  
   // Dates formatting (English numbers/names)
   const lang = 'en-GB';
-  const dayNameEnglish = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(currentTime);
+  let dayNameEnglish = "Sunday";
+  try {
+    dayNameEnglish = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(currentTime);
+  } catch (e) {
+    console.warn("Date name formatting failed:", e);
+    const dayIndex = currentTime.getDay();
+    const engDays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    dayNameEnglish = engDays[dayIndex];
+  }
   const arabicDaysMap: Record<string, string> = {
     "Sunday": "الأحد",
     "Monday": "الإثنين",
@@ -90,19 +98,43 @@ export default function Layout({ children }: LayoutProps) {
     "Saturday": "السبت"
   };
   const dayName = arabicDaysMap[dayNameEnglish] || dayNameEnglish;
-  const timeStr = new Intl.DateTimeFormat(lang, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).format(currentTime).toUpperCase();
+
+  let timeStr = "";
+  try {
+    timeStr = new Intl.DateTimeFormat(lang, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).format(currentTime).toUpperCase();
+  } catch (e) {
+    console.warn("Time formatting failed, using fallback:", e);
+    timeStr = currentTime.toLocaleTimeString().toUpperCase();
+  }
   
   // Function to format date parts into "DD Month YYYY" with Western digits
   const formatDate = (date: Date, calendar?: string) => {
-    const locale = calendar ? `ar-SA-u-ca-${calendar}-nu-latn` : `ar-SA-u-nu-latn`;
-    const options: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'long', year: 'numeric' };
-    const parts = new Intl.DateTimeFormat(locale, options).formatToParts(date);
-    
-    const day = parts.find(p => p.type === 'day')?.value;
-    const month = parts.find(p => p.type === 'month')?.value;
-    const year = parts.find(p => p.type === 'year')?.value;
-    
-    return `${day} ${month} ${year}`;
+    try {
+      const locale = calendar ? `ar-SA-u-ca-${calendar}-nu-latn` : `ar-SA-u-nu-latn`;
+      const options: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'long', year: 'numeric' };
+      const parts = new Intl.DateTimeFormat(locale, options).formatToParts(date);
+      
+      const day = parts.find(p => p.type === 'day')?.value || String(date.getDate()).padStart(2, '0');
+      const month = parts.find(p => p.type === 'month')?.value || String(date.getMonth() + 1);
+      const year = parts.find(p => p.type === 'year')?.value || String(date.getFullYear());
+      
+      return `${day} ${month} ${year}`;
+    } catch (e) {
+      console.warn("Intl date formatting failed, using fallback:", e);
+      if (calendar === 'islamic-umalqura') {
+        const approxHijriYear = date.getFullYear() - 579;
+        const fallbackMonths = [
+          "محرم", "صفر", "ربيع الأول", "ربيع الآخر", "جمادى الأولى", "جمادى الآخرة",
+          "رجب", "شعبان", "رمضان", "شوال", "ذو القعدة", "ذو الحجة"
+        ];
+        const startOfHijriYear = new Date(date.getFullYear(), 0, 1);
+        const dayOfYear = Math.floor((date.getTime() - startOfHijriYear.getTime()) / 86400000);
+        const approxMonthIndex = Math.min(11, Math.floor(dayOfYear / 30));
+        const approxDay = Math.min(30, (dayOfYear % 30) + 1);
+        return `${approxDay} ${fallbackMonths[approxMonthIndex]} ${approxHijriYear}`;
+      }
+      return `${String(date.getDate()).padStart(2, '0')} ${date.toLocaleString('ar-SA', { month: 'long' })} ${date.getFullYear()}`;
+    }
   };
  
   const gregorianDate = formatDate(currentTime);

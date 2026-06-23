@@ -16,6 +16,7 @@ import OrgChart from "./pages/OrgChart";
 import Reports from "./pages/Reports";
 import Library from "./pages/Library";
 import AuthGate from "./components/AuthGate";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -49,24 +50,30 @@ export default function App() {
   }
 
   if (!user) {
-    return <AuthGate onLogin={(usr) => setUser(usr)} />;
+    return (
+      <ErrorBoundary>
+        <AuthGate onLogin={(usr) => setUser(usr)} />
+      </ErrorBoundary>
+    );
   }
 
   return (
-    <Router>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/committees" element={<Committees />} />
-          <Route path="/members" element={<Members />} />
-          <Route path="/events" element={<Events />} />
-          <Route path="/recommendations" element={<Recommendations />} />
-          <Route path="/tasks" element={<Tasks />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/library" element={<Library />} />
-          <Route path="/org-chart" element={<OrgChart />} />
-        </Routes>
-      </Layout>
-    </Router>
+    <ErrorBoundary>
+      <Router>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/committees" element={<Committees />} />
+            <Route path="/members" element={<Members />} />
+            <Route path="/events" element={<Events />} />
+            <Route path="/recommendations" element={<Recommendations />} />
+            <Route path="/tasks" element={<Tasks />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/library" element={<Library />} />
+            <Route path="/org-chart" element={<OrgChart />} />
+          </Routes>
+        </Layout>
+      </Router>
+    </ErrorBoundary>
   );
 }

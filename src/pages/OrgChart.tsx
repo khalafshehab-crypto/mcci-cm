@@ -109,6 +109,7 @@ export interface Employee {
   joinDate: string; // تاريخ التعيين
   password?: string; // كلمة المرور
   allowedPages?: string[]; // الصفحات المصرح بها
+  gender?: "MALE" | "FEMALE" | string; // الجنس (لتحديد اللقب تلقائياً بقواعد اللغة العربية)
 }
 
 export interface JoinRequest {
@@ -137,6 +138,25 @@ export interface SystemLog {
   operationType: string;
   status: "ناجحة" | "مرفوضة";
   details: string;
+}
+
+export function getEmployeePrefix(emp?: { name?: string; gender?: "MALE" | "FEMALE" | string }) {
+  if (!emp) return "الأستاذ";
+  if (emp.gender === "FEMALE") return "الأستاذة";
+  if (emp.gender === "MALE") return "الأستاذ";
+  // Fallback heuristic: guess based on name endings
+  const name = emp.name || "";
+  const femaleKeywords = [
+    "فاطمة", "عائشة", "مريم", "سارة", "نورة", "هند", "أمل", "خلود", "أروى", "منى", 
+    "مها", "رنا", "رشا", "عبير", "ريم", "منى", "غادة", "دلال", "وفاء", "نهى", "منال", 
+    "تهاني", "نجلاء", "ريهام", "دينا", "سلمى", "إيمان", "زينب", "رقية", "أسماء", "هدير",
+    "يسرى", "ليلى", "نجاح", "بسمة", "هدى"
+  ];
+  const hasFemaleKeyword = femaleKeywords.some(kw => name.includes(kw));
+  if (hasFemaleKeyword || name.trim().endsWith("ة") || name.trim().endsWith("ى") || name.trim().endsWith("اء")) {
+    return "الأستاذة";
+  }
+  return "الأستاذ";
 }
 
 export default function OrgChart() {
@@ -338,6 +358,7 @@ export default function OrgChart() {
   const [formPassword, setFormPassword] = useState("");
   const [formCommittees, setFormCommittees] = useState<string[]>([]);
   const [formAllowedPages, setFormAllowedPages] = useState<string[]>([]);
+  const [formGender, setFormGender] = useState<"MALE" | "FEMALE">("MALE");
   const [originalEditId, setOriginalEditId] = useState("");
 
   // Restrict tabs for non-SYS_ADMIN users
@@ -500,7 +521,8 @@ export default function OrgChart() {
         photo: PRESET_AVATARS[Math.floor(Math.random() * PRESET_AVATARS.length)],
         committees: [],
         active: true,
-        joinDate: new Date().toISOString().split('T')[0].replace(/-/g, '/')
+        joinDate: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
+        gender: (req as any).gender || "MALE"
       };
 
       // Set document with generated custom employee number as Firestore ID
@@ -618,6 +640,19 @@ export default function OrgChart() {
     }
 
     try {
+      // 1. STRICT EMAIL UNIQUENESS CHECK
+      const emailTakenByOther = dbEmployees.some(emp => {
+        if (isEditing) {
+          return emp.id !== originalEditId && emp.email?.trim().toLowerCase() === cleanEmail;
+        } else {
+          return emp.email?.trim().toLowerCase() === cleanEmail;
+        }
+      });
+      if (emailTakenByOther) {
+        alert(`عذراً، البريد الإلكتروني [${cleanEmail}] مستخدم بالفعل من قبل موظف آخر في النظام.`);
+        return;
+      }
+
       const existingEmployee = dbEmployees.find(emp => 
         (originalEditId && emp.id === originalEditId) || 
         emp.email?.trim().toLowerCase() === cleanEmail
@@ -648,7 +683,8 @@ export default function OrgChart() {
         committees: formCommittees,
         allowedPages: isPowerUser ? formAllowedPages : (existingEmployee?.allowedPages || []),
         password: formPassword.trim() || (existingEmployee?.password || ""),
-        joinDate: existingEmployee?.joinDate || new Date().toISOString().split('T')[0].replace(/-/g, '/')
+        joinDate: existingEmployee?.joinDate || new Date().toISOString().split('T')[0].replace(/-/g, '/'),
+        gender: formGender
       };
 
       if (isEditing) {
@@ -770,6 +806,7 @@ export default function OrgChart() {
     setFormPassword("");
     setFormCommittees([]);
     setFormAllowedPages([]);
+    setFormGender("MALE");
     setOriginalEditId("");
   };
 
@@ -798,6 +835,7 @@ export default function OrgChart() {
     setFormPassword(emp.password || "");
     setFormCommittees(emp.committees || []);
     setFormAllowedPages(emp.allowedPages || []);
+    setFormGender((emp as any).gender || "MALE");
     
     setIsEditing(true);
     setShowFormModal(true);
@@ -813,36 +851,53 @@ export default function OrgChart() {
       return;
     }
 
-    const firstConfirm = window.confirm(`هل أنت متأكد من حذف الموظف: ${empName} وباقته بالكامل نهائياً؟`);
-    if (!firstConfirm) return;
-
-    const secondConfirm = window.confirm(`تنبيه أمني: للحذف، سيتم تطهير بطاقة السجل التنظيمي له بالكامل. هل توافق على الحذف وإدارة الأرشفة اليدوية؟`);
-    if (!secondConfirm) return;
-
     try {
-      await deleteFirebaseEmp(empId);
+      const targetEmp = dbEmployees.find(emp => emp.id === empId);
+      const isCurrentlyActive = targetEmp ? (targetEmp.active !== false) : true;
+      const associatedSupervised = dbCommittees.filter(c => c.specialistId === empId || c.specialist === empName);
 
-      // Unbind from supervised committees
-      const supervised = dbCommittees.filter(c => c.specialistId === empId);
-      for (const c of supervised) {
-        await updateFirebaseComm(c.id, {
-          specialistId: "",
-          specialistName: "غير معين"
-        });
+      // 1. "إذا كان الموظف نشطا يجب تحويل حالته إلى غير نشط"
+      if (isCurrentlyActive) {
+        await updateFirebaseEmp(empId, { active: false });
       }
+
+      // 2. "وإذا كان مرتبطا بأي لجنة يتم إلغاء ارتباطه في النظام"
+      if (associatedSupervised.length > 0) {
+        for (const c of associatedSupervised) {
+          await updateFirebaseComm(c.id, {
+            specialistId: "",
+            specialist: "غير محدد"
+          });
+        }
+        await updateFirebaseEmp(empId, { committees: [] });
+      }
+
+      // 3. "قبل تأكيد الحذف" (Show single confirmation after auto processes have been resolved in the draft)
+      const alertDetails = isCurrentlyActive || associatedSupervised.length > 0
+        ? `تنبيه: تم تلقائياً إحالة حالة الموظف (${empName}) إلى غير نشط وإلغاء ارتباطه بـ (${associatedSupervised.length}) لجنة في النظام لتطهير ملفه الإداري.\n\nهل تؤكد الآن حذف بطاقة هذا الموظف نهائياً وبشكل كامل ومستأصل من سجلات قاعدة البيانات؟`
+        : `هل أنت متأكد من رغبتك في حذف بطاقة الموظف (${empName}) نهائياً وبشكل كامل من قاعدة البيانات الآن؟`;
+
+      const finalDeleteConfirm = window.confirm(alertDetails);
+      if (!finalDeleteConfirm) {
+        alert("تم إبقاء حساب الموظف في النظام كـ 'غير نشط' فقط مع تصفية وتجريد اللجان المرتبطة به بنجاح.");
+        return;
+      }
+
+      // Execute final deletion
+      await deleteFirebaseEmp(empId);
 
       await addFirebaseLog({
         employeeName: currentUser?.name || "مدير النظام",
         time: new Date().toISOString().replace('T', ' ').substring(0, 16),
         status: "ناجحة",
         operationType: "حذف بطاقة موظف",
-        details: `تم حذف ملف الموظف ${empName} (الرقم: ${empId}) بالكامل وتفريغ لجانه بالتنظيم.`
+        details: `تم حذف ملف الموظف ${empName} (الرقم: ${empId}) بالكامل وتجميده وإفراغ لجانه بالتنظيم المعتمد.`
       } as any);
 
-      alert("تم حذف بطاقة الموظف بنجاح.");
+      alert("تم حذف بطاقة الموظف نهائياً وبنجاح.");
     } catch (error) {
       console.error(error);
-      alert("فشل في حذف بطاقة الموظف.");
+      alert("حدث خطأ أثناء معالجة إجراءات تفعيل الحذف المتسلسل والتطهير الهيكلي.");
     }
   };
 
@@ -1262,7 +1317,7 @@ export default function OrgChart() {
                           />
                           <div>
                             <h3 className="font-extrabold text-sm text-gray-900 leading-snug flex items-center gap-1">
-                              <span>الأستاذ/ة {emp.name}</span>
+                              <span>{getEmployeePrefix(emp)} {emp.name}</span>
                               {isSelf && <span className="text-[10px] text-brand bg-brand/10 px-1 py-0.5 rounded font-black">(أنت)</span>}
                             </h3>
                             <p className="text-gray-500 text-[10px] font-bold mt-0.5">{emp.jobTitle || "مسؤول بالنظم"}</p>
@@ -1341,7 +1396,7 @@ export default function OrgChart() {
                           </button>
                         )}
 
-                        {currentUserRole === "SYS_ADMIN" && !isSelf && !isSAdmin && (
+                        {currentUserRole === "SYS_ADMIN" && !isSelf && emp.id !== "01" && (
                           <button
                             onClick={() => handleDeleteEmployee(emp.id, emp.name)}
                             className="p-2 bg-red-50 hover:bg-red-100 text-red-650 rounded-lg transition-all cursor-pointer border border-red-100 hover:border-red-200"
@@ -1388,7 +1443,7 @@ export default function OrgChart() {
                                   referrerPolicy="no-referrer"
                                 />
                                 <div>
-                                  <span className="font-extrabold text-gray-900 text-[13px]">الأستاذ/ة {emp.name}</span>
+                                  <span className="font-extrabold text-gray-900 text-[13px]">{getEmployeePrefix(emp)} {emp.name}</span>
                                   {isSelf && <span className="mr-1 text-[9px] text-brand bg-brand/10 px-1 py-0.5 rounded font-black">(أنت)</span>}
                                 </div>
                               </div>
@@ -1623,7 +1678,7 @@ export default function OrgChart() {
                     >
                       <div className="space-y-1.5">
                         <span className="font-extrabold text-xs text-gray-900 block">
-                          الأستاذ/ة {req.name}
+                          {getEmployeePrefix(req)} {req.name}
                         </span>
                         
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-gray-500 font-semibold font-mono">
@@ -2637,7 +2692,7 @@ export default function OrgChart() {
               <div className="text-right border-b border-gray-100 pb-4 mb-5">
                 <span className="text-[11px] font-black text-brand tracking-widest uppercase block mb-1">بطاقات العمل والبيانات</span>
                 <h3 className="text-base font-bold text-gray-900">
-                  {isEditing ? `تعديل بيانات الموظف: الأستاذ/ة ${formName}` : "إضافة بطاقة موظف معتمد جديد"}
+                  {isEditing ? `تعديل بيانات الموظف: ${getEmployeePrefix({ name: formName, gender: formGender })} ${formName}` : "إضافة بطاقة موظف معتمد جديد"}
                 </h3>
               </div>
 
@@ -2742,6 +2797,19 @@ export default function OrgChart() {
                       <option value="DEPT_HEAD">رئيس قسم لجان (DEPT_HEAD)</option>
                       <option value="MANAG_DIR">مدير إدارة لجان (MANAG_DIR)</option>
                       <option value="SYS_ADMIN">مدير نظام كامل (SYS_ADMIN)</option>
+                    </select>
+                  </div>
+
+                  {/* Gender Selection */}
+                  <div>
+                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">النوع/الجنس (لتحديد اللقب بقواعد العربية)</label>
+                    <select
+                      value={formGender}
+                      onChange={(e: any) => setFormGender(e.target.value)}
+                      className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-gray-700 cursor-pointer"
+                    >
+                      <option value="MALE">ذكر (الأستاذ)</option>
+                      <option value="FEMALE">أنثى (الأستاذة)</option>
                     </select>
                   </div>
 

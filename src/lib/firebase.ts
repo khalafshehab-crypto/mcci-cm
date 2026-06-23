@@ -177,7 +177,8 @@ export async function setDoc(docRef: any, data: any, options?: any): Promise<any
     return mockFb.setDoc(docRef, data, options);
   }
   try {
-    const { timedOut } = await withTimeout(fbSetDoc(docRef, data, options), 1200);
+    const promise = options !== undefined ? fbSetDoc(docRef, data, options) : fbSetDoc(docRef, data);
+    const { timedOut } = await withTimeout(promise, 1200);
     if (timedOut) {
       return mockFb.setDoc(docRef, data, options);
     }
