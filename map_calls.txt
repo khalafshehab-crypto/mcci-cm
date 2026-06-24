@@ -1,0 +1,202 @@
+src/pages/OrgChart.tsx:387:          console.warn(`تنبيه: يوجد حساب مكرر بنفس البريد الإلكتروني [${email}] للبطاقات ذات المعرفات: ${list.map(e => e.id).join(', ')}`);
+src/pages/OrgChart.tsx:1271:                {filteredEmployees.map((emp) => {
+src/pages/OrgChart.tsx:1370:                                {emp.committees.map((com, index) => (
+src/pages/OrgChart.tsx:1432:                      {filteredEmployees.map((emp) => {
+src/pages/OrgChart.tsx:1548:                    {safeDbEmployees.filter(e => e.active !== false).map(emp => (
+src/pages/OrgChart.tsx:1569:                    {safeDbEmployees.filter(e => e.active !== false && e.id !== sourceEmpId).map(emp => (
+src/pages/OrgChart.tsx:1674:                  {dbJoinRequests.map((req) => (
+src/pages/OrgChart.tsx:1790:                  dbApprovedEmails?.map((item) => (
+src/pages/OrgChart.tsx:1894:                    return filteredPermEmployees.map((emp) => {
+src/pages/OrgChart.tsx:1897:                        : SYSTEM_PAGES.map(p => p.path);
+src/pages/OrgChart.tsx:1923:                        const updatedAllowed = grantAll ? SYSTEM_PAGES.map(p => p.path) : [];
+src/pages/OrgChart.tsx:1972:                          {SYSTEM_PAGES.map((page) => {
+src/pages/OrgChart.tsx:2067:                    dbSystemLogs.slice().reverse().map((log) => (
+src/pages/OrgChart.tsx:2140:              ].map((tab) => (
+src/pages/OrgChart.tsx:2235:                        masterFilteredData.map((item) => (
+src/pages/OrgChart.tsx:2294:                        masterFilteredData.map((item) => (
+src/pages/OrgChart.tsx:2356:                        masterFilteredData.map((item) => (
+src/pages/OrgChart.tsx:2418:                        masterFilteredData.map((item) => (
+src/pages/OrgChart.tsx:2479:                        masterFilteredData.map((item) => (
+src/pages/OrgChart.tsx:2542:                        masterFilteredData.map((item) => (
+src/pages/OrgChart.tsx:2588:                        masterFilteredData.map((item) => (
+src/pages/OrgChart.tsx:2632:                        masterFilteredData.map((item) => (
+src/pages/OrgChart.tsx:2852:                              .map((comm: any) => {
+src/pages/OrgChart.tsx:2900:                            {formCommittees.map((cName) => (
+src/pages/OrgChart.tsx:2944:                      ].map((pg) => {
+src/pages/OrgChart.tsx:3007:                    {PRESET_AVATARS.map((av, index) => (
+src/pages/OrgChart.tsx:3104:                  selectedEmployee.committees.map((comName, idx) => (
+src/pages/Library.tsx:68:      const dbComms = snapshot.docs.map((doc) => ({
+src/pages/Library.tsx:80:      const dbTemplates = snapshot.docs.map((doc) => ({
+src/pages/Library.tsx:380:    committees: committees.map((c) => ({
+src/pages/Library.tsx:709:            {filteredTemplates.map((t) => (
+src/pages/Library.tsx:812:                  {filteredTemplates.map((t) => (
+src/pages/Library.tsx:928:                    setExportSelectedIds(displayedTemplates.map((t) => t.id));
+src/pages/Library.tsx:1095:                    {templates.map((t) => {
+src/pages/Library.tsx:1145:                          setExportSelectedIds(templates.map((t) => t.id))
+src/pages/Members.tsx:227:  const allCommittees = dbCommittees.length > 0 ? dbCommittees.map(c => ({ id: c.id, name: c.name })) : [
+src/pages/Members.tsx:480:      setMembers(prev => prev.map(m => {
+src/pages/Members.tsx:581:      setSelectedMembers(new Set(filteredMembers.map(m => m.id)));
+src/pages/Members.tsx:767:                          ].map((col) => {
+src/pages/Members.tsx:920:          {filteredMembers.map((m) => (
+src/pages/Members.tsx:1088:                {filteredMembers.map((m, idx) => {
+src/pages/Members.tsx:1216:                           <span className="inline-flex items-center justify-center font-mono text-[10px] font-black px-2 py-0.5 rounded-lg bg-rose-100 text-rose-800 border border-rose-200" title={`نواقص: ${requiredDocs.filter(d => !d.has).map(d => d.name).join(', ')}`}>
+src/pages/Members.tsx:1383:                      {TITLES.map((t, idx) => (
+src/pages/Members.tsx:1425:                    {allCommittees.map((c) => (
+src/pages/Members.tsx:1440:                      {ROLE_CAPACITIES.map((r, idx) => (
+src/pages/Members.tsx:1459:                      {JOINING_MECHANISMS.map((m, idx) => (
+src/pages/Committees.tsx:123:      setDynamicEmployees(sourceList.map((e: any) => e.name).filter(Boolean));
+src/pages/Committees.tsx:131:        const updated = prev.map(comm => {
+src/pages/Committees.tsx:244:      const headers = activeHeaders.map(h => h.label);
+src/pages/Committees.tsx:245:      const rows = sorted.map((comm, index) => {
+src/pages/Committees.tsx:246:        return activeHeaders.map(h => getFieldVal(comm, index, h.key));
+src/pages/Committees.tsx:272:    const csvHeaders = activeHeaders.map(h => h.label).join(",");
+src/pages/Committees.tsx:273:    const csvRows = sorted.map((comm, index) => {
+src/pages/Committees.tsx:274:      return activeHeaders.map(h => {
+src/pages/Committees.tsx:370:        const updated = prev.map(comm => {
+src/pages/Committees.tsx:425:          const synced = emps.map((emp: any) => {
+src/pages/Committees.tsx:430:              .map((c: any) => c.name);
+src/pages/Committees.tsx:524:      setCommittees(prev => prev.map(c => {
+src/pages/Committees.tsx:606:    return committees.map(comm => {
+src/pages/Committees.tsx:806:            {filteredCommittees.map((comm) => (
+src/pages/Committees.tsx:977:                {filteredCommittees.map((comm) => (
+src/pages/Committees.tsx:1459:                        setCommittees(prev => prev.map(c => {
+src/pages/Committees.tsx:1742:                    {EXPORT_FIELDS_META.map(f => (
+src/pages/Tasks.tsx:31:      const dbTasks = snapshot.docs.map(doc => ({
+src/pages/Tasks.tsx:48:        let emps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+src/pages/Tasks.tsx:69:        setEmployeesList(emps.map(e => e.name).filter(Boolean));
+src/pages/Tasks.tsx:336:      const mapped = filesArray.map(f => ({
+src/pages/Tasks.tsx:519:                        {employeesList.map((e, i) => (
+src/pages/Tasks.tsx:657:            {filteredTasks.map((t) => {
+src/pages/Tasks.tsx:747:                        {t.attachments.map((file, fileIdx) => (
+src/pages/Tasks.tsx:839:                {filteredTasks.map((t) => (
+src/pages/Tasks.tsx:981:                      {employeesList.map((e, i) => (
+src/pages/Tasks.tsx:1062:                      {tempAttachments.map((f, idx) => (
+src/pages/Tasks.tsx:1198:                      {employeesList.map((e, i) => (
+src/pages/Reports.tsx:46:      const dbData = snapshot.docs.map(doc => ({
+src/pages/Reports.tsx:58:      const dbData = snapshot.docs.map(doc => ({
+src/pages/Reports.tsx:338:                {reports.map(report => (
+src/pages/Reports.tsx:405:                      {reports.map((report) => (
+src/pages/Reports.tsx:477:                      {kpis.map((kpi) => (
+src/pages/Reports.tsx:509:                {kpis.map(kpi => (
+src/pages/Home.tsx:810:        const mapped = listToUse.slice(0, 7).map((emp, index) => {
+src/pages/Home.tsx:1392:              filteredAlarms.map((a) => {
+src/pages/Home.tsx:1446:                              {getStepsForEventAlarm(evtObj).map((step) => {
+src/pages/Home.tsx:1606:            {onlineStaff.map((staff, sIdx) => {
+src/pages/Home.tsx:1807:                          ].map((item) => {
+src/pages/Home.tsx:1897:                          {filteredMeetings.map((mtg, i) => (
+src/pages/Home.tsx:1956:                                    {mtg.checklist.map((c, idx) => (
+src/pages/Home.tsx:1975:                  filteredMeetings.map((mtg, i) => (
+src/pages/Home.tsx:2040:                            {mtg.checklist.map((item, idx) => (
+src/pages/Home.tsx:2128:                      {chartData.map((entry, index) => (
+src/pages/Home.tsx:2164:                  {[...chartData].reverse().map((stat, i) => {
+src/pages/Home.tsx:2367:                          setAlarms(prev => prev.map(a => a.id === selectedAlarm.id ? { ...a, status: val } : a));
+src/pages/Home.tsx:2390:                        {onlineStaff.map((staff, sIdx) => (
+src/pages/Home.tsx:2476:                    {chatTarget.name.split(" ").slice(0, 2).map(w => w[0]).join("")}
+src/pages/Recommendations.tsx:102:    const newAlarms = recsToExport.map((rec, index) => ({
+src/pages/Recommendations.tsx:127:    const newCustomRecs = recsToExport.map((rec, index) => {
+src/pages/Recommendations.tsx:154:      newCustomRecs.map(async (rec) => {
+src/pages/Recommendations.tsx:186:  const committees = rawCommittees.map(comm => {
+src/pages/Recommendations.tsx:214:     return sourceList.length > 0 ? sourceList.map(e => e.name).filter(Boolean) : EMPLOYEES;
+src/pages/Recommendations.tsx:380:    setEvents(prev => prev.map(evt => {
+src/pages/Recommendations.tsx:415:      ? agenda.map(item => item.title).join(" - ") 
+src/pages/Recommendations.tsx:448:    let formattedItems = currentPreps.map(item => `- ${item}`).join("\n");
+src/pages/Recommendations.tsx:453:        .map(line => line.trim())
+src/pages/Recommendations.tsx:455:        .map(line => line.startsWith("-") ? line : `- ${line}`);
+src/pages/Recommendations.tsx:721:      setSeriesRooms(evt.location.split("،").map(s => s.trim()));
+src/pages/Recommendations.tsx:784:    setSelectedSchedules(results.map(r => r.id));
+src/pages/Recommendations.tsx:794:        const evtRooms = evt.location.split('،').map(r => r.trim());
+src/pages/Recommendations.tsx:821:    const newEventsList: EventItem[] = selectedGen.map((gen, idx) => ({
+src/pages/Recommendations.tsx:867:      setEvents(events.map(ev => ev.id === editingEvent.id ? {
+src/pages/Recommendations.tsx:928:      setSelectedEventIds(filteredEvents.map(e => e.id));
+src/pages/Recommendations.tsx:1073:          existingCustom = existingCustom.map((item: any) => {
+src/pages/Recommendations.tsx:1407:                {committees.map((comm) => {
+src/pages/Recommendations.tsx:1504:                    {commEvents.map((evt) => {
+src/pages/Recommendations.tsx:1604:                  .map((g: any, idx: number) => {
+src/pages/Recommendations.tsx:1780:                        {combinedRecs.map((rec: any, idx: number) => {
+src/pages/Recommendations.tsx:1863:                                  {approvalStagesList.map((st, i) => {
+src/pages/Recommendations.tsx:1963:                                        rec.auditLogs.map((log: any, logI: number) => (
+src/pages/Recommendations.tsx:2012:                {sortedTableEvents.map((evt, idx) => {
+src/pages/Recommendations.tsx:2179:                                    return stepList.map((step, idx) => {
+src/pages/Recommendations.tsx:2298:المرفقات: ${attachmentsList.map((a: any) => a.name).join(", ") || "دراسة جدوى ومحضر الإعاشة"}`;
+src/pages/Recommendations.tsx:2323:                                                  {sampleFiles.map((fn, idx) => (
+src/pages/Recommendations.tsx:2346:                                                      {attachmentsList.map((att: any, index: number) => (
+src/pages/Recommendations.tsx:2749:                                      setSelectedSchedules(generatedSchedules.map(g => g.id));
+src/pages/Recommendations.tsx:2763:                            {generatedSchedules.map((gen) => (
+src/pages/Recommendations.tsx:2853:                              {committees.map(c => (
+src/pages/Recommendations.tsx:2866:                              {EVENT_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
+src/pages/Recommendations.tsx:2877:                              {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c}</option>)}
+src/pages/Recommendations.tsx:2924:                              {dynamicEmployees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
+src/pages/Recommendations.tsx:2935:                              {ROOMS.map(rm => <option key={rm} value={rm}>{rm}</option>)}
+src/pages/Recommendations.tsx:2967:                              {EVENT_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
+src/pages/Recommendations.tsx:2979:                              {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c}</option>)}
+src/pages/Recommendations.tsx:3002:                              {committees.map(c => (
+src/pages/Recommendations.tsx:3017:                              {dynamicEmployees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
+src/pages/Recommendations.tsx:3028:                              {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
+src/pages/Recommendations.tsx:3039:                              {Object.keys(WEEKSMap).map(w => <option key={w} value={w}>{w}</option>)}
+src/pages/Recommendations.tsx:3085:                                {ROOMS.map(rm => <option key={rm} value={rm}>{rm}</option>)}
+src/pages/Recommendations.tsx:3102:                                {seriesRooms.map(rm => (
+src/pages/Recommendations.tsx:3126:                              {["تأكيد الموعد مع رئيس اللجنة", "إرسال الدعوات", "تأكيد الحضور"].map(st => (
+src/pages/Recommendations.tsx:3145:                              {["محضر الاجتماع", "التوصيات"].map(st => (
+src/pages/Events.tsx:89:    const newAlarms = recsToExport.map((rec, index) => ({
+src/pages/Events.tsx:114:    const newCustomRecs = recsToExport.map((rec, index) => {
+src/pages/Events.tsx:141:      newCustomRecs.map(async (rec) => {
+src/pages/Events.tsx:173:  const committees = rawCommittees.map(comm => {
+src/pages/Events.tsx:201:     return sourceList.length > 0 ? sourceList.map(e => e.name).filter(Boolean) : EMPLOYEES;
+src/pages/Events.tsx:372:    setEvents(prev => prev.map(evt => {
+src/pages/Events.tsx:407:      ? agenda.map(item => item.title).join(" - ") 
+src/pages/Events.tsx:440:    let formattedItems = currentPreps.map(item => `- ${item}`).join("\n");
+src/pages/Events.tsx:445:        .map(line => line.trim())
+src/pages/Events.tsx:447:        .map(line => line.startsWith("-") ? line : `- ${line}`);
+src/pages/Events.tsx:710:      setSeriesRooms(evt.location.split("،").map(s => s.trim()));
+src/pages/Events.tsx:773:    setSelectedSchedules(results.map(r => r.id));
+src/pages/Events.tsx:783:        const evtRooms = evt.location.split('،').map(r => r.trim());
+src/pages/Events.tsx:810:    const newEventsList: EventItem[] = selectedGen.map((gen, idx) => ({
+src/pages/Events.tsx:855:      setEvents(events.map(ev => ev.id === editingEvent.id ? {
+src/pages/Events.tsx:914:      setSelectedEventIds(filteredEvents.map(e => e.id));
+src/pages/Events.tsx:1260:              {committees.map((comm) => {
+src/pages/Events.tsx:1328:                const uniqueKinds = Array.from(new Set(commEvents.map((e) => getEventKindStr(e.title))));
+src/pages/Events.tsx:1340:                    {uniqueKinds.map((kind) => {
+src/pages/Events.tsx:1396:                const activeClassifications = Array.from(new Set(kindEvents.map((e) => getEventClassification(e.title))));
+src/pages/Events.tsx:1408:                    {activeClassifications.map((cls) => {
+src/pages/Events.tsx:1486:                      {finalList.map((evt) => (
+src/pages/Events.tsx:1631:                {sortedTableEvents.map((evt, idx) => {
+src/pages/Events.tsx:1743:                                  {stepValues.map((isStepDone, i) => {
+src/pages/Events.tsx:1883:                                    return stepList.map((step, idx) => {
+src/pages/Events.tsx:2134:                                                {commMems.map(mem => {
+src/pages/Events.tsx:2219:                                                {DEFAULT_PREPARATIONS.map((prepItem) => {
+src/pages/Events.tsx:2414:																		{commMembers.map((m) => {
+src/pages/Events.tsx:2460:																	{agenda.map((item, index) => (
+src/pages/Events.tsx:2509:                                          const updatedAgenda = agenda.map(item => {
+src/pages/Events.tsx:2532:                                                {agenda.map((item, idx) => (
+src/pages/Events.tsx:2575:                                                          {allMembers.filter(m => m.committeeId === evt.committeeId).map(m => (
+src/pages/Events.tsx:2687:                                            .map(item => item.id);
+src/pages/Events.tsx:2725:                                                      {existingMeetingRecs.map((dbRec) => (
+src/pages/Events.tsx:2773:                                                      {recsToExport.map((rec, index) => {
+src/pages/Events.tsx:2973:                                      setSelectedSchedules(generatedSchedules.map(g => g.id));
+src/pages/Events.tsx:2987:                            {generatedSchedules.map((gen) => (
+src/pages/Events.tsx:3077:                              {committees.map(c => (
+src/pages/Events.tsx:3090:                              {EVENT_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
+src/pages/Events.tsx:3101:                              {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c}</option>)}
+src/pages/Events.tsx:3148:                              {dynamicEmployees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
+src/pages/Events.tsx:3159:                              {ROOMS.map(rm => <option key={rm} value={rm}>{rm}</option>)}
+src/pages/Events.tsx:3191:                              {EVENT_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
+src/pages/Events.tsx:3203:                              {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c}</option>)}
+src/pages/Events.tsx:3226:                              {committees.map(c => (
+src/pages/Events.tsx:3241:                              {dynamicEmployees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
+src/pages/Events.tsx:3252:                              {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
+src/pages/Events.tsx:3263:                              {Object.keys(WEEKSMap).map(w => <option key={w} value={w}>{w}</option>)}
+src/pages/Events.tsx:3309:                                {ROOMS.map(rm => <option key={rm} value={rm}>{rm}</option>)}
+src/pages/Events.tsx:3326:                                {seriesRooms.map(rm => (
+src/pages/Events.tsx:3350:                              {["تأكيد الموعد مع رئيس اللجنة", "إرسال الدعوات", "تأكيد الحضور"].map(st => (
+src/pages/Events.tsx:3369:                              {["محضر الاجتماع", "التوصيات"].map(st => (
+src/components/GoogleWorkspaceCenter.tsx:244:  ? (targetEmployee.committees || []).map(com => `• ${com}`).join("\n") 
+src/components/GoogleWorkspaceCenter.tsx:856:          ].map((tab) => (
+src/components/GoogleWorkspaceCenter.tsx:910:                          statsData.committees.map((c) => (
+src/components/GoogleWorkspaceCenter.tsx:1318:                        statsData.events.map((evt: any, idx: number) => (
+src/components/GoogleWorkspaceCenter.tsx:1774:                        chatSpaces.map((space) => (
+src/components/Layout.tsx:255:                  {filteredPages.map((page, idx) => (
+src/lib/mockFirebase.ts:49:          const stripped = data.map(emp => {
+src/lib/mockFirebase.ts:78:    docs: data.map(item => ({
+src/lib/firebaseUtils.ts:55:      providerInfo: auth?.currentUser?.providerData?.map((provider: any) => ({
+src/lib/firebaseUtils.ts:133:              const docs = snapshot.docs.map(doc => ({
+src/data/initialMembers.ts:21:export const INITIAL_MEMBERS: Member[] = RAW_MEMBERS_DATA.map(([id, title, customTitle, name, role, committeeId, committeeName, joiningMechanism, email, phone, nationalId, active, note]) => ({

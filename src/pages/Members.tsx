@@ -225,9 +225,6 @@ export default function Members() {
   const members = dbMembers;
   
   const allCommittees = dbCommittees.length > 0 ? dbCommittees.map(c => ({ id: c.id, name: c.name })) : [
-    { id: 1, name: "الإعلام والتسويق" },
-    { id: 2, name: "التجارية" },
-    { id: 3, name: "التطوير العقاري" }
   ];
 
   const canUserEditCommittee = (committeeName: string): boolean => {

@@ -1,0 +1,20 @@
+101:  role: "SYS_ADMIN" | "DEPT_HEAD" | "MANAG_DIR" | "SPECIALIST"; // الدور الصلاحيتي
+102-  roleAr: string; // الدور بالعربية
+103-  jobTitle: string; // المسمى الوظيفي
+104-  phone: string; // رقم الجوال
+105-  extension?: string; // رقم التحويلة
+106-  email: string; // البريد الإلكتروني
+--
+517:        role: "SPECIALIST",
+518-        roleAr: "أخصائي اللجان",
+519-        jobTitle: "أخصائي لجان",
+520-        phone: req.phone,
+521-        email: emailLower,
+522-        photo: PRESET_AVATARS[Math.floor(Math.random() * PRESET_AVATARS.length)],
+--
+676:        role: isPowerUser ? formRole : (existingEmployee?.role || "SPECIALIST"),
+677-        roleAr: isPowerUser ? (roleMapper[formRole] || "أخصائي اللجان") : (existingEmployee?.roleAr || "أخصائي اللجان"),
+678-        jobTitle: formJobTitle.trim() || (isPowerUser ? (roleMapper[formRole] || "أخصائي لجان") : (existingEmployee?.jobTitle || "أخصائي لجان")),
+679-        phone: formPhone.trim(),
+680-        extension: formExtension.trim(),
+681-        email: isEditing && existingEmployee ? existingEmployee.email : cleanEmail, // البريد الإلكتروني هو معرف الحساب ولا يمكن تعديله لضمان عدم الخروج
