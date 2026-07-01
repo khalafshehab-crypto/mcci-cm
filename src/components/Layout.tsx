@@ -27,6 +27,7 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    "assistant-sec-gen": true,
     committees: true,
     centers: true,
     affiliates: true,
@@ -161,7 +162,7 @@ export default function Layout({ children }: LayoutProps) {
       nameAr: "مساعد الأمين العام",
       icon: <UserCheck className="w-4 h-4" />,
       pages: [
-        { name: "Assistant Sec Gen", nameAr: "مساعد الأمين العام", path: "/assistant-sec-gen", icon: <UserCheck className="w-4 h-4" /> }
+        { name: "Dashboard", nameAr: "شاشة المتابعة", path: "/assistant-sec-gen", icon: <LayoutDashboard className="w-4 h-4" /> }
       ]
     },
     {
@@ -169,7 +170,7 @@ export default function Layout({ children }: LayoutProps) {
       nameAr: "إدارة المراكز",
       icon: <Building2 className="w-4 h-4" />,
       pages: [
-        { name: "Centers", nameAr: "إدارة المراكز", path: "/centers", icon: <Building2 className="w-4 h-4" /> }
+        { name: "Dashboard", nameAr: "شاشة المتابعة", path: "/centers", icon: <LayoutDashboard className="w-4 h-4" /> }
       ]
     },
     {
@@ -177,7 +178,7 @@ export default function Layout({ children }: LayoutProps) {
       nameAr: "إدارة المنتسبين",
       icon: <Users className="w-4 h-4" />,
       pages: [
-        { name: "Affiliates", nameAr: "إدارة المنتسبين", path: "/affiliates", icon: <Users className="w-4 h-4" /> }
+        { name: "Dashboard", nameAr: "شاشة المتابعة", path: "/affiliates", icon: <LayoutDashboard className="w-4 h-4" /> }
       ]
     },
     {
@@ -221,8 +222,8 @@ export default function Layout({ children }: LayoutProps) {
       return currentUserObj.allowedPages.includes(page.path);
     }
     
-    // Fallback: Default to Committees pages if allowedPages is undefined
-    const SYSTEM_PAGES = ["/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library"];
+    // Fallback: Default to all pages if allowedPages is undefined
+    const SYSTEM_PAGES = ["/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library", "/assistant-sec-gen", "/centers", "/affiliates"];
     return SYSTEM_PAGES.includes(page.path);
   });
 
@@ -326,8 +327,8 @@ export default function Layout({ children }: LayoutProps) {
                       const deptPages = getFilteredDeptPages(dept.pages);
                       if (deptPages.length === 0) return null;
                       
-                      const hasSubPages = deptPages.length > 1;
-                      const isExpanded = expandedSections[dept.id];
+                      const hasSubPages = true; // Always show accordion
+                      const isExpanded = expandedSections[dept.id] || false;
                       
                       return (
                         <div key={dept.id} className="w-full">
