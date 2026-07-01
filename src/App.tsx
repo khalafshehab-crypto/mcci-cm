@@ -8,6 +8,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import Layout from "./components/Layout";
 import AuthGate from "./components/AuthGate";
 import ErrorBoundary from "./components/ErrorBoundary";
+import PresenceTracker from "./components/PresenceTracker";
 
 const CommitteesHome = React.lazy(() => import("./pages/CommitteesHome"));
 const CommitteesFormation = React.lazy(() => import("./pages/CommitteesFormation"));
@@ -70,6 +71,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      <PresenceTracker />
       <Router>
         <Layout>
           <Suspense fallback={

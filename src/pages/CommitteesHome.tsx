@@ -796,16 +796,44 @@ export default function CommitteesHome() {
         const activeEmps = allowedEmps.filter(emp => emp.active !== false);
         const listToUse = activeEmps.length > 0 ? activeEmps : allowedEmps;
 
-        const mapped = listToUse.slice(0, 7).map((emp, index) => {
+        const now = Date.now();
+        const THIRTY_MINUTES = 30 * 60 * 1000;
+        const TWO_HOURS = 2 * 60 * 60 * 1000;
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        const mapped = listToUse.map((emp, index) => {
           const nameStr = emp.name || "";
           const words = nameStr.split(" ");
           const avatar = words.length >= 2 ? (words[0][0] + " " + (words[1][0] || "")) : ((words[0] && words[0][0]) || "م");
           const colors = ["bg-blue-600", "bg-teal-600", "bg-indigo-600", "bg-purple-600", "bg-amber-500", "bg-rose-500", "bg-emerald-600"];
           const color = colors[index % colors.length];
           
-          // Allocate realistic diverse statuses for active work simulation
-          const possibleStatuses = ["متصل", "في اجتماع", "مشغول", "خارج المكتب", "متصل"];
-          const status = possibleStatuses[index % possibleStatuses.length];
+          let status = "خارج المكتب";
+          let lastActive = emp.lastActive || 0;
+          
+          if (now - lastActive < TWO_HOURS) {
+            status = "مشغول";
+            if (now - lastActive < THIRTY_MINUTES) {
+              status = "متصل";
+            }
+          }
+
+          // Check if employee has a confirmed event today
+          if (status !== "خارج المكتب") {
+             const hasMeeting = (dbEvents || []).some((evt: any) => {
+                 if (!evt.date || !evt.date.startsWith(todayStr)) return false;
+                 if (evt.status === "مؤكد" || evt.committeeConfirmed || evt.attendanceConfirmed) {
+                     if (emp.committees && Array.isArray(emp.committees)) {
+                         return emp.committees.includes(evt.committeeName);
+                     }
+                 }
+                 return false;
+             });
+
+             if (hasMeeting) {
+                 status = "في اجتماع";
+             }
+          }
 
           const presetAvatars = [
             "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200", // Male 1
@@ -820,19 +848,22 @@ export default function CommitteesHome() {
 
           return {
             name: emp.name,
+            email: emp.email,
             title: emp.jobTitle || emp.roleAr || "أخصائي لجان",
             avatar: avatar.trim(),
             photo,
             color,
-            status
+            status,
+            lastActive
           };
-        });
+        }).filter(emp => emp.status !== "خارج المكتب").sort((a, b) => b.lastActive - a.lastActive).slice(0, 7);
+        
         setOnlineStaff(mapped);
       }
     } catch (e) {
       console.error("Error formatting online staff lists", e);
     }
-  }, [dbEmployees, currentUserRole]);
+  }, [dbEmployees, dbEvents, currentUserRole]);
 
   // Modals and Interactive Reference Form State
   const [selectedAlarm, setSelectedAlarm] = useState<Alarm | null>(null);
@@ -1613,20 +1644,11 @@ export default function CommitteesHome() {
                   key={sIdx} 
                   className="flex items-center justify-between gap-2.5 pt-2 first:pt-0 cursor-pointer hover:bg-slate-50 p-1.5 rounded-xl transition-all"
                   onClick={() => {
-                    setChatTarget({ name: staff.name, jobTitle: staff.title, photo: staff.photo });
-                    setChatMsg("");
-                    setChatToast(null);
-                    setChatMessages([
-                      {
-                        id: "initial-welcome",
-                        sender: staff.name,
-                        text: `السلام عليكم ورحمة الله وبركاته، أنا متصل الآن بنظام اللجان 🟢 كيف يمكنني خدمتكم ومتابعة المعاملات والتنبيهات المستهدفة؟ قنوات العمل النشطة تعمل بشكل كامل.`,
-                        isMine: false,
-                        time: "الآن",
-                        photo: staff.photo
-                      }
-                    ]);
-                    setIsTyping(false);
+                    if (staff.email) {
+                      window.open(`https://chat.google.com/`, '_blank');
+                    } else {
+                      window.open(`https://chat.google.com/`, '_blank');
+                    }
                   }}
                 >
                   <div className="flex items-center gap-2 text-right">
