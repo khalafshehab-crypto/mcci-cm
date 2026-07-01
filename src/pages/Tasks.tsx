@@ -10,6 +10,9 @@ export interface TaskItem {
   id: string;
   title: string;
   description: string;
+  sourceType?: "جديدة" | "بريد إلكتروني" | "بوابة الموظفين" | string;
+  sourceDetails?: string;
+  additionalNotes?: string;
   priority: "عادية" | "عاجلة";
   dueDate: string;
   assignedBy: string;
@@ -106,6 +109,9 @@ export default function Tasks() {
   // Field states
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [sourceType, setSourceType] = useState<string>("جديدة");
+  const [sourceDetails, setSourceDetails] = useState("");
+  const [additionalNotes, setAdditionalNotes] = useState("");
   const [priority, setPriority] = useState<"عادية" | "عاجلة">("عادية");
   const [dueDate, setDueDate] = useState("");
   const [assignedBy, setAssignedBy] = useState("");
@@ -136,6 +142,9 @@ export default function Tasks() {
   const openAddModal = () => {
     setTitle("");
     setDescription("");
+    setSourceType("جديدة");
+    setSourceDetails("");
+    setAdditionalNotes("");
     setPriority("عادية");
     setDueDate(new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10)); // 5 days from now
     setAssignedBy(currentUserName);
@@ -156,6 +165,9 @@ export default function Tasks() {
     const newTask: Omit<TaskItem, 'id'> = {
       title,
       description,
+      sourceType,
+      sourceDetails,
+      additionalNotes,
       priority,
       dueDate,
       assignedBy,
@@ -178,6 +190,9 @@ export default function Tasks() {
     setCurrentTask(task);
     setTitle(task.title);
     setDescription(task.description);
+    setSourceType(task.sourceType || "جديدة");
+    setSourceDetails(task.sourceDetails || "");
+    setAdditionalNotes(task.additionalNotes || "");
     setPriority(task.priority);
     setDueDate(task.dueDate);
     setAssignedBy(task.assignedBy);
@@ -206,6 +221,9 @@ export default function Tasks() {
       await updateDoc(doc(db, "tasks", currentTask.id), {
         title,
         description,
+        sourceType,
+        sourceDetails,
+        additionalNotes,
         priority,
         dueDate,
         assignedBy,
@@ -959,7 +977,7 @@ export default function Tasks() {
 
                   {/* Description */}
                   <div className="col-span-1 md:col-span-2">
-                    <label className="block text-xs font-black text-gray-750 mb-1">تفاصيل وصياغة المسؤولية *</label>
+                    <label className="block text-xs font-black text-gray-750 mb-1">تفاصيل وصياغة المسؤولية (وصف المهمة) *</label>
                     <textarea
                       required
                       rows={3}
@@ -970,9 +988,44 @@ export default function Tasks() {
                     />
                   </div>
 
+                  {/* Source Type */}
+                  <div className="col-span-1 md:col-span-1">
+                    <label className="block text-xs font-black text-gray-750 mb-1">مصدر المهمة *</label>
+                    <select
+                      value={sourceType}
+                      onChange={(e) => {
+                        setSourceType(e.target.value);
+                        setSourceDetails("");
+                      }}
+                      className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                    >
+                      <option value="جديدة">جديدة</option>
+                      <option value="بريد إلكتروني">بريد إلكتروني</option>
+                      <option value="بوابة الموظفين">بوابة الموظفين</option>
+                    </select>
+                  </div>
+
+                  {/* Source Details */}
+                  {sourceType !== "جديدة" && (
+                    <div className="col-span-1 md:col-span-1">
+                      <label className="block text-xs font-black text-gray-750 mb-1">
+                        {sourceType === "بريد إلكتروني" ? "عنوان البريد الإلكتروني *" : "رقم المعاملة *"}
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={sourceDetails}
+                        onChange={(e) => setSourceDetails(e.target.value)}
+                        placeholder={sourceType === "بريد إلكتروني" ? "اكتب عنوان البريد..." : "أدخل رقم المعاملة..."}
+                        className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                      />
+                    </div>
+                  )}
+                  {sourceType === "جديدة" && <div className="hidden md:block col-span-1 md:col-span-1"></div>}
+
                   {/* Assigned to */}
                   <div>
-                    <label className="block text-xs font-black text-gray-750 mb-1">إلى الموظف (المكلف) *</label>
+                    <label className="block text-xs font-black text-gray-750 mb-1">مسندة إلى (الموظف المكلف) *</label>
                     <select
                       value={assignedTo}
                       onChange={(e) => setAssignedTo(e.target.value)}
@@ -986,19 +1039,20 @@ export default function Tasks() {
 
                   {/* Coordinator (Assigned by) */}
                   <div>
-                    <label className="block text-xs font-black text-gray-750 mb-1">منسق العمل (المُسنِد) *</label>
+                    <label className="block text-xs font-black text-gray-750 mb-1">تم إنشاء المهمة بواسطة الموظف *</label>
                     <input
                       type="text"
                       required
+                      readOnly
+                      disabled
                       value={assignedBy}
-                      onChange={(e) => setAssignedBy(e.target.value)}
-                      className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                      className="w-full p-2.5 bg-slate-100 border border-gray-300 rounded-xl text-xs font-black text-gray-500 cursor-not-allowed outline-none transition-all"
                     />
                   </div>
 
                   {/* Due Date */}
                   <div>
-                    <label className="block text-xs font-black text-gray-750 mb-1">موعد التسليم الأقصى (Deadline) *</label>
+                    <label className="block text-xs font-black text-gray-750 mb-1">موعد التسليم *</label>
                     <input
                       type="date"
                       required
@@ -1010,15 +1064,27 @@ export default function Tasks() {
 
                   {/* Priority level */}
                   <div>
-                    <label className="block text-xs font-black text-gray-750 mb-1">أولوية المهمة الإدارية</label>
+                    <label className="block text-xs font-black text-gray-750 mb-1">الأولوية *</label>
                     <select
                       value={priority}
                       onChange={(e) => setPriority(e.target.value as any)}
                       className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                     >
                       <option value="عادية">عادية</option>
-                      <option value="عاجلة">عاجلة جداً (عالية الاستحقاق)</option>
+                      <option value="عاجلة">عاجلة</option>
                     </select>
+                  </div>
+
+                  {/* Additional Notes */}
+                  <div className="col-span-1 md:col-span-2">
+                    <label className="block text-xs font-black text-gray-750 mb-1">ملاحظات إضافية</label>
+                    <textarea
+                      rows={2}
+                      value={additionalNotes}
+                      onChange={(e) => setAdditionalNotes(e.target.value)}
+                      placeholder="أي ملاحظات أو إرشادات إضافية للمهمة..."
+                      className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black leading-relaxed focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                    />
                   </div>
                 </div>
 
@@ -1152,7 +1218,7 @@ export default function Tasks() {
 
                   {/* Description */}
                   <div className="col-span-1 md:col-span-2">
-                    <label className="block text-xs font-black text-gray-750 mb-1">تفاصيل وصياغة المسؤولية *</label>
+                    <label className="block text-xs font-black text-gray-750 mb-1">تفاصيل وصياغة المسؤولية (وصف المهمة) *</label>
                     <textarea
                       required
                       rows={3}
@@ -1161,6 +1227,41 @@ export default function Tasks() {
                       className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black leading-relaxed focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                     />
                   </div>
+
+                  {/* Source Type */}
+                  <div className="col-span-1 md:col-span-1">
+                    <label className="block text-xs font-black text-gray-750 mb-1">مصدر المهمة *</label>
+                    <select
+                      value={sourceType}
+                      onChange={(e) => {
+                        setSourceType(e.target.value);
+                        setSourceDetails("");
+                      }}
+                      className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                    >
+                      <option value="جديدة">جديدة</option>
+                      <option value="بريد إلكتروني">بريد إلكتروني</option>
+                      <option value="بوابة الموظفين">بوابة الموظفين</option>
+                    </select>
+                  </div>
+
+                  {/* Source Details */}
+                  {sourceType !== "جديدة" && (
+                    <div className="col-span-1 md:col-span-1">
+                      <label className="block text-xs font-black text-gray-750 mb-1">
+                        {sourceType === "بريد إلكتروني" ? "عنوان البريد الإلكتروني *" : "رقم المعاملة *"}
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={sourceDetails}
+                        onChange={(e) => setSourceDetails(e.target.value)}
+                        placeholder={sourceType === "بريد إلكتروني" ? "اكتب عنوان البريد..." : "أدخل رقم المعاملة..."}
+                        className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                      />
+                    </div>
+                  )}
+                  {sourceType === "جديدة" && <div className="hidden md:block col-span-1 md:col-span-1"></div>}
 
                   {/* Due date */}
                   <div>
@@ -1201,6 +1302,19 @@ export default function Tasks() {
                     </select>
                   </div>
 
+                  {/* Coordinator (Assigned by) */}
+                  <div>
+                    <label className="block text-xs font-black text-gray-750 mb-1">منسق العمل (المُسنِد)</label>
+                    <input
+                      type="text"
+                      required
+                      readOnly
+                      disabled
+                      value={assignedBy}
+                      className="w-full p-2.5 bg-slate-100 border border-gray-300 rounded-xl text-xs font-black text-gray-500 cursor-not-allowed outline-none transition-all"
+                    />
+                  </div>
+
                   {/* Status */}
                   <div>
                     <label className="block text-xs font-black text-gray-750 mb-1">حالة المهمة الحالية</label>
@@ -1214,6 +1328,17 @@ export default function Tasks() {
                       <option value="متأخرة">متأخرة</option>
                       <option value="منجزة">منجزة</option>
                     </select>
+                  </div>
+
+                  {/* Additional Notes */}
+                  <div className="col-span-1 md:col-span-2">
+                    <label className="block text-xs font-black text-gray-750 mb-1">ملاحظات إضافية</label>
+                    <textarea
+                      rows={2}
+                      value={additionalNotes}
+                      onChange={(e) => setAdditionalNotes(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black leading-relaxed focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                    />
                   </div>
                 </div>
 
