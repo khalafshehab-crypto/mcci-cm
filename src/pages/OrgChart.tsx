@@ -1869,13 +1869,15 @@ export default function OrgChart() {
                     <th className="p-4 text-center">المهام</th>
                     <th className="p-4 text-center">التقارير</th>
                     <th className="p-4 text-center">المكتبة</th>
+                    <th className="p-4 text-center">المراكز</th>
+                    <th className="p-4 text-center">المنتسبين</th>
                     <th className="p-4 text-center bg-blue-50">إدارة النظام</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-150 font-bold text-gray-600">
                   {safeDbEmployees.map((emp) => {
-                    const SYSTEM_PAGES = ["/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library"];
-                    const currentAllowed = emp.allowedPages?.length ? emp.allowedPages : SYSTEM_PAGES;
+                    const SYSTEM_PAGES = ["/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library", "/centers", "/affiliates"];
+                    const currentAllowed = emp.allowedPages?.length ? emp.allowedPages : ["/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library"];
                     
                     const handleCheckbox = async (path: string) => {
                       const updated = currentAllowed.includes(path) ? currentAllowed.filter(p => p !== path) : [...currentAllowed, path];

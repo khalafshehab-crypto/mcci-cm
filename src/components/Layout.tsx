@@ -197,15 +197,18 @@ export default function Layout({ children }: LayoutProps) {
 
   const filteredPages = allPages.filter(page => {
     if (!currentUserObj) return true;
+    
     // Always let sysadmins see everything
     if (currentUserObj.role === "SYS_ADMIN") return true;
-    
-    // If user has allowedPages restriction
+
+    // If allowedPages is explicitly set, use it (even if empty)
     if (currentUserObj.allowedPages && Array.isArray(currentUserObj.allowedPages)) {
-      if (currentUserObj.allowedPages.length === 0) return true;
       return currentUserObj.allowedPages.includes(page.path);
     }
-    return true;
+    
+    // Fallback: Default to Committees pages if allowedPages is undefined
+    const SYSTEM_PAGES = ["/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library"];
+    return SYSTEM_PAGES.includes(page.path);
   });
 
   const getFilteredDeptPages = (deptPages: any[]) => {
