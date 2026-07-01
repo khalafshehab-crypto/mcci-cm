@@ -585,6 +585,10 @@ export default function OrgChart() {
   const [whitelistNameStr, setWhitelistNameStr] = useState("");
   const [whitelistRoleAr, setWhitelistRoleAr] = useState("أخصائي لجان");
 
+  const [transferMode, setTransferMode] = useState<"full" | "delegation">("full");
+  const [delegationEndDate, setDelegationEndDate] = useState("");
+  const [delegatePermissions, setDelegatePermissions] = useState(true);
+
   // Transfer states
   const [sourceEmpId, setSourceEmpId] = useState("");
   const [targetEmpId, setTargetEmpId] = useState("");
@@ -1028,26 +1032,43 @@ export default function OrgChart() {
     setTransferError("");
     if (!sourceEmpId || !targetEmpId || sourceEmpId === targetEmpId) return;
 
+    if (transferMode === "delegation" && !delegationEndDate) {
+      setTransferError("يرجى تحديد تاريخ انتهاء التكليف.");
+      return;
+    }
+
     setIsTransferring(true);
     try {
       const sourceEmp = dbEmployees.find(emp => emp.id === sourceEmpId);
       const targetEmp = dbEmployees.find(emp => emp.id === targetEmpId);
       if (!sourceEmp || !targetEmp) return;
 
+      let noteStr = "";
+      if (transferMode === "full") {
+        noteStr = `[تم نقل الأعمال بشكل دائم من الموظف ${sourceEmp.name} إلى ${targetEmp.name}]`;
+      } else {
+        noteStr = `[تكليف بأعمال الموظف ${sourceEmp.name} إلى ${targetEmp.name} حتى تاريخ ${delegationEndDate}]`;
+      }
+
       if (transferCommittees) {
         const matchingComms = dbCommittees.filter(c => c.specialistId === sourceEmpId);
         for (const c of matchingComms) {
-          await updateFirebaseComm(c.id, { specialistId: targetEmpId, specialistName: targetEmp.name });
+          const newDesc = c.desc ? c.desc + "\n\n" + noteStr : noteStr;
+          await updateFirebaseComm(c.id, { specialistId: targetEmpId, specialistName: targetEmp.name, desc: newDesc });
         }
         const updatedTargetComms = Array.from(new Set([...(targetEmp.committees || []), ...(sourceEmp.committees || [])]));
-        await updateFirebaseEmp(sourceEmpId, { committees: [] });
+        
+        if (transferMode === "full") {
+          await updateFirebaseEmp(sourceEmpId, { committees: [] });
+        }
         await updateFirebaseEmp(targetEmpId, { committees: updatedTargetComms });
       }
 
       if (transferTasks) {
-        const matchingTasks = dbTasks.filter(t => t.assignedToId === sourceEmpId);
+        const matchingTasks = dbTasks.filter(t => t.assignedToId === sourceEmpId || t.assignedTo === sourceEmp.name);
         for (const t of matchingTasks) {
-          await updateFirebaseTask(t.id, { assignedToId: targetEmpId, assignedToName: targetEmp.name });
+          const newNotes = t.additionalNotes ? t.additionalNotes + "\n\n" + noteStr : noteStr;
+          await updateFirebaseTask(t.id, { assignedToId: targetEmpId, assignedTo: targetEmp.name, assignedToName: targetEmp.name, additionalNotes: newNotes });
         }
       }
 
@@ -1057,13 +1078,22 @@ export default function OrgChart() {
           const updateObj: any = {};
           if (ev.employeeId === sourceEmpId) updateObj.employeeId = targetEmpId;
           if (ev.specialistId === sourceEmpId) { updateObj.specialistId = targetEmpId; updateObj.specialistName = targetEmp.name; }
+          // We can append to event notes if we have a field for it, or just leave it.
           await updateFirebaseEvent(ev.id, updateObj);
         }
       }
 
-      setTransferSuccess(`تمت عملية تفويض ونقل الأعمال بنجاح تام!`);
+      if (transferMode === "delegation" && delegatePermissions) {
+        const currentTargetAllowed = targetEmp.allowedPages || [];
+        const sourceAllowed = sourceEmp.allowedPages || [];
+        const updatedAllowed = Array.from(new Set([...currentTargetAllowed, ...sourceAllowed]));
+        await updateFirebaseEmp(targetEmpId, { allowedPages: updatedAllowed });
+      }
+
+      setTransferSuccess(transferMode === "full" ? `تمت عملية تفويض ونقل الأعمال بالكامل بنجاح.` : `تم تكليف المهام والصلاحيات بنجاح حتى ${delegationEndDate}.`);
       setSourceEmpId("");
       setTargetEmpId("");
+      setDelegationEndDate("");
     } catch (error: any) {
       setTransferError(`فشلت العملية.`);
     } finally {
@@ -1792,6 +1822,20 @@ export default function OrgChart() {
             {transferError && <div className="p-4 bg-red-50 text-red-650 text-xs font-bold rounded-xl">{transferError}</div>}
             
             <form onSubmit={handleTransferDuties} className="space-y-6">
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <label className="block text-[11px] text-gray-500 font-extrabold mb-3">نوع النقل</label>
+                <div className="flex items-center gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="transferMode" value="full" checked={transferMode === "full"} onChange={() => setTransferMode("full")} className="w-4 h-4 text-brand focus:ring-brand" />
+                    <span className="text-xs font-bold text-gray-800">نقل أعمال كامل (نقل دائم)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="transferMode" value="delegation" checked={transferMode === "delegation"} onChange={() => setTransferMode("delegation")} className="w-4 h-4 text-brand focus:ring-brand" />
+                    <span className="text-xs font-bold text-gray-800">تكليف أعمال (تفويض مؤقت للصلاحيات والمهام)</span>
+                  </label>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                   <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">الموظف الحالي (المصدر)</label>
@@ -1812,6 +1856,21 @@ export default function OrgChart() {
                   </select>
                 </div>
               </div>
+
+              {transferMode === "delegation" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">تاريخ انتهاء التكليف</label>
+                    <input type="date" value={delegationEndDate} onChange={(e) => setDelegationEndDate(e.target.value)} required className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-xs font-bold" />
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex items-center">
+                    <label className="flex items-center gap-2 cursor-pointer mt-4">
+                      <input type="checkbox" checked={delegatePermissions} onChange={(e) => setDelegatePermissions(e.target.checked)} className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4" />
+                      <span className="text-xs font-bold text-gray-800">تفويض الصلاحيات (نقل صلاحيات الوصول للشاشات للموظف البديل)</span>
+                    </label>
+                  </div>
+                </div>
+              )}
 
               <div className="bg-slate-50 p-5 rounded-xl border border-gray-200 space-y-3.5">
                 <span className="block text-xs font-black text-gray-800">العناصر المشمولة بالنقل:</span>
