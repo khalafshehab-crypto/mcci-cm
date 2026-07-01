@@ -201,6 +201,9 @@ export default function Layout({ children }: LayoutProps) {
     // Always let sysadmins see everything
     if (currentUserObj.role === "SYS_ADMIN") return true;
 
+    // Admin permissions allows viewing the system admin page
+    if (currentUserObj.adminPermissions && page.path === "/org-chart") return true;
+
     // If allowedPages is explicitly set, use it (even if empty)
     if (currentUserObj.allowedPages && Array.isArray(currentUserObj.allowedPages)) {
       return currentUserObj.allowedPages.includes(page.path);

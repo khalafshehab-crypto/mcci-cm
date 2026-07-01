@@ -826,6 +826,34 @@ export default function OrgChart() {
         }
       }
 
+      let calculatedAllowedPages = isPowerUser ? formAllowedPages : (existingEmployee?.allowedPages || []);
+      let calculatedAdminPerms = existingEmployee?.adminPermissions || false;
+
+      if (!isEditing && isPowerUser) {
+        if (formRole === "SYS_ADMIN" || formRole === "ASSISTANT_SEC_GEN") {
+          calculatedAdminPerms = true;
+        }
+        
+        if (formAllowedPages.length === 0) {
+          const allLevels = [formOrgLevel1, formOrgLevel2, formOrgLevel3, formOrgLevel4, formOrgLevel5].join(" ");
+          const autoPages = [];
+          if (allLevels.includes("لجان")) {
+            autoPages.push("/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library");
+          }
+          if (allLevels.includes("مراكز")) {
+            autoPages.push("/centers");
+          }
+          if (allLevels.includes("منتسبين")) {
+            autoPages.push("/affiliates");
+          }
+          
+          if (autoPages.length === 0) {
+            autoPages.push("/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library");
+          }
+          calculatedAllowedPages = autoPages;
+        }
+      }
+
       const payload: Omit<Employee, "id"> = {
         name: formName.trim(),
         prefix: formPrefix,
@@ -844,7 +872,8 @@ export default function OrgChart() {
         active: isPowerUser ? formActive : (existingEmployee ? existingEmployee.active : true),
         loginEnabled: isPowerUser ? formLoginEnabled : (existingEmployee ? existingEmployee.loginEnabled !== false : true),
         committees: formCommittees,
-        allowedPages: isPowerUser ? formAllowedPages : (existingEmployee?.allowedPages || []),
+        allowedPages: calculatedAllowedPages,
+        adminPermissions: calculatedAdminPerms,
         password: formPassword.trim() || (existingEmployee?.password || ""),
         joinDate: existingEmployee?.joinDate || new Date().toISOString().split('T')[0].replace(/-/g, '/'),
       };
@@ -1860,23 +1889,34 @@ export default function OrgChart() {
               <table className="w-full text-right text-xs">
                 <thead className="bg-[#fcfdfd] border-b border-gray-200 text-gray-700 font-extrabold text-[10.5px]">
                   <tr>
-                    <th className="p-4">الموظف</th>
-                    <th className="p-4 text-center">الرئيسية</th>
-                    <th className="p-4 text-center">تشكيل اللجان</th>
-                    <th className="p-4 text-center">الأعضاء</th>
-                    <th className="p-4 text-center">الفعاليات</th>
-                    <th className="p-4 text-center">التوصيات</th>
-                    <th className="p-4 text-center">المهام</th>
-                    <th className="p-4 text-center">التقارير</th>
-                    <th className="p-4 text-center">المكتبة</th>
-                    <th className="p-4 text-center">المراكز</th>
-                    <th className="p-4 text-center">المنتسبين</th>
-                    <th className="p-4 text-center bg-blue-50">إدارة النظام</th>
+                    <th rowSpan={2} className="p-4 border-l border-gray-200 align-middle">الموظف</th>
+                    <th colSpan={9} className="p-2 text-center border-b border-l border-gray-200 bg-gray-50/50">إدارة اللجان</th>
+                    <th colSpan={2} className="p-2 text-center border-b border-l border-gray-200 bg-gray-50/50">إدارة المراكز</th>
+                    <th colSpan={2} className="p-2 text-center border-b border-gray-200 bg-gray-50/50">إدارة المنتسبين</th>
+                    <th rowSpan={2} className="p-4 text-center bg-blue-50 border-r border-gray-200 align-middle">إدارة النظام</th>
+                  </tr>
+                  <tr>
+                    <th className="p-2 text-center border-l border-gray-200 bg-gray-100/50">الكل</th>
+                    <th className="p-2 text-center border-l border-gray-200">الرئيسية</th>
+                    <th className="p-2 text-center border-l border-gray-200">التشكيل</th>
+                    <th className="p-2 text-center border-l border-gray-200">الأعضاء</th>
+                    <th className="p-2 text-center border-l border-gray-200">الفعاليات</th>
+                    <th className="p-2 text-center border-l border-gray-200">التوصيات</th>
+                    <th className="p-2 text-center border-l border-gray-200">المهام</th>
+                    <th className="p-2 text-center border-l border-gray-200">التقارير</th>
+                    <th className="p-2 text-center border-l border-gray-200">المكتبة</th>
+                    <th className="p-2 text-center border-l border-gray-200 bg-gray-100/50">الكل</th>
+                    <th className="p-2 text-center border-l border-gray-200">المراكز</th>
+                    <th className="p-2 text-center border-l border-gray-200 bg-gray-100/50">الكل</th>
+                    <th className="p-2 text-center border-gray-200">المنتسبين</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-150 font-bold text-gray-600">
                   {safeDbEmployees.map((emp) => {
-                    const SYSTEM_PAGES = ["/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library", "/centers", "/affiliates"];
+                    const COMMITTEES_PAGES = ["/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library"];
+                    const CENTERS_PAGES = ["/centers"];
+                    const AFFILIATES_PAGES = ["/affiliates"];
+                    
                     const currentAllowed = emp.allowedPages?.length ? emp.allowedPages : ["/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library"];
                     
                     const handleCheckbox = async (path: string) => {
@@ -1884,16 +1924,58 @@ export default function OrgChart() {
                       await updateFirebaseEmp(emp.id, { allowedPages: updated });
                     };
 
+                    const handleDeptCheckbox = async (paths: string[]) => {
+                      const allIncluded = paths.every(p => currentAllowed.includes(p));
+                      let updated;
+                      if (allIncluded) {
+                        updated = currentAllowed.filter(p => !paths.includes(p));
+                      } else {
+                        updated = Array.from(new Set([...currentAllowed, ...paths]));
+                      }
+                      await updateFirebaseEmp(emp.id, { allowedPages: updated });
+                    };
+
+                    const hasAllCommittees = COMMITTEES_PAGES.every(p => currentAllowed.includes(p));
+                    const hasAllCenters = CENTERS_PAGES.every(p => currentAllowed.includes(p));
+                    const hasAllAffiliates = AFFILIATES_PAGES.every(p => currentAllowed.includes(p));
+
                     return (
                       <tr key={emp.id} className="hover:bg-gray-50/50">
-                        <td className="p-4 text-xs font-extrabold text-gray-900">{emp.name}</td>
-                        {SYSTEM_PAGES.map(path => (
-                          <td key={path} className="p-4 text-center">
-                            <input type="checkbox" checked={currentAllowed.includes(path)} onChange={() => handleCheckbox(path)} className="w-4 h-4 text-emerald-600" />
+                        <td className="p-4 text-xs font-extrabold text-gray-900 border-l border-gray-200">{emp.name}</td>
+                        
+                        {/* Committees */}
+                        <td className="p-2 text-center border-l border-gray-200 bg-gray-50/50">
+                          <input type="checkbox" checked={hasAllCommittees} onChange={() => handleDeptCheckbox(COMMITTEES_PAGES)} className="w-4 h-4 text-gray-800 rounded border-gray-300" />
+                        </td>
+                        {COMMITTEES_PAGES.map(path => (
+                          <td key={path} className="p-2 text-center border-l border-gray-200">
+                            <input type="checkbox" checked={currentAllowed.includes(path)} onChange={() => handleCheckbox(path)} className="w-4 h-4 text-emerald-600 rounded border-gray-300" />
                           </td>
                         ))}
-                        <td className="p-4 text-center bg-blue-50/50">
-                          <input type="checkbox" checked={emp.adminPermissions || false} onChange={async (e) => await updateFirebaseEmp(emp.id, { adminPermissions: e.target.checked })} className="w-4 h-4 text-blue-600" />
+                        
+                        {/* Centers */}
+                        <td className="p-2 text-center border-l border-gray-200 bg-gray-50/50">
+                          <input type="checkbox" checked={hasAllCenters} onChange={() => handleDeptCheckbox(CENTERS_PAGES)} className="w-4 h-4 text-gray-800 rounded border-gray-300" />
+                        </td>
+                        {CENTERS_PAGES.map(path => (
+                          <td key={path} className="p-2 text-center border-l border-gray-200">
+                            <input type="checkbox" checked={currentAllowed.includes(path)} onChange={() => handleCheckbox(path)} className="w-4 h-4 text-emerald-600 rounded border-gray-300" />
+                          </td>
+                        ))}
+                        
+                        {/* Affiliates */}
+                        <td className="p-2 text-center border-l border-gray-200 bg-gray-50/50">
+                          <input type="checkbox" checked={hasAllAffiliates} onChange={() => handleDeptCheckbox(AFFILIATES_PAGES)} className="w-4 h-4 text-gray-800 rounded border-gray-300" />
+                        </td>
+                        {AFFILIATES_PAGES.map(path => (
+                          <td key={path} className="p-2 text-center border-gray-200">
+                            <input type="checkbox" checked={currentAllowed.includes(path)} onChange={() => handleCheckbox(path)} className="w-4 h-4 text-emerald-600 rounded border-gray-300" />
+                          </td>
+                        ))}
+                        
+                        {/* System Admin */}
+                        <td className="p-4 text-center bg-blue-50/50 border-r border-gray-200">
+                          <input type="checkbox" checked={emp.adminPermissions || false} onChange={async (e) => await updateFirebaseEmp(emp.id, { adminPermissions: e.target.checked })} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
                         </td>
                       </tr>
                     )
