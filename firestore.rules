@@ -1,8 +1,57 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    match /employees/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /join_requests/{id} {
+      allow read: if isSignedIn();
+      // Allow public write but ONLY if it has an email and name field to prevent abuse
+      allow write: if request.resource.data.keys().hasAll(['email', 'name']) 
+                   && request.resource.data.email is string
+                   && request.resource.data.name is string;
+    }
+    match /system_logs/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /committees/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /events/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /members/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /recommendations/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /tasks/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /templates/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /reports/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /kpis/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /org_structure/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /approved_emails/{id} {
+      allow read, write: if isSignedIn();
+    }
+    
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }
