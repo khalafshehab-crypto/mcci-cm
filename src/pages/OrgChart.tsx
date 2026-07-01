@@ -1909,9 +1909,9 @@ export default function OrgChart() {
                   <tr>
                     <th rowSpan={2} className="p-4 border-l border-gray-200 align-middle">الموظف</th>
                     <th colSpan={9} className="p-2 text-center border-b border-l border-gray-200 bg-gray-50/50">إدارة اللجان</th>
-                    <th colSpan={2} className="p-2 text-center border-b border-l border-gray-200 bg-gray-50/50">مساعد الأمين العام</th>
-                    <th colSpan={2} className="p-2 text-center border-b border-l border-gray-200 bg-gray-50/50">إدارة المراكز</th>
-                    <th colSpan={2} className="p-2 text-center border-b border-gray-200 bg-gray-50/50">إدارة المنتسبين</th>
+                    <th colSpan={4} className="p-2 text-center border-b border-l border-gray-200 bg-gray-50/50">مساعد الأمين العام</th>
+                    <th colSpan={4} className="p-2 text-center border-b border-l border-gray-200 bg-gray-50/50">إدارة المراكز</th>
+                    <th colSpan={4} className="p-2 text-center border-b border-gray-200 bg-gray-50/50">إدارة المنتسبين</th>
                     <th rowSpan={2} className="p-4 text-center bg-blue-50 border-r border-gray-200 align-middle">إدارة النظام</th>
                   </tr>
                   <tr>
@@ -1925,19 +1925,25 @@ export default function OrgChart() {
                     <th className="p-2 text-center border-l border-gray-200">التقارير</th>
                     <th className="p-2 text-center border-l border-gray-200">المكتبة</th>
                     <th className="p-2 text-center border-l border-gray-200 bg-gray-100/50">الكل</th>
-                    <th className="p-2 text-center border-l border-gray-200">المساعد</th>
+                    <th className="p-2 text-center border-l border-gray-200">الرئيسية</th>
+                    <th className="p-2 text-center border-l border-gray-200">الفعاليات</th>
+                    <th className="p-2 text-center border-l border-gray-200">المهام</th>
                     <th className="p-2 text-center border-l border-gray-200 bg-gray-100/50">الكل</th>
-                    <th className="p-2 text-center border-l border-gray-200">المراكز</th>
+                    <th className="p-2 text-center border-l border-gray-200">الرئيسية</th>
+                    <th className="p-2 text-center border-l border-gray-200">الفعاليات</th>
+                    <th className="p-2 text-center border-l border-gray-200">المهام</th>
                     <th className="p-2 text-center border-l border-gray-200 bg-gray-100/50">الكل</th>
-                    <th className="p-2 text-center border-gray-200">المنتسبين</th>
+                    <th className="p-2 text-center border-l border-gray-200">الرئيسية</th>
+                    <th className="p-2 text-center border-l border-gray-200">الفعاليات</th>
+                    <th className="p-2 text-center border-gray-200">المهام</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-150 font-bold text-gray-600">
                   {safeDbEmployees.map((emp) => {
                     const COMMITTEES_PAGES = ["/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library"];
-                    const ASSISTANT_SEC_GEN_PAGES = ["/assistant-sec-gen"];
-                    const CENTERS_PAGES = ["/centers"];
-                    const AFFILIATES_PAGES = ["/affiliates"];
+                    const ASSISTANT_SEC_GEN_PAGES = ["/assistant-sec-gen", "/assistant-sec-gen/events", "/assistant-sec-gen/tasks"];
+                    const CENTERS_PAGES = ["/centers", "/centers/events", "/centers/tasks"];
+                    const AFFILIATES_PAGES = ["/affiliates", "/affiliates/events", "/affiliates/tasks"];
                     
                     const currentAllowed = emp.allowedPages?.length ? emp.allowedPages : ["/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library"];
                     
