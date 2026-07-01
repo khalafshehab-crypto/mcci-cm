@@ -1,4 +1,4 @@
-import { useState, useEffect, ReactNode } from "react";
+import React, { useState, useEffect, ReactNode } from "react";
 import { 
   Settings, 
   LogOut, 
@@ -7,6 +7,8 @@ import {
   FileText, 
   CheckSquare, 
   Menu,
+  Users,
+  Building2,
   Users2,
   Calendar,
   CheckCircle2,
@@ -23,6 +25,9 @@ interface LayoutProps {
  
 export default function Layout({ children }: LayoutProps) {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    committees: false
+  });
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isDatabaseBlocked, setIsDatabaseBlocked] = useState(false);
   const location = useLocation();
@@ -55,6 +60,12 @@ export default function Layout({ children }: LayoutProps) {
  
   const toggleDropdown = (name: string) => {
     setActiveDropdown(activeDropdown === name ? null : name);
+  };
+ 
+  const toggleSection = (section: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
  
   useEffect(() => {
@@ -140,19 +151,51 @@ export default function Layout({ children }: LayoutProps) {
   const gregorianDate = formatDate(currentTime);
   const hijriDate = formatDate(currentTime, 'islamic-umalqura');
  
-  const pages = [
-    { name: "الرئيسية", nameAr: "شاشة المتابعة", path: "/", icon: <LayoutDashboard className="w-4 h-4" /> },
-    { name: "تشكيل اللجان", nameAr: "تشكيل اللجان", path: "/committees", icon: <Users2 className="w-4 h-4" /> },
-    { name: "سجل الأعضاء", nameAr: "سجل الأعضاء", path: "/members", icon: <Library className="w-4 h-4" /> },
-    { name: "سجل الفعاليات", nameAr: "الفعاليات", path: "/events", icon: <Calendar className="w-4 h-4" /> },
-    { name: "Recommendations", nameAr: "التوصيات القطاعية", path: "/recommendations", icon: <CheckCircle2 className="w-4 h-4" /> },
-    { name: "Tasks", nameAr: "المهام الإدارية", path: "/tasks", icon: <CheckSquare className="w-4 h-4" /> },
-    { name: "Reports", nameAr: "التقارير", path: "/reports", icon: <FileText className="w-4 h-4" /> },
-    { name: "Library", nameAr: "المكتبة الرقمية", path: "/library", icon: <BookOpen className="w-4 h-4" /> },
-    { name: "System Admin", nameAr: "الهيكل الإداري", path: "/org-chart", icon: <Settings className="w-4 h-4" /> },
+  const departments = [
+    {
+      id: "centers",
+      nameAr: "إدارة المراكز",
+      icon: <Building2 className="w-4 h-4" />,
+      pages: [
+        { name: "Centers", nameAr: "إدارة المراكز", path: "/centers", icon: <Building2 className="w-4 h-4" /> }
+      ]
+    },
+    {
+      id: "affiliates",
+      nameAr: "إدارة المنتسبين",
+      icon: <Users className="w-4 h-4" />,
+      pages: [
+        { name: "Affiliates", nameAr: "إدارة المنتسبين", path: "/affiliates", icon: <Users className="w-4 h-4" /> }
+      ]
+    },
+    {
+      id: "committees",
+      nameAr: "إدارة اللجان",
+      icon: <Users2 className="w-4 h-4" />,
+      pages: [
+        { name: "الرئيسية", nameAr: "شاشة المتابعة", path: "/", icon: <LayoutDashboard className="w-4 h-4" /> },
+        { name: "تشكيل اللجان", nameAr: "تشكيل اللجان", path: "/committees", icon: <Users2 className="w-4 h-4" /> },
+        { name: "سجل الأعضاء", nameAr: "سجل الأعضاء", path: "/members", icon: <Library className="w-4 h-4" /> },
+        { name: "سجل الفعاليات", nameAr: "الفعاليات", path: "/events", icon: <Calendar className="w-4 h-4" /> },
+        { name: "Recommendations", nameAr: "التوصيات القطاعية", path: "/recommendations", icon: <CheckCircle2 className="w-4 h-4" /> },
+        { name: "Tasks", nameAr: "المهام الإدارية", path: "/tasks", icon: <CheckSquare className="w-4 h-4" /> },
+        { name: "Reports", nameAr: "التقارير", path: "/reports", icon: <FileText className="w-4 h-4" /> },
+        { name: "Library", nameAr: "المكتبة الرقمية", path: "/library", icon: <BookOpen className="w-4 h-4" /> },
+      ]
+    },
+    {
+      id: "admin",
+      nameAr: "الهيكل الإداري",
+      icon: <Settings className="w-4 h-4" />,
+      pages: [
+        { name: "System Admin", nameAr: "الهيكل الإداري", path: "/org-chart", icon: <Settings className="w-4 h-4" /> },
+      ]
+    }
   ];
 
-  const filteredPages = pages.filter(page => {
+  const allPages = departments.flatMap(dept => dept.pages);
+
+  const filteredPages = allPages.filter(page => {
     if (!currentUserObj) return true;
     // Always let sysadmins see everything
     if (currentUserObj.role === "SYS_ADMIN") return true;
@@ -164,8 +207,26 @@ export default function Layout({ children }: LayoutProps) {
     }
     return true;
   });
+
+  const getFilteredDeptPages = (deptPages: any[]) => {
+    return deptPages.filter(page => filteredPages.some(fp => fp.path === page.path));
+  };
  
-  const currentPage = filteredPages.find(p => p.path === location.pathname) || filteredPages[0] || pages[0];
+  const currentPage = filteredPages.find(p => p.path === location.pathname) || filteredPages[0] || allPages[0];
+
+  let currentDeptName = "";
+  let currentPageName = "";
+  for (const dept of departments) {
+    const page = dept.pages.find(p => p.path === location.pathname);
+    if (page) {
+      currentDeptName = dept.nameAr;
+      currentPageName = page.nameAr;
+      break;
+    }
+  }
+  const headerSubtitle = currentDeptName && currentPageName
+    ? `${currentDeptName} - ${currentPageName}`
+    : "قطاع اللجان والمراكز";
 
   return (
     <div dir="rtl" className="min-h-screen bg-[#cccccc] p-4 md:p-6 text-gray-800 font-sans">
@@ -190,157 +251,189 @@ export default function Layout({ children }: LayoutProps) {
                 `لتفعيل قاعدة البيانات السحابية الحقيقية:\n\n` +
                 `1. اذهب لمجلد قواعد البيانات بقسم Firestore Database بكونسول Firebase.\n` +
                 `2. اختر التبويب "Rules" (القواعد).\n` +
-                `3. استبدل القواعد بالكامل لتسمح بالوصول الفوري:\n\n` +
-                `rules_version = '2';\n` +
-                `service cloud.firestore {\n` +
-                `  match /databases/{database}/documents {\n` +
-                `    match /{document=**} {\n` +
-                `      allow read, write: if true;\n` +
-                `    }\n` +
-                `  }\n` +
-                `}`
+                `3. استبدل القواعد بالكامل لتسمح بالوصول:\n` +
+                `match /{document=**} { allow read, write: if true; }`
               );
             }}
-            className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs px-4.5 py-2 rounded-xl transition-all shadow-md shadow-amber-650/10 cursor-pointer text-center md:self-auto self-start"
+            className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition-colors shadow-sm"
           >
-            كيف أقوم بضبطها سحابياً؟
+            كيفية التفعيل السحابي؟
           </button>
         </div>
       )}
-
+      
       {/* Header Bar */}
-      <header className="bg-[#e8e4e4] rounded-2xl shadow-sm border border-gray-200 p-2 flex items-stretch justify-between gap-4">
+      <header className="bg-[#e8e4e4] rounded-2xl shadow-sm border border-gray-200 p-2 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4">
         
-        {/* RIGHT: Logo & Page Section (Dropdown) */}
-        <div className="relative flex-shrink-0 dropdown-container" style={{ width: '280px' }}>
-          <button 
-            id="logo-card"
-            onClick={() => toggleDropdown('menu')}
-            className={`flex items-center gap-3 p-3 bg-white transition-all cursor-pointer w-full text-right ${activeDropdown === 'menu' ? 'rounded-t-2xl shadow-none' : 'rounded-2xl shadow-sm'}`}
-          >
-            <div className="w-11 h-11 bg-white rounded-xl shadow-md border border-gray-100 flex items-center justify-center p-1 flex-shrink-0 overflow-hidden">
-              <img 
-                src="https://drive.google.com/thumbnail?id=1pAVRkqNXJmtVRpCl1fy3wuQS6hpmJPKt&sz=w500" 
-                alt="شعار غرفة مكة"
-                className="w-full h-full object-contain"
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  if (!target.src.includes('thumbnail')) {
-                     target.src = "https://drive.google.com/thumbnail?id=1pAVRkqNXJmtVRpCl1fy3wuQS6hpmJPKt&sz=w500";
-                  }
-                }}
-              />
-            </div>
-            <div className="flex-grow overflow-hidden text-right">
-              <h1 className="font-extrabold text-base leading-tight truncate text-gray-900">إدارة اللجان</h1>
-              <p className="text-gray-500 text-xs font-medium">{currentPage.nameAr}</p>
-            </div>
-            <ChevronDown className={`flex-shrink-0 w-4 h-4 text-gray-400 transition-transform duration-300 ${activeDropdown === 'menu' ? 'rotate-180' : ''}`} />
-          </button>
-
-          {/* Connected Dropdown Menu */}
-          <AnimatePresence>
-            {activeDropdown === 'menu' && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="absolute top-full right-0 w-full bg-white rounded-b-2xl shadow-xl border-x border-b border-gray-100 z-50 overflow-hidden"
-              >
-                <div className="p-2 space-y-1">
-                  <div className="px-4 py-2 mb-1">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">التنقل الرئيسي</p>
+        {/* RIGHT: Logo & Main Navigation */}
+        <div className="flex items-center gap-4 flex-shrink-0">
+          <div className="relative dropdown-container flex-shrink-0 z-50">
+            <button 
+              onClick={() => toggleDropdown('mainMenu')} 
+              className="flex items-center gap-3 px-2 py-1.5 bg-white hover:bg-gray-50 rounded-xl shadow-sm border border-gray-100 transition-all cursor-pointer"
+            >
+              <div className="w-10 h-10 bg-white rounded-lg shadow-sm border border-gray-100 flex items-center justify-center p-1">
+                <img 
+                  src="https://drive.google.com/thumbnail?id=1pAVRkqNXJmtVRpCl1fy3wuQS6hpmJPKt&sz=w500" 
+                  alt="شعار غرفة مكة"
+                  className="w-full h-full object-contain"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (!target.src.includes('thumbnail')) {
+                       target.src = "https://drive.google.com/thumbnail?id=1pAVRkqNXJmtVRpCl1fy3wuQS6hpmJPKt&sz=w500";
+                    }
+                  }}
+                />
+              </div>
+              <div className="hidden sm:block text-right pr-2">
+                <h1 className="text-[13px] font-black text-gray-900 leading-tight">قطاع اللجان والمراكز</h1>
+                <p className="text-[10px] font-bold text-gray-500 mt-0.5 flex items-center gap-1">
+                  {headerSubtitle} <ChevronDown className={`w-3 h-3 transition-transform ${activeDropdown === 'mainMenu' ? 'rotate-180' : ''}`} />
+                </p>
+              </div>
+            </button>
+            
+            <AnimatePresence>
+              {activeDropdown === 'mainMenu' && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 5 }}
+                  className="absolute top-full right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden flex flex-col"
+                  style={{ maxHeight: '80vh' }}
+                >
+                  <div className="p-1.5 space-y-1 overflow-y-auto flex-1">
+                    {departments.map((dept) => {
+                      const deptPages = getFilteredDeptPages(dept.pages);
+                      if (deptPages.length === 0) return null;
+                      
+                      const hasSubPages = deptPages.length > 1;
+                      const isExpanded = expandedSections[dept.id];
+                      
+                      return (
+                        <div key={dept.id} className="w-full">
+                          {hasSubPages ? (
+                            <>
+                              <button 
+                                onClick={(e) => toggleSection(dept.id, e)}
+                                className={`w-full flex items-center justify-between px-3 py-2.5 text-right hover:bg-gray-50 rounded-lg transition-colors font-bold text-sm ${deptPages.some(p => p.path === location.pathname) ? 'bg-gray-50' : 'text-gray-700'}`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <span className="text-gray-400">{dept.icon}</span>
+                                  <span>{dept.nameAr}</span>
+                                </div>
+                                <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                              </button>
+                              
+                              <AnimatePresence>
+                                {isExpanded && (
+                                  <motion.div 
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="overflow-hidden"
+                                  >
+                                    <div className="pt-1 pr-6 pl-2 space-y-0.5 border-r-2 border-gray-100 mr-4 my-1">
+                                      {deptPages.map((page, idx) => (
+                                        <Link 
+                                          key={idx}
+                                          to={page.path}
+                                          className={`w-full flex items-center gap-3 px-3 py-2 text-right hover:bg-gray-50 rounded-lg transition-colors font-semibold text-sm group ${location.pathname === page.path ? 'text-brand bg-brand/5' : 'text-gray-600'}`}
+                                        >
+                                          <span className={`${location.pathname === page.path ? 'text-brand' : 'text-gray-300'} group-hover:text-brand transition-all`}>{page.icon}</span>
+                                          {page.nameAr}
+                                        </Link>
+                                      ))}
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </>
+                          ) : (
+                            <Link 
+                              to={deptPages[0].path}
+                              className={`w-full flex items-center gap-3 px-3 py-2.5 text-right hover:bg-gray-50 rounded-lg transition-colors font-bold text-sm ${location.pathname === deptPages[0].path ? 'text-brand bg-brand/5' : 'text-gray-700'}`}
+                            >
+                              <span className={`${location.pathname === deptPages[0].path ? 'text-brand' : 'text-gray-400'}`}>{dept.icon}</span>
+                              {dept.nameAr}
+                            </Link>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                  {filteredPages.map((page, idx) => (
-                    <Link 
-                      key={idx}
-                      to={page.path}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-right hover:bg-gray-50 rounded-xl transition-colors font-semibold text-sm group ${location.pathname === page.path ? 'text-brand bg-brand/5' : 'text-gray-700'}`}
-                    >
-                      <span className={`${location.pathname === page.path ? 'text-brand' : 'text-gray-400'} group-hover:text-brand group-hover:scale-110 transition-all`}>{page.icon}</span>
-                      {page.nameAr}
-                    </Link>
-                  ))}
-                </div>
-                
-                <div className="bg-gray-50 p-2 mt-2 border-t border-gray-100">
-                  <div className="flex items-center gap-3 px-4 py-3">
-                    {userPhoto ? (
-                      <img 
-                        src={userPhoto} 
-                        alt={userName} 
-                        className="w-9 h-9 rounded-full object-cover border border-gray-200"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <div className="w-9 h-9 rounded-full bg-brand/10 flex items-center justify-center text-brand font-bold border border-brand/20 text-sm">
-                        {userName ? userName.charAt(0) : "ب"}
+                  
+                  {/* User Profile Section inside the menu */}
+                  <div className="border-t border-gray-100 bg-gray-50 p-3 flex flex-col gap-3">
+                    <div className="flex items-center gap-3">
+                      {userPhoto ? (
+                        <img src={userPhoto} alt={userName} className="w-10 h-10 rounded-full object-cover border border-gray-200" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-brand/10 flex items-center justify-center text-brand font-bold border border-brand/20 text-sm shrink-0">
+                          {userName ? userName.charAt(0) : "ب"}
+                        </div>
+                      )}
+                      <div className="overflow-hidden flex-1">
+                        <p className="text-[13px] font-bold text-gray-900 truncate">{userName}</p>
+                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wide truncate mt-0.5">{userRoleAr}</p>
                       </div>
-                    )}
-                    <div className="flex-1 overflow-hidden">
-                      <p className="text-sm font-bold text-gray-900 truncate">{userName}</p>
-                      <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wide">{userRoleAr}</p>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-1 mt-1">
-                    <Link to="/org-chart" className="flex items-center justify-center gap-2 px-3 py-2 text-right hover:bg-white rounded-xl transition-all text-gray-600 text-xs font-bold border border-transparent hover:border-gray-200">
-                      <Settings className="w-3.5 h-3.5" />
-                      الإعدادات
-                    </Link>
                     <button 
                       type="button"
                       onClick={() => {
                         localStorage.removeItem("current_user");
                         window.location.href = "/";
                       }}
-                      className="flex items-center justify-center gap-2 px-3 py-2 text-right hover:bg-red-50 rounded-xl transition-all text-red-600 font-bold text-xs border border-transparent hover:border-red-100 cursor-pointer"
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white border border-red-100 hover:bg-red-50 hover:border-red-200 rounded-lg transition-all text-red-600 font-bold text-xs cursor-pointer shadow-sm"
                     >
                       <LogOut className="w-3.5 h-3.5" />
-                      خروج
+                      تسجيل الخروج
                     </button>
                   </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
 
         <div className="flex-grow"></div>
 
-        <div className="flex flex-row-reverse items-center gap-2">
-          
-          {/* 1. Date Cards */}
-          <div id="datetime-card" className="flex flex-col gap-1 pr-2 border-r border-gray-200">
-            <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-gray-100 shadow-sm min-w-[170px]">
-              <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded shadow-inner font-black">AD</span>
-              <span className="text-[11px] font-bold text-gray-700 uppercase tracking-tight">{gregorianDate} </span>
+        {/* LEFT: Date/Time */}
+        <div className="flex flex-col md:flex-row-reverse items-stretch md:items-center gap-2">
+          {/* Date & Time */}
+          <div className="flex flex-row-reverse items-center gap-2 pr-0 pt-2 md:pt-0">
+            {/* 1. Date Cards */}
+            <div id="datetime-card" className="flex flex-col gap-1">
+              <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-gray-100 shadow-sm min-w-[150px]">
+                <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded shadow-inner font-black">AD</span>
+                <span className="text-[10px] font-bold text-gray-700 uppercase tracking-tight">{gregorianDate} </span>
+              </div>
+              <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-brand/20 shadow-sm min-w-[150px]">
+                <span className="text-[9px] bg-brand/10 text-brand px-1.5 py-0.5 rounded shadow-inner font-black">HI</span>
+                <span className="text-[10px] font-bold text-brand uppercase tracking-tight">{hijriDate} </span>
+              </div>
             </div>
-            <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-brand/20 shadow-sm min-w-[170px]">
-              <span className="text-[9px] bg-brand/10 text-brand px-1.5 py-0.5 rounded shadow-inner font-black">HI</span>
-              <span className="text-[11px] font-bold text-brand uppercase tracking-tight">{hijriDate} </span>
+
+            {/* 2. Time Card */}
+            <div className="flex flex-col gap-1 hidden sm:flex">
+              <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-gray-100 shadow-sm min-w-[150px]">
+                <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded shadow-inner font-black">DAY</span>
+                <span className="text-[10px] font-bold text-gray-700 uppercase tracking-tight">{dayName}</span>
+              </div>
+              <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-gray-100 shadow-sm min-w-[150px]">
+                <span className="text-[9px] bg-brand/10 text-brand px-1.5 py-0.5 rounded shadow-inner font-black">TIME</span>
+                <span className="text-[10px] font-bold text-brand uppercase tracking-tight font-mono">{timeStr}</span>
+              </div>
             </div>
           </div>
-
-          {/* 2. Time Card */}
-          <div className="flex flex-col gap-1 pr-2 border-r border-gray-200">
-            <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-gray-100 shadow-sm min-w-[170px]">
-              <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded shadow-inner font-black">DAY</span>
-              <span className="text-[11px] font-bold text-gray-700 uppercase tracking-tight">{dayName}</span>
-            </div>
-            <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-gray-100 shadow-sm min-w-[170px]">
-              <span className="text-[9px] bg-brand/10 text-brand px-1.5 py-0.5 rounded shadow-inner font-black">TIME</span>
-              <span className="text-[11px] font-bold text-brand uppercase tracking-tight font-mono">{timeStr}</span>
-            </div>
-          </div>
-
         </div>
 
       </header>
 
       {/* Main Content Area */}
       <main className="w-full mt-6 space-y-4">
-        {pages.some(p => p.path === location.pathname) && !filteredPages.some(p => p.path === location.pathname) ? (
+        {allPages.some(p => p.path === location.pathname) && !filteredPages.some(p => p.path === location.pathname) ? (
           <div className="bg-white rounded-3xl border border-red-150 p-10 text-center space-y-4 max-w-xl mx-auto shadow-xl my-10 animate-fadeIn">
             <div className="w-20 h-20 bg-red-50 text-red-600 rounded-full flex items-center justify-center text-4xl mx-auto font-black shadow-inner border border-red-100">
               🚫

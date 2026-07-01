@@ -15,6 +15,8 @@ import Tasks from "./pages/Tasks";
 import OrgChart from "./pages/OrgChart";
 import Reports from "./pages/Reports";
 import Library from "./pages/Library";
+import Centers from "./pages/Centers";
+import Affiliates from "./pages/Affiliates";
 import AuthGate from "./components/AuthGate";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -70,6 +72,8 @@ export default function App() {
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/library" element={<Library />} />
+            <Route path="/centers" element={<Centers />} />
+            <Route path="/affiliates" element={<Affiliates />} />
             <Route path="/org-chart" element={<OrgChart />} />
           </Routes>
         </Layout>

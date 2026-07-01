@@ -105,12 +105,21 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
     );
 
     if (matchedEmployee) {
-      if (!matchedEmployee.active) {
+      if (matchedEmployee.loginEnabled === false) {
         setMessage({
-          text: "عذراً، هذا الحساب معطل حالياً من قبل إدارة النظام. يرجى التواصل مع مسؤول النظام لتنشيطه.",
+          text: "عذراً، ميزة الدخول معطلة لهذا الحساب. يرجى التواصل مع مسؤول النظام لتنشيطها.",
           type: "error"
         });
-        await logSystemAction(matchedEmployee.name, `محاولة دخول فاشلة بحساب معطل [${emailLower}]`, "مرفوضة");
+        await logSystemAction(matchedEmployee.name, `محاولة دخول فاشلة بحساب تم تعطيل تسجيل الدخول الخاص به [${emailLower}]`, "مرفوضة");
+        return false;
+      }
+
+      if (!matchedEmployee.active) {
+        setMessage({
+          text: "عذراً، هذا الحساب غير نشط حالياً من قبل إدارة النظام. يرجى التواصل مع مسؤول النظام.",
+          type: "error"
+        });
+        await logSystemAction(matchedEmployee.name, `محاولة دخول فاشلة بحساب غير نشط [${emailLower}]`, "مرفوضة");
         return false;
       }
 

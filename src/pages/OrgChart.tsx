@@ -32,21 +32,21 @@ import {
   FileText,
   Printer,
   Database,
-  FolderLock
+  FolderLock,
+  Network
 } from "lucide-react";
 import { useFirestoreCollection } from "../lib/firebaseUtils";
-import GoogleWorkspaceCenter from "../components/GoogleWorkspaceCenter";
 
 // AVATAR PRESETS - Professional placeholders for visual ease
 const PRESET_AVATARS = [
-  "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200", // Male 1
-  "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200", // Female 1
-  "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=200", // Male 2
-  "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=200", // Female 2
-  "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200", // Male 3
-  "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200", // Female 3
-  "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200", // Male 4
-  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200", // Female 4
+  "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200", 
+  "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200", 
+  "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=200", 
+  "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=200", 
+  "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200", 
+  "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200", 
+  "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200", 
+  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200", 
 ];
 
 const compressImage = (base64Str: string, callback: (resized: string) => void) => {
@@ -96,25 +96,40 @@ const compressImage = (base64Str: string, callback: (resized: string) => void) =
   };
 };
 
+export interface OrgNode {
+  id: string;
+  name: string;
+  type: "ROOT" | "STAFF" | "SECTOR" | "DEPARTMENT" | "SECTION" | "JOB_TITLE";
+  parent: string; // The name of the parent node
+}
+
 export interface Employee {
-  id: string; // الرقم الوظيفي
-  name: string; // الاسم
-  prefix?: string; // الصفة (الأستاذ، الدكتور الخ)
-  role: "SYS_ADMIN" | "DEPT_HEAD" | "MANAG_DIR" | "SPECIALIST"; // الدور الصلاحيتي
-  roleAr: string; // الدور بالعربية
-  jobTitle: string; // المسمى الوظيفي
-  adminStructure?: string; // الهيكل الإداري
-  adminStructureDetails?: string; // تفاصيل الهيكل الإداري
-  phone: string; // رقم الجوال
-  extension?: string; // رقم التحويلة
-  email: string; // البريد الإلكتروني
-  photo: string; // صورة الموظف
-  committees: string[]; // اللجان المخصصة
-  active: boolean; // حالة الموظف (فعال / غير فعال)
-  joinDate: string; // تاريخ التعيين
-  password?: string; // كلمة المرور
-  allowedPages?: string[]; // الصفحات المصرح بها
-  gender?: "MALE" | "FEMALE" | string; // الجنس (لتحديد اللقب تلقائياً بقواعد اللغة العربية)
+  id: string; 
+  name: string; 
+  prefix?: string; 
+  role: "SYS_ADMIN" | "SECRETARY_GENERAL" | "EXECUTIVE_OFFICE" | "ASSISTANT_SEC_GEN" | "SECRETARY" | "DEPT_HEAD" | "MANAG_DIR" | "SPECIALIST"; 
+  roleAr: string; 
+  jobTitle: string; 
+  // الهيكل الإداري المتسلسل المعتمد
+  orgLevel1?: string; // الأمانة العامة
+  orgLevel2?: string; // القطاع
+  orgLevel3?: string; // الإدارة
+  orgLevel4?: string; // القسم
+  orgLevel5?: string; // التخصص الدقيق
+  phone: string; 
+  extension?: string; 
+  email: string; 
+  photo: string; 
+  committees: string[]; 
+  active: boolean; 
+  loginEnabled?: boolean; 
+  joinDate: string; 
+  password?: string; 
+  allowedPages?: string[]; 
+  canEditDeleteAll?: boolean; 
+  canEditOwnCommitteesOnly?: boolean; 
+  adminPermissions?: boolean; 
+  gender?: "MALE" | "FEMALE" | string; 
 }
 
 export interface JoinRequest {
@@ -150,13 +165,11 @@ export function getEmployeePrefix(emp?: { name?: string; gender?: "MALE" | "FEMA
   if (emp.prefix) return emp.prefix;
   if (emp.gender === "FEMALE") return "الأستاذة";
   if (emp.gender === "MALE") return "الأستاذ";
-  // Fallback heuristic: guess based on name endings
   const name = emp.name || "";
   const femaleKeywords = [
     "فاطمة", "عائشة", "مريم", "سارة", "نورة", "هند", "أمل", "خلود", "أروى", "منى", 
-    "مها", "رنا", "رشا", "عبير", "ريم", "منى", "غادة", "دلال", "وفاء", "نهى", "منال", 
-    "تهاني", "نجلاء", "ريهام", "دينا", "سلمى", "إيمان", "زينب", "رقية", "أسماء", "هدير",
-    "يسرى", "ليلى", "نجاح", "بسمة", "هدى"
+    "مها", "رنا", "رشا", "عبير", "ريم", "غادة", "دلال", "وفاء", "نهى", "منال", 
+    "تهاني", "نجلاء", "ريهام", "دينا", "سلمى", "إيمان", "زينب", "رقية", "أسماء", "هدير"
   ];
   const hasFemaleKeyword = femaleKeywords.some(kw => name.includes(kw));
   if (hasFemaleKeyword || name.trim().endsWith("ة") || name.trim().endsWith("ى") || name.trim().endsWith("اء")) {
@@ -166,7 +179,7 @@ export function getEmployeePrefix(emp?: { name?: string; gender?: "MALE" | "FEMA
 }
 
 export default function OrgChart() {
-  const [activeTab, setActiveTab] = useState<"hierarchy" | "transfer" | "approvals" | "logs" | "permissions" | "master_data">("hierarchy");
+  const [activeTab, setActiveTab] = useState<"hierarchy" | "org_chart" | "transfer" | "approvals" | "logs" | "permissions" | "master_data">("hierarchy");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
   // Local state for administrative master data console
@@ -174,6 +187,15 @@ export default function OrgChart() {
   const [masterSearchQuery, setMasterSearchQuery] = useState<string>("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmDeleteCol, setConfirmDeleteCol] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    confirmText?: string;
+    cancelText?: string;
+    isAlert?: boolean;
+  } | null>(null);
 
   // Find current user's role
   const getLoggedInUser = () => {
@@ -188,13 +210,16 @@ export default function OrgChart() {
   const currentUser = getLoggedInUser();
   const currentUserRole = currentUser?.role || "SPECIALIST";
 
-  // Load state and collections from Firestore / offline sandbox
+  // Load state and collections from Firestore
   const { data: dbEmployees, addDocument: addFirebaseEmp, updateDocument: updateFirebaseEmp, deleteDocument: deleteFirebaseEmp } = useFirestoreCollection<Employee>("employees", []);
   const { data: dbJoinRequests, deleteDocument: deleteFirebaseReq } = useFirestoreCollection<JoinRequest>("join_requests", []);
   const { data: dbApprovedEmails, addDocument: addFirebaseAppr, deleteDocument: deleteFirebaseAppr } = useFirestoreCollection<ApprovedEmail>("approved_emails", []);
   const { data: dbSystemLogs, addDocument: addFirebaseLog } = useFirestoreCollection<SystemLog>("system_logs", []);
   
-  // Auxiliary collections to facilitate deep background transfer and comprehensive administrator control console
+  // Org Structure Builder Collection
+  const { data: dbOrgNodes, addDocument: addOrgNode, updateDocument: updateOrgNode, deleteDocument: deleteOrgNode } = useFirestoreCollection<OrgNode>("org_structure", []);
+
+  // Auxiliary collections
   const { data: dbCommittees, updateDocument: updateFirebaseComm, deleteDocument: deleteFirebaseComm } = useFirestoreCollection<any>("committees", []);
   const { data: dbTasks, updateDocument: updateFirebaseTask, deleteDocument: deleteFirebaseTask } = useFirestoreCollection<any>("tasks", []);
   const { data: dbEvents, updateDocument: updateFirebaseEvent, deleteDocument: deleteFirebaseEvent } = useFirestoreCollection<any>("events", []);
@@ -238,7 +263,6 @@ export default function OrgChart() {
     else if (selectedSubCol === "kpis") source = dbKpis || [];
     else if (selectedSubCol === "templates") source = dbTemplates || [];
 
-    // Filter out null or undefined elements to avoid runtime crashes during mapping/filtering
     source = (source || []).filter(item => item && typeof item === "object");
 
     if (!term) return source;
@@ -255,34 +279,23 @@ export default function OrgChart() {
   const handleDeleteMasterItem = async (itemId: string, collectionName: string) => {
     try {
       if (!itemId) return;
-      if (collectionName === "committees") {
-        await deleteFirebaseComm(itemId);
-      } else if (collectionName === "members") {
-        await deleteFirebaseMember(itemId);
-      } else if (collectionName === "events") {
-        await deleteFirebaseEvent(itemId);
-      } else if (collectionName === "recommendations") {
-        await deleteFirebaseRec(itemId);
-      } else if (collectionName === "tasks") {
-        await deleteFirebaseTask(itemId);
-      } else if (collectionName === "reports") {
-        await deleteFirebaseReport(itemId);
-      } else if (collectionName === "kpis") {
-        await deleteFirebaseKpi(itemId);
-      } else if (collectionName === "templates") {
-        await deleteFirebaseTemplate(itemId);
-      }
+      if (collectionName === "committees") await deleteFirebaseComm(itemId);
+      else if (collectionName === "members") await deleteFirebaseMember(itemId);
+      else if (collectionName === "events") await deleteFirebaseEvent(itemId);
+      else if (collectionName === "recommendations") await deleteFirebaseRec(itemId);
+      else if (collectionName === "tasks") await deleteFirebaseTask(itemId);
+      else if (collectionName === "reports") await deleteFirebaseReport(itemId);
+      else if (collectionName === "kpis") await deleteFirebaseKpi(itemId);
+      else if (collectionName === "templates") await deleteFirebaseTemplate(itemId);
 
-      // Add a clean log to the audit log tracker
       await addFirebaseLog({
         time: new Date().toISOString().replace('T', ' ').slice(0, 19),
         employeeName: currentUser?.name || "مدير النظام",
         operationType: "حذف إداري شامل",
         status: "ناجحة",
         details: `قام مدير النظام بحذف سجل ذو المعرف (${itemId}) نهائياً من مستوعب (${collectionName})`
-      });
+      } as any);
 
-      // Clear state
       setConfirmDeleteId(null);
       setConfirmDeleteCol(null);
     } catch (e) {
@@ -301,8 +314,8 @@ export default function OrgChart() {
         employeeName: currentUser?.name || "مدير النظام",
         operationType: "تعديل حالة لجنة",
         status: "ناجحة",
-        details: `قام مدير النظام بتغيير حالة فاعلية لجنة (${item.name}) إلى (${nextActive ? 'نشطة' : 'غير نشطة'})`
-      });
+        details: `تغيير حالة فاعلية لجنة (${item.name}) إلى (${nextActive ? 'نشطة' : 'غير نشطة'})`
+      } as any);
     } catch (_) {}
   };
 
@@ -313,7 +326,188 @@ export default function OrgChart() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
 
-  // Administrative removal of raw committees linked to a specific specialist (تحت الإشراف حذف اللجان المرتبط بها)
+  // Modals for Org Builder
+  const [showOrgNodeModal, setShowOrgNodeModal] = useState(false);
+  const [orgNodeForm, setOrgNodeForm] = useState<{ id: string; name: string; type: "ROOT" | "STAFF" | "SECTOR" | "DEPARTMENT" | "SECTION" | "JOB_TITLE"; parent: string; isSubcategory?: boolean }>({
+    id: "", name: "", type: "ROOT", parent: "", isSubcategory: false
+  });
+
+  const handleSaveOrgNode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!orgNodeForm.name.trim()) return;
+
+    let finalParent = orgNodeForm.parent;
+    if (orgNodeForm.type === "SECTOR" || (orgNodeForm.type === "STAFF" && !orgNodeForm.parent)) {
+      const rootNode = dbOrgNodes.find(n => n.type === "ROOT");
+      finalParent = rootNode ? rootNode.name : "الأمانة العامة";
+    }
+
+    const payload = { ...orgNodeForm, parent: finalParent };
+    delete payload.isSubcategory;
+
+    try {
+      if (orgNodeForm.id) {
+        const existingNode = dbOrgNodes.find(n => n.id === orgNodeForm.id);
+        const oldName = existingNode ? existingNode.name : "";
+        const oldParent = existingNode ? existingNode.parent : "";
+        await updateOrgNode(orgNodeForm.id, payload);
+        
+        if (oldName && oldName !== orgNodeForm.name) {
+          const children = dbOrgNodes.filter(n => n.parent === oldName);
+          for (const child of children) {
+            await updateOrgNode(child.id, { parent: orgNodeForm.name });
+          }
+          
+          let levelKey = '';
+          if (orgNodeForm.type === 'ROOT') levelKey = 'orgLevel1';
+          else if (orgNodeForm.type === 'SECTOR') levelKey = 'orgLevel2';
+          else if (orgNodeForm.type === 'DEPARTMENT') levelKey = 'orgLevel3';
+          else if (orgNodeForm.type === 'SECTION') levelKey = 'orgLevel4';
+          else if (orgNodeForm.type === 'JOB_TITLE') levelKey = 'orgLevel5';
+                       
+          if (levelKey) {
+            const employeesToUpdate = dbEmployees.filter(emp => (emp as any)[levelKey] === oldName);
+            for (const emp of employeesToUpdate) {
+              await updateFirebaseEmp(emp.id, { [levelKey]: orgNodeForm.name });
+            }
+          }
+        }
+        
+        if (oldParent && oldParent !== orgNodeForm.parent) {
+          if (orgNodeForm.type === 'DEPARTMENT') {
+             const employeesToUpdate = dbEmployees.filter(emp => emp.orgLevel3 === orgNodeForm.name);
+             for (const emp of employeesToUpdate) {
+               await updateFirebaseEmp(emp.id, { orgLevel2: orgNodeForm.parent });
+             }
+             const children = dbOrgNodes.filter(n => n.parent === orgNodeForm.name);
+             for (const child of children) {
+                const childEmps = dbEmployees.filter(emp => emp.orgLevel4 === child.name);
+                for (const emp of childEmps) {
+                  await updateFirebaseEmp(emp.id, { orgLevel2: orgNodeForm.parent });
+                }
+             }
+          } else if (orgNodeForm.type === 'SECTION') {
+             const newDept = dbOrgNodes.find(n => n.name === orgNodeForm.parent && n.type === 'DEPARTMENT');
+             const newSector = newDept ? newDept.parent : "";
+             const employeesToUpdate = dbEmployees.filter(emp => emp.orgLevel4 === orgNodeForm.name);
+             for (const emp of employeesToUpdate) {
+               await updateFirebaseEmp(emp.id, { orgLevel3: orgNodeForm.parent, orgLevel2: newSector });
+             }
+             const children = dbOrgNodes.filter(n => n.parent === orgNodeForm.name);
+             for (const child of children) {
+                const childEmps = dbEmployees.filter(emp => emp.orgLevel5 === child.name && emp.orgLevel4 === orgNodeForm.name);
+                for (const emp of childEmps) {
+                  await updateFirebaseEmp(emp.id, { orgLevel3: orgNodeForm.parent, orgLevel2: newSector });
+                }
+             }
+          } else if (orgNodeForm.type === 'JOB_TITLE') {
+             const newSection = dbOrgNodes.find(n => n.name === orgNodeForm.parent && n.type === 'SECTION');
+             const newDept = dbOrgNodes.find(n => n.name === newSection?.parent && n.type === 'DEPARTMENT');
+             const newSector = newDept ? newDept.parent : "";
+             const employeesToUpdate = dbEmployees.filter(emp => emp.orgLevel5 === orgNodeForm.name && emp.orgLevel4 === oldParent);
+             for (const emp of employeesToUpdate) {
+               await updateFirebaseEmp(emp.id, { orgLevel4: orgNodeForm.parent, orgLevel3: newDept?.name || "", orgLevel2: newSector });
+             }
+          }
+        }
+
+        await addFirebaseLog({
+          employeeName: currentUser?.name || "مدير النظام",
+          time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+          operationType: "تعديل هيكل",
+          status: "ناجحة",
+          details: `تعديل مسمى أو ارتباط العقدة (${orgNodeForm.name}) في الهيكل التنظيمي.`
+        } as any);
+      } else {
+        await addOrgNode({
+          name: payload.name.trim(),
+          type: payload.type,
+          parent: payload.parent
+        });
+        await addFirebaseLog({
+          employeeName: currentUser?.name || "مدير النظام",
+          time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+          operationType: "إضافة للهيكل",
+          status: "ناجحة",
+          details: `إضافة عقدة جديدة (${payload.name}) ${payload.parent ? `تحت (${payload.parent})` : ''}.`
+        } as any);
+      }
+      setShowOrgNodeModal(false);
+    } catch (err) {
+      console.error(err);
+      setConfirmDialog({
+        isOpen: true,
+        title: "خطأ",
+        message: "حدث خطأ أثناء حفظ التحديث في الهيكل.",
+        confirmText: "حسناً",
+        isAlert: true,
+        onConfirm: () => setConfirmDialog(null)
+      });
+    }
+  };
+
+  const handleDeleteOrgNode = async (node: OrgNode) => {
+    // Check if there are children
+    const hasChildren = dbOrgNodes.some(n => n.parent === node.name);
+    if (hasChildren) {
+      setConfirmDialog({
+        isOpen: true,
+        title: "تنبيه",
+        message: "لا يمكن حذف هذا المكون لوجود إدارات أو أقسام تتفرع منه. يرجى حذف الفروع أولاً.",
+        confirmText: "حسناً",
+        isAlert: true,
+        onConfirm: () => setConfirmDialog(null)
+      });
+      return;
+    }
+    // Check if employees are assigned to it
+    const hasEmployees = dbEmployees.some(e => 
+      e.orgLevel1 === node.name || e.orgLevel2 === node.name || 
+      e.orgLevel3 === node.name || e.orgLevel4 === node.name || 
+      e.orgLevel5 === node.name
+    );
+    if (hasEmployees) {
+      setConfirmDialog({
+        isOpen: true,
+        title: "تنبيه",
+        message: "لا يمكن حذف هذا المكون لوجود موظفين مسكنين عليه. يرجى نقل الموظفين أولاً.",
+        confirmText: "حسناً",
+        isAlert: true,
+        onConfirm: () => setConfirmDialog(null)
+      });
+      return;
+    }
+
+    setConfirmDialog({
+      isOpen: true,
+      title: "تأكيد حذف من الهيكل",
+      message: `هل أنت متأكد من رغبتك في حذف (${node.name}) من الهيكل التنظيمي المعتمد؟`,
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        try {
+          await deleteOrgNode(node.id);
+          await addFirebaseLog({
+            employeeName: currentUser?.name || "مدير النظام",
+            time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+            operationType: "حذف من الهيكل",
+            status: "ناجحة",
+            details: `تم حذف العقدة التنظيمية (${node.name}) من الهيكل المعتمد.`
+          } as any);
+        } catch(err) {
+          console.error(err);
+          setConfirmDialog({
+            isOpen: true,
+            title: "خطأ",
+            message: "حدث خطأ أثناء الحذف.",
+            confirmText: "حسناً",
+            isAlert: true,
+            onConfirm: () => setConfirmDialog(null)
+          });
+        }
+      }
+    });
+  };
+
   const handleRemoveCommitteeFromEmployee = async (committeeName: string) => {
     if (!selectedEmployee) return;
     const currentComms = selectedEmployee.committees || [];
@@ -321,8 +515,6 @@ export default function OrgChart() {
     
     try {
       await updateFirebaseEmp(selectedEmployee.id, { committees: updatedComms });
-      
-      // Update any physical committee record matching this to set specialist to unassigned or empty
       const matchedComm = dbCommittees.find(c => c.name === committeeName);
       if (matchedComm) {
         await updateFirebaseComm(matchedComm.id, {
@@ -330,8 +522,6 @@ export default function OrgChart() {
           specialistName: "غير معين"
         });
       }
-
-      // Document this removal in System Logs catalog for audit checks
       await addFirebaseLog({
         employeeName: currentUser?.name || "مدير النظام",
         time: new Date().toISOString().replace('T', ' ').substring(0, 16),
@@ -345,61 +535,55 @@ export default function OrgChart() {
         committees: updatedComms
       });
     } catch (error) {
-      console.error("Failed to unbind committee from staff", error);
+      console.error(error);
     }
   };
   
-  // Add / Edit Modal fields state
+  // Add / Edit Employee Modal fields state
   const [showFormModal, setShowFormModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [formId, setFormId] = useState("");
   const [formName, setFormName] = useState("");
-  const [formRole, setFormRole] = useState<"SYS_ADMIN" | "DEPT_HEAD" | "MANAG_DIR" | "SPECIALIST">("SPECIALIST");
-  const [formJobTitle, setFormJobTitle] = useState("");
+  const [formRole, setFormRole] = useState<Employee["role"]>("SPECIALIST");
   const [formPhone, setFormPhone] = useState("");
   const [formExtension, setFormExtension] = useState("");
   const [formEmail, setFormEmail] = useState("");
   const [formPhoto, setFormPhoto] = useState(PRESET_AVATARS[0]);
   const [formPrefix, setFormPrefix] = useState("الأستاذ");
-  const [formAdminStructure, setFormAdminStructure] = useState("أخصائي");
-  const [formAdminStructureDetails, setFormAdminStructureDetails] = useState("");
+  
+  // 5 Levels Hierarchy
+  const [formOrgLevel1, setFormOrgLevel1] = useState("الأمانة العامة");
+  const [formOrgLevel2, setFormOrgLevel2] = useState("");
+  const [formOrgLevel3, setFormOrgLevel3] = useState("");
+  const [formOrgLevel4, setFormOrgLevel4] = useState("");
+  const [formOrgLevel5, setFormOrgLevel5] = useState(""); // Job Title
+
   const [formActive, setFormActive] = useState(true);
+  const [formLoginEnabled, setFormLoginEnabled] = useState(true);
   const [formPassword, setFormPassword] = useState("");
   const [formCommittees, setFormCommittees] = useState<string[]>([]);
   const [formAllowedPages, setFormAllowedPages] = useState<string[]>([]);
   const [formGender, setFormGender] = useState<"MALE" | "FEMALE">("MALE");
   const [originalEditId, setOriginalEditId] = useState("");
 
-  // Restrict tabs for non-SYS_ADMIN users
+  // Cascading cleanup
   useEffect(() => {
-    if (currentUserRole !== "SYS_ADMIN" && activeTab !== "hierarchy") {
+    // If sector changes, clear department and section
+    setFormOrgLevel3("");
+    setFormOrgLevel4("");
+  }, [formOrgLevel2]);
+
+  useEffect(() => {
+    // If department changes, clear section
+    setFormOrgLevel4("");
+  }, [formOrgLevel3]);
+
+  useEffect(() => {
+    if (currentUserRole !== "SYS_ADMIN" && activeTab !== "hierarchy" && activeTab !== "org_chart") {
       setActiveTab("hierarchy");
     }
   }, [currentUserRole, activeTab]);
 
-  // Safe duplicates detection: log warnings in console but do NOT delete silently to avoid asynchronous race conditions during updates
-  useEffect(() => {
-    if (dbEmployees && dbEmployees.length > 0) {
-      const emailGroups: Record<string, Employee[]> = {};
-      dbEmployees.forEach(emp => {
-        if (emp.email) {
-          const emailLower = emp.email.trim().toLowerCase();
-          if (!emailGroups[emailLower]) {
-            emailGroups[emailLower] = [];
-          }
-          emailGroups[emailLower].push(emp);
-        }
-      });
-
-      Object.entries(emailGroups).forEach(([email, list]) => {
-        if (list.length > 1) {
-          console.warn(`تنبيه: يوجد حساب مكرر بنفس البريد الإلكتروني [${email}] للبطاقات ذات المعرفات: ${list.map(e => e.id).join(', ')}`);
-        }
-      });
-    }
-  }, [dbEmployees]);
-  
-  // Whitelist Email state fields
   const [whitelistEmailStr, setWhitelistEmailStr] = useState("");
   const [whitelistNameStr, setWhitelistNameStr] = useState("");
   const [whitelistRoleAr, setWhitelistRoleAr] = useState("أخصائي لجان");
@@ -415,7 +599,7 @@ export default function OrgChart() {
   const [transferError, setTransferError] = useState("");
   const [isTransferring, setIsTransferring] = useState(false);
 
-  // Database Purge / Reset State & Logic
+  // Purge State
   const [isPurging, setIsPurging] = useState(false);
   const [showPurgeConfirm, setShowPurgeConfirm] = useState(false);
   const [purgeSuccess, setPurgeSuccess] = useState(false);
@@ -426,39 +610,24 @@ export default function OrgChart() {
     setPurgeError("");
     try {
       const collectionsToPurge = [
-        "committees",
-        "members",
-        "events",
-        "recommendations",
-        "tasks",
-        "system_logs",
-        "templates",
-        "kpis",
-        "reports",
-        "join_requests",
-        "approved_emails"
+        "committees", "members", "events", "recommendations", "tasks",
+        "system_logs", "templates", "kpis", "reports", "join_requests", "approved_emails", "org_structure"
       ];
 
       const { collection, getDocs, deleteDoc, doc } = await import("firebase/firestore");
       const { db } = await import("../lib/firebase");
 
-      // 1. Clear standard collections in Firestore
       for (const colName of collectionsToPurge) {
         try {
           const snap = await getDocs(collection(db, colName));
           for (const docSnap of snap.docs) {
             await deleteDoc(doc(db, colName, docSnap.id));
           }
-        } catch (err) {
-          console.warn(`Failed to purge Firestore collection: ${colName}`, err);
-        }
-        
-        // Wipe local fallbacks/storage
+        } catch (err) {}
         localStorage.removeItem(`mock_db_${colName}`);
         localStorage.removeItem(`app_${colName}`);
       }
 
-      // 2. Clear employees except the system admin
       try {
         const empSnap = await getDocs(collection(db, "employees"));
         for (const docSnap of empSnap.docs) {
@@ -469,52 +638,32 @@ export default function OrgChart() {
             await deleteDoc(doc(db, "employees", docSnap.id));
           }
         }
-      } catch (err) {
-        console.warn("Failed to purge Firestore employees collection", err);
-      }
+      } catch (err) {}
 
       localStorage.removeItem(`mock_db_employees`);
       localStorage.removeItem(`app_employees`);
-      localStorage.removeItem("app_deleted_templates");
-      localStorage.removeItem("app_ignored_alarms_timestamps");
-      localStorage.removeItem("app_custom_recommendations_alarms");
-      localStorage.removeItem("app_recommendations_custom");
-      localStorage.removeItem("app_member_columns_v2");
-
       setPurgeSuccess(true);
-      await addFirebaseLog({
-        employeeName: currentUser?.name || "مدير النظام",
-        time: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        operationType: "تهيئة النظام بالكامل",
-        status: "ناجحة",
-        details: "قام مدير النظام بتهيئة وتصفير قاعدة البيانات بالكامل وتطهير التخزين المؤقت."
-      } as any);
-
+      
       setTimeout(() => {
         window.location.href = "/";
       }, 1500);
 
     } catch (e) {
-      console.error("Purge action failed:", e);
-      setPurgeError("حدث خطأ أثناء محاولة تصفير قاعدة البيانات سحابياً. يرجى المحاولة لاحقاً.");
+      setPurgeError("حدث خطأ أثناء محاولة تصفير قاعدة البيانات.");
     } finally {
       setIsPurging(false);
     }
   };
 
-  // 1. Approve Join Request (اعتماد طلبات الانضمام)
   const handleApproveJoinRequest = async (req: JoinRequest) => {
     try {
       const emailLower = req.email.trim().toLowerCase();
-
-      // Enforce email uniqueness
       const emailTaken = dbEmployees.some(emp => emp.email?.trim().toLowerCase() === emailLower);
       if (emailTaken) {
-        alert(`عذراً، البريد الإلكتروني [${req.email}] مأخوذ مسبقاً لموظف آخر في النظام.`);
+        alert(`عذراً، البريد الإلكتروني [${req.email}] مأخوذ.`);
         return;
       }
 
-      // Generate a unique 4-digit employee ID
       let parsedId = Math.floor(1000 + Math.random() * 9000).toString();
       while (dbEmployees.some(emp => emp.id === parsedId)) {
         parsedId = Math.floor(1000 + Math.random() * 9000).toString();
@@ -524,7 +673,8 @@ export default function OrgChart() {
         name: req.name,
         role: "SPECIALIST",
         roleAr: "أخصائي اللجان",
-        jobTitle: "أخصائي لجان",
+        jobTitle: "أخصائي",
+        orgLevel1: "الأمانة العامة",
         phone: req.phone,
         email: emailLower,
         photo: PRESET_AVATARS[Math.floor(Math.random() * PRESET_AVATARS.length)],
@@ -534,53 +684,33 @@ export default function OrgChart() {
         gender: (req as any).gender || "MALE"
       };
 
-      // Set document with generated custom employee number as Firestore ID
       await updateFirebaseEmp(parsedId, payload);
-      
-      // Delete join request
       await deleteFirebaseReq(req.id);
-
-      // Audit log
-      await addFirebaseLog({
-        employeeName: currentUser?.name || "مدير النظام",
-        time: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        status: "ناجحة",
-        operationType: "قبول طلب انضمام",
-        details: `تمت الموافقة على طلب انضمام الموظف ${req.name} بالبريد ${req.email} برقم وظيفي [${parsedId}]`
-      } as any);
-
       alert(`تمت الموافقة بنجاح وتم توليد رقم وظيفي مؤقت للموظف: ${parsedId}`);
     } catch (error) {
-      console.error(error);
-      alert("فشل في اعتماد طلب الانضمام. يرجى المحاولة لاحقاً.");
+      alert("فشل في اعتماد طلب الانضمام.");
     }
   };
 
   const handleRejectJoinRequest = async (req: JoinRequest) => {
-    if (!window.confirm(`هل أنت متأكد من رفض طلب الموظف: ${req.name}؟`)) return;
-    try {
-      await deleteFirebaseReq(req.id);
-
-      // Audit log
-      await addFirebaseLog({
-        employeeName: currentUser?.name || "مدير النظام",
-        time: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        status: "ناجحة",
-        operationType: "رفض طلب انضمام",
-        details: `تم رفض وإلغاء طلب انضمام الموظف ${req.name} بالبريد ${req.email}`
-      } as any);
-    } catch (error) {
-      console.error(error);
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: "تأكيد رفض طلب الانضمام",
+      message: `هل أنت متأكد من رفض طلب الموظف: ${req.name}؟`,
+      onConfirm: async () => {
+        try {
+          await deleteFirebaseReq(req.id);
+          setConfirmDialog(null);
+        } catch (error) {
+          setConfirmDialog(null);
+        }
+      }
+    });
   };
 
-  // 2. Add email to approved Whitelist (إضافة للبريد المسموح)
   const handleAddWhitelistEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!whitelistEmailStr.trim() || !whitelistNameStr.trim()) {
-      alert("يرجى إدخال اسم الموظف والبريد الإلكتروني.");
-      return;
-    }
+    if (!whitelistEmailStr.trim() || !whitelistNameStr.trim()) return;
     const cleanEmail = whitelistEmailStr.trim().toLowerCase();
     try {
       await addFirebaseAppr({
@@ -590,40 +720,28 @@ export default function OrgChart() {
         approvedBy: currentUser?.name || "مدير النظام",
         approvedDate: new Date().toISOString().split('T')[0].replace(/-/g, '/')
       });
-
-      await addFirebaseLog({
-        employeeName: currentUser?.name || "مدير النظام",
-        time: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        status: "ناجحة",
-        operationType: "إضافة للبريد المسموح Whitelist",
-        details: `تمت إضافة بريد الموظف ${whitelistNameStr} (${cleanEmail}) للبريد المسموح بالنظام لتعيين دور: ${whitelistRoleAr}`
-      } as any);
-
       setWhitelistEmailStr("");
       setWhitelistNameStr("");
       alert("تمت إضافة الموظف لقائمة البريد المعتمد بنجاح.");
-    } catch (error) {
-      console.error(error);
-    }
+    } catch (error) { }
   };
 
   const handleRemoveWhitelistEmail = async (appId: string, email: string) => {
-    if (!window.confirm("هل أنت متأكد من إلغاء اعتماد هذا البريد؟")) return;
-    try {
-      await deleteFirebaseAppr(appId);
-      await addFirebaseLog({
-        employeeName: currentUser?.name || "مدير النظام",
-        time: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        status: "ناجحة",
-        operationType: "حذف من البريد المسموح Whitelist",
-        details: `تم إلغاء اعتماد الموظف ذو البريد ${email} من قائمة البريد المسموح`
-      } as any);
-    } catch (error) {
-      console.error(error);
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: "تأكيد إلغاء الاعتماد",
+      message: "هل أنت متأكد من إلغاء اعتماد هذا البريد؟",
+      onConfirm: async () => {
+        try {
+          await deleteFirebaseAppr(appId);
+          setConfirmDialog(null);
+        } catch (error) {
+          setConfirmDialog(null);
+        }
+      }
+    });
   };
 
-  // 3. Save Employee (حفظ بيانات الموظف) - Self and Admin editing logic combined
   const handleSaveEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formId.trim() || !formName.trim() || !formEmail.trim() || !formPhone.trim()) {
@@ -635,7 +753,6 @@ export default function OrgChart() {
     const isSysAdmin = currentUserRole === "SYS_ADMIN";
     const isPowerUser = isSysAdmin || currentUserRole === "MANAG_DIR" || currentUserRole === "DEPT_HEAD";
 
-    // Security Gate check
     if (!isPowerUser) {
       if (!isEditing) {
         alert("عذراً، لا تملك صلاحية لإضافة موظفين جدد للنظام.");
@@ -643,22 +760,18 @@ export default function OrgChart() {
       }
       const myEmp = dbEmployees.find(emp => emp.id === currentUser?.id || emp.email?.trim().toLowerCase() === currentUser?.email?.trim().toLowerCase());
       if (originalEditId !== currentUser?.id && !(myEmp && originalEditId === myEmp.id)) {
-        alert("عذراً، تملك فقط الصلاحية لتحديث بيانات بطاقتك الشخصية فقط.");
+        alert("تأكد من صلاحياتك.");
         return;
       }
     }
 
     try {
-      // 1. STRICT EMAIL UNIQUENESS CHECK
       const emailTakenByOther = dbEmployees.some(emp => {
-        if (isEditing) {
-          return emp.id !== originalEditId && emp.email?.trim().toLowerCase() === cleanEmail;
-        } else {
-          return emp.email?.trim().toLowerCase() === cleanEmail;
-        }
+        if (isEditing) return emp.id !== originalEditId && emp.email?.trim().toLowerCase() === cleanEmail;
+        else return emp.email?.trim().toLowerCase() === cleanEmail;
       });
       if (emailTakenByOther) {
-        alert(`عذراً، البريد الإلكتروني [${cleanEmail}] مستخدم بالفعل من قبل موظف آخر في النظام.`);
+        alert(`البريد [${cleanEmail}] مستخدم مسبقاً.`);
         return;
       }
 
@@ -666,34 +779,70 @@ export default function OrgChart() {
         (originalEditId && emp.id === originalEditId) || 
         emp.email?.trim().toLowerCase() === cleanEmail
       );
-
       const targetEditId = existingEmployee ? existingEmployee.id : originalEditId;
 
-      // ROLE MAPPER
       const roleMapper: Record<string, string> = {
         SYS_ADMIN: "مدير النظام",
+        SECRETARY_GENERAL: "أمين عام",
+        EXECUTIVE_OFFICE: "المكتب التنفيذي",
+        ASSISTANT_SEC_GEN: "مساعد الأمين العام",
+        SECRETARY: "السكرتير",
         MANAG_DIR: "مدير إدارة اللجان",
         DEPT_HEAD: "رئيس قسم اللجان",
         SPECIALIST: "أخصائي اللجان"
       };
 
-      // Construction of strict payload: if not Admin/PowerUser, merge existing critical access fields directly
-      // This protects the Specialist from losing email, active stance, or role privileges during self-updates
+      let calculatedJobTitle = "غير مسكن";
+      if (formOrgLevel5) {
+        const node = dbOrgNodes.find(n => n.name === formOrgLevel5);
+        if (node && node.type === 'STAFF') {
+          calculatedJobTitle = formOrgLevel5.trim();
+        } else if (formOrgLevel5 === 'أخصائي' || formOrgLevel5 === 'أخصائي اللجان') {
+          const cleanLevelName = (name: string) => name.replace(/^(قسم|إدارة)\s+/i, '').trim();
+          if (formOrgLevel4) {
+            calculatedJobTitle = `أخصائي ${cleanLevelName(formOrgLevel4)}`;
+          } else if (formOrgLevel3) {
+             calculatedJobTitle = `أخصائي ${cleanLevelName(formOrgLevel3)}`;
+          } else if (formOrgLevel2) {
+             calculatedJobTitle = `مساعد الأمين العام لـ ${formOrgLevel2}`;
+          } else if (formOrgLevel1) {
+             calculatedJobTitle = `الأمانة العامة`;
+          }
+        } else {
+          calculatedJobTitle = formOrgLevel5.trim();
+        }
+      }
+      
+      // If it's still 'غير مسكن', or formOrgLevel5 wasn't set, calculate based on levels
+      if (calculatedJobTitle === "غير مسكن") {
+        if (formOrgLevel4) {
+          calculatedJobTitle = `رئيس ${formOrgLevel4}`;
+        } else if (formOrgLevel3) {
+          calculatedJobTitle = `مدير ${formOrgLevel3}`;
+        } else if (formOrgLevel2) {
+          calculatedJobTitle = `مساعد الأمين العام لـ ${formOrgLevel2}`;
+        } else if (formOrgLevel1) {
+          calculatedJobTitle = `الأمانة العامة`;
+        }
+      }
+
       const payload: Omit<Employee, "id"> = {
         name: formName.trim(),
         prefix: formPrefix,
         role: isPowerUser ? formRole : (existingEmployee?.role || "SPECIALIST"),
         roleAr: isPowerUser ? (roleMapper[formRole] || "أخصائي اللجان") : (existingEmployee?.roleAr || "أخصائي اللجان"),
-        jobTitle: formAdminStructure.trim() === "أخصائي" 
-          ? "أخصائي" 
-          : (formAdminStructure.trim() + (formAdminStructureDetails.trim() ? " " + formAdminStructureDetails.trim() : "")),
-        adminStructure: formAdminStructure,
-        adminStructureDetails: formAdminStructureDetails.trim(),
+        jobTitle: calculatedJobTitle,
+        orgLevel1: formOrgLevel1,
+        orgLevel2: formOrgLevel2,
+        orgLevel3: formOrgLevel3,
+        orgLevel4: formOrgLevel4,
+        orgLevel5: formOrgLevel5,
         phone: formPhone.trim(),
         extension: formExtension.trim(),
-        email: isEditing && existingEmployee ? existingEmployee.email : cleanEmail, // البريد الإلكتروني هو معرف الحساب ولا يمكن تعديله لضمان عدم الخروج
+        email: isEditing && existingEmployee ? existingEmployee.email : cleanEmail,
         photo: formPhoto,
-        active: isPowerUser ? formActive : (existingEmployee ? existingEmployee.active : true), // Lock active state
+        active: isPowerUser ? formActive : (existingEmployee ? existingEmployee.active : true),
+        loginEnabled: isPowerUser ? formLoginEnabled : (existingEmployee ? existingEmployee.loginEnabled !== false : true),
         committees: formCommittees,
         allowedPages: isPowerUser ? formAllowedPages : (existingEmployee?.allowedPages || []),
         password: formPassword.trim() || (existingEmployee?.password || ""),
@@ -701,34 +850,20 @@ export default function OrgChart() {
       };
 
       if (isEditing) {
-        // Did the ID change? (Only allowed for system admins / power users)
         if (formId !== targetEditId) {
-          if (!isPowerUser) {
-            alert("عذراً، الرقم الوظيفي غير قابل للتعديل.");
-            return;
-          }
-          // Enforce uniqueness
+          if (!isPowerUser) { alert("لا تملك صلاحية لتعديل الرقم."); return; }
           const IDTaken = dbEmployees.some(emp => emp.id === formId);
-          if (IDTaken) {
-            alert(`الرقم الوظيفي الجديد [${formId}] مستعمل بالفعل من قبل موظف آخر.`);
-            return;
-          }
-
-          // Transact new ID write and delete old one
+          if (IDTaken) { alert(`الرقم [${formId}] مستعمل.`); return; }
           await updateFirebaseEmp(formId, payload);
           await deleteFirebaseEmp(targetEditId);
-
-          // Update any committees supervised by targetEditId to use the new formId
           const assignedComms = dbCommittees.filter(c => c.specialistId === targetEditId);
           for (const c of assignedComms) {
             await updateFirebaseComm(c.id, { specialistId: formId });
           }
         } else {
-          // Normal merge/update under existing ID
           await updateFirebaseEmp(targetEditId, payload);
         }
 
-        // Bidirectional sync for committees
         for (const comm of dbCommittees) {
           if (formCommittees.includes(comm.name)) {
             if (comm.specialist !== formName) {
@@ -739,45 +874,21 @@ export default function OrgChart() {
           }
         }
 
-        // Deep synchronization if modifying the active session
         const storedUser = localStorage.getItem("current_user");
         if (storedUser) {
           const parsed = JSON.parse(storedUser);
           if (parsed && (parsed.id === targetEditId || parsed.email?.trim().toLowerCase() === cleanEmail)) {
             const updatedUser = { ...payload, id: formId };
             localStorage.setItem("current_user", JSON.stringify(updatedUser));
-            
-            // Dispatch reactive storage cross tab update so UI updates immediately
             window.dispatchEvent(new Event("storage"));
           }
         }
 
-        await addFirebaseLog({
-          employeeName: currentUser?.name || "مدير النظام",
-          time: new Date().toISOString().replace('T', ' ').substring(0, 16),
-          status: "ناجحة",
-          operationType: "تعديل بطاقة موظف",
-          details: `تم تعديل وتحديث بيانات الموظف ${formName} برقم وظيفي [${formId}]`
-        } as any);
-
         alert("تم حفظ وتحديث بيانات الموظف بنجاح.");
       } else {
-        // Strict system administrator creation block
         const IDTaken = dbEmployees.some(emp => emp.id === formId);
-        if (IDTaken) {
-          alert(`الرقم الوظيفي [${formId}] مأخوذ مسبقاً لموظف آخر.`);
-          return;
-        }
-
-        const emailTaken = dbEmployees.some(emp => emp.email?.trim().toLowerCase() === cleanEmail);
-        if (emailTaken) {
-          alert(`البريد الإلكتروني [${cleanEmail}] مستخدم بالفعل من قبل موظف آخر في النظام.`);
-          return;
-        }
-
+        if (IDTaken) { alert(`الرقم الوظيفي [${formId}] مأخوذ.`); return; }
         await updateFirebaseEmp(formId, payload);
-
-        // Bidirectional sync for committees on create
         for (const comm of dbCommittees) {
           if (formCommittees.includes(comm.name)) {
             if (comm.specialist !== formName) {
@@ -785,16 +896,7 @@ export default function OrgChart() {
             }
           }
         }
-
-        await addFirebaseLog({
-          employeeName: currentUser?.name || "مدير النظام",
-          time: new Date().toISOString().replace('T', ' ').substring(0, 16),
-          status: "ناجحة",
-          operationType: "إضافة موظف جديد",
-          details: `قام مدير النظام بإضافة موظف معتمد جديد: ${formName} بالرقم الوظيفي [${formId}]`
-        } as any);
-
-        alert("تمت إضافة الموظف الجديد للهيكل الوظيفي بنجاح.");
+        alert("تمت إضافة الموظف بنجاح.");
       }
 
       setShowFormModal(false);
@@ -802,7 +904,7 @@ export default function OrgChart() {
       resetFormFields();
     } catch (err) {
       console.error(err);
-      alert("حدث خطأ غير متوقع أثناء حفظ ملف الموظف.");
+      alert("حدث خطأ غير متوقع.");
     }
   };
 
@@ -810,15 +912,18 @@ export default function OrgChart() {
     setFormId("");
     setFormName("");
     setFormRole("SPECIALIST");
-    setFormJobTitle("");
+    setFormOrgLevel1("الأمانة العامة");
+    setFormOrgLevel2("");
+    setFormOrgLevel3("");
+    setFormOrgLevel4("");
+    setFormOrgLevel5("");
     setFormPhone("");
     setFormExtension("");
     setFormEmail("");
     setFormPhoto(PRESET_AVATARS[0]);
     setFormPrefix("الأستاذ");
-    setFormAdminStructure("أخصائي");
-    setFormAdminStructureDetails("");
     setFormActive(true);
+    setFormLoginEnabled(true);
     setFormPassword("");
     setFormCommittees([]);
     setFormAllowedPages([]);
@@ -828,11 +933,8 @@ export default function OrgChart() {
 
   const openAddModal = () => {
     resetFormFields();
-    
-    // Generate an automatic 4-digit ID
     const autoId = Math.floor(1000 + Math.random() * 9000).toString();
     setFormId(autoId);
-
     setIsEditing(false);
     setShowFormModal(true);
   };
@@ -842,252 +944,214 @@ export default function OrgChart() {
     setFormId(emp.id);
     setFormName(emp.name || "");
     setFormRole(emp.role || "SPECIALIST");
-    setFormJobTitle(emp.jobTitle || "");
+    setFormOrgLevel1(emp.orgLevel1 || "الأمانة العامة");
+    setFormOrgLevel2(emp.orgLevel2 || "");
+    setFormOrgLevel3(emp.orgLevel3 || "");
+    setFormOrgLevel4(emp.orgLevel4 || "");
+    setFormOrgLevel5(emp.orgLevel5 || emp.jobTitle || "");
     setFormPhone(emp.phone || "");
     setFormExtension(emp.extension || "");
     setFormEmail(emp.email || "");
     setFormPhoto(emp.photo || PRESET_AVATARS[0]);
     setFormPrefix(emp.prefix || "الأستاذ");
-    setFormAdminStructure(emp.adminStructure || "أخصائي");
-    setFormAdminStructureDetails(emp.adminStructureDetails || "");
     setFormActive(emp.active !== false);
+    setFormLoginEnabled(emp.loginEnabled !== false);
     setFormPassword(emp.password || "");
     setFormCommittees(emp.committees || []);
     setFormAllowedPages(emp.allowedPages || []);
     setFormGender((emp as any).gender || "MALE");
-    
     setIsEditing(true);
     setShowFormModal(true);
   };
 
   const handleDeleteEmployee = async (empId: string, empName: string) => {
-    if (empId === currentUser?.id) {
-      alert("عذراً، لا يمكنك حذف حسابك الشخصي النشط حالياً والمستخدم.");
-      return;
-    }
-    if (empId === "01") {
-      alert("عذراً، لا يمكن حذف حساب المشرف أو المالك الأعلى للنظام.");
-      return;
-    }
+    if (empId === currentUser?.id) return;
+    if (empId === "01") return;
 
     try {
-      const targetEmp = dbEmployees.find(emp => emp.id === empId);
-      const isCurrentlyActive = targetEmp ? (targetEmp.active !== false) : true;
       const associatedSupervised = dbCommittees.filter(c => c.specialistId === empId || c.specialist === empName);
+      const alertDetails = `تأكيد حذف (${empName}) نهائياً؟`;
 
-      // 1. "إذا كان الموظف نشطا يجب تحويل حالته إلى غير نشط"
-      if (isCurrentlyActive) {
-        await updateFirebaseEmp(empId, { active: false });
-      }
-
-      // 2. "وإذا كان مرتبطا بأي لجنة يتم إلغاء ارتباطه في النظام"
-      if (associatedSupervised.length > 0) {
-        for (const c of associatedSupervised) {
-          await updateFirebaseComm(c.id, {
-            specialistId: "",
-            specialist: "غير محدد"
-          });
+      setConfirmDialog({
+        isOpen: true,
+        title: "تأكيد الحذف",
+        message: alertDetails,
+        onConfirm: async () => {
+          try {
+            if (associatedSupervised.length > 0) {
+              for (const c of associatedSupervised) {
+                await updateFirebaseComm(c.id, { specialistId: "", specialist: "غير محدد" });
+              }
+            }
+            await deleteFirebaseEmp(empId);
+            setConfirmDialog(null);
+          } catch (error) {
+            setConfirmDialog(null);
+          }
         }
-        await updateFirebaseEmp(empId, { committees: [] });
-      }
-
-      // 3. "قبل تأكيد الحذف" (Show single confirmation after auto processes have been resolved in the draft)
-      const alertDetails = isCurrentlyActive || associatedSupervised.length > 0
-        ? `تنبيه: تم تلقائياً إحالة حالة الموظف (${empName}) إلى غير نشط وإلغاء ارتباطه بـ (${associatedSupervised.length}) لجنة في النظام لتطهير ملفه الإداري.\n\nهل تؤكد الآن حذف بطاقة هذا الموظف نهائياً وبشكل كامل ومستأصل من سجلات قاعدة البيانات؟`
-        : `هل أنت متأكد من رغبتك في حذف بطاقة الموظف (${empName}) نهائياً وبشكل كامل من قاعدة البيانات الآن؟`;
-
-      const finalDeleteConfirm = window.confirm(alertDetails);
-      if (!finalDeleteConfirm) {
-        alert("تم إبقاء حساب الموظف في النظام كـ 'غير نشط' فقط مع تصفية وتجريد اللجان المرتبطة به بنجاح.");
-        return;
-      }
-
-      // Execute final deletion
-      await deleteFirebaseEmp(empId);
-
-      await addFirebaseLog({
-        employeeName: currentUser?.name || "مدير النظام",
-        time: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        status: "ناجحة",
-        operationType: "حذف بطاقة موظف",
-        details: `تم حذف ملف الموظف ${empName} (الرقم: ${empId}) بالكامل وتجميده وإفراغ لجانه بالتنظيم المعتمد.`
-      } as any);
-
-      alert("تم حذف بطاقة الموظف نهائياً وبنجاح.");
-    } catch (error) {
-      console.error(error);
-      alert("حدث خطأ أثناء معالجة إجراءات تفعيل الحذف المتسلسل والتطهير الهيكلي.");
-    }
+      });
+    } catch (error) { }
   };
 
-  // 4. Transfer Duties and Supervisions (نقل وتفويض الأعمال)
   const handleTransferDuties = async (e: React.FormEvent) => {
     e.preventDefault();
     setTransferSuccess("");
     setTransferError("");
-    
-    if (!sourceEmpId || !targetEmpId) {
-      setTransferError("يرجى اختيار الموظف المسؤول (المصدر) والموظف البديل (المستهدف) للبدء.");
-      return;
-    }
-
-    if (sourceEmpId === targetEmpId) {
-      setTransferError("لا يمكن نقل وتفويض الأعمال لنفس الموظف (المصدر والمستهدف متطابقان).");
-      return;
-    }
+    if (!sourceEmpId || !targetEmpId || sourceEmpId === targetEmpId) return;
 
     setIsTransferring(true);
     try {
       const sourceEmp = dbEmployees.find(emp => emp.id === sourceEmpId);
       const targetEmp = dbEmployees.find(emp => emp.id === targetEmpId);
+      if (!sourceEmp || !targetEmp) return;
 
-      if (!sourceEmp || !targetEmp) {
-        setTransferError("تعذر العثور على سجلات الموظفين المحددين بقاعدة البيانات.");
-        setIsTransferring(false);
-        return;
-      }
-
-      let countCommittees = 0;
-      let countTasks = 0;
-      let countEvents = 0;
-      let countRecs = 0;
-
-      // A. Transfer supervised sector committees
       if (transferCommittees) {
         const matchingComms = dbCommittees.filter(c => c.specialistId === sourceEmpId);
-        countCommittees = matchingComms.length;
         for (const c of matchingComms) {
-          await updateFirebaseComm(c.id, {
-            specialistId: targetEmpId,
-            specialistName: targetEmp.name
-          });
+          await updateFirebaseComm(c.id, { specialistId: targetEmpId, specialistName: targetEmp.name });
         }
-
-        // Update employee document arrays
-        const sourceCurrentComms = sourceEmp.committees || [];
-        const targetCurrentComms = targetEmp.committees || [];
-        
-        // Merge without duplicates
-        const updatedTargetComms = Array.from(new Set([...targetCurrentComms, ...sourceCurrentComms]));
-        
+        const updatedTargetComms = Array.from(new Set([...(targetEmp.committees || []), ...(sourceEmp.committees || [])]));
         await updateFirebaseEmp(sourceEmpId, { committees: [] });
         await updateFirebaseEmp(targetEmpId, { committees: updatedTargetComms });
       }
 
-      // B. Transfer independent administrative tasks
       if (transferTasks) {
         const matchingTasks = dbTasks.filter(t => t.assignedToId === sourceEmpId);
-        countTasks = matchingTasks.length;
         for (const t of matchingTasks) {
-          await updateFirebaseTask(t.id, {
-            assignedToId: targetEmpId,
-            assignedToName: targetEmp.name
-          });
+          await updateFirebaseTask(t.id, { assignedToId: targetEmpId, assignedToName: targetEmp.name });
         }
       }
 
-      // C. Transfer upcoming calendar events
       if (transferEvents) {
-        // Some events may store creator or specialist link
         const matchingEvents = dbEvents.filter(ev => ev.employeeId === sourceEmpId || ev.specialistId === sourceEmpId);
-        countEvents = matchingEvents.length;
         for (const ev of matchingEvents) {
           const updateObj: any = {};
           if (ev.employeeId === sourceEmpId) updateObj.employeeId = targetEmpId;
-          if (ev.specialistId === sourceEmpId) {
-            updateObj.specialistId = targetEmpId;
-            updateObj.specialistName = targetEmp.name;
-          }
+          if (ev.specialistId === sourceEmpId) { updateObj.specialistId = targetEmpId; updateObj.specialistName = targetEmp.name; }
           await updateFirebaseEvent(ev.id, updateObj);
         }
       }
 
-      // D. Transfer specific recommendations and decisions
-      if (transferRecs) {
-        // recommendations assigned to source specialist
-        const matchingRecs = dbRecommendations.filter(rec => rec.assignedId === sourceEmpId || rec.responsibleId === sourceEmpId);
-        countRecs = matchingRecs.length;
-        for (const r of matchingRecs) {
-          const updateObj: any = {};
-          if (r.assignedId === sourceEmpId) {
-            updateObj.assignedId = targetEmpId;
-            updateObj.assignedName = targetEmp.name;
-          }
-          if (r.responsibleId === sourceEmpId) {
-            updateObj.responsibleId = targetEmpId;
-            updateObj.responsibleName = targetEmp.name;
-          }
-          await updateFirebaseRec(r.id, updateObj);
-        }
-      }
-
-      // Log the transfer action in security logs
-      const detailsMsg = `تم نقل المهام من [${sourceEmp.name}] إلى [${targetEmp.name}] بنجاح. التفاصيل: ${countCommittees} لجان، ${countTasks} مهام، ${countEvents} فعاليات، ${countRecs} توصيات.`;
-      await addFirebaseLog({
-        employeeName: currentUser?.name || "مدير النظام",
-        time: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        status: "ناجحة",
-        operationType: "تفويض ونقل المهام",
-        details: detailsMsg
-      } as any);
-
-      setTransferSuccess(`تمت عملية تفويض ونقل الأعمال بنجاح تام! تم ترحيل: ${countCommittees} لجنة، ${countTasks} مهمة إدارية، ${countEvents} فعالية، ${countRecs} توصية ومتابعة.`);
-      
-      // Reset selections
+      setTransferSuccess(`تمت عملية تفويض ونقل الأعمال بنجاح تام!`);
       setSourceEmpId("");
       setTargetEmpId("");
     } catch (error: any) {
-      console.error(error);
-      setTransferError(`فشلت العملية: ${error.message || "خطأ داخلي أثناء تفويض قواعد البيانات"}`);
+      setTransferError(`فشلت العملية.`);
     } finally {
       setIsTransferring(false);
     }
   };
 
-  const handlePrintLogs = () => {
-    window.print();
+  const filteredEmployees = React.useMemo(() => {
+    return safeDbEmployees.filter(emp => {
+      const isMaster = currentUser && (currentUser.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || currentUser.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com");
+      if (!isMaster && (emp.role === "SYS_ADMIN" || emp.id === "01" || emp.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || emp.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com")) {
+        return false;
+      }
+      const term = searchTerm.toLowerCase().trim();
+      const matchSearch = !term || 
+        emp.name?.toLowerCase().includes(term) ||
+        emp.jobTitle?.toLowerCase().includes(term) ||
+        emp.email?.toLowerCase().includes(term) ||
+        emp.phone?.includes(term) ||
+        emp.id?.includes(term);
+
+      const matchRole = roleFilter === "ALL" || emp.role === roleFilter;
+      let matchStatus = true;
+      if (statusFilter === "ACTIVE") matchStatus = emp.active !== false;
+      else if (statusFilter === "INACTIVE") matchStatus = emp.active === false;
+
+      return matchSearch && matchRole && matchStatus;
+    });
+  }, [safeDbEmployees, currentUser, searchTerm, roleFilter, statusFilter]);
+
+  // Helper to dynamically calculate job title
+  const calculateDisplayJobTitle = (emp: Employee) => {
+    if (emp.orgLevel5) {
+      const node = dbOrgNodes.find(n => n.name === emp.orgLevel5);
+      if (node && node.type === 'STAFF') {
+        return emp.orgLevel5.trim();
+      }
+      
+      if (emp.orgLevel5 === 'أخصائي' || emp.orgLevel5 === 'أخصائي اللجان') {
+        const cleanLevelName = (name: string) => name.replace(/^(قسم|إدارة)\s+/i, '').trim();
+        if (emp.orgLevel4) {
+          return `أخصائي ${cleanLevelName(emp.orgLevel4)}`;
+        } else if (emp.orgLevel3) {
+          return `أخصائي ${cleanLevelName(emp.orgLevel3)}`;
+        }
+      } else {
+        return emp.orgLevel5.trim();
+      }
+    }
+    
+    if (emp.orgLevel4) {
+      return `رئيس ${emp.orgLevel4}`;
+    } else if (emp.orgLevel3) {
+      return `مدير ${emp.orgLevel3}`;
+    } else if (emp.orgLevel2) {
+      return `مساعد الأمين العام لـ ${emp.orgLevel2}`;
+    } else if (emp.orgLevel1) {
+      return `الأمانة العامة`;
+    }
+    return emp.jobTitle || "غير مسكن";
   };
 
-  // Live filtering search matching names, roles, phone and email strings
-  const filteredEmployees = safeDbEmployees.filter(emp => {
-    const isMaster = currentUser && (currentUser.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || currentUser.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com");
-    if (!isMaster && (emp.role === "SYS_ADMIN" || emp.id === "01" || emp.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || emp.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com")) {
-      return false;
-    }
-
-    const term = searchTerm.toLowerCase().trim();
-    const matchSearch = !term || 
-      emp.name?.toLowerCase().includes(term) ||
-      emp.jobTitle?.toLowerCase().includes(term) ||
-      emp.email?.toLowerCase().includes(term) ||
-      emp.phone?.includes(term) ||
-      emp.id?.includes(term);
-
-    const matchRole = roleFilter === "ALL" || emp.role === roleFilter;
+  // Helper to get formatted hierarchy path
+  const getHierarchyPath = (emp: Employee) => {
+    const parts = [];
+    if (emp.orgLevel1) parts.push(emp.orgLevel1);
+    if (emp.orgLevel2) parts.push(emp.orgLevel2);
+    if (emp.orgLevel3) parts.push(emp.orgLevel3);
+    if (emp.orgLevel4) parts.push(emp.orgLevel4);
     
-    let matchStatus = true;
-    if (statusFilter === "ACTIVE") matchStatus = emp.active !== false;
-    else if (statusFilter === "INACTIVE") matchStatus = emp.active === false;
+    parts.push(calculateDisplayJobTitle(emp));
+    
+    return parts;
+  };
 
-    return matchSearch && matchRole && matchStatus;
-  });
+  const renderEmployeesForNode = (employees: Employee[]) => {
+    if (employees.length === 0) return null;
+    return (
+      <div className="mt-2 flex flex-col gap-1 w-full px-1 z-30 relative">
+        {employees.map(emp => (
+          <div key={emp.id} className="flex items-center justify-between bg-white border border-gray-200 rounded px-1.5 py-1 text-[9px] group shadow-sm hover:border-brand/30 hover:bg-brand/5">
+            <div className="flex flex-col items-start truncate">
+              <span className="truncate text-gray-700 font-bold">{emp.name}</span>
+              {calculateDisplayJobTitle(emp) && (
+                <span className="text-[8px] font-black text-brand bg-brand/10 px-1 py-0.5 rounded mt-0.5">
+                  {calculateDisplayJobTitle(emp)}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              <button onClick={() => openEditModal(emp)} className="p-0.5 bg-gray-100 text-blue-600 rounded hover:bg-blue-50"><Edit2 className="w-2.5 h-2.5" /></button>
+              {currentUserRole === "SYS_ADMIN" && emp.id !== "01" && emp.id !== currentUser?.id && (
+                <button onClick={() => handleDeleteEmployee(emp.id, emp.name)} className="p-0.5 bg-gray-100 text-red-600 rounded hover:bg-red-50"><Trash2 className="w-2.5 h-2.5" /></button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 font-sans pb-12 text-right" dir="rtl">
+    <div className="space-y-6 font-sans pb-12 text-right" dir="rtl">
       
       {/* 1. TOP HERO PANEL */}
-      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-[#e8e4e4] rounded-2xl p-6 border border-gray-200 shadow-sm flex flex-col xl:flex-row items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            <Users className="w-6 h-6 text-brand" />
+          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
+            <Users className="w-7 h-7 text-brand" />
             <span>الهيكل الإداري والرقابة الذكية</span>
           </h1>
-          <p className="text-gray-500 text-xs mt-1">
+          <p className="text-gray-600 text-sm font-medium mt-1">
             إدارة الموظفين، تفويض ونقل الأعمال، واعتماد حسابات المنسقين الجدد لغرفة مكة المكرمة.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3 justify-center md:justify-end">
           {currentUserRole === "SYS_ADMIN" && (
             <button
               onClick={openAddModal}
@@ -1115,12 +1179,10 @@ export default function OrgChart() {
         <button
           onClick={() => setActiveTab("hierarchy")}
           className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-            activeTab === "hierarchy"
-              ? "border-brand text-brand font-black"
-              : "border-transparent text-gray-500 hover:text-gray-900"
+            activeTab === "hierarchy" ? "border-brand text-brand font-black" : "border-transparent text-gray-500 hover:text-gray-900"
           }`}
         >
-          <Building2 className="w-4 h-4 shrink-0" />
+          <Users className="w-4 h-4 shrink-0" />
           <span>الموظفين</span>
           <span className="bg-gray-150 px-2 py-0.5 rounded-full text-[10px] text-gray-600 font-bold">
             {safeDbEmployees.length}
@@ -1130,98 +1192,69 @@ export default function OrgChart() {
         <button
           onClick={() => setActiveTab("org_chart")}
           className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-            activeTab === "org_chart"
-              ? "border-brand text-brand font-black"
-              : "border-transparent text-gray-500 hover:text-gray-900"
+            activeTab === "org_chart" ? "border-brand text-brand font-black" : "border-transparent text-gray-500 hover:text-gray-900"
           }`}
         >
-          <Building2 className="w-4 h-4 shrink-0" />
-          <span>الهيكل التنظيمي</span>
+          <Network className="w-4 h-4 shrink-0" />
+          <span>بناء الهيكل التنظيمي</span>
         </button>
 
         {currentUserRole === "SYS_ADMIN" && (
-          <button
-            onClick={() => setActiveTab("transfer")}
-            className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === "transfer"
-                ? "border-brand text-brand font-black"
-                : "border-transparent text-gray-500 hover:text-gray-900"
-            }`}
-          >
-            <ArrowRightLeft className="w-4 h-4 shrink-0" />
-            <span>نقل أو تكليف الأعمال</span>
-          </button>
-        )}
-
-        {currentUserRole === "SYS_ADMIN" && (
-          <button
-            onClick={() => setActiveTab("approvals")}
-            className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === "approvals"
-                ? "border-brand text-brand font-black"
-                : "border-transparent text-gray-500 hover:text-gray-900"
-            }`}
-          >
-            <UserCheck className="w-4 h-4 shrink-0" />
-            <span>طلبات الانضمام</span>
-            {dbJoinRequests.length > 0 && (
-              <span className="bg-amber-500 px-2 py-0.5 rounded-full text-[10px] text-white font-black animate-bounce">
-                {dbJoinRequests.length}
-              </span>
-            )}
-          </button>
-        )}
-
-        {currentUserRole === "SYS_ADMIN" && (
-          <button
-            onClick={() => setActiveTab("logs")}
-            className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === "logs"
-                ? "border-brand text-brand font-black"
-                : "border-transparent text-gray-500 hover:text-gray-900"
-            }`}
-          >
-            <FileText className="w-4 h-4 shrink-0" />
-            <span>سجل العمليات</span>
-          </button>
-        )}
-
-        {currentUserRole === "SYS_ADMIN" && (
-          <button
-            onClick={() => setActiveTab("permissions")}
-            className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === "permissions"
-                ? "border-brand text-brand font-black"
-                : "border-transparent text-gray-500 hover:text-gray-900"
-            }`}
-          >
-            <Lock className="w-4 h-4 shrink-0" />
-            <span>الصلاحيات</span>
-          </button>
-        )}
-
-        {currentUserRole === "SYS_ADMIN" && (
-          <button
-            onClick={() => setActiveTab("master_data")}
-            className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === "master_data"
-                ? "border-brand text-brand font-black"
-                : "border-transparent text-gray-500 hover:text-gray-900"
-            }`}
-          >
-            <Database className="w-4 h-4 shrink-0" />
-            <span>لوحة مستوعبات البيانات الموحدة</span>
-            <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[9px] font-black">
-              أدمن
-            </span>
-          </button>
+          <>
+            <button
+              onClick={() => setActiveTab("transfer")}
+              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                activeTab === "transfer" ? "border-brand text-brand font-black" : "border-transparent text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <ArrowRightLeft className="w-4 h-4 shrink-0" />
+              <span>نقل الأعمال</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("approvals")}
+              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                activeTab === "approvals" ? "border-brand text-brand font-black" : "border-transparent text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <UserCheck className="w-4 h-4 shrink-0" />
+              <span>طلبات الانضمام</span>
+              {dbJoinRequests.length > 0 && <span className="bg-amber-500 px-2 py-0.5 rounded-full text-[10px] text-white font-black animate-bounce">{dbJoinRequests.length}</span>}
+            </button>
+            <button
+              onClick={() => setActiveTab("logs")}
+              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                activeTab === "logs" ? "border-brand text-brand font-black" : "border-transparent text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <FileText className="w-4 h-4 shrink-0" />
+              <span>سجل العمليات</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("permissions")}
+              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                activeTab === "permissions" ? "border-brand text-brand font-black" : "border-transparent text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <Lock className="w-4 h-4 shrink-0" />
+              <span>الصلاحيات</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("master_data")}
+              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                activeTab === "master_data" ? "border-brand text-brand font-black" : "border-transparent text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <Database className="w-4 h-4 shrink-0" />
+              <span>البيانات الموحدة</span>
+            </button>
+          </>
         )}
       </div>
 
       {/* 3. PRESENTATION OF ACTIVE VIEWPORT */}
       <div className="space-y-6">
         
-        {/* TAB 1: EMPLOYEES & HIERARCHY */}
+        {/* TAB 1: EMPLOYEES */}
         {activeTab === "hierarchy" && (
           <>
             {/* Search Filters Toolbar */}
@@ -1238,7 +1271,6 @@ export default function OrgChart() {
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                {/* Role Filter */}
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] text-gray-450 font-extrabold whitespace-nowrap">فلترة الدور:</span>
                   <select
@@ -1254,7 +1286,6 @@ export default function OrgChart() {
                   </select>
                 </div>
 
-                {/* Status Filter */}
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] text-gray-450 font-extrabold whitespace-nowrap">الحالة:</span>
                   <select
@@ -1268,7 +1299,6 @@ export default function OrgChart() {
                   </select>
                 </div>
 
-                {/* View Mode */}
                 <div className="flex border border-gray-200 rounded-xl overflow-hidden p-0.5 bg-gray-50">
                   <button
                     onClick={() => setViewMode("grid")}
@@ -1290,42 +1320,31 @@ export default function OrgChart() {
               </div>
             </div>
 
-            {/* Empty view checks */}
             {filteredEmployees.length === 0 ? (
               <div className="bg-white rounded-2xl p-12 border border-gray-200 text-center shadow-sm">
                 <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-sm font-bold text-gray-600">عذراً، لم يتم العثور على موظفين معتمدين</h3>
-                <p className="text-gray-400 text-xs mt-1">يرجى تعديل الكلمات البحثية أو فلترة الدور.</p>
+                <h3 className="text-sm font-bold text-gray-600">عذراً، لم يتم العثور على موظفين</h3>
               </div>
             ) : viewMode === "grid" ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredEmployees.map((emp) => {
-                  const commsCount = emp.committees?.length || 0;
-                  const isSelf = emp.id === currentUser?.id;
-                  const isSAdmin = emp.role === "SYS_ADMIN";
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <AnimatePresence mode="popLayout">
+                  {filteredEmployees.map((emp) => {
+                    const isSelf = emp.id === currentUser?.id;
+                    const path = getHierarchyPath(emp);
 
-                  // Dynamic Badge color
-                  const badgeColors: Record<string, string> = {
-                    SYS_ADMIN: "bg-red-50 text-red-600 border border-red-200",
-                    MANAG_DIR: "bg-amber-50 text-amber-600 border border-amber-200",
-                    DEPT_HEAD: "bg-teal-50 text-teal-600 border border-teal-200",
-                    SPECIALIST: "bg-blue-50 text-blue-600 border border-blue-200"
-                  };
-
-                  return (
-                    <motion.div
-                      key={emp.id}
-                      layout
-                      initial={{ opacity: 0, scale: 0.98 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className={`bg-white rounded-xl p-5 border shadow-sm flex flex-col justify-between relative overflow-hidden transition-all hover:shadow-md ${
-                        isSelf ? "ring-2 ring-brand ring-offset-2" : "border-gray-200"
-                      }`}
-                    >
-                      {/* Top profile row */}
+                    return (
+                      <motion.div
+                        key={emp.id}
+                        layout
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.3 }}
+                        className={`bg-[#e8e4e4] hover:bg-[#e2dede] transition-colors duration-300 rounded-2xl p-5 border shadow-sm flex flex-col justify-between relative overflow-hidden group ${
+                          isSelf ? "ring-2 ring-brand ring-offset-2 border-brand/40" : "border-gray-200"
+                        } ${emp.active === false ? "opacity-50 grayscale-[30%] border-gray-300" : ""}`}
+                      >
                       <div>
-                        
-                        {/* Status + Online indicator */}
                         <div className="absolute top-4 left-4 flex items-center gap-1.5">
                           {emp.active !== false ? (
                             <span className="flex items-center gap-1 bg-emerald-50 text-emerald-600 text-[9px] px-1.5 py-0.5 rounded-full border border-emerald-200 font-bold">
@@ -1351,9 +1370,9 @@ export default function OrgChart() {
                               <span>{getEmployeePrefix(emp)} {emp.name}</span>
                               {isSelf && <span className="text-[10px] text-brand bg-brand/10 px-1 py-0.5 rounded font-black">(أنت)</span>}
                             </h3>
-                            <p className="text-gray-500 text-[10px] font-bold mt-0.5">{emp.jobTitle || "مسؤول بالنظم"}</p>
-                            <span className={`inline-block text-[9px] font-black px-2 py-0.5 mt-2 rounded-md ${badgeColors[emp.role] || "bg-gray-100 text-gray-700"}`}>
-                              {emp.roleAr || "أخصائي"}
+                            <p className="text-gray-500 text-[10px] font-bold mt-0.5">{calculateDisplayJobTitle(emp) || emp.roleAr}</p>
+                            <span className="inline-block text-[9px] font-black px-2 py-0.5 mt-2 rounded-md bg-white border border-gray-200 text-gray-700">
+                              {emp.roleAr}
                             </span>
                           </div>
                         </div>
@@ -1361,77 +1380,58 @@ export default function OrgChart() {
                         <div className="space-y-2 border-t border-gray-100 pt-3 text-[11px] text-gray-600 font-semibold">
                           <div className="flex items-center gap-2">
                             <Lock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                            <span className="text-gray-400">الرقم الوظيفي:</span>
+                            <span className="text-gray-400">الرقم:</span>
                             <span className="font-mono font-black text-gray-800">{emp.id}</span>
                           </div>
-
                           <div className="flex items-center gap-2">
                             <Mail className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                             <span className="text-gray-400">البريد:</span>
-                            <span className="text-gray-800 truncate" style={{ maxWidth: "160px" }}>{emp.email}</span>
+                            <span className="text-gray-800 truncate">{emp.email}</span>
                           </div>
-
                           <div className="flex items-center gap-2">
                             <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                             <span className="text-gray-400">الجوال:</span>
-                            <span className="font-mono text-gray-800">{emp.phone}</span>
+                            <span className="font-mono text-gray-800">{emp.phone} {emp.extension && <span className="text-brand">(تحويلة: {emp.extension})</span>}</span>
                           </div>
 
-                          {emp.extension && (
-                            <div className="flex items-center gap-2">
-                              <Briefcase className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                              <span className="text-gray-400">التحويلة:</span>
-                              <span className="font-mono font-bold text-brand">{emp.extension}</span>
-                            </div>
-                          )}
-
-                          <div className="mt-4 pt-3 border-t border-gray-50">
-                            <div className="flex items-center justify-between text-xs font-black text-gray-700 mb-1.5">
-                              <span className="flex items-center gap-1">
-                                <Activity className="w-4 h-4 text-brand" />
-                                <span>اللجان تحت الإشراف</span>
-                              </span>
-                              <span className="bg-brand/10 text-brand px-2 py-0.5 rounded-lg text-[10px]">
-                                {commsCount} لجان
-                              </span>
-                            </div>
-                            
-                            {commsCount > 0 ? (
-                              <div className="flex flex-wrap gap-1 mt-2">
-                                {emp.committees.map((com, index) => (
-                                  <span
-                                    key={index}
-                                    onClick={() => setSelectedEmployee(emp)}
-                                    className="bg-slate-50 hover:bg-slate-100 text-gray-700 border border-gray-200 rounded-md px-1.5 py-0.5 text-[9px] font-bold cursor-pointer transition-all"
-                                  >
-                                    {com}
+                          <div className="mt-3 pt-3 border-t border-gray-100">
+                            <span className="text-[10px] font-black text-gray-800 flex items-center gap-1.5 mb-2">
+                              <Building2 className="w-3.5 h-3.5 text-brand" />
+                              الارتباط بالهيكل:
+                            </span>
+                            <div className="flex flex-wrap items-center gap-1 text-[9px] font-bold text-gray-600 bg-white p-2 rounded-lg border border-gray-100 shadow-inner">
+                              {path.length > 0 ? path.map((level, index, array) => (
+                                <div key={index} className="flex items-center gap-1">
+                                  <span className={`px-1.5 py-0.5 rounded ${
+                                    index === array.length - 1 ? "bg-brand text-white" : "bg-gray-50 border border-gray-200"
+                                  }`}>
+                                    {level}
                                   </span>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-gray-400 text-[10px] italic">لم يتم ربط أي لجان بعد</span>
-                            )}
+                                  {index < array.length - 1 && <ChevronDown className="w-2.5 h-2.5 text-gray-400 rotate-90" />}
+                                </div>
+                              )) : (
+                                <span className="text-gray-400">غير مسكن في الهيكل</span>
+                              )}
+                            </div>
                           </div>
+
                         </div>
                       </div>
 
-                      {/* Control buttons */}
-                      <div className="mt-5 pt-3 border-t border-gray-100 flex items-center justify-end gap-1.5">
+                      <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-end gap-1.5">
                         {(currentUserRole === "SYS_ADMIN" || currentUserRole === "MANAG_DIR" || currentUserRole === "DEPT_HEAD" || isSelf) && (
                           <button
                             onClick={() => openEditModal(emp)}
-                            className="p-2 bg-gray-50 hover:bg-brand/10 text-gray-600 hover:text-brand rounded-lg transition-all cursor-pointer border border-gray-200 hover:border-brand/20 flex items-center gap-1.5 text-[10px] font-extrabold"
+                            className="p-2 bg-gray-50 hover:bg-brand/10 text-gray-600 hover:text-brand rounded-lg transition-all cursor-pointer border border-gray-200 flex items-center gap-1.5 text-[10px] font-extrabold"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                             <span>تعديل</span>
                           </button>
                         )}
-
                         {currentUserRole === "SYS_ADMIN" && !isSelf && emp.id !== "01" && (
                           <button
                             onClick={() => handleDeleteEmployee(emp.id, emp.name)}
-                            className="p-2 bg-red-50 hover:bg-red-100 text-red-650 rounded-lg transition-all cursor-pointer border border-red-100 hover:border-red-200"
-                            title="حذف الموظف بالكامل"
+                            className="p-2 bg-red-50 hover:bg-red-100 text-red-650 rounded-lg transition-all cursor-pointer border border-red-100"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1440,21 +1440,19 @@ export default function OrgChart() {
                     </motion.div>
                   );
                 })}
+                </AnimatePresence>
               </div>
             ) : (
-              /* Sub view list table */
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                 <div className="overflow-x-auto custom-scrollbar">
                   <table className="w-full text-right text-xs">
                     <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
                       <tr>
-                        <th className="p-4">الرقم الوظيفي</th>
+                        <th className="p-4">الرقم</th>
                         <th className="p-4">الموظف</th>
-                        <th className="p-4">الدور</th>
-                        <th className="p-4">المسمى الوظيفي</th>
+                        <th className="p-4">الارتباط التنظيمي</th>
                         <th className="p-4">البريد الإلكتروني</th>
-                        <th className="p-4">الجوال والتحويلة</th>
-                        <th className="p-4">اللجان المشرف عليها</th>
+                        <th className="p-4">الجوال</th>
                         <th className="p-4">حالة الحساب</th>
                         <th className="p-4 text-left">التحكم</th>
                       </tr>
@@ -1462,63 +1460,34 @@ export default function OrgChart() {
                     <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
                       {filteredEmployees.map((emp) => {
                         const isSelf = emp.id === currentUser?.id;
+                        const path = getHierarchyPath(emp);
                         return (
                           <tr key={emp.id} className={isSelf ? "bg-brand/5" : "hover:bg-gray-50/50"}>
                             <td className="p-4 font-mono font-black text-gray-900">{emp.id}</td>
                             <td className="p-4">
                               <div className="flex items-center gap-2">
-                                <img
-                                  src={emp.photo || PRESET_AVATARS[0]}
-                                  alt={emp.name}
-                                  className="w-8 h-8 rounded-lg object-cover bg-gray-50 shrink-0"
-                                  referrerPolicy="no-referrer"
-                                />
+                                <img src={emp.photo || PRESET_AVATARS[0]} alt={emp.name} className="w-8 h-8 rounded-lg object-cover bg-gray-50" />
                                 <div>
-                                  <span className="font-extrabold text-gray-900 text-[13px]">{getEmployeePrefix(emp)} {emp.name}</span>
-                                  {isSelf && <span className="mr-1 text-[9px] text-brand bg-brand/10 px-1 py-0.5 rounded font-black">(أنت)</span>}
+                                  <span className="font-extrabold text-gray-900 text-[12px]">{getEmployeePrefix(emp)} {emp.name}</span>
+                                  <div className="text-[10px] text-gray-500">{calculateDisplayJobTitle(emp)}</div>
                                 </div>
                               </div>
                             </td>
                             <td className="p-4">
-                              <span className="text-[10px] px-2 py-0.5 rounded bg-gray-100 text-gray-800 font-bold">
-                                {emp.roleAr || "أخصائي"}
+                              <span className="text-[9px] text-gray-500 mt-1 block">
+                                {path.length > 0 ? path.join(" ← ") : "غير مسكن"}
                               </span>
                             </td>
-                            <td className="p-4 text-gray-500">{emp.jobTitle}</td>
                             <td className="p-4 font-mono text-gray-600">{emp.email}</td>
-                            <td className="p-4 font-mono text-gray-600">
-                              <div>{emp.phone}</div>
-                              {emp.extension && <div className="text-[10px] text-brand font-bold">تحويلة: {emp.extension}</div>}
-                            </td>
+                            <td className="p-4 font-mono text-gray-600">{emp.phone}</td>
                             <td className="p-4">
-                              <span className="bg-gray-100 text-gray-700 px-2.5 py-0.5 rounded-lg text-[10px] font-black">
-                                {(emp.committees || []).length} لجان
-                              </span>
-                            </td>
-                            <td className="p-4">
-                              {emp.active !== false ? (
-                                <span className="text-emerald-600 text-[10px] font-black">● فعال</span>
-                              ) : (
-                                <span className="text-red-500 text-[10px] font-black">● معطل</span>
-                              )}
+                              {emp.active !== false ? <span className="text-emerald-600 text-[10px] font-black">● فعال</span> : <span className="text-red-500 text-[10px] font-black">● معطل</span>}
                             </td>
                             <td className="p-4 text-left">
                               <div className="flex items-center justify-end gap-1.5">
-                                {(currentUserRole === "SYS_ADMIN" || currentUserRole === "MANAG_DIR" || currentUserRole === "DEPT_HEAD" || isSelf) && (
-                                  <button
-                                    onClick={() => openEditModal(emp)}
-                                    className="p-1 px-2.5 bg-gray-100 hover:bg-brand/10 text-gray-600 hover:text-brand rounded-md border border-gray-200 text-[10px] font-bold"
-                                  >
-                                    تعديل
-                                  </button>
-                                )}
+                                <button onClick={() => openEditModal(emp)} className="p-1 px-2.5 bg-gray-100 text-gray-600 rounded-md border text-[10px] font-bold">تعديل</button>
                                 {currentUserRole === "SYS_ADMIN" && !isSelf && emp.id !== "01" && (
-                                  <button
-                                    onClick={() => handleDeleteEmployee(emp.id, emp.name)}
-                                    className="p-1 bg-red-50 hover:bg-red-100 text-red-650 rounded-md border border-red-100"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  <button onClick={() => handleDeleteEmployee(emp.id, emp.name)} className="p-1 bg-red-50 text-red-650 rounded-md border border-red-100"><Trash2 className="w-3.5 h-3.5" /></button>
                                 )}
                               </div>
                             </td>
@@ -1533,114 +1502,236 @@ export default function OrgChart() {
           </>
         )}
 
+        {/* TAB 2: ORG BUILDER */}
         {activeTab === "org_chart" && (
-          <div className="bg-[#f8f9fa] rounded-2xl p-6 md:p-10 border border-gray-200 shadow-sm overflow-x-auto custom-scrollbar relative">
-            <div className="min-w-[800px] flex flex-col items-center gap-12 relative pb-10">
+          <div className="bg-[#f8f9fa] rounded-2xl p-6 border border-gray-200 shadow-sm relative min-h-[600px] overflow-x-auto custom-scrollbar">
+            
+            <div className="flex items-center justify-between mb-8 border-b border-gray-200 pb-4 min-w-[800px]">
+              <div>
+                <h2 className="text-xl font-black text-gray-900">بناء الهيكل التنظيمي</h2>
+                <p className="text-xs text-gray-500 font-bold mt-1">تأسيس القطاعات والإدارات والأقسام بشكل مستقل لتسكين الموظفين عليها لاحقاً.</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center gap-6 min-w-[800px] pb-10">
               
-              {/* Level 1: Management (SYS_ADMIN, MANAG_DIR) */}
-              <div className="flex justify-center gap-8 relative z-10 w-full">
-                {safeDbEmployees.filter(e => e.role === "SYS_ADMIN" || e.role === "MANAG_DIR").length === 0 && (
-                  <div className="text-gray-400 text-xs font-bold border border-dashed border-gray-300 rounded-xl p-4">لم يتم تعيين إدارة عليا</div>
+              {/* Level 1: ROOT */}
+              {(() => {
+                const rootNode = dbOrgNodes.find(n => n.type === "ROOT");
+                return (
+                  <div className="flex flex-col items-center w-full">
+                    {!rootNode ? (
+                      <button onClick={() => { setOrgNodeForm({ id: "", name: "", type: "ROOT", parent: "", isSubcategory: false }); setShowOrgNodeModal(true); }} className="px-5 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-black transition-all flex items-center gap-2 shadow-md relative z-10 mt-4">
+                        <Plus className="w-5 h-5" /> إضافة الإدارة العليا
+                      </button>
+                    ) : (
+                      <div className="relative flex flex-col items-center">
+                        <div className="bg-amber-50 border-2 border-amber-500 rounded-xl p-4 w-64 text-center shadow-md relative z-10 group hover:shadow-lg transition-all">
+                          {currentUserRole === "SYS_ADMIN" && (
+                            <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                              <button onClick={() => { setOrgNodeForm({ ...rootNode, isSubcategory: false } as any); setShowOrgNodeModal(true); }} className="p-1 bg-white text-blue-600 rounded hover:bg-blue-50 border border-blue-100 shadow-sm"><Edit2 className="w-3 h-3" /></button>
+                              <button onClick={() => handleDeleteOrgNode(rootNode)} className="p-1 bg-white text-red-600 rounded hover:bg-red-50 border border-red-100 shadow-sm"><Trash2 className="w-3 h-3" /></button>
+                            </div>
+                          )}
+                          <h3 className="font-black text-amber-900 text-sm">{rootNode.name}</h3>
+                          <span className="text-[10px] text-amber-700 mt-1 block">مستوى الإدارة العليا</span>
+                          {renderEmployeesForNode(dbEmployees.filter(e => e.orgLevel1 === rootNode.name && !e.orgLevel2 && (!e.orgLevel5 || !dbOrgNodes.some(n => n.name === e.orgLevel5 && n.type === 'STAFF'))))}
+                        </div>
+                        
+                        {currentUserRole === "SYS_ADMIN" && (
+                          <button onClick={() => { setOrgNodeForm({ id: "", name: "", type: "STAFF", parent: rootNode.name, isSubcategory: false }); setShowOrgNodeModal(true); }} className="mt-4 px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 shadow-sm relative z-20 border border-blue-200">
+                            <Plus className="w-3.5 h-3.5" /> إضافة (سكرتير / تصنيف فرعي)
+                          </button>
+                        )}
+
+                        {dbOrgNodes.filter(n => n.type === "STAFF" && n.parent === rootNode.name).length > 0 && (
+                          <div className="flex flex-wrap justify-center gap-3 mt-4 w-full relative z-20">
+                            {dbOrgNodes.filter(n => n.type === "STAFF" && n.parent === rootNode.name).map(staff => (
+                              <div key={staff.id} className="bg-purple-50 border border-purple-300 rounded-lg p-2.5 w-40 text-center relative group shadow-sm hover:shadow-md transition-all">
+                                {currentUserRole === "SYS_ADMIN" && (
+                                  <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                    <button onClick={() => { setOrgNodeForm({ ...staff, isSubcategory: false } as any); setShowOrgNodeModal(true); }} className="p-0.5 bg-white text-blue-600 rounded hover:bg-blue-50"><Edit2 className="w-3 h-3" /></button>
+                                    <button onClick={() => handleDeleteOrgNode(staff)} className="p-0.5 bg-white text-red-600 rounded hover:bg-red-50"><Trash2 className="w-3 h-3" /></button>
+                                  </div>
+                                )}
+                                <h6 className="font-bold text-purple-900 text-[10px] mb-1">{staff.name}</h6>
+                                <span className="text-[8px] text-purple-700 block">سكرتير / وظيفة مساندة</span>
+                                {renderEmployeesForNode(dbEmployees.filter(e => e.orgLevel5 === staff.name))}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+              
+              <div className="w-px h-8 bg-gray-300 -my-6 z-0"></div>
+
+              {/* Level 2: Sectors */}
+              <div className="flex gap-8 justify-center w-full relative pt-6">
+                <div className="absolute top-0 left-10 right-10 h-px bg-gray-300 z-0"></div>
+                {dbOrgNodes.filter(n => n.type === "SECTOR").length === 0 ? (
+                  <div className="text-gray-400 text-[11px] font-bold p-4 border border-dashed border-gray-300 rounded-xl bg-white w-full text-center">لا توجد قطاعات مسجلة. اضغط على إضافة بالأعلى لتأسيس قطاع.</div>
+                ) : (
+                  dbOrgNodes.filter(n => n.type === "SECTOR").map(sector => (
+                    <div key={sector.id} className="flex flex-col items-center relative z-10">
+                      <div className="absolute top-0 w-px h-6 bg-gray-300 -mt-6 z-0"></div>
+                      
+                      <div className="bg-indigo-50 border-2 border-indigo-400 rounded-xl p-4 w-56 text-center shadow-sm relative group hover:shadow-md transition-all">
+                        {currentUserRole === "SYS_ADMIN" && (
+                          <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                            <button onClick={() => { setOrgNodeForm({ ...sector, isSubcategory: true } as any); setShowOrgNodeModal(true); }} className="p-1 bg-white text-blue-600 rounded hover:bg-blue-50 border border-blue-100 shadow-sm"><Edit2 className="w-3 h-3" /></button>
+                            <button onClick={() => handleDeleteOrgNode(sector)} className="p-1 bg-white text-red-600 rounded hover:bg-red-50 border border-red-100 shadow-sm"><Trash2 className="w-3 h-3" /></button>
+                          </div>
+                        )}
+                        <h4 className="font-black text-indigo-900 text-xs mb-2">{sector.name}</h4>
+                        <div className="flex items-center justify-center gap-1 text-[9px] text-indigo-700 bg-white rounded-full px-2 py-0.5 border border-indigo-200 w-fit mx-auto">
+                          <Users className="w-3 h-3" />
+                          <span>{dbEmployees.filter(e => e.orgLevel2 === sector.name).length} موظف</span>
+                        </div>
+                        {renderEmployeesForNode(dbEmployees.filter(e => e.orgLevel2 === sector.name && !e.orgLevel3 && (!e.orgLevel5 || !dbOrgNodes.some(n => n.name === e.orgLevel5 && n.type === 'STAFF'))))}
+                      </div>
+
+                      {currentUserRole === "SYS_ADMIN" && (
+                        <div className="flex gap-2 mt-3 relative z-20">
+                          <button onClick={() => { setOrgNodeForm({ id: "", name: "", type: "STAFF", parent: sector.name, isSubcategory: false }); setShowOrgNodeModal(true); }} className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded text-[9px] font-bold transition-all flex items-center gap-1 shadow-sm border border-purple-200">
+                            <Plus className="w-3 h-3" /> إضافة سكرتير
+                          </button>
+                          <button onClick={() => { setOrgNodeForm({ id: "", name: "", type: "DEPARTMENT", parent: sector.name, isSubcategory: true }); setShowOrgNodeModal(true); }} className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-[9px] font-bold transition-all flex items-center gap-1 shadow-sm border border-gray-200">
+                            <Plus className="w-3 h-3" /> إضافة إدارة
+                          </button>
+                        </div>
+                      )}
+
+                      {dbOrgNodes.filter(n => n.type === "STAFF" && n.parent === sector.name).length > 0 && (
+                        <div className="flex flex-col gap-2 mt-3 relative z-20 w-full items-center">
+                          {dbOrgNodes.filter(n => n.type === "STAFF" && n.parent === sector.name).map(staff => (
+                            <div key={staff.id} className="bg-purple-50 border border-purple-300 rounded-lg p-2 w-48 text-center relative group shadow-sm hover:shadow-md transition-all">
+                              {currentUserRole === "SYS_ADMIN" && (
+                                <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                  <button onClick={() => { setOrgNodeForm({ ...staff, isSubcategory: false } as any); setShowOrgNodeModal(true); }} className="p-0.5 bg-white text-blue-600 rounded hover:bg-blue-50"><Edit2 className="w-3 h-3" /></button>
+                                  <button onClick={() => handleDeleteOrgNode(staff)} className="p-0.5 bg-white text-red-600 rounded hover:bg-red-50"><Trash2 className="w-3 h-3" /></button>
+                                </div>
+                              )}
+                              <h6 className="font-bold text-purple-900 text-[10px] mb-0.5">{staff.name}</h6>
+                              <span className="text-[8px] text-purple-700 block">سكرتير / وظيفة مساندة</span>
+                              {renderEmployeesForNode(dbEmployees.filter(e => e.orgLevel5 === staff.name))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Level 3: Departments under this sector */}
+                      <div className="flex flex-col items-center mt-6 relative w-full">
+                        {dbOrgNodes.filter(n => n.type === "DEPARTMENT" && n.parent === sector.name).length > 0 && (
+                          <div className="absolute top-0 w-px h-6 bg-gray-300 -mt-6 z-0"></div>
+                        )}
+                        <div className="flex flex-col gap-4">
+                          {dbOrgNodes.filter(n => n.type === "DEPARTMENT" && n.parent === sector.name).map(dept => (
+                            <div key={dept.id} className="flex flex-col items-center relative z-10">
+                              
+                              <div className="bg-teal-50 border border-teal-400 rounded-xl p-3 w-48 text-center shadow-sm relative group hover:shadow-md transition-all">
+                                {currentUserRole === "SYS_ADMIN" && (
+                                  <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                    <button onClick={() => { setOrgNodeForm({ ...dept, isSubcategory: true } as any); setShowOrgNodeModal(true); }} className="p-1 bg-white text-blue-600 rounded hover:bg-blue-50 border border-blue-100 shadow-sm"><Edit2 className="w-3 h-3" /></button>
+                                    <button onClick={() => handleDeleteOrgNode(dept)} className="p-1 bg-white text-red-600 rounded hover:bg-red-50 border border-red-100 shadow-sm"><Trash2 className="w-3 h-3" /></button>
+                                  </div>
+                                )}
+                                <h5 className="font-black text-teal-900 text-[11px] mb-2">{dept.name}</h5>
+                                <div className="flex items-center justify-center gap-1 text-[9px] text-teal-700 bg-white rounded-full px-2 py-0.5 border border-teal-200 w-fit mx-auto">
+                                  <Users className="w-3 h-3" />
+                                  <span>{dbEmployees.filter(e => e.orgLevel3 === dept.name).length} موظف</span>
+                                </div>
+                                {renderEmployeesForNode(dbEmployees.filter(e => e.orgLevel3 === dept.name && !e.orgLevel4 && (!e.orgLevel5 || !dbOrgNodes.some(n => n.name === e.orgLevel5 && n.type === 'STAFF'))))}
+                              </div>
+
+                              {currentUserRole === "SYS_ADMIN" && (
+                                <button onClick={() => { setOrgNodeForm({ id: "", name: "", type: "SECTION", parent: dept.name, isSubcategory: true }); setShowOrgNodeModal(true); }} className="mt-2 px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-[9px] font-bold transition-all flex items-center gap-1 shadow-sm relative z-20 border border-gray-200">
+                                  <Plus className="w-3 h-3" /> إضافة قسم
+                                </button>
+                              )}
+
+                              {/* Level 4: Sections under this department */}
+                              {dbOrgNodes.filter(n => n.type === "SECTION" && n.parent === dept.name).length > 0 && (
+                                <div className="flex flex-col gap-4 mt-4 ml-4 border-r-2 border-blue-200 pr-4 w-full items-end">
+                                  {dbOrgNodes.filter(n => n.type === "SECTION" && n.parent === dept.name).map(sec => {
+                                    const explicitJobTitles = dbOrgNodes.filter(n => n.type === "JOB_TITLE" && n.parent === sec.name);
+                                    const inferredJobTitles = Array.from(new Set(
+                                      dbEmployees
+                                        .filter(e => e.orgLevel4 === sec.name && e.orgLevel5)
+                                        .map(e => e.orgLevel5)
+                                    )).filter(Boolean)
+                                      .filter(title => !explicitJobTitles.some(n => n.name === title));
+                                    
+                                    return (
+                                      <div key={sec.id} className="flex flex-col items-end gap-2 w-full relative">
+                                        <div className="bg-blue-50 border border-blue-300 rounded-lg p-2.5 w-40 text-center relative group shadow-sm hover:shadow-md transition-all">
+                                          {currentUserRole === "SYS_ADMIN" && (
+                                            <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                              <button onClick={() => { setOrgNodeForm({ ...sec, isSubcategory: true } as any); setShowOrgNodeModal(true); }} className="p-0.5 bg-white text-blue-600 rounded hover:bg-blue-50"><Edit2 className="w-3 h-3" /></button>
+                                              <button onClick={() => handleDeleteOrgNode(sec)} className="p-0.5 bg-white text-red-600 rounded hover:bg-red-50"><X className="w-3 h-3" /></button>
+                                            </div>
+                                          )}
+                                          <h6 className="font-bold text-blue-900 text-[10px] mb-1">{sec.name}</h6>
+                                          <div className="flex items-center justify-center gap-1 text-[8px] text-blue-700 bg-white rounded-full px-1.5 py-0.5 border border-blue-200 w-fit mx-auto">
+                                            <Users className="w-2.5 h-2.5" />
+                                            <span>{dbEmployees.filter(e => e.orgLevel4 === sec.name).length} موظف</span>
+                                          </div>
+                                          {renderEmployeesForNode(dbEmployees.filter(e => e.orgLevel4 === sec.name && !e.orgLevel5))}
+                                        </div>
+
+                                        {currentUserRole === "SYS_ADMIN" && (
+                                          <button onClick={() => { setOrgNodeForm({ id: "", name: "", type: "JOB_TITLE", parent: sec.name, isSubcategory: false }); setShowOrgNodeModal(true); }} className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-[8px] font-bold transition-all flex items-center gap-1 shadow-sm border border-gray-200 self-end ml-4">
+                                            <Plus className="w-3 h-3" /> إضافة أخصائي / مسمى
+                                          </button>
+                                        )}
+
+                                        {/* Level 5: Job Titles under this section */}
+                                        {(explicitJobTitles.length > 0 || inferredJobTitles.length > 0) && (
+                                          <div className="flex flex-col gap-2 mt-1 ml-4 border-r-2 border-indigo-100 pr-3 w-full items-end">
+                                            {explicitJobTitles.map(job => (
+                                              <div key={job.id} className="bg-indigo-50 border border-indigo-200 rounded-lg p-2 w-36 text-center shadow-sm relative group hover:shadow-md transition-all">
+                                                {currentUserRole === "SYS_ADMIN" && (
+                                                  <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                                    <button onClick={() => { setOrgNodeForm({ ...job, isSubcategory: false } as any); setShowOrgNodeModal(true); }} className="p-0.5 bg-white text-blue-600 rounded hover:bg-blue-50"><Edit2 className="w-3 h-3" /></button>
+                                                    <button onClick={() => handleDeleteOrgNode(job)} className="p-0.5 bg-white text-red-600 rounded hover:bg-red-50"><X className="w-3 h-3" /></button>
+                                                  </div>
+                                                )}
+                                                <h6 className="font-bold text-indigo-900 text-[9px] mb-1 truncate">{job.name}</h6>
+                                                {renderEmployeesForNode(dbEmployees.filter(e => e.orgLevel4 === sec.name && e.orgLevel5 === job.name))}
+                                              </div>
+                                            ))}
+                                            {inferredJobTitles.map((title, idx) => (
+                                              <div key={`inferred-${idx}`} className="bg-gray-50 border border-gray-200 rounded-lg p-2 w-36 text-center shadow-sm relative">
+                                                <h6 className="font-bold text-gray-700 text-[9px] mb-1 truncate">{title}</h6>
+                                                {renderEmployeesForNode(dbEmployees.filter(e => e.orgLevel4 === sec.name && e.orgLevel5 === title))}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                    </div>
+                  ))
                 )}
-                {safeDbEmployees.filter(e => e.role === "SYS_ADMIN" || e.role === "MANAG_DIR").map(emp => (
-                  <div key={emp.id} className="relative group flex flex-col items-center">
-                    {/* Line connecting down */}
-                    <div className="absolute top-full left-1/2 w-px h-12 bg-blue-300 -z-10" />
-                    
-                    <div className="bg-white rounded-2xl shadow-md border-2 border-amber-200 p-5 w-64 text-center hover:shadow-xl transition-all relative z-10 hover:-translate-y-1">
-                      <div className="absolute top-0 right-0 w-full h-1.5 bg-amber-400 rounded-t-2xl" />
-                      <div className="w-16 h-16 mx-auto bg-gray-50 rounded-full border-2 border-white shadow-sm flex items-center justify-center overflow-hidden mb-3">
-                        {emp.photo ? <img src={emp.photo} alt={emp.name} className="w-full h-full object-cover" /> : <User className="w-8 h-8 text-gray-400" />}
-                      </div>
-                      <h3 className="font-black text-gray-900 text-sm mb-1">{getEmployeePrefix(emp)} {emp.name}</h3>
-                      <p className="text-amber-600 text-[11px] font-bold bg-amber-50 rounded-lg py-1 px-2 mb-3">{emp.jobTitle || "إدارة عليا"}</p>
-                      
-                      <div className="border-t border-gray-100 pt-3 space-y-2 text-[10px] text-gray-500 font-semibold text-right">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <Briefcase className="w-3.5 h-3.5 text-gray-400" />
-                          <span>{emp.roleAr}</span>
-                        </div>
-                        <div className="flex items-center justify-center gap-1.5">
-                          <Mail className="w-3.5 h-3.5 text-gray-400" />
-                          <span className="truncate" title={emp.email}>{emp.email}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
               </div>
 
-              {/* Level 2: Department Heads */}
-              <div className="flex justify-center gap-8 relative z-10 w-full">
-                {/* Horizontal connecting line from parents to this level */}
-                <div className="absolute top-0 left-1/2 w-[60%] h-px bg-blue-300 -translate-x-1/2 -z-10" />
-                
-                {safeDbEmployees.filter(e => e.role === "DEPT_HEAD").map(emp => (
-                  <div key={emp.id} className="relative group flex flex-col items-center">
-                    {/* Line connecting up */}
-                    <div className="absolute bottom-full left-1/2 w-px h-12 bg-blue-300 -z-10" />
-                    {/* Line connecting down */}
-                    <div className="absolute top-full left-1/2 w-px h-12 bg-blue-300 -z-10" />
-
-                    <div className="bg-white rounded-2xl shadow border-2 border-teal-200 p-4 w-56 text-center hover:shadow-lg transition-all relative z-10 hover:-translate-y-1">
-                      <div className="absolute top-0 right-0 w-full h-1.5 bg-teal-400 rounded-t-2xl" />
-                      <div className="w-14 h-14 mx-auto bg-gray-50 rounded-full border-2 border-white shadow-sm flex items-center justify-center overflow-hidden mb-3">
-                        {emp.photo ? <img src={emp.photo} alt={emp.name} className="w-full h-full object-cover" /> : <User className="w-7 h-7 text-gray-400" />}
-                      </div>
-                      <h3 className="font-black text-gray-900 text-xs mb-1">{getEmployeePrefix(emp)} {emp.name}</h3>
-                      <p className="text-teal-600 text-[10px] font-bold bg-teal-50 rounded-lg py-1 px-2 mb-3">{emp.jobTitle || "رئيس قسم"}</p>
-                      
-                      <div className="border-t border-gray-100 pt-2.5 space-y-1.5 text-[9px] text-gray-500 font-semibold text-right">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <Briefcase className="w-3 h-3 text-gray-400" />
-                          <span>{emp.roleAr}</span>
-                        </div>
-                        <div className="flex items-center justify-center gap-1.5">
-                          <Mail className="w-3 h-3 text-gray-400" />
-                          <span className="truncate" title={emp.email}>{emp.email}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Level 3: Specialists */}
-              <div className="flex flex-wrap justify-center gap-6 relative z-10 w-full max-w-6xl">
-                {/* Horizontal connecting line */}
-                <div className="absolute top-0 left-1/2 w-[80%] h-px bg-blue-300 -translate-x-1/2 -z-10" />
-
-                {safeDbEmployees.filter(e => e.role === "SPECIALIST").map(emp => (
-                  <div key={emp.id} className="relative group flex flex-col items-center mt-12">
-                    {/* Line connecting up */}
-                    <div className="absolute bottom-full left-1/2 w-px h-12 bg-blue-300 -z-10" />
-
-                    <div className="bg-white rounded-2xl shadow-sm border border-blue-200 p-4 w-48 text-center hover:shadow-md transition-all relative z-10 hover:-translate-y-1">
-                      <div className="w-12 h-12 mx-auto bg-gray-50 rounded-full border border-gray-100 shadow-sm flex items-center justify-center overflow-hidden mb-2">
-                        {emp.photo ? <img src={emp.photo} alt={emp.name} className="w-full h-full object-cover" /> : <User className="w-6 h-6 text-gray-400" />}
-                      </div>
-                      <h3 className="font-extrabold text-gray-800 text-xs mb-1">{getEmployeePrefix(emp)} {emp.name}</h3>
-                      <p className="text-blue-600 text-[10px] font-bold bg-blue-50 rounded-lg py-0.5 px-2 mb-2 truncate">{emp.jobTitle || "أخصائي"}</p>
-                      
-                      <div className="border-t border-gray-100 pt-2 space-y-1.5 text-[9px] text-gray-500 font-semibold text-right">
-                        <div className="flex items-center justify-center gap-1">
-                          <Briefcase className="w-3 h-3 text-gray-400" />
-                          <span>{emp.roleAr}</span>
-                        </div>
-                        <div className="flex items-center justify-center gap-1">
-                          <Mail className="w-3 h-3 text-gray-400" />
-                          <span className="truncate" title={emp.email}>{emp.email}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         )}
 
-        {/* TAB 2: TRANSFER DUTIES & SUPERVISONS */}
+        {/* TAB: TRANSFER DUTIES */}
         {activeTab === "transfer" && currentUserRole === "SYS_ADMIN" && (
           <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-6">
             <div>
@@ -1648,210 +1739,81 @@ export default function OrgChart() {
                 <ArrowRightLeft className="w-5 h-5 text-amber-500" />
                 <span>تفويض الصلاحيات وتبديل العهد الإدارية</span>
               </h2>
-              <p className="text-gray-500 text-xs mt-1">
-                تتيح لك هذه الشاشة نقل اللجان القطاعية، المهام الإدارية، الفعاليات الحالية، والتوصيات فورياً من كاهل موظف أو مشرف لزميلة آخر (عند الانتقال أو الإجازات).
-              </p>
+              <p className="text-gray-500 text-xs mt-1">تتيح لك هذه الشاشة نقل اللجان والمهام من موظف لآخر.</p>
             </div>
-
-            {transferSuccess && (
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-700 text-xs font-bold leading-relaxed">
-                <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                <span>{transferSuccess}</span>
-              </div>
-            )}
-
-            {transferError && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-650 text-xs font-bold leading-relaxed">
-                <XCircle className="w-5 h-5 text-red-600 shrink-0" />
-                <span>{transferError}</span>
-              </div>
-            )}
-
+            {transferSuccess && <div className="p-4 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-xl">{transferSuccess}</div>}
+            {transferError && <div className="p-4 bg-red-50 text-red-650 text-xs font-bold rounded-xl">{transferError}</div>}
+            
             <form onSubmit={handleTransferDuties} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* Source Employee Select */}
-                <div className="bg-gray-55/40 p-4 rounded-xl border border-gray-150">
-                  <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">أولاً: الموظف المسؤول المكلف حالياً (المصدر/المنقول منه)</label>
-                  <select
-                    value={sourceEmpId}
-                    onChange={(e) => {
-                      setSourceEmpId(e.target.value);
-                      setTransferSuccess("");
-                      setTransferError("");
-                    }}
-                    className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-xs font-bold text-gray-700"
-                  >
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                  <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">الموظف الحالي (المصدر)</label>
+                  <select value={sourceEmpId} onChange={(e) => setSourceEmpId(e.target.value)} className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-xs font-bold">
                     <option value="">-- اختر الموظف لترحيل أعماله --</option>
                     {safeDbEmployees.filter(e => e.active !== false).map(emp => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.name} ({emp.roleAr}) - الرقم الوظيفي: {emp.id} [لجان: {emp.committees?.length || 0}]
-                      </option>
+                      <option key={emp.id} value={emp.id}>{emp.name} ({emp.id})</option>
                     ))}
                   </select>
                 </div>
-
-                {/* Target Employee Select */}
-                <div className="bg-gray-55/40 p-4 rounded-xl border border-gray-150">
-                  <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">ثانياً: الموظف البديل المستهدف (المستقبل/المنقول إليه)</label>
-                  <select
-                    value={targetEmpId}
-                    onChange={(e) => {
-                      setTargetEmpId(e.target.value);
-                      setTransferSuccess("");
-                      setTransferError("");
-                    }}
-                    className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-xs font-bold text-gray-700"
-                  >
-                    <option value="">-- اختر الموظف البديل لاستلام العهد --</option>
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                  <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">الموظف البديل (المستهدف)</label>
+                  <select value={targetEmpId} onChange={(e) => setTargetEmpId(e.target.value)} className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-xs font-bold">
+                    <option value="">-- اختر الموظف البديل --</option>
                     {safeDbEmployees.filter(e => e.active !== false && e.id !== sourceEmpId).map(emp => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.name} ({emp.roleAr}) - الرقم الوظيفي: {emp.id}
-                      </option>
+                      <option key={emp.id} value={emp.id}>{emp.name} ({emp.id})</option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              {/* Scope checkboxes selection */}
               <div className="bg-slate-50 p-5 rounded-xl border border-gray-200 space-y-3.5">
-                <span className="block text-xs font-black text-gray-800">العناصر والعهد الإدارية المشمولة بالنقل الفوري:</span>
-                
+                <span className="block text-xs font-black text-gray-800">العناصر المشمولة بالنقل:</span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-1">
-                  
-                  <label className="flex items-center gap-2.5 cursor-pointer text-xs font-bold text-gray-700 select-none">
-                    <input
-                      type="checkbox"
-                      checked={transferCommittees}
-                      onChange={(e) => setTransferCommittees(e.target.checked)}
-                      className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4 cursor-pointer"
-                    />
-                    <span>إشراف اللجان القطاعية</span>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
+                    <input type="checkbox" checked={transferCommittees} onChange={(e) => setTransferCommittees(e.target.checked)} className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4" />
+                    <span>اللجان القطاعية</span>
                   </label>
-
-                  <label className="flex items-center gap-2.5 cursor-pointer text-xs font-bold text-gray-700 select-none">
-                    <input
-                      type="checkbox"
-                      checked={transferTasks}
-                      onChange={(e) => setTransferTasks(e.target.checked)}
-                      className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4 cursor-pointer"
-                    />
-                    <span>المهام الإدارية الداخلية</span>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
+                    <input type="checkbox" checked={transferTasks} onChange={(e) => setTransferTasks(e.target.checked)} className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4" />
+                    <span>المهام الإدارية</span>
                   </label>
-
-                  <label className="flex items-center gap-2.5 cursor-pointer text-xs font-bold text-gray-700 select-none">
-                    <input
-                      type="checkbox"
-                      checked={transferEvents}
-                      onChange={(e) => setTransferEvents(e.target.checked)}
-                      className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4 cursor-pointer"
-                    />
-                    <span>جدولة الفعاليات والاجتماعات</span>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
+                    <input type="checkbox" checked={transferEvents} onChange={(e) => setTransferEvents(e.target.checked)} className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4" />
+                    <span>الفعاليات</span>
                   </label>
-
-                  <label className="flex items-center gap-2.5 cursor-pointer text-xs font-bold text-gray-700 select-none">
-                    <input
-                      type="checkbox"
-                      checked={transferRecs}
-                      onChange={(e) => setTransferRecs(e.target.checked)}
-                      className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4 cursor-pointer"
-                    />
-                    <span>متابعة التوصيات وقرارات اللجان</span>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
+                    <input type="checkbox" checked={transferRecs} onChange={(e) => setTransferRecs(e.target.checked)} className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4" />
+                    <span>التوصيات</span>
                   </label>
-
                 </div>
               </div>
-
-              <div className="flex justify-end pt-3">
-                <button
-                  type="submit"
-                  disabled={isTransferring}
-                  className="px-6 py-3 bg-brand hover:bg-brand/95 text-white rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
-                >
-                  {isTransferring ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                      <span>جاري تهيئة ونقل الأعمال العشوائية...</span>
-                    </>
-                  ) : (
-                    <>
-                      <ArrowRightLeft className="w-4 h-4" />
-                      <span>تأكيد الإحالة وتفويض المهام</span>
-                    </>
-                  )}
+              <div className="flex justify-end">
+                <button type="submit" disabled={isTransferring} className="px-6 py-3 bg-brand text-white rounded-xl text-xs font-black disabled:opacity-50">
+                  {isTransferring ? "جاري النقل..." : "تأكيد تفويض المهام"}
                 </button>
               </div>
             </form>
           </div>
         )}
 
-        {/* TAB 3: JOIN REQUESTS & APPROVED WHITELIST */}
+        {/* TAB: APPROVALS */}
         {activeTab === "approvals" && currentUserRole === "SYS_ADMIN" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            
-            {/* Left Col: Pending Join requests (size 7) */}
-            <div className="lg:col-span-7 bg-white rounded-2xl p-5 border border-gray-200 shadow-sm space-y-4">
-              <div>
-                <h2 className="text-sm font-black text-gray-900 flex items-center gap-1.5">
-                  <UserCheck className="w-5 h-5 text-amber-500" />
-                  <span>طلبات التسجيل والانضمام المعلقة ({dbJoinRequests.length})</span>
-                </h2>
-                <p className="text-gray-500 text-[11px] mt-0.5">
-                  يرسل الموظفون وعاملو الأقسام والمنسقون الجدد طلب انضمام بالاسم، الجوال والبريد. يمكنك مراجعتها واعتمادها فورياً هنا.
-                </p>
-              </div>
-
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm space-y-4">
+              <h2 className="text-sm font-black text-gray-900 flex items-center gap-1.5"><UserCheck className="w-5 h-5 text-amber-500" /><span>طلبات الانضمام المعلقة</span></h2>
               {dbJoinRequests.length === 0 ? (
-                <div className="p-8 border border-dashed border-gray-200 rounded-xl text-center">
-                  <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
-                  <span className="text-[11px] font-bold text-gray-500 block">لا توجد طلبات انضمام معلقة حالياً.</span>
-                  <span className="text-gray-405 text-[10px]">كافة الحسابات مراجعة ومفعلة.</span>
-                </div>
+                <div className="p-8 border border-dashed border-gray-200 rounded-xl text-center text-[11px] font-bold text-gray-500">لا توجد طلبات معلقة.</div>
               ) : (
                 <div className="space-y-3">
                   {dbJoinRequests.map((req) => (
-                    <div
-                      key={req.id}
-                      className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
-                    >
-                      <div className="space-y-1.5">
-                        <span className="font-extrabold text-xs text-gray-900 block">
-                          {getEmployeePrefix(req)} {req.name}
-                        </span>
-                        
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-gray-500 font-semibold font-mono">
-                          <span className="flex items-center gap-1">
-                            <Mail className="w-3.5 h-3.5 text-gray-400" />
-                            <span>{req.email}</span>
-                          </span>
-
-                          <span className="flex items-center gap-1">
-                            <Phone className="w-3.5 h-3.5 text-gray-400" />
-                            <span>{req.phone}</span>
-                          </span>
-
-                          <span className="flex items-center gap-1 text-brand">
-                            <Calendar className="w-3.5 h-3.5 text-brand" />
-                            <span>تاريخ التقديم: {req.requestDate}</span>
-                          </span>
-                        </div>
+                    <div key={req.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex justify-between items-center gap-4">
+                      <div>
+                        <span className="font-extrabold text-xs text-gray-900 block">{req.name}</span>
+                        <div className="text-[10px] text-gray-500 font-mono mt-1">{req.email} | {req.phone}</div>
                       </div>
-
-                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                        <button
-                          onClick={() => handleApproveJoinRequest(req)}
-                          className="px-3 py-1.5 bg-brand hover:bg-brand/90 text-white rounded-lg text-[10px] font-black cursor-pointer transition-all flex items-center gap-1 shadow-sm"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          <span>اعتماد</span>
-                        </button>
-                        <button
-                          onClick={() => handleRejectJoinRequest(req)}
-                          className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-[10px] font-black cursor-pointer transition-all flex items-center gap-1 border border-red-100"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                          <span>رفض</span>
-                        </button>
+                      <div className="flex gap-2 shrink-0">
+                        <button onClick={() => handleApproveJoinRequest(req)} className="px-3 py-1.5 bg-brand text-white rounded-lg text-[10px] font-black"><Check className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => handleRejectJoinRequest(req)} className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-[10px] font-black"><X className="w-3.5 h-3.5" /></button>
                       </div>
                     </div>
                   ))}
@@ -1859,1237 +1821,463 @@ export default function OrgChart() {
               )}
             </div>
 
-            {/* Right Col: approved email Whitelist (size 5) */}
-            <div className="lg:col-span-5 bg-white rounded-2xl p-5 border border-gray-200 shadow-sm space-y-5">
-              <div>
-                <h2 className="text-sm font-black text-gray-900 flex items-center gap-1.5">
-                  <Lock className="w-5 h-5 text-brand" />
-                  <span>البريد الإلكتروني المسموح لوظائف Whitelist</span>
-                </h2>
-                <p className="text-gray-550 text-[11px] mt-0.5">
-                  إعداد مسبق لعناوين البريد الإلكتروني للمنسقين لتسجيل الدخول المباشر فور تسجيلهم، دون قيود أو طلب مراجعة.
-                </p>
-              </div>
-
-              {/* Form to Add Whitelist email */}
+            <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm space-y-5">
+              <h2 className="text-sm font-black text-gray-900 flex items-center gap-1.5"><Lock className="w-5 h-5 text-brand" /><span>البريد المسموح (Whitelist)</span></h2>
               <form onSubmit={handleAddWhitelistEmail} className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
-                <span className="block text-[11px] font-black text-gray-800">إضافة اعتماد بريد موظف معتمد:</span>
-                
                 <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <input
-                      type="text"
-                      placeholder="اسم الموظف"
-                      value={whitelistNameStr}
-                      onChange={(e) => setWhitelistNameStr(e.target.value)}
-                      className="w-full bg-white border border-gray-300 rounded-lg px-2.5 py-2 text-[10px] sm:text-xs font-bold text-gray-700"
-                    />
-                  </div>
-                  <div>
-                    <input
-                      type="email"
-                      placeholder="X.XXXX@makkahchamber.sa"
-                      dir="ltr"
-                      value={whitelistEmailStr}
-                      onChange={(e) => setWhitelistEmailStr(e.target.value)}
-                      className="w-full bg-white border border-gray-300 rounded-lg px-2.5 py-2 text-[10px] sm:text-xs text-left font-semibold"
-                    />
-                  </div>
+                  <input type="text" placeholder="اسم الموظف" value={whitelistNameStr} onChange={(e) => setWhitelistNameStr(e.target.value)} className="w-full bg-white border border-gray-300 rounded-lg px-2.5 py-2 text-[10px] font-bold text-gray-700" />
+                  <input type="email" placeholder="البريد" value={whitelistEmailStr} onChange={(e) => setWhitelistEmailStr(e.target.value)} dir="ltr" className="w-full bg-white border border-gray-300 rounded-lg px-2.5 py-2 text-[10px] font-semibold text-left" />
                 </div>
-
-                <div className="flex items-center justify-between gap-2.5 pt-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-black text-gray-500 whitespace-nowrap">تعيين دور:</span>
-                    <select
-                      value={whitelistRoleAr}
-                      onChange={(e) => setWhitelistRoleAr(e.target.value)}
-                      className="bg-white border border-gray-200 rounded-lg py-1 px-2 text-[11px] font-bold"
-                    >
-                      <option value="أخصائي لجان">أخصائي لجان</option>
-                      <option value="رئيس قسم اللجان">رئيس قسم لجان</option>
-                      <option value="مدير إدارة اللجان">مدير إدارة لجان</option>
-                    </select>
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="p-2 px-3.5 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-black rounded-lg cursor-pointer transition-all"
-                  >
-                    إضافة للقائمة المسموحة
-                  </button>
+                <div className="flex items-center justify-between">
+                  <select value={whitelistRoleAr} onChange={(e) => setWhitelistRoleAr(e.target.value)} className="bg-white border border-gray-200 rounded-lg py-1 px-2 text-[10px] font-bold">
+                    <option value="أخصائي لجان">أخصائي لجان</option>
+                    <option value="رئيس قسم لجان">رئيس قسم لجان</option>
+                    <option value="مدير إدارة لجان">مدير إدارة لجان</option>
+                  </select>
+                  <button type="submit" className="p-2 px-3.5 bg-slate-900 text-white text-[10px] font-black rounded-lg">إضافة</button>
                 </div>
               </form>
-
-              {/* whitelist entries list */}
-              <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-1">
-                {dbApprovedEmails && dbApprovedEmails.length === 0 ? (
-                  <span className="text-[10px] font-bold text-gray-400 block text-center pt-3">لا توجد عناوين بريدية معتمدة بشكل مسبق.</span>
-                ) : (
-                  dbApprovedEmails?.map((item) => (
-                    <div
-                      key={item.id}
-                      className="p-3 bg-white border border-gray-200 rounded-xl flex items-center justify-between gap-3 text-xs leading-none"
-                    >
-                      <div className="space-y-1">
-                        <span className="font-extrabold text-[11px] text-gray-900 block">{item.name}</span>
-                        <span className="font-mono text-[10px] text-gray-400 block">{item.email}</span>
-                        <span className="text-[9px] text-brand font-black block">لدور ومستوى: {item.roleAr}</span>
-                      </div>
-
-                      <button
-                        onClick={() => handleRemoveWhitelistEmail(item.id, item.email)}
-                        className="p-1.5 bg-red-50 hover:bg-red-100 text-red-650 rounded-lg cursor-pointer transition-all border border-red-100 shrink-0"
-                        title="إلغاء Whitelist"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {dbApprovedEmails.map((item) => (
+                  <div key={item.id} className="p-3 bg-white border border-gray-200 rounded-xl flex items-center justify-between gap-3 text-xs">
+                    <div>
+                      <span className="font-extrabold text-[11px] text-gray-900 block">{item.name}</span>
+                      <span className="text-[10px] text-gray-400 block">{item.email} - {item.roleAr}</span>
                     </div>
-                  ))
-                )}
+                    <button onClick={() => handleRemoveWhitelistEmail(item.id, item.email)} className="p-1.5 bg-red-50 text-red-650 rounded-lg"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
+                ))}
               </div>
             </div>
-
           </div>
         )}
 
-        {/* TAB 5: CUSTOM PAGE VIEW PERMISSIONS (صلاحيات عرض صفحات النظام) */}
+        {/* TAB: PERMISSIONS */}
         {activeTab === "permissions" && currentUserRole === "SYS_ADMIN" && (
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-6 animate-fadeIn">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
-              <div>
-                <h2 className="text-base font-black text-gray-900 flex items-center gap-1.5">
-                  <Lock className="w-5 h-5 text-indigo-600 shrink-0" />
-                  <span>صلاحيات عرض صفحات النظام المخصصة (من صلاحيات مدير النظام)</span>
-                </h2>
-                <p className="text-gray-500 text-xs mt-1">
-                  تتيح لك هذه اللوحة الرقابية تحديد الصفحات وأوراق العمل المسموح لكل أخصائي أو موظف تصفحها ضمن النظام. ضع علامة صح أمام المكون لتفعيله، أو أزلها لحجب المكون عن الموظف فورياً وبصورة حية.
-                </p>
-              </div>
-
-              {/* Quick Search */}
-              <div className="relative w-full sm:w-64">
-                <input
-                  type="text"
-                  placeholder="ابحث عن موظف لتعديل صلاحياته..."
-                  value={permSearchTerm}
-                  onChange={(e) => setPermSearchTerm(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-250 rounded-xl px-4 py-2 pr-9 text-xs focus:outline-none focus:ring-2 focus:ring-brand font-semibold text-right"
-                />
-                <Search className="absolute top-2.5 right-3 text-gray-400 w-3.5 h-3.5" />
-              </div>
-            </div>
-
-            <div className="overflow-x-auto custom-scrollbar rounded-xl border border-gray-200 shadow-inner bg-slate-50/20">
+          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-6">
+            <h2 className="text-base font-black text-gray-900 flex items-center gap-1.5"><Lock className="w-5 h-5 text-indigo-600" /><span>صلاحيات الوصول</span></h2>
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
               <table className="w-full text-right text-xs">
                 <thead className="bg-[#fcfdfd] border-b border-gray-200 text-gray-700 font-extrabold text-[10.5px]">
                   <tr>
-                    <th className="p-4 whitespace-nowrap">الموظف / الأخصائي</th>
-                    <th className="p-4 text-center whitespace-nowrap">الرئيسية 🏠</th>
-                    <th className="p-4 text-center whitespace-nowrap">تشكيل اللجان 👥</th>
-                    <th className="p-4 text-center whitespace-nowrap">سجل الأعضاء 📇</th>
-                    <th className="p-4 text-center whitespace-nowrap">الفعاليات 📅</th>
-                    <th className="p-4 text-center whitespace-nowrap">التوصيات 🏆</th>
-                    <th className="p-4 text-center whitespace-nowrap">المهام الإدارية 📋</th>
-                    <th className="p-4 text-center whitespace-nowrap">التقارير 📊</th>
-                    <th className="p-4 text-center whitespace-nowrap">المكتبة الرقمية 📚</th>
-                    <th className="p-4 text-center whitespace-nowrap">الهيكل الإداري ⚙️</th>
-                    <th className="p-4 text-center whitespace-nowrap bg-indigo-50/50">تحكم كلي</th>
+                    <th className="p-4">الموظف</th>
+                    <th className="p-4 text-center">الرئيسية</th>
+                    <th className="p-4 text-center">تشكيل اللجان</th>
+                    <th className="p-4 text-center">الأعضاء</th>
+                    <th className="p-4 text-center">الفعاليات</th>
+                    <th className="p-4 text-center">التوصيات</th>
+                    <th className="p-4 text-center">المهام</th>
+                    <th className="p-4 text-center">التقارير</th>
+                    <th className="p-4 text-center">المكتبة</th>
+                    <th className="p-4 text-center bg-blue-50">إدارة النظام</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-150 font-bold text-gray-600 bg-white">
-                  {(() => {
-                    const SYSTEM_PAGES = [
-                      { path: "/", label: "الرئيسية" },
-                      { path: "/committees", label: "تشكيل اللجان" },
-                      { path: "/members", label: "سجل الأعضاء" },
-                      { path: "/events", label: "الفعاليات" },
-                      { path: "/recommendations", label: "التوصيات" },
-                      { path: "/tasks", label: "المهام" },
-                      { path: "/reports", label: "التقارير" },
-                      { path: "/library", label: "المكتبة" },
-                      { path: "/org-chart", label: "الهيكل" }
-                    ];
+                <tbody className="divide-y divide-gray-150 font-bold text-gray-600">
+                  {safeDbEmployees.map((emp) => {
+                    const SYSTEM_PAGES = ["/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library"];
+                    const currentAllowed = emp.allowedPages?.length ? emp.allowedPages : SYSTEM_PAGES;
+                    
+                    const handleCheckbox = async (path: string) => {
+                      const updated = currentAllowed.includes(path) ? currentAllowed.filter(p => p !== path) : [...currentAllowed, path];
+                      await updateFirebaseEmp(emp.id, { allowedPages: updated });
+                    };
 
-                    const filteredPermEmployees = safeDbEmployees.filter(emp => 
-                      !permSearchTerm ||
-                      emp.name.toLowerCase().includes(permSearchTerm.toLowerCase()) ||
-                      emp.id.includes(permSearchTerm) ||
-                      (emp.email && emp.email.toLowerCase().includes(permSearchTerm.toLowerCase())) ||
-                      (emp.jobTitle && emp.jobTitle.toLowerCase().includes(permSearchTerm.toLowerCase())) ||
-                      (emp.roleAr && emp.roleAr.toLowerCase().includes(permSearchTerm.toLowerCase()))
-                    );
-
-                    if (filteredPermEmployees.length === 0) {
-                      return (
-                        <tr>
-                          <td colSpan={11} className="p-10 text-center text-gray-400 italic">
-                            لا يوجد موظفون يطابقون معايير البحث الحالية.
+                    return (
+                      <tr key={emp.id} className="hover:bg-gray-50/50">
+                        <td className="p-4 text-xs font-extrabold text-gray-900">{emp.name}</td>
+                        {SYSTEM_PAGES.map(path => (
+                          <td key={path} className="p-4 text-center">
+                            <input type="checkbox" checked={currentAllowed.includes(path)} onChange={() => handleCheckbox(path)} className="w-4 h-4 text-emerald-600" />
                           </td>
-                        </tr>
-                      );
-                    }
-
-                    return filteredPermEmployees.map((emp) => {
-                      const currentAllowed = (emp.allowedPages && emp.allowedPages.length > 0)
-                        ? emp.allowedPages
-                        : SYSTEM_PAGES.map(p => p.path);
-
-                      const handleCheckboxToggle = async (path: string) => {
-                        let updatedAllowed: string[];
-                        if (currentAllowed.includes(path)) {
-                          updatedAllowed = currentAllowed.filter(p => p !== path);
-                        } else {
-                          updatedAllowed = [...currentAllowed, path];
-                        }
-                        
-                        try {
-                          await updateFirebaseEmp(emp.id, { allowedPages: updatedAllowed });
-                          
-                          await addFirebaseLog({
-                            employeeName: currentUser?.name || "مدير النظام",
-                            time: new Date().toISOString().replace('T', ' ').substring(0, 16),
-                            operationType: "تعديل صلاحيات الوصول",
-                            status: "ناجحة",
-                            details: `تم تعديل صلاحيات الموظف [${emp.name}]. الصفحات المصرحة: ${updatedAllowed.length}`
-                          });
-                        } catch (err: any) {
-                          alert("فشل التعديل: " + err.message);
-                        }
-                      };
-
-                      const toggleAll = async (grantAll: boolean) => {
-                        const updatedAllowed = grantAll ? SYSTEM_PAGES.map(p => p.path) : [];
-                        try {
-                          await updateFirebaseEmp(emp.id, { allowedPages: updatedAllowed });
-                          
-                          await addFirebaseLog({
-                            employeeName: currentUser?.name || "مدير النظام",
-                            time: new Date().toISOString().replace('T', ' ').substring(0, 16),
-                            operationType: grantAll ? "منح صلاحيات كلي" : "سحب صلاحيات كلي",
-                            status: "ناجحة",
-                            details: grantAll 
-                              ? `تم منح كافة صلاحيات الصفحات للموظف [${emp.name}]`
-                              : `تم حجب كافة صلاحيات الصفحات عن الموظف [${emp.name}]`
-                          });
-                        } catch (err: any) {
-                          alert("فشل المزامنة: " + err.message);
-                        }
-                      };
-
-                      const hasAll = SYSTEM_PAGES.every(p => currentAllowed.includes(p.path));
-                      const hasNone = currentAllowed.length === 0;
-
-                      return (
-                        <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
-                          {/* Employee Info Card */}
-                          <td className="p-4 flex items-center gap-3">
-                            {emp.photo ? (
-                              <img
-                                src={emp.photo}
-                                alt={emp.name}
-                                className="w-9 h-9 rounded-full object-cover border border-gray-200"
-                                referrerPolicy="no-referrer"
-                              />
-                            ) : (
-                              <div className="w-9 h-9 rounded-full bg-brand/10 text-brand flex items-center justify-center font-black text-xs">
-                                {emp.name ? emp.name.charAt(0) : "م"}
-                              </div>
-                            )}
-                            <div className="space-y-0.5 text-right">
-                              <span className="font-extrabold text-xs text-gray-900 block">
-                                {emp.name}
-                              </span>
-                              <div className="flex items-center gap-1.5 text-[10px] text-gray-400 font-bold">
-                                <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-[9px] font-black">{emp.roleAr}</span>
-                                <span className="truncate max-w-[120px]" title={emp.email}>{emp.email}</span>
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* SYSTEM PAGES CHECKBOXES */}
-                          {SYSTEM_PAGES.map((page) => {
-                            const isChecked = currentAllowed.includes(page.path);
-                            return (
-                              <td key={page.path} className="p-4 text-center">
-                                <div className="flex items-center justify-center">
-                                  <label className="relative flex items-center justify-center p-2 cursor-pointer group">
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      onChange={() => handleCheckboxToggle(page.path)}
-                                      className="sr-only peer"
-                                    />
-                                    <div className="w-5 h-5 bg-gray-50 border border-gray-300 rounded-md transition-all duration-200 flex items-center justify-center peer-checked:bg-emerald-600 peer-checked:border-emerald-750 peer-checked:shadow-sm group-hover:scale-105">
-                                      {isChecked && <Check className="w-3.5 h-3.5 text-white stroke-[4]" />}
-                                    </div>
-                                  </label>
-                                </div>
-                              </td>
-                            );
-                          })}
-
-                          {/* Quick Admin Toggles */}
-                          <td className="p-4 text-center bg-indigo-50/10">
-                            <div className="flex items-center justify-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => toggleAll(true)}
-                                disabled={hasAll}
-                                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-[9px] rounded-lg border border-emerald-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="تفعيل الكل"
-                              >
-                                الكل ✔️
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => toggleAll(false)}
-                                disabled={hasNone}
-                                className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-800 font-extrabold text-[9px] rounded-lg border border-red-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="حجب كلي"
-                              >
-                                حجب ❌
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    });
-                  })()}
+                        ))}
+                        <td className="p-4 text-center bg-blue-50/50">
+                          <input type="checkbox" checked={emp.adminPermissions || false} onChange={async (e) => await updateFirebaseEmp(emp.id, { adminPermissions: e.target.checked })} className="w-4 h-4 text-blue-600" />
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        {/* TAB 4: SYSTEM EVENT / MONITORING LOGS */}
+        {/* TAB: LOGS */}
         {activeTab === "logs" && currentUserRole === "SYS_ADMIN" && (
           <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-4">
-            
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
-              <div>
-                <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5">
-                  <ShieldAlert className="w-5 h-5 text-red-650" />
-                  <span>سجل مراقبة العمليات الأمني (Audit Logs)</span>
-                </h2>
-                <p className="text-gray-550 text-xs mt-0.5">
-                  شاشة الأمن والرقابة الإدارية: ترصد حركات تسجيل الدخول، تعديل وتوثيق المحاضر والخطط، الحذف والترحيل.
-                </p>
-              </div>
-
-              <button
-                onClick={handlePrintLogs}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-gray-205"
-              >
-                <Printer className="w-4 h-4" />
-                <span>طباعة السجلات A4</span>
-              </button>
-            </div>
-
-            <div className="overflow-x-auto custom-scrollbar rounded-xl border border-gray-200">
+            <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5"><FileText className="w-5 h-5 text-red-650" /><span>سجل المراقبة الأمني</span></h2>
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
               <table className="w-full text-right text-xs">
-                <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
-                  <tr>
-                    <th className="p-4">تدرج التاريخ والتوقيت</th>
-                    <th className="p-4">اسم الموظف المبادر</th>
-                    <th className="p-4">نوعية العملية والتوثيق</th>
-                    <th className="p-4">الحالة</th>
-                    <th className="p-4">تفاصيل الإجراء والمستند المترتب</th>
-                  </tr>
+                <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold text-[10px]">
+                  <tr><th className="p-4">التوقيت</th><th className="p-4">الموظف</th><th className="p-4">العملية</th><th className="p-4">التفاصيل</th></tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 font-medium text-gray-600">
-                  {dbSystemLogs.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="p-8 text-center text-gray-400 italic">لا توجد سجلات مراقبة مسجلة حالياً.</td>
+                <tbody className="divide-y divide-gray-100 font-medium">
+                  {dbSystemLogs.slice().reverse().map((log) => (
+                    <tr key={log.id} className="hover:bg-gray-50/55">
+                      <td className="p-4 font-mono text-[10px] text-gray-500">{log.time}</td>
+                      <td className="p-4 font-extrabold text-gray-900">{log.employeeName}</td>
+                      <td className="p-4"><span className="bg-blue-50 text-brand px-2 py-0.5 rounded text-[10px] font-bold">{log.operationType}</span></td>
+                      <td className="p-4 text-gray-550 leading-relaxed font-semibold">{log.details}</td>
                     </tr>
-                  ) : (
-                    dbSystemLogs.slice().reverse().map((log) => (
-                      <tr key={log.id} className="hover:bg-gray-50/50">
-                        <td className="p-4 font-mono text-[10px] text-gray-500 whitespace-nowrap">{log.time}</td>
-                        <td className="p-4 font-extrabold text-gray-900 whitespace-nowrap">{log.employeeName}</td>
-                        <td className="p-4 whitespace-nowrap">
-                          <span className="bg-blue-50 text-brand px-2 py-0.5 rounded text-[10px] font-bold border border-blue-100">
-                            {log.operationType}
-                          </span>
-                        </td>
-                        <td className="p-4 whitespace-nowrap">
-                          {log.status === "ناجحة" ? (
-                            <span className="text-emerald-605 font-bold">✓ ناجحة</span>
-                          ) : (
-                            <span className="text-red-500 font-bold">✗ مرفوضة</span>
-                          )}
-                        </td>
-                        <td className="p-4 text-gray-550 leading-relaxed font-semibold">{log.details}</td>
-                      </tr>
-                    ))
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        {/* TAB 5: MASTER DATA EXPLORER & CONTROL PANEL */}
+        {/* TAB: MASTER DATA */}
         {activeTab === "master_data" && currentUserRole === "SYS_ADMIN" && (
           <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-6">
-            
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
-              <div>
-                <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5">
-                  <Database className="w-5 h-5 text-gray-800" />
-                  <span>لوحة مستوعبات البيانات الموحدة للأدمن (Master Data Console)</span>
-                </h2>
-                <p className="text-gray-550 text-xs mt-0.5">
-                  أنت مسجل كمدير نظام (SYS_ADMIN). تتيح لك هذه الشاشة الوصول الشامل والسيطرة الكاملة على كافة مستوعبات المحتوى المسجل في النظام وحذفه أو تعديل حالته.
-                </p>
-              </div>
-            </div>
-
-            {/* Quick Stats Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-center">
-                <span className="block text-gray-400 text-[10px] font-bold">إجمالي اللجان</span>
-                <span className="text-lg font-black text-slate-800">{dbCommittees?.length || 0}</span>
-              </div>
-              <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-center">
-                <span className="block text-gray-400 text-[10px] font-bold">إجمالي الأعضاء</span>
-                <span className="text-lg font-black text-slate-800">{dbMembers?.length || 0}</span>
-              </div>
-              <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-center">
-                <span className="block text-gray-400 text-[10px] font-bold">إجمالي الفعاليات</span>
-                <span className="text-lg font-black text-slate-800">{dbEvents?.length || 0}</span>
-              </div>
-              <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-center">
-                <span className="block text-gray-400 text-[10px] font-bold">إجمالي التوصيات</span>
-                <span className="text-lg font-black text-slate-800">{dbRecommendations?.length || 0}</span>
-              </div>
-            </div>
-
-            {/* Sub-Collection Pill Selectors Container */}
+            <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5"><Database className="w-5 h-5 text-gray-800" /><span>إدارة البيانات الموحدة</span></h2>
             <div className="flex flex-wrap gap-2 border-b border-gray-100 pb-4">
-              {[
-                { key: "committees", label: "اللجان القطاعية", count: dbCommittees?.length || 0 },
-                { key: "members", label: "أعضاء اللجان", count: dbMembers?.length || 0 },
-                { key: "events", label: "الفعاليات والاجتماعات", count: dbEvents?.length || 0 },
-                { key: "recommendations", label: "التوصيات المدرجة", count: dbRecommendations?.length || 0 },
-                { key: "tasks", label: "المهام الإدارية", count: dbTasks?.length || 0 },
-                { key: "reports", label: "التقارير الدورية", count: dbReports?.length || 0 },
-                { key: "kpis", label: "مؤشرات الأداء", count: dbKpis?.length || 0 },
-                { key: "templates", label: "النماذج والقوالب المؤسسية", count: dbTemplates?.length || 0 }
-              ].map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => {
-                    setSelectedSubCol(tab.key);
-                    setMasterSearchQuery("");
-                    setConfirmDeleteId(null);
-                  }}
-                  className={`px-3 py-1.5 rounded-full text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer border ${
-                    selectedSubCol === tab.key
-                      ? "bg-brand text-white border-brand shadow-sm shadow-blue-100"
-                      : "bg-gray-50 hover:bg-gray-100 text-gray-600 border-gray-200"
-                  }`}
-                >
-                  <span>{tab.label}</span>
-                  <span className={`px-1.5 py-0.5 rounded-full text-[9px] ${
-                    selectedSubCol === tab.key ? "bg-white/20 text-white" : "bg-gray-200 text-gray-600"
-                  }`}>
-                    {tab.count}
-                  </span>
-                </button>
+              {[{ key: "committees", label: "اللجان", count: dbCommittees?.length || 0 }, { key: "members", label: "الأعضاء", count: dbMembers?.length || 0 }].map((tab) => (
+                <button key={tab.key} onClick={() => setSelectedSubCol(tab.key)} className={`px-3 py-1.5 rounded-full text-xs font-black border ${selectedSubCol === tab.key ? "bg-brand text-white border-brand" : "bg-gray-50 text-gray-600 border-gray-200"}`}>{tab.label} ({tab.count})</button>
               ))}
             </div>
-
-            {/* Global Search and Search Bar */}
-            <div className="relative">
-              <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-450 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="البحث الفوري الشامل في هذا الجدول المختار للتحكم ومراجعة التفاصيل الكلية..."
-                value={masterSearchQuery}
-                onChange={(e) => setMasterSearchQuery(e.target.value)}
-                className="w-full pr-10 pl-4 py-2 text-xs font-semibold bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-brand focus:bg-white text-right"
-              />
-            </div>
-
-            {/* Inline Deletion Confirmation Overlay banner */}
-            {confirmDeleteId && confirmDeleteCol === selectedSubCol && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-red-50 border border-red-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-red-900"
-              >
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 shrink-0 text-red-600" />
-                  <p className="text-xs font-bold leading-relaxed">
-                    تحذير إداري: هل أنت متأكد تماماً من رغبتك في حذف هذا السجل ذو المعرف <strong>({confirmDeleteId})</strong> نهائياً من قاعدة البيانات للـ ({confirmDeleteCol})؟ لا يمكن التراجع عن هذا الإجراء!
-                  </p>
-                </div>
-                <div className="flex gap-2 self-end sm:self-center">
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteMasterItem(confirmDeleteId, selectedSubCol)}
-                    className="px-3 py-1 bg-red-650 text-white text-[11px] font-black rounded-lg cursor-pointer hover:bg-red-700 transition"
-                  >
-                    نعم، احذف السجل
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setConfirmDeleteId(null);
-                      setConfirmDeleteCol(null);
-                    }}
-                    className="px-3 py-1 bg-white border border-gray-350 text-gray-700 text-[11px] font-bold rounded-lg cursor-pointer animate-none"
-                  >
-                    تراجع
-                  </button>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Table explorer */}
-            <div className="overflow-x-auto custom-scrollbar rounded-xl border border-gray-200">
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
               <table className="w-full text-right text-xs">
-                
-                {/* 1. Committees Collection Table UI */}
                 {selectedSubCol === "committees" && (
-                  <>
-                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold tracking-wider text-[10px]">
-                      <tr>
-                        <th className="p-4">اسم اللجنة</th>
-                        <th className="p-4">الأخصائي المسؤول</th>
-                        <th className="p-4">رئيس اللجنة</th>
-                        <th className="p-4">الأهداف والوصف</th>
-                        <th className="p-4">الحالة العامة</th>
-                        <th className="p-4">إجراءات الإدارة</th>
+                  <tbody className="divide-y divide-gray-100">
+                    {dbCommittees.map((item) => (
+                      <tr key={item.id} className="hover:bg-gray-50/55">
+                        <td className="p-4 font-black">{item.name}</td>
+                        <td className="p-4 text-blue-800">{item.specialist || "غير معين"}</td>
+                        <td className="p-4"><button onClick={() => handleDeleteMasterItem(item.id, "committees")} className="p-1.5 text-red-550"><Trash2 className="w-4 h-4" /></button></td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 font-medium text-gray-650">
-                      {masterFilteredData.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="p-8 text-center text-gray-400 italic">لا نتائج مطابقة لفلترة اللجان.</td>
-                        </tr>
-                      ) : (
-                        masterFilteredData.map((item) => (
-                          <tr key={item.id} className="hover:bg-gray-50/55">
-                            <td className="p-4 font-black text-gray-900 whitespace-nowrap">{item.name}</td>
-                            <td className="p-4 font-extrabold text-blue-800 whitespace-nowrap">{item.specialist || "غير معين"}</td>
-                            <td className="p-4 whitespace-nowrap">{item.president || "لم يحدد"}</td>
-                            <td className="p-4 max-w-xs truncate text-gray-500">{item.desc || "بلا وصف تفصيلي"}</td>
-                            <td className="p-4 whitespace-nowrap font-bold">
-                              <button
-                                type="button"
-                                onClick={() => handleToggleMasterCommitteesActive(item)}
-                                className={`px-2 py-0.5 rounded text-[10px] font-black border text-center cursor-pointer ${
-                                  item.active !== false
-                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                    : "bg-red-50 text-red-650 border-red-200"
-                                }`}
-                              >
-                                {item.active !== false ? "✓ لجنة فعالة" : "✗ غير فعالة"}
-                              </button>
-                            </td>
-                            <td className="p-4 whitespace-nowrap font-bold">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setConfirmDeleteId(item.id);
-                                  setConfirmDeleteCol("committees");
-                                }}
-                                className="p-1.5 text-red-550 hover:text-red-700 hover:bg-red-50 rounded transition cursor-pointer"
-                                title="حذف بالكامل"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </>
+                    ))}
+                  </tbody>
                 )}
-
-                {/* 2. Members Collection Table UI */}
                 {selectedSubCol === "members" && (
-                  <>
-                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
-                      <tr>
-                        <th className="p-4">الاسم بالكامل</th>
-                        <th className="p-4">رقم الهوية الوطنية</th>
-                        <th className="p-4">اللقب والمنصب</th>
-                        <th className="p-4">رقم الجوال</th>
-                        <th className="p-4">البريد الإلكتروني</th>
-                        <th className="p-4">آلية الانضمام وحالة العضوية</th>
-                        <th className="p-4">إجراءات الإدارة</th>
+                  <tbody className="divide-y divide-gray-100">
+                    {dbMembers.map((item) => (
+                      <tr key={item.id} className="hover:bg-gray-50/55">
+                        <td className="p-4 font-black">{item.name}</td>
+                        <td className="p-4 text-blue-800">{item.phone}</td>
+                        <td className="p-4"><button onClick={() => handleDeleteMasterItem(item.id, "members")} className="p-1.5 text-red-550"><Trash2 className="w-4 h-4" /></button></td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 font-medium text-gray-650">
-                      {masterFilteredData.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="p-8 text-center text-gray-400 italic">لا توجد سجلات أعضاء مطابقة للفرز.</td>
-                        </tr>
-                      ) : (
-                        masterFilteredData.map((item) => (
-                          <tr key={item.id} className="hover:bg-gray-50/55">
-                            <td className="p-4 font-black text-gray-900 whitespace-nowrap">
-                              {(item.prefix || "") + " " + (item.name || "")}
-                            </td>
-                            <td className="p-4 font-mono select-all whitespace-nowrap">{item.nationalId || "-"}</td>
-                            <td className="p-4 whitespace-nowrap font-semibold">
-                              <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-[9px] font-bold border border-blue-100">
-                                {item.title || "عضو"}
-                              </span>
-                            </td>
-                            <td className="p-4 font-mono select-all whitespace-nowrap">{item.phone || "-"}</td>
-                            <td className="p-4 font-mono select-all text-xs text-slate-500 whitespace-nowrap">{item.email || "-"}</td>
-                            <td className="p-4 whitespace-nowrap">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
-                                item.active !== false && item.status !== "غير فعال"
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                  : "bg-red-50 text-red-650 border-red-200"
-                              }`}>
-                                {item.active !== false && item.status !== "غير فعال" ? "نشط" : "غير نشط"}
-                              </span>
-                            </td>
-                            <td className="p-4 whitespace-nowrap font-bold">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setConfirmDeleteId(item.id);
-                                  setConfirmDeleteCol("members");
-                                }}
-                                className="p-1.5 text-red-550 hover:text-red-700 hover:bg-red-50 rounded transition cursor-pointer"
-                                title="حذف"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </>
+                    ))}
+                  </tbody>
                 )}
+              </table>
+            </div>
+          </div>
+        )}
 
-                {/* 3. Events Collection Table UI */}
-                {selectedSubCol === "events" && (
-                  <>
-                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
-                      <tr>
-                        <th className="p-4">عنوان الفعالية</th>
-                        <th className="p-4">التصنيف واللجنة</th>
-                        <th className="p-4">تاريخ الانعقاد والوقت</th>
-                        <th className="p-4">القاعة المخصصة</th>
-                        <th className="p-4">الأخصائي والمنسق</th>
-                        <th className="p-4">حالة جدول الأعمال والمشروع</th>
-                        <th className="p-4">إجراءات الإدارة</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 font-medium text-gray-650">
-                      {masterFilteredData.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="p-8 text-center text-gray-400 italic">لا توجد فعاليات مجدولة مطابقة للفرز.</td>
-                        </tr>
-                      ) : (
-                        masterFilteredData.map((item) => (
-                          <tr key={item.id} className="hover:bg-gray-50/55">
-                            <td className="p-4 font-black text-slate-900 truncate max-w-xs">{item.title}</td>
-                            <td className="p-4 whitespace-nowrap font-bold">
-                              <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[9px] font-bold border border-blue-100">
-                                {item.committeeName || item.committee || "مبسطة"}
-                              </span>
-                            </td>
-                            <td className="p-4 whitespace-nowrap text-xs font-bold font-mono">
-                              {item.date} <span className="text-gray-400 font-semibold">{item.time}</span>
-                            </td>
-                            <td className="p-4 whitespace-nowrap text-gray-700 font-black">{item.room || "غير محدد"}</td>
-                            <td className="p-4 whitespace-nowrap">{item.employee || item.specialist || "مدير النظام"}</td>
-                            <td className="p-4 whitespace-nowrap">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
-                                item.minutesSaved 
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                  : "bg-amber-50 text-amber-700 border-amber-200"
-                              }`}>
-                                {item.minutesSaved ? "مكتمل ومرحل" : "مجدول بالانتظار"}
-                              </span>
-                            </td>
-                            <td className="p-4 whitespace-nowrap font-bold">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setConfirmDeleteId(item.id);
-                                  setConfirmDeleteCol("events");
-                                }}
-                                className="p-1.5 text-red-555 hover:text-red-700 hover:bg-red-50 rounded transition cursor-pointer"
-                                title="حذف الفعالية"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </>
-                )}
+      </div>
 
-                {/* 4. Recommendations Collection Table UI */}
-                {selectedSubCol === "recommendations" && (
-                  <>
-                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
-                      <tr>
-                        <th className="p-4">نص التوصية</th>
-                        <th className="p-4">اللجنة الصادرة</th>
-                        <th className="p-4">الموظف المكلف بالتنسيق</th>
-                        <th className="p-4">مسؤول المتابعة بالمحضر</th>
-                        <th className="p-4">مستوى الاعتماد الحالي</th>
-                        <th className="p-4">حالة التوصية العاجلة</th>
-                        <th className="p-4">إجراءات الإدارة</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 font-medium text-gray-650">
-                      {masterFilteredData.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="p-8 text-center text-gray-400 italic">لا توجد توصيات مطابقة للتصفية.</td>
-                        </tr>
-                      ) : (
-                        masterFilteredData.map((item) => (
-                          <tr key={item.id} className="hover:bg-gray-50/55">
-                            <td className="p-4 font-semibold text-gray-800">{item.title || item.text || item.description || "توصية عامة"}</td>
-                            <td className="p-4 whitespace-nowrap font-bold text-blue-700">{item.committeeName || item.dept || "إشرافية"}</td>
-                            <td className="p-4 whitespace-nowrap text-slate-500 font-bold">{item.assignedTo || "غير محدد"}</td>
-                            <td className="p-4 whitespace-nowrap font-bold text-gray-800">{item.responsible || "أخصائي الحوكمة"}</td>
-                            <td className="p-4 whitespace-nowrap font-bold">
-                              <span className="bg-purple-50 text-purple-700 border border-purple-205 px-2 py-0.5 rounded text-[10px] font-black">
-                                {item.approvalStage || "مكتملة"}
-                              </span>
-                            </td>
-                            <td className="p-4 whitespace-nowrap">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
-                                item.status === "منجزة"
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                  : item.status === "متأخرة"
-                                  ? "bg-rose-50 text-rose-700 border-rose-200"
-                                  : "bg-blue-50 text-blue-800 border-blue-200"
-                              }`}>
-                                {item.status || "جديدة"}
-                              </span>
-                            </td>
-                            <td className="p-4 whitespace-nowrap font-bold">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setConfirmDeleteId(item.id);
-                                  setConfirmDeleteCol("recommendations");
-                                }}
-                                className="p-1.5 text-red-555 hover:text-red-700 hover:bg-red-50 rounded transition cursor-pointer"
-                                title="حذف التوصية ومسح أثرها"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </>
-                )}
-
-                {/* 5. Tasks Collection Table UI */}
-                {selectedSubCol === "tasks" && (
-                  <>
-                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
-                      <tr>
-                        <th className="p-4">عنوان المهمة الإدارية</th>
-                        <th className="p-4">المكلف بالإنجاز بالكامل</th>
-                        <th className="p-4">موعد الاستلام والانتهاء</th>
-                        <th className="p-4">الأولوية والخطورة</th>
-                        <th className="p-4">حالة المهمة</th>
-                        <th className="p-4">إجراءات الإدارة</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 font-medium text-gray-655">
-                      {masterFilteredData.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="p-8 text-center text-gray-400 italic">لا نتائج مطابقة لفلترة المهام.</td>
-                        </tr>
-                      ) : (
-                        masterFilteredData.map((item) => (
-                          <tr key={item.id} className="hover:bg-gray-50/55">
-                            <td className="p-4 font-black text-gray-800 whitespace-nowrap">{item.title}</td>
-                            <td className="p-4 whitespace-nowrap font-black text-purple-800">{item.assignedTo || "غير معين"}</td>
-                            <td className="p-4 whitespace-nowrap font-semibold font-mono">{item.dueDate || "-"}</td>
-                            <td className="p-4 whitespace-nowrap text-center font-bold">
-                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                item.priority === "high" || item.priority === "urgent"
-                                  ? "bg-red-100 text-red-800"
-                                  : "bg-amber-100 text-amber-800"
-                              }`}>
-                                {item.priority === "high" ? "عالية" : item.priority === "urgent" ? "حرجة جداً" : "عادية"}
-                              </span>
-                            </td>
-                            <td className="p-4 whitespace-nowrap font-bold">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
-                                item.status === "منجزة"
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                  : item.status === "متأخرة"
-                                  ? "bg-rose-50 text-rose-700 border-rose-200"
-                                  : "bg-blue-50 text-blue-700 border-blue-200"
-                              }`}>
-                                {item.status || "جديدة"}
-                              </span>
-                            </td>
-                            <td className="p-4 whitespace-nowrap">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setConfirmDeleteId(item.id);
-                                  setConfirmDeleteCol("tasks");
-                                }}
-                                className="p-1.5 text-red-550 hover:text-red-700 hover:bg-red-50 rounded transition cursor-pointer"
-                                title="إلغاء وحذف"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </>
-                )}
-
-                {/* 6. Reports Collection Table UI */}
-                {selectedSubCol === "reports" && (
-                  <>
-                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
-                      <tr>
-                        <th className="p-4">نوع/رقم التقرير الدورى</th>
-                        <th className="p-4">منشئ التقرير</th>
-                        <th className="p-4">النطاق والتواريخ المعتمدة</th>
-                        <th className="p-4">تاريخ التوثيق</th>
-                        <th className="p-4">التحكم الكلي</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 font-medium text-gray-655">
-                      {masterFilteredData.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="p-8 text-center text-gray-400 italic">لا تتوفر أية تقارير مطبوعة حتى الآن.</td>
-                        </tr>
-                      ) : (
-                        masterFilteredData.map((item) => (
-                          <tr key={item.id} className="hover:bg-gray-50/55">
-                            <td className="p-4 font-black text-gray-900 whitespace-nowrap">
-                              تقرير حوكمة {item.type === "annual" ? "سنوي" : item.type === "quarterly" ? "ربع سنوي" : "شهري"}
-                            </td>
-                            <td className="p-4 whitespace-nowrap font-bold text-blue-700">{item.creator || "معد النظام تلقائياً"}</td>
-                            <td className="p-4 font-semibold text-gray-400 whitespace-nowrap">{item.timeframe || "-"}</td>
-                            <td className="p-4 font-mono text-[10px] whitespace-nowrap">{item.createdAt || "-"}</td>
-                            <td className="p-4 whitespace-nowrap">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setConfirmDeleteId(item.id);
-                                  setConfirmDeleteCol("reports");
-                                }}
-                                className="p-1.5 text-red-550 hover:text-red-700 hover:bg-red-50 rounded transition cursor-pointer"
-                                title="إتلاف التق�              <form onSubmit={handleSaveEmployee} className="p-6 sm:p-8 space-y-5 overflow-y-auto custom-scrollbar">
-                
-                {/* Photo Upload Centered At Top */}
-                <div className="flex flex-col items-center justify-center mb-6">
-                  <div className="relative w-24 h-24 mb-2">
-                    <div className="w-full h-full rounded-2xl border-4 border-white shadow-md overflow-hidden bg-gray-50 flex items-center justify-center">
-                      {formPhoto ? (
-                        <img src={formPhoto} alt="Employee Avatar" className="w-full h-full object-cover" />
-                      ) : (
-                        <User className="w-8 h-8 text-gray-300" />
-                      )}
-                    </div>
-                    <label className="absolute bottom-[-8px] right-[-8px] w-8 h-8 bg-blue-600 rounded-full border-2 border-white shadow-sm flex items-center justify-center text-white cursor-pointer hover:bg-blue-700 transition-colors">
-                      <Plus className="w-4 h-4" />
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onload = () => {
-                              if (reader.result) {
-                                compressImage(reader.result.toString(), (comp) => {
-                                  setFormPhoto(comp);
-                                });
-                              }
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                      />
-                    </label>
-                  </div>
-                  <span className="text-[10px] text-gray-500 font-bold">صورة الموظف</span>
-                </div>
-
-                {/* Row 2: Prefix and Name */}
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                  <div className="sm:col-span-1">
-                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">الصفة</label>
-                    <select
-                      value={formPrefix}
-                      onChange={(e) => setFormPrefix(e.target.value)}
-                      className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-gray-700 cursor-pointer focus:ring-1 focus:ring-brand focus:outline-none"
-                    >
-                      <option value="الأستاذ">الأستاذ</option>
-                      <option value="الأستاذة">الأستاذة</option>
-                      <option value="الدكتور">الدكتور</option>
-                      <option value="الدكتورة">الدكتورة</option>
-                      <option value="المهندس">المهندس</option>
-                      <option value="المهندسة">المهندسة</option>
-                    </select>
-                  </div>
-                  <div className="sm:col-span-3">
-                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">الاسم الثلاثي</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="خالد إبراهيم مدني"
-                      value={formName}
-                      onChange={(e) => setFormName(e.target.value)}
-                      className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs focus:ring-1 focus:ring-brand focus:outline-none font-extrabold text-right transition-all"
-                    />
-                  </div>
-                </div>
-
-                {/* Row 3: Email and Phone */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* ORG BUILDER MODAL */}
+      <AnimatePresence>
+        {showOrgNodeModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowOrgNodeModal(false)} className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" />
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 overflow-hidden">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-black text-gray-900">{orgNodeForm.id ? "تعديل عقدة في الهيكل التنظيمي" : "إضافة عقدة للهيكل التنظيمي"}</h3>
+                <button onClick={() => setShowOrgNodeModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+              </div>
+              <form onSubmit={handleSaveOrgNode} className="space-y-4">
+                {orgNodeForm.type === "ROOT" ? (
                   <div>
-                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">
-                      البريد الإلكتروني
-                      {isEditing && <span className="text-amber-650 mx-1">(غير قابل للتعديل)</span>}
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      placeholder="X.XXXX@makkahchamber.sa"
-                      value={formEmail}
-                      onChange={(e) => setFormEmail(e.target.value)}
-                      disabled={isEditing}
-                      dir="ltr"
-                      className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs focus:ring-1 focus:ring-brand focus:outline-none font-semibold text-left transition-all disabled:opacity-80"
-                    />
+                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">مسمى الإدارة العليا</label>
+                    <input type="text" required value={orgNodeForm.name} onChange={(e) => setOrgNodeForm({...orgNodeForm, name: e.target.value})} placeholder="اكتب المسمى هنا..." className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-brand" />
                   </div>
-                  <div>
-                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">رقم الجوال</label>
-                    <input
-                      type="tel"
-                      required
-                      placeholder="05XXXXXXXX"
-                      value={formPhone}
-                      onChange={(e) => setFormPhone(e.target.value)}
-                      dir="ltr"
-                      className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs focus:ring-1 focus:ring-brand focus:outline-none font-semibold text-left transition-all"
-                    />
-                  </div>
-                </div>
-
-                {/* Row 4: Administrative Structure, Role, and Active Status */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="sm:col-span-2 space-y-4">
-                    <div>
-                      <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">الهيكل الإداري</label>
-                      <select
-                        value={formAdminStructure}
-                        onChange={(e) => {
-                          setFormAdminStructure(e.target.value);
-                          setFormAdminStructureDetails("");
-                        }}
-                        className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-gray-700 cursor-pointer focus:ring-1 focus:ring-brand focus:outline-none"
-                      >
-                        <option value="الأمين العام">الأمين العام</option>
-                        <option value="المكتب التنفيذي">المكتب التنفيذي</option>
-                        <option value="مساعد الأمين العام">مساعد الأمين العام</option>
-                        <option value="سكرتير مساعد الأمين العام">سكرتير مساعد الأمين العام</option>
-                        <option value="مدير الإدارة">مدير الإدارة</option>
-                        <option value="رئيس قسم">رئيس قسم</option>
-                        <option value="أخصائي">أخصائي</option>
-                      </select>
-                    </div>
-
-                    {formAdminStructure === "مساعد الأمين العام" && (
-                      <input
-                        type="text"
-                        placeholder="اسم القطاع..."
-                        value={formAdminStructureDetails}
-                        onChange={(e) => setFormAdminStructureDetails(e.target.value)}
-                        className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs focus:ring-1 focus:ring-brand focus:outline-none font-bold text-right"
-                      />
-                    )}
-                    {formAdminStructure === "سكرتير مساعد الأمين العام" && (
-                      <input
-                        type="text"
-                        placeholder="اسم القطاع..."
-                        value={formAdminStructureDetails}
-                        onChange={(e) => setFormAdminStructureDetails(e.target.value)}
-                        className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs focus:ring-1 focus:ring-brand focus:outline-none font-bold text-right"
-                      />
-                    )}
-                    {formAdminStructure === "مدير الإدارة" && (
-                      <input
-                        type="text"
-                        placeholder="اسم الإدارة..."
-                        value={formAdminStructureDetails}
-                        onChange={(e) => setFormAdminStructureDetails(e.target.value)}
-                        className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs focus:ring-1 focus:ring-brand focus:outline-none font-bold text-right"
-                      />
-                    )}
-                    {formAdminStructure === "رئيس قسم" && (
-                      <input
-                        type="text"
-                        placeholder="اسم القسم..."
-                        value={formAdminStructureDetails}
-                        onChange={(e) => setFormAdminStructureDetails(e.target.value)}
-                        className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs focus:ring-1 focus:ring-brand focus:outline-none font-bold text-right"
-                      />
-                    )}
-                    {formAdminStructure === "أخصائي" && (
-                      <div className="border border-gray-200 bg-gray-50 rounded-xl p-3 max-h-40 overflow-y-auto">
-                        <span className="block text-[10px] font-bold text-gray-500 mb-2">تحديد اللجان:</span>
-                        {dbCommittees && dbCommittees.length > 0 ? (
-                          <div className="flex flex-col gap-2">
-                            {dbCommittees.map((comm) => {
-                              const isSelected = formCommittees.includes(comm.name);
-                              return (
-                                <label key={comm.id} className="flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={(e) => {
-                                      if (e.target.checked) {
-                                        setFormCommittees([...formCommittees, comm.name]);
-                                      } else {
-                                        setFormCommittees(formCommittees.filter((name) => name !== comm.name));
-                                      }
-                                    }}
-                                    className="rounded border-gray-300 text-brand focus:ring-brand w-3.5 h-3.5 cursor-pointer"
-                                  />
-                                  <span className="text-[11px] font-bold text-gray-700">{comm.name}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-gray-400">لا يوجد لجان نشطة</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">صلاحيات الموظف</label>
-                      <select
-                        value={formRole}
-                        onChange={(e: any) => setFormRole(e.target.value)}
-                        disabled={currentUserRole !== "SYS_ADMIN"}
-                        className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-gray-700 disabled:opacity-50"
-                      >
-                        <option value="SPECIALIST">أخصائي</option>
-                        <option value="DEPT_HEAD">رئيس قسم</option>
-                        <option value="MANAG_DIR">مدير إدارة</option>
-                        <option value="SYS_ADMIN">مدير نظام</option>
-                      </select>
-                    </div>
-
-                    {currentUserRole === "SYS_ADMIN" && (
-                      <div>
-                        <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">حالة الموظف</label>
-                        <div className="flex items-center gap-3 bg-white border border-gray-300 rounded-xl px-3.5 py-2.5">
-                          <input
-                            type="checkbox"
-                            id="formActiveCheck"
-                            checked={formActive}
-                            onChange={(e) => setFormActive(e.target.checked)}
-                            className="rounded border-gray-300 text-brand focus:ring-brand cursor-pointer w-4 h-4"
-                          />
-                          <label htmlFor="formActiveCheck" className="text-[10px] font-extrabold text-gray-700 cursor-pointer select-none leading-tight">
-                            نشط (تنشيط الدخول بالبريد)
+                ) : (
+                  <>
+                    {!orgNodeForm.id && orgNodeForm.type !== "JOB_TITLE" && (
+                      <div className="mb-4">
+                        <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">نوع العقدة المضافة</label>
+                        <div className="flex gap-4">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" checked={orgNodeForm.type === "STAFF"} onChange={() => setOrgNodeForm({...orgNodeForm, type: "STAFF", isSubcategory: false})} className="w-4 h-4 text-brand" />
+                            <span className="text-xs font-bold">سكرتير / وظيفة مساندة</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" checked={orgNodeForm.type !== "STAFF"} onChange={() => setOrgNodeForm({...orgNodeForm, type: "SECTOR", isSubcategory: true})} className="w-4 h-4 text-brand" />
+                            <span className="text-xs font-bold">جهة تابعة (تصنيف فرعي)</span>
                           </label>
                         </div>
                       </div>
                     )}
-                  </div>
-                </div>e="text-xs text-gray-400 font-bold">لا توجد لجان قطاعية نشطة مسجلة في النظام حالياً</span>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-[11px] text-gray-400 font-bold leading-normal">
-                          عرض اللجان المسندة حالياً لهذا الموظف (يمكن تعديلها فقط بواسطة مدراء النظام والقطاعات):
-                        </p>
-                        {formCommittees.length > 0 ? (
-                          <div className="flex flex-wrap gap-1.5 mt-2">
-                            {formCommittees.map((cName) => (
-                              <span
-                                key={cName}
-                                className="inline-flex items-center bg-brand/5 border border-brand/20 text-brand px-2.5 py-1 rounded-md text-xs font-bold"
-                              >
-                                {cName}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-400 block italic mt-1 text-right">
-                            لا يوجد لجان قطاعية مسندة لهذا الموظف حتى الآن.
-                          </span>
-                        )}
-                      </>
+
+                    {orgNodeForm.type !== "STAFF" && orgNodeForm.type !== "JOB_TITLE" && orgNodeForm.isSubcategory && !orgNodeForm.id && (
+                      <div className="mb-4">
+                        <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">اختر نوع التصنيف الفرعي (القائمة)</label>
+                        <select value={orgNodeForm.type} onChange={(e) => setOrgNodeForm({...orgNodeForm, type: e.target.value as any})} className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-brand">
+                          <option value="SECTOR">قطاع (مرتبط بالإدارة العليا)</option>
+                          <option value="DEPARTMENT">إدارة (مرتبطة بقطاع)</option>
+                          <option value="SECTION">قسم (مرتبط بإدارة)</option>
+                        </select>
+                      </div>
                     )}
-                  </div>
 
-                  {/* Page Access Permissions - Checkboxes */}
-                  <div className="col-span-1 sm:col-span-2 border border-gray-200 bg-gray-50/50 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center justify-between border-b border-gray-150 pb-2.5">
-                      <span className="text-xs font-extrabold text-gray-700 block">
-                        صلاحيات عرض صفحات النظام المخصصة (من صلاحيات مدير النظام)
-                      </span>
-                      <span className="text-[10px] text-brand bg-brand/10 px-2.5 py-1 rounded-full font-extrabold">
-                        {formAllowedPages.length || 9} صفحات نشطة مصرح بها
-                      </span>
-                    </div>
-                    
-                    <p className="text-[11px] text-gray-500 font-bold leading-normal">
-                      ضع علامة صح أمام الصفحات التي تود ظهورها لهذا الموظف (إذا لم يتم اختيار أي صفحة، ستظهر كافة الصفحات افتراضياً):
-                    </p>
+                    {orgNodeForm.type === "DEPARTMENT" && (
+                      <div className="mb-4">
+                        <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">اختر القطاع المرجعي</label>
+                        <select required value={orgNodeForm.parent} onChange={(e) => setOrgNodeForm({...orgNodeForm, parent: e.target.value})} className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-brand">
+                          <option value="">-- اختر قطاع --</option>
+                          {dbOrgNodes.filter(n => n.type === "SECTOR").map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                        </select>
+                      </div>
+                    )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 max-h-48 overflow-y-auto pr-1">
-                      {[
-                        { path: "/", label: "شاشة المتابعة (لوحة التحكم)" },
-                        { path: "/committees", label: "تشكيل اللجان" },
-                        { path: "/members", label: "سجل الأعضاء" },
-                        { path: "/events", label: "الفعاليات" },
-                        { path: "/recommendations", label: "التوصيات القطاعية" },
-                        { path: "/tasks", label: "المهام الإدارية" },
-                        { path: "/reports", label: "التقارير" },
-                        { path: "/library", label: "المكتبة الرقمية" },
-                        { path: "/org-chart", label: "الهيكل الإداري والرقابة" }
-                      ].map((pg) => {
-                        const isSelected = formAllowedPages.includes(pg.path) || formAllowedPages.length === 0;
-                        const isSysAdmin = currentUserRole === "SYS_ADMIN";
-                        return (
-                          <label
-                            key={pg.path}
-                            className={`flex items-center gap-3 px-3 py-2 rounded-lg border text-right transition-all select-none ${
-                              isSysAdmin ? "cursor-pointer" : "opacity-80"
-                            } ${
-                              isSelected
-                                ? "bg-emerald-50/40 border-emerald-300 text-emerald-800 font-bold"
-                                : "bg-white border-gray-200 text-gray-500"
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              disabled={!isSysAdmin}
-                              onChange={(e) => {
-                                if (!isSysAdmin) return;
-                                let currentSelected = [...formAllowedPages];
-                                // If first time unchecking and all pages were active by default (empty array)
-                                if (formAllowedPages.length === 0) {
-                                  // initialize with all except current pg
-                                  currentSelected = [
-                                    "/",
-                                    "/committees",
-                                    "/members",
-                                    "/events",
-                                    "/recommendations",
-                                    "/tasks",
-                                    "/reports",
-                                    "/library",
-                                    "/org-chart"
-                                  ];
-                                }
-                                
-                                if (e.target.checked) {
-                                  if (!currentSelected.includes(pg.path)) {
-                                    currentSelected.push(pg.path);
-                                  }
-                                } else {
-                                  currentSelected = currentSelected.filter(p => p !== pg.path);
-                                }
-                                setFormAllowedPages(currentSelected);
-                              }}
-                              className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer disabled:cursor-not-allowed"
-                            />
-                            <div className="flex flex-col text-right">
-                              <span className="text-xs font-semibold">{pg.label}</span>
-                            </div>
-                          </label>
-                        );
-                      })}
+                    {orgNodeForm.type === "SECTION" && (
+                      <div className="mb-4">
+                        <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">اختر الإدارة المرجعية</label>
+                        <select required value={orgNodeForm.parent} onChange={(e) => setOrgNodeForm({...orgNodeForm, parent: e.target.value})} className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-brand">
+                          <option value="">-- اختر إدارة --</option>
+                          {dbOrgNodes.filter(n => n.type === "DEPARTMENT").map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+                        </select>
+                      </div>
+                    )}
+
+                    {orgNodeForm.type === "JOB_TITLE" && (
+                      <div className="mb-4">
+                        <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">القسم المرجعي</label>
+                        <select required value={orgNodeForm.parent} onChange={(e) => setOrgNodeForm({...orgNodeForm, parent: e.target.value})} className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-brand">
+                          <option value="">-- اختر قسم --</option>
+                          {dbOrgNodes.filter(n => n.type === "SECTION").map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                        </select>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">
+                        مسمى {orgNodeForm.type === 'STAFF' ? 'الوظيفة' : orgNodeForm.type === 'JOB_TITLE' ? 'المسمى / الأخصائي' : 'التصنيف'} (يكتب يدوياً)
+                      </label>
+                      <input type="text" required value={orgNodeForm.name} onChange={(e) => setOrgNodeForm({...orgNodeForm, name: e.target.value})} placeholder="اكتب المسمى هنا..." className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-brand" />
                     </div>
-                  </div>
-                  
+                  </>
+                )}
+
+                <div className="pt-2 flex justify-end">
+                  <button type="submit" className="px-5 py-2.5 bg-brand text-white rounded-xl text-xs font-black">{orgNodeForm.id ? "حفظ التعديلات" : "حفظ وإضافة"}</button>
                 </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
-                {/* Avatar selection rule wrapper */}
-                <div className="border border-gray-200 rounded-xl p-4 space-y-2.5">
-                  <span className="block text-[11px] font-black text-gray-500">اختر صورة الموظف الرمزية:</span>
-                  <div className="flex flex-wrap gap-2">
-                    {PRESET_AVATARS.map((av, index) => (
-                      <button
-                        key={index}
-                        type="button"
-                        onClick={() => setFormPhoto(av)}
-                        className={`w-10 h-10 rounded-xl overflow-hidden ring-2 cursor-pointer transition-all ${
-                          formPhoto === av ? "ring-brand scale-105" : "ring-transparent hover:scale-102"
-                        }`}
-                      >
-                        <img src={av} alt="avatar option" className="w-full h-full object-cover" />
-                      </button>
-                    ))}
-                    
-                    {/* Custom Base64 upload file selector */}
-                    <label className="w-10 h-10 rounded-xl border-2 border-dashed border-gray-300 hover:border-brand flex items-center justify-center cursor-pointer text-gray-400 hover:text-brand transition-all relative">
-                      <Plus className="w-5 h-5 shrink-0" />
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onload = () => {
-                              if (reader.result) {
-                                compressImage(reader.result.toString(), (comp) => {
-                                  setFormPhoto(comp);
-                                });
-                              }
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                      />
+      {/* CONFIRM DIALOG */}
+      <AnimatePresence>
+        {confirmDialog && confirmDialog.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setConfirmDialog(null)} className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden p-6">
+              <div className="flex items-center gap-3 mb-4 text-red-600"><AlertTriangle className="w-6 h-6" /><h3 className="text-lg font-black">{confirmDialog.title}</h3></div>
+              <p className="text-sm font-semibold text-gray-700 whitespace-pre-wrap">{confirmDialog.message}</p>
+              <div className="mt-6 flex justify-end gap-3">
+                {!confirmDialog.isAlert && (
+                  <button onClick={() => setConfirmDialog(null)} className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-lg">
+                    {confirmDialog.cancelText || "إلغاء"}
+                  </button>
+                )}
+                <button onClick={confirmDialog.onConfirm} className={`px-4 py-2 text-xs font-black text-white rounded-lg ${confirmDialog.isAlert ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}`}>
+                  {confirmDialog.confirmText || "تأكيد الحذف"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* EMPLOYEE FORM MODAL */}
+      <AnimatePresence>
+        {showFormModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowFormModal(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+            <motion.div initial={{ scale: 0.9, y: 15, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.9, y: 15, opacity: 0 }} className="bg-white rounded-3xl border border-gray-200 shadow-2xl w-full max-w-2xl relative z-10 max-h-[90vh] flex flex-col overflow-hidden">
+              <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-brand text-white rounded-xl"><UserPlus className="w-5 h-5 stroke-[2.5]" /></div>
+                  <div>
+                    <span className="text-[9px] font-black text-brand uppercase block mb-0.5">بطاقات العمل</span>
+                    <h3 className="font-extrabold text-gray-900 text-base">{isEditing ? `تعديل بيانات: ${formName}` : "إضافة موظف معتمد جديد"}</h3>
+                  </div>
+                </div>
+                <button onClick={() => setShowFormModal(false)} className="p-1.5 hover:bg-gray-200 text-gray-500 rounded-lg"><X className="w-5 h-5" /></button>
+              </div>
+
+              <form onSubmit={handleSaveEmployee} className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
+                
+                {/* Photo Upload */}
+                <div className="flex flex-col items-center justify-center mb-6">
+                  <div className="relative w-20 h-20 mb-2">
+                    <div className="w-full h-full rounded-2xl border-4 border-white shadow-md overflow-hidden bg-gray-50 flex items-center justify-center">
+                      {formPhoto ? <img src={formPhoto} alt="Avatar" className="w-full h-full object-cover" /> : <User className="w-8 h-8 text-gray-300" />}
+                    </div>
+                    <label className="absolute bottom-[-8px] right-[-8px] w-7 h-7 bg-brand rounded-full border-2 border-white flex items-center justify-center text-white cursor-pointer hover:bg-blue-700">
+                      <Plus className="w-3.5 h-3.5" />
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = () => { if (reader.result) compressImage(reader.result.toString(), setFormPhoto); };
+                          reader.readAsDataURL(file);
+                        }
+                      }} />
                     </label>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
-                  <button
-                    type="submit"
-                    className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 hover:shadow-md text-white font-black text-sm rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <Check className="w-4 h-4" />
-                    <span>{isEditing ? "حفظ التعديلات الحالية" : "إضافة واعتماد الموظف"}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowFormModal(false)}
-                    className="px-6 h-11 bg-gray-100 hover:bg-gray-200 text-gray-750 font-extrabold text-sm rounded-xl transition-all cursor-pointer"
-                  >
-                    إلغاء الأمر
+                <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+                  <div className="sm:col-span-1">
+                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">الرقم الوظيفي</label>
+                    <input type="text" required value={formId} onChange={(e) => setFormId(e.target.value)} className="w-full h-10 bg-white border border-gray-300 rounded-xl px-3 text-xs font-bold text-center outline-none focus:border-brand" />
+                  </div>
+                  <div className="sm:col-span-1">
+                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">الصفة</label>
+                    <select value={formPrefix} onChange={(e) => setFormPrefix(e.target.value)} className="w-full h-10 bg-white border border-gray-300 rounded-xl px-3 text-xs font-bold text-gray-700 outline-none focus:border-brand">
+                      <option value="الأستاذ">الأستاذ</option><option value="الأستاذة">الأستاذة</option><option value="الدكتور">الدكتور</option><option value="الدكتورة">الدكتورة</option><option value="المهندس">المهندس</option><option value="المهندسة">المهندسة</option>
+                    </select>
+                  </div>
+                  <div className="sm:col-span-3">
+                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">الاسم الثلاثي</label>
+                    <input type="text" required value={formName} onChange={(e) => setFormName(e.target.value)} className="w-full h-10 bg-white border border-gray-300 rounded-xl px-3 text-xs font-bold outline-none focus:border-brand" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">البريد الإلكتروني {isEditing && <span className="text-amber-600">(ثابت)</span>}</label>
+                    <input type="email" required value={formEmail} onChange={(e) => setFormEmail(e.target.value)} disabled={isEditing} dir="ltr" className="w-full h-10 bg-gray-50 border border-gray-300 rounded-xl px-3 text-xs font-semibold text-left outline-none focus:border-brand disabled:opacity-80" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">رقم الجوال</label>
+                    <input type="tel" required value={formPhone} onChange={(e) => setFormPhone(e.target.value)} dir="ltr" className="w-full h-10 bg-white border border-gray-300 rounded-xl px-3 text-xs font-semibold text-left outline-none focus:border-brand" />
+                  </div>
+                </div>
+
+                {/* الهيكل الإداري المتسلسل 5 مستويات */}
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                  <span className="block text-xs font-black text-gray-800 mb-3">التسكين في الهيكل التنظيمي المعتمد:</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    
+                    {/* 1 */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] text-gray-500 font-extrabold">1. الأمانة العامة</label>
+                      <select value={formOrgLevel1} onChange={(e) => setFormOrgLevel1(e.target.value)} className="w-full h-9 bg-white border border-gray-300 rounded-lg px-2 text-[11px] font-bold outline-none focus:border-brand">
+                        <option value="الأمانة العامة">الأمانة العامة</option>
+                      </select>
+                    </div>
+
+                    {/* 2 */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] text-gray-500 font-extrabold">2. القطاع</label>
+                      <select value={formOrgLevel2} onChange={(e) => setFormOrgLevel2(e.target.value)} className="w-full h-9 bg-white border border-gray-300 rounded-lg px-2 text-[11px] font-bold outline-none focus:border-brand">
+                        <option value="">-- اختر القطاع --</option>
+                        {dbOrgNodes.filter(n => n.type === "SECTOR").map(node => (
+                          <option key={node.id} value={node.name}>{node.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 3 */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] text-gray-500 font-extrabold">3. الإدارة</label>
+                      <select value={formOrgLevel3} onChange={(e) => setFormOrgLevel3(e.target.value)} disabled={!formOrgLevel2} className="w-full h-9 bg-white border border-gray-300 rounded-lg px-2 text-[11px] font-bold outline-none focus:border-brand disabled:bg-gray-100">
+                        <option value="">-- اختر الإدارة --</option>
+                        {dbOrgNodes.filter(n => n.type === "DEPARTMENT" && n.parent === formOrgLevel2).map(node => (
+                          <option key={node.id} value={node.name}>{node.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 4 */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] text-gray-500 font-extrabold">4. القسم</label>
+                      <select value={formOrgLevel4} onChange={(e) => setFormOrgLevel4(e.target.value)} disabled={!formOrgLevel3} className="w-full h-9 bg-white border border-gray-300 rounded-lg px-2 text-[11px] font-bold outline-none focus:border-brand disabled:bg-gray-100">
+                        <option value="">-- اختر القسم --</option>
+                        {dbOrgNodes.filter(n => n.type === "SECTION" && n.parent === formOrgLevel3).map(node => (
+                          <option key={node.id} value={node.name}>{node.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 5 */}
+                    <div className="space-y-1.5 lg:col-span-2">
+                      <label className="block text-[10px] text-gray-500 font-extrabold">5. التخصص أو المسمى الوظيفي المعتمد</label>
+                      <select value={formOrgLevel5} onChange={(e) => setFormOrgLevel5(e.target.value)} className="w-full h-9 bg-white border border-gray-300 rounded-lg px-2 text-[11px] font-bold outline-none focus:border-brand">
+                        <option value="">-- يرجى الاختيار (حسب الهيكل) --</option>
+                        {dbOrgNodes.filter(n => 
+                          (n.type === 'JOB_TITLE' && n.parent === formOrgLevel4) ||
+                          (n.type === 'STAFF' && n.parent === formOrgLevel4) ||
+                          (n.type === 'STAFF' && !formOrgLevel4 && n.parent === formOrgLevel3) ||
+                          (n.type === 'STAFF' && !formOrgLevel3 && n.parent === formOrgLevel2) ||
+                          (n.type === 'STAFF' && !formOrgLevel2 && n.parent === formOrgLevel1)
+                        ).map(n => <option key={n.id} value={n.name}>{n.name}</option>)}
+                      </select>
+                      {/* Fallback for manually typed ones previously */}
+                      {!dbOrgNodes.some(n => n.name === formOrgLevel5 && (n.type === 'JOB_TITLE' || n.type === 'STAFF')) && formOrgLevel5 && (
+                         <input type="text" placeholder="اكتب المسمى..." value={formOrgLevel5} onChange={(e) => setFormOrgLevel5(e.target.value)} className="w-full h-9 mt-1 bg-white border border-gray-300 rounded-lg px-2 text-[11px] font-bold outline-none focus:border-brand" />
+                      )}
+                    </div>
+                    
+                    {/* Committees Selection */}
+                    {(formOrgLevel5 === 'أخصائي' || formOrgLevel5 === 'أخصائي اللجان') && (
+                      <div className="space-y-1.5 lg:col-span-full">
+                        <label className="block text-[10px] text-gray-500 font-extrabold">ارتباط اللجان (متعدد)</label>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 bg-gray-50 p-3 rounded-lg border border-gray-200 max-h-48 overflow-y-auto">
+                          {dbCommittees.map(comm => (
+                            <label key={comm.id} className="flex items-start gap-2 cursor-pointer bg-white p-2 rounded shadow-sm border border-gray-200 hover:border-brand/30 transition-colors">
+                              <input 
+                                type="checkbox" 
+                                checked={formCommittees.includes(comm.name)} 
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setFormCommittees([...formCommittees, comm.name]);
+                                  } else {
+                                    setFormCommittees(formCommittees.filter(c => c !== comm.name));
+                                  }
+                                }} 
+                                className="w-3.5 h-3.5 mt-0.5 text-brand rounded border-gray-300" 
+                              />
+                              <span className="text-[10px] font-bold text-gray-700 leading-tight">{comm.name}</span>
+                            </label>
+                          ))}
+                          {dbCommittees.length === 0 && (
+                            <span className="text-[10px] text-gray-500 col-span-full">لا توجد لجان مشكلة حالياً.</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] text-gray-500 font-extrabold">صلاحيات الموظف بالنظام</label>
+                    <select value={formRole} onChange={(e: any) => setFormRole(e.target.value)} disabled={currentUserRole !== "SYS_ADMIN"} className="w-full h-10 bg-white border border-gray-300 rounded-xl px-3 text-xs font-bold outline-none focus:border-brand disabled:opacity-50">
+                      <option value="SPECIALIST">أخصائي / مستخدم عادي</option>
+                      <option value="DEPT_HEAD">رئيس قسم</option>
+                      <option value="MANAG_DIR">مدير إدارة</option>
+                      <option value="SECRETARY">السكرتير</option>
+                      <option value="ASSISTANT_SEC_GEN">مساعد الأمين العام</option>
+                      <option value="EXECUTIVE_OFFICE">المكتب التنفيذي</option>
+                      <option value="SECRETARY_GENERAL">أمين عام</option>
+                      <option value="SYS_ADMIN">مدير نظام</option>
+                    </select>
+                  </div>
+                  {currentUserRole === "SYS_ADMIN" && (
+                    <div className="flex gap-4">
+                      <div className="flex-1 flex items-center gap-2 bg-white border border-gray-300 rounded-xl px-3 h-10">
+                        <input type="checkbox" id="fActive" checked={formActive} onChange={(e) => setFormActive(e.target.checked)} className="w-4 h-4 text-brand" />
+                        <label htmlFor="fActive" className="text-[10px] font-extrabold cursor-pointer">موظف نشط</label>
+                      </div>
+                      <div className="flex-1 flex items-center gap-2 bg-white border border-gray-300 rounded-xl px-3 h-10">
+                        <input type="checkbox" id="fLogin" checked={formLoginEnabled} onChange={(e) => setFormLoginEnabled(e.target.checked)} className="w-4 h-4 text-brand" />
+                        <label htmlFor="fLogin" className="text-[10px] font-extrabold cursor-pointer">تفعيل الدخول</label>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-4 border-t border-gray-100 flex justify-end gap-3">
+                  <button type="button" onClick={() => setShowFormModal(false)} className="px-5 py-2.5 text-xs font-bold text-gray-600 bg-white border border-gray-300 rounded-xl hover:bg-gray-50">إلغاء</button>
+                  <button type="submit" className="px-5 py-2.5 text-xs font-bold text-white bg-brand rounded-xl hover:bg-brand/90 flex items-center gap-2">
+                    <UserPlus className="w-4 h-4" /><span>حفظ بيانات الموظف</span>
                   </button>
                 </div>
               </form>
@@ -3098,126 +2286,24 @@ export default function OrgChart() {
         )}
       </AnimatePresence>
 
-      {/* 5. AUXILIARY MODAL: SINGLE EMPLOYEE COMMITTEES UNDER MANAGEMENT VIEW */}
+      {/* AUX MODAL: EMPLOYEE COMMITTEES */}
       <AnimatePresence>
         {selectedEmployee && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setSelectedEmployee(null)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-            />
-            
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl border border-gray-200 shadow-xl p-5 w-full max-w-md relative z-10 text-right"
-            >
-              <button
-                onClick={() => setSelectedEmployee(null)}
-                className="absolute top-4 left-4 text-gray-400 hover:text-gray-600 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <h3 className="font-extrabold text-sm text-gray-900 mb-2">
-                اللجان القطاعية المربوطة بالأخصائي: {selectedEmployee.name}
-              </h3>
-              <p className="text-[11px] text-gray-500 mb-4 font-semibold">
-                تحرير اللجان المرتبطة بالمشرف المباشر. يمكنك إلغاء ارتباط المشرف باللجان لتفويضها لموظف آخر.
-              </p>
-
-              <div className="space-y-2 border-t border-gray-100 pt-3 max-h-60 overflow-y-auto custom-scrollbar">
-                {(selectedEmployee.committees || []).length === 0 ? (
-                  <span className="text-gray-450 text-xs block text-center py-4">لم يتم ربط هذا الموظف بأي لجان بعد.</span>
-                ) : (
-                  selectedEmployee.committees.map((comName, idx) => (
-                    <div key={idx} className="p-2.5 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between gap-3 text-xs">
-                      <span className="font-bold text-gray-800">{comName}</span>
-                      
-                      {currentUserRole === "SYS_ADMIN" && (
-                        <button
-                          onClick={() => handleRemoveCommitteeFromEmployee(comName)}
-                          className="p-1 px-2 text-[10px] bg-red-50 hover:bg-red-100 text-red-650 rounded border border-red-100 cursor-pointer transition-all"
-                        >
-                          إلغاء الارتباط
-                        </button>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* 6. MODAL DIALOG: SYSTEM PURGE DANGER CONFIRM */}
-      <AnimatePresence>
-        {showPurgeConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => { if (!isPurging) setShowPurgeConfirm(false); }}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-            />
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl border border-gray-200 shadow-2xl p-6 w-full max-w-md relative z-10 text-center space-y-5"
-            >
-              <div className="w-14 h-14 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto ring-4 ring-red-110">
-                <ShieldAlert className="w-8 h-8 text-red-650 animate-bounce" />
-              </div>
-
-              <div className="space-y-1.5">
-                <h3 className="text-base font-black text-gray-900">تأكيد أمني قصوى: إعادة ضبط المصنع الشامل</h3>
-                <p className="text-xs text-red-650 leading-relaxed font-extrabold pr-2">
-                  تنبيه: سيؤدي هذا الإجراء إلى حذف وتصفير وحصار كافة اللجان القطاعية، الموظفين، الأعضاء، الاجتماعات، المحاضر، التوصيات والمهام الإدارية نهائياً من قاعدة الجناح السحابي Firestore والتخزين المؤقت المحلي!
-                </p>
-                <p className="text-[11px] text-gray-450 leading-relaxed font-bold">
-                  سيتم الاحتفاظ فقط بحساب مدير النظام الرئيسي لمنع فقدان التحكم.
-                </p>
-              </div>
-
-              {purgeSuccess ? (
-                <div className="p-3 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-black animate-pulse">
-                  ✓ تم تصفير قاعدة البيانات بنجاح! جاري تحويل وتحديث النافذة...
-                </div>
-              ) : (
-                <div className="space-y-3 pt-2">
-                  {purgeError && (
-                    <p className="text-[11px] text-red-600 font-bold bg-red-50 p-2.5 rounded-lg border border-red-100">{purgeError}</p>
-                  )}
-
-                  <div className="flex items-center gap-2.5">
-                    <button
-                      type="button"
-                      disabled={isPurging}
-                      onClick={handlePurgeEntireSystem}
-                      className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black shadow-md cursor-pointer disabled:opacity-50 transition-all"
-                    >
-                      {isPurging ? "جاري الحذف والتصفير..." : "نعم، متأكد تصفير الكل"}
-                    </button>
-                    
-                    <button
-                      type="button"
-                      disabled={isPurging}
-                      onClick={() => setShowPurgeConfirm(false)}
-                      className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-black cursor-pointer transition-all"
-                    >
-                      تراجع وإلغاء
-                    </button>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedEmployee(null)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-2xl p-5 w-full max-w-md relative z-10 text-right">
+              <button onClick={() => setSelectedEmployee(null)} className="absolute top-4 left-4 text-gray-400"><X className="w-5 h-5" /></button>
+              <h3 className="font-extrabold text-sm mb-2">اللجان المربوطة بـ: {selectedEmployee.name}</h3>
+              <div className="space-y-2 mt-4 max-h-60 overflow-y-auto">
+                {selectedEmployee.committees.length === 0 ? <span className="text-gray-400 text-xs">لا يوجد.</span> : selectedEmployee.committees.map((comName, idx) => (
+                  <div key={idx} className="p-2.5 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between text-xs">
+                    <span className="font-bold text-gray-800">{comName}</span>
+                    {currentUserRole === "SYS_ADMIN" && (
+                      <button onClick={() => handleRemoveCommitteeFromEmployee(comName)} className="p-1 px-2 text-[10px] bg-red-50 text-red-650 rounded border border-red-100">إلغاء</button>
+                    )}
                   </div>
-                </div>
-              )}
+                ))}
+              </div>
             </motion.div>
           </div>
         )}
