@@ -26,7 +26,10 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    committees: false
+    committees: true,
+    centers: true,
+    affiliates: true,
+    admin: true
   });
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isDatabaseBlocked, setIsDatabaseBlocked] = useState(false);
@@ -323,13 +326,15 @@ export default function Layout({ children }: LayoutProps) {
                             <>
                               <button 
                                 onClick={(e) => toggleSection(dept.id, e)}
-                                className={`w-full flex items-center justify-between px-3 py-2.5 text-right hover:bg-gray-50 rounded-lg transition-colors font-bold text-sm ${deptPages.some(p => p.path === location.pathname) ? 'bg-gray-50' : 'text-gray-700'}`}
+                                className={`w-full flex items-center justify-between px-3 py-2.5 text-right hover:bg-gray-50 rounded-lg transition-colors font-bold text-sm group ${deptPages.some(p => p.path === location.pathname) ? 'text-brand bg-gray-50' : 'text-gray-700 hover:text-brand'}`}
                               >
                                 <div className="flex items-center gap-3">
-                                  <span className="text-gray-400">{dept.icon}</span>
+                                  <span className={`${deptPages.some(p => p.path === location.pathname) ? 'text-brand' : 'text-gray-400'} group-hover:text-brand transition-colors`}>{dept.icon}</span>
                                   <span>{dept.nameAr}</span>
                                 </div>
-                                <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                <div className={`p-1 rounded flex items-center justify-center transition-colors ${isExpanded ? 'bg-brand/10 border border-brand/20' : 'bg-gray-50/50 border border-gray-100/50 group-hover:bg-brand/5 group-hover:border-brand/10'}`}>
+                                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-180 text-brand' : 'text-gray-400 group-hover:text-brand'}`} />
+                                </div>
                               </button>
                               
                               <AnimatePresence>
@@ -345,7 +350,7 @@ export default function Layout({ children }: LayoutProps) {
                                         <Link 
                                           key={idx}
                                           to={page.path}
-                                          className={`w-full flex items-center gap-3 px-3 py-2 text-right hover:bg-gray-50 rounded-lg transition-colors font-semibold text-sm group ${location.pathname === page.path ? 'text-brand bg-brand/5' : 'text-gray-600'}`}
+                                          className={`w-full flex items-center gap-3 px-3 py-2 text-right hover:bg-gray-50 rounded-lg transition-colors font-semibold text-sm group ${location.pathname === page.path ? 'text-brand bg-brand/5' : 'text-gray-600 hover:text-brand'}`}
                                         >
                                           <span className={`${location.pathname === page.path ? 'text-brand' : 'text-gray-300'} group-hover:text-brand transition-all`}>{page.icon}</span>
                                           {page.nameAr}
@@ -359,9 +364,9 @@ export default function Layout({ children }: LayoutProps) {
                           ) : (
                             <Link 
                               to={deptPages[0].path}
-                              className={`w-full flex items-center gap-3 px-3 py-2.5 text-right hover:bg-gray-50 rounded-lg transition-colors font-bold text-sm ${location.pathname === deptPages[0].path ? 'text-brand bg-brand/5' : 'text-gray-700'}`}
+                              className={`w-full flex items-center gap-3 px-3 py-2.5 text-right hover:bg-gray-50 rounded-lg transition-colors font-bold text-sm group ${location.pathname === deptPages[0].path ? 'text-brand bg-brand/5' : 'text-gray-700 hover:text-brand'}`}
                             >
-                              <span className={`${location.pathname === deptPages[0].path ? 'text-brand' : 'text-gray-400'}`}>{dept.icon}</span>
+                              <span className={`${location.pathname === deptPages[0].path ? 'text-brand' : 'text-gray-400'} group-hover:text-brand transition-colors`}>{dept.icon}</span>
                               {dept.nameAr}
                             </Link>
                           )}
