@@ -61,7 +61,11 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   };
   console.warn('Firestore Warning (non-fatal, falling back to localStorage): ', JSON.stringify(errInfo));
-  setFirestoreBlocked(true);
+  
+  const isPermissionDenied = String(error).toLowerCase().includes('permission') || (error as any)?.code === 'permission-denied';
+  if (!(isPermissionDenied && !auth?.currentUser)) {
+    setFirestoreBlocked(true);
+  }
 }
 
 // Wrap any Firestore Promise with a timeout to prevent hanging infinitely on security rules or connections
@@ -98,7 +102,11 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
     const safetyTimeout = setTimeout(() => {
       if (active && !hasLoaded) {
         console.warn(`Firestore subscription loading timed out for '${collectionName}'. Setting blocked state.`);
-        setFirestoreBlocked(true);
+        if (auth?.currentUser) {
+          setFirestoreBlocked(true);
+        } else {
+          setupLocalFallback();
+        }
       }
     }, 8000);
 
@@ -120,7 +128,15 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
         }
       } else {
         // If not blocked, establish the real-time Firestore listener
-        if (!unsubscribe && !localCleanup) {
+        if (!unsubscribe) {
+          // If we had a local fallback running, clean it up before switching back to Firestore
+          if (localCleanup) {
+            try {
+              localCleanup();
+            } catch(e) {}
+            localCleanup = null;
+          }
+          
           try {
             if (!db || db.type === "dummy_firestore") {
               setFirestoreBlocked(true);
@@ -136,11 +152,21 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
               })) as T[];
               setData(docs);
               setLoading(false);
-            }, (error) => {
+            }, (error: any) => {
               if (!active) return;
               console.warn(`Firestore subscription failed for '${collectionName}'. Gracefully falling back to local storage.`, error);
-              // Set the global blocked state to true so ALL useFirestoreCollection instances fall back cleanly
-              setFirestoreBlocked(true);
+              
+              // Only set global blocked state if this is not an expected unauthenticated permission error
+              const isUnauthPermissionError = error?.code === 'permission-denied' && !auth?.currentUser;
+              if (!isUnauthPermissionError) {
+                setFirestoreBlocked(true);
+              } else {
+                if (unsubscribe) {
+                  try { unsubscribe(); } catch(e) {}
+                  unsubscribe = null;
+                }
+                setupLocalFallback();
+              }
             });
           } catch (e) {
             if (!active) return;
@@ -148,6 +174,15 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
             setFirestoreBlocked(true);
           }
         }
+      }
+    });
+
+    const unsubscribeAuth = auth?.onAuthStateChanged?.((user) => {
+      if (!active) return;
+      if (user && localCleanup) {
+        // User logged in and we are in local fallback. Force a retry of Firestore connection.
+        // We do this by triggering the blocked listeners with false.
+        setFirestoreBlocked(false);
       }
     });
 
@@ -187,6 +222,7 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
       active = false;
       clearTimeout(safetyTimeout);
       unsubscribeBlocked();
+      if (unsubscribeAuth) unsubscribeAuth();
       if (unsubscribe) {
         try {
           unsubscribe();

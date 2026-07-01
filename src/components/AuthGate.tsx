@@ -162,6 +162,11 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
       
+      // Reset the global block state after a successful sign-in
+      // This allows any hooks that fell back to local storage due to unauthenticated errors
+      // to re-attempt establishing the real-time snapshot listeners.
+      setFirestoreBlocked(false);
+
       if (user && user.email) {
         setLoginEmail(user.email);
         const success = await proceedWithEmailLogin(user.email);

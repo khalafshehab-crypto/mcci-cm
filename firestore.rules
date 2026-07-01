@@ -50,6 +50,26 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
     
+    
+    match /assistant_sec_gen_events/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /assistant_sec_gen_tasks/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /centers_events/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /centers_tasks/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /affiliates_events/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /affiliates_tasks/{id} {
+      allow read, write: if isSignedIn();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

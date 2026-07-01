@@ -385,10 +385,10 @@ const getStepsForEventAlarm = (e: any) => {
 export default function AssistantSecGen() {
   const navigate = useNavigate();
   const { data: dbCommittees } = useFirestoreCollection<any>("committees", []);
-  const { data: dbEvents } = useFirestoreCollection<any>("events", []);
+  const { data: dbEvents } = useFirestoreCollection<any>("assistant_sec_gen_events", []);
   const { data: dbMembers } = useFirestoreCollection<any>("members", []);
   const { data: dbRecs } = useFirestoreCollection<any>("recommendations", []);
-  const { data: dbTasks } = useFirestoreCollection<any>("tasks", []);
+  const { data: dbTasks } = useFirestoreCollection<any>("assistant_sec_gen_tasks", []);
   const { data: dbEmployees } = useFirestoreCollection<any>("employees", []);
 
   const [currentUserRole, setCurrentUserRole] = useState("SPECIALIST");
@@ -1000,7 +1000,7 @@ export default function AssistantSecGen() {
         else if (targetStatus === "قيد الانتظار") mappedStatus = "جاري العمل عليها";
         else if (targetStatus === "متأخر") mappedStatus = "متأخرة";
         
-        const docRef = doc(db, "tasks", taskId);
+        const docRef = doc(db, "assistant_sec_gen_tasks", taskId);
         await updateDoc(docRef, {
           status: mappedStatus,
           assignedTo: targetStaff,
@@ -1036,7 +1036,7 @@ export default function AssistantSecGen() {
           
           // If we confirm, we also want to set preparationsChecklist containing default ones to make it look 100% complete
           const defaultPreps = ["التنسيق مع الأمن لسيارات الأعضاء للوقوف بمواقف السيارات العليا", "فتح البوابة الرئيسية للقاعات (بوابة الرام)", "تأمين الضيافة الأساسية (ماء، عصير، تمر، قهوة وشاي)", "تجهيز وحجز القاعة والترتيبات المتكاملة", "تحضير ملفات اللقاء (ملف لكل عضو يحتوي على ورقتين وقلم)", "الدعم الإعلامي والتغطية (تصوير فوتوغرافي، توثيق، نشر تغريدات)", "تأمين الأجهزة الفنية والشبكة (لابتوب، مايكات، الشاشة الترحيبية)", "مركز المسؤولية الاجتماعية (رابط تسجيل ساعات تطوعية للأعضاء)"];
-          const docRef = doc(db, "events", String(matchedEvent.id));
+          const docRef = doc(db, "assistant_sec_gen_events", String(matchedEvent.id));
           await updateDoc(docRef, {
             preparationsConfirmed: isConfirmed,
             status: statusVal,
@@ -1147,12 +1147,12 @@ export default function AssistantSecGen() {
     try {
       if (alarm.type === "event") {
         const rawId = alarm.id.replace("evt-", "");
-        await updateDoc(doc(db, "events", rawId), {
+        await updateDoc(doc(db, "assistant_sec_gen_events", rawId), {
           status: isUrgentNow ? "عاجل" : "دوري",
           isUrgentOverride: isUrgentNow
         });
       } else if (alarm.type === "task") {
-        await updateDoc(doc(db, "tasks", alarm.id), {
+        await updateDoc(doc(db, "assistant_sec_gen_tasks", alarm.id), {
           priority: isUrgentNow ? "عاجلة" : "عادية"
         });
       } else if (alarm.type === "recommendation") {

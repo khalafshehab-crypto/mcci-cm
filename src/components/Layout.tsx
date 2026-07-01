@@ -162,7 +162,9 @@ export default function Layout({ children }: LayoutProps) {
       nameAr: "مساعد الأمين العام",
       icon: <UserCheck className="w-4 h-4" />,
       pages: [
-        { name: "Dashboard", nameAr: "شاشة المتابعة", path: "/assistant-sec-gen", icon: <LayoutDashboard className="w-4 h-4" /> }
+        { name: "Dashboard", nameAr: "شاشة المتابعة", path: "/assistant-sec-gen", icon: <LayoutDashboard className="w-4 h-4" /> },
+        { name: "Events", nameAr: "الفعاليات", path: "/assistant-sec-gen/events", icon: <Calendar className="w-4 h-4" /> },
+        { name: "Tasks", nameAr: "المهام الإدارية", path: "/assistant-sec-gen/tasks", icon: <CheckSquare className="w-4 h-4" /> }
       ]
     },
     {
@@ -170,7 +172,9 @@ export default function Layout({ children }: LayoutProps) {
       nameAr: "إدارة المراكز",
       icon: <Building2 className="w-4 h-4" />,
       pages: [
-        { name: "Dashboard", nameAr: "شاشة المتابعة", path: "/centers", icon: <LayoutDashboard className="w-4 h-4" /> }
+        { name: "Dashboard", nameAr: "شاشة المتابعة", path: "/centers", icon: <LayoutDashboard className="w-4 h-4" /> },
+        { name: "Events", nameAr: "الفعاليات", path: "/centers/events", icon: <Calendar className="w-4 h-4" /> },
+        { name: "Tasks", nameAr: "المهام الإدارية", path: "/centers/tasks", icon: <CheckSquare className="w-4 h-4" /> }
       ]
     },
     {
@@ -178,7 +182,9 @@ export default function Layout({ children }: LayoutProps) {
       nameAr: "إدارة المنتسبين",
       icon: <Users className="w-4 h-4" />,
       pages: [
-        { name: "Dashboard", nameAr: "شاشة المتابعة", path: "/affiliates", icon: <LayoutDashboard className="w-4 h-4" /> }
+        { name: "Dashboard", nameAr: "شاشة المتابعة", path: "/affiliates", icon: <LayoutDashboard className="w-4 h-4" /> },
+        { name: "Events", nameAr: "الفعاليات", path: "/affiliates/events", icon: <Calendar className="w-4 h-4" /> },
+        { name: "Tasks", nameAr: "المهام الإدارية", path: "/affiliates/tasks", icon: <CheckSquare className="w-4 h-4" /> }
       ]
     },
     {
@@ -223,7 +229,12 @@ export default function Layout({ children }: LayoutProps) {
     }
     
     // Fallback: Default to all pages if allowedPages is undefined
-    const SYSTEM_PAGES = ["/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library", "/assistant-sec-gen", "/centers", "/affiliates"];
+    const SYSTEM_PAGES = [
+      "/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library", 
+      "/assistant-sec-gen", "/assistant-sec-gen/events", "/assistant-sec-gen/tasks", 
+      "/centers", "/centers/events", "/centers/tasks", 
+      "/affiliates", "/affiliates/events", "/affiliates/tasks"
+    ];
     return SYSTEM_PAGES.includes(page.path);
   });
 
