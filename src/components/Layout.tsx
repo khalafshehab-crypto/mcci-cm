@@ -13,7 +13,8 @@ import {
   Calendar,
   CheckCircle2,
   BookOpen,
-  Library
+  Library,
+  UserCheck
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Link, useLocation } from "react-router-dom";
@@ -155,6 +156,14 @@ export default function Layout({ children }: LayoutProps) {
   const hijriDate = formatDate(currentTime, 'islamic-umalqura');
  
   const departments = [
+    {
+      id: "assistant-sec-gen",
+      nameAr: "مساعد الأمين العام",
+      icon: <UserCheck className="w-4 h-4" />,
+      pages: [
+        { name: "Assistant Sec Gen", nameAr: "مساعد الأمين العام", path: "/assistant-sec-gen", icon: <UserCheck className="w-4 h-4" /> }
+      ]
+    },
     {
       id: "centers",
       nameAr: "إدارة المراكز",

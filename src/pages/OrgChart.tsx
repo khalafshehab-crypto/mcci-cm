@@ -840,6 +840,9 @@ export default function OrgChart() {
           if (allLevels.includes("مراكز")) {
             autoPages.push("/centers");
           }
+          if (allLevels.includes("مساعد")) {
+            autoPages.push("/assistant-sec-gen");
+          }
           if (allLevels.includes("منتسبين")) {
             autoPages.push("/affiliates");
           }
@@ -1906,6 +1909,7 @@ export default function OrgChart() {
                   <tr>
                     <th rowSpan={2} className="p-4 border-l border-gray-200 align-middle">الموظف</th>
                     <th colSpan={9} className="p-2 text-center border-b border-l border-gray-200 bg-gray-50/50">إدارة اللجان</th>
+                    <th colSpan={2} className="p-2 text-center border-b border-l border-gray-200 bg-gray-50/50">مساعد الأمين العام</th>
                     <th colSpan={2} className="p-2 text-center border-b border-l border-gray-200 bg-gray-50/50">إدارة المراكز</th>
                     <th colSpan={2} className="p-2 text-center border-b border-gray-200 bg-gray-50/50">إدارة المنتسبين</th>
                     <th rowSpan={2} className="p-4 text-center bg-blue-50 border-r border-gray-200 align-middle">إدارة النظام</th>
@@ -1921,6 +1925,8 @@ export default function OrgChart() {
                     <th className="p-2 text-center border-l border-gray-200">التقارير</th>
                     <th className="p-2 text-center border-l border-gray-200">المكتبة</th>
                     <th className="p-2 text-center border-l border-gray-200 bg-gray-100/50">الكل</th>
+                    <th className="p-2 text-center border-l border-gray-200">المساعد</th>
+                    <th className="p-2 text-center border-l border-gray-200 bg-gray-100/50">الكل</th>
                     <th className="p-2 text-center border-l border-gray-200">المراكز</th>
                     <th className="p-2 text-center border-l border-gray-200 bg-gray-100/50">الكل</th>
                     <th className="p-2 text-center border-gray-200">المنتسبين</th>
@@ -1929,6 +1935,7 @@ export default function OrgChart() {
                 <tbody className="divide-y divide-gray-150 font-bold text-gray-600">
                   {safeDbEmployees.map((emp) => {
                     const COMMITTEES_PAGES = ["/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library"];
+                    const ASSISTANT_SEC_GEN_PAGES = ["/assistant-sec-gen"];
                     const CENTERS_PAGES = ["/centers"];
                     const AFFILIATES_PAGES = ["/affiliates"];
                     
@@ -1951,6 +1958,7 @@ export default function OrgChart() {
                     };
 
                     const hasAllCommittees = COMMITTEES_PAGES.every(p => currentAllowed.includes(p));
+                    const hasAllAssistant = ASSISTANT_SEC_GEN_PAGES.every(p => currentAllowed.includes(p));
                     const hasAllCenters = CENTERS_PAGES.every(p => currentAllowed.includes(p));
                     const hasAllAffiliates = AFFILIATES_PAGES.every(p => currentAllowed.includes(p));
 
@@ -1963,6 +1971,16 @@ export default function OrgChart() {
                           <input type="checkbox" checked={hasAllCommittees} onChange={() => handleDeptCheckbox(COMMITTEES_PAGES)} className="w-4 h-4 text-gray-800 rounded border-gray-300" />
                         </td>
                         {COMMITTEES_PAGES.map(path => (
+                          <td key={path} className="p-2 text-center border-l border-gray-200">
+                            <input type="checkbox" checked={currentAllowed.includes(path)} onChange={() => handleCheckbox(path)} className="w-4 h-4 text-emerald-600 rounded border-gray-300" />
+                          </td>
+                        ))}
+                        
+                        {/* Assistant Sec Gen */}
+                        <td className="p-2 text-center border-l border-gray-200 bg-gray-50/50">
+                          <input type="checkbox" checked={hasAllAssistant} onChange={() => handleDeptCheckbox(ASSISTANT_SEC_GEN_PAGES)} className="w-4 h-4 text-gray-800 rounded border-gray-300" />
+                        </td>
+                        {ASSISTANT_SEC_GEN_PAGES.map(path => (
                           <td key={path} className="p-2 text-center border-l border-gray-200">
                             <input type="checkbox" checked={currentAllowed.includes(path)} onChange={() => handleCheckbox(path)} className="w-4 h-4 text-emerald-600 rounded border-gray-300" />
                           </td>

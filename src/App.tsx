@@ -17,6 +17,7 @@ import Reports from "./pages/Reports";
 import Library from "./pages/Library";
 import Centers from "./pages/Centers";
 import Affiliates from "./pages/Affiliates";
+import AssistantSecGen from "./pages/AssistantSecGen";
 import AuthGate from "./components/AuthGate";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -72,6 +73,7 @@ export default function App() {
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/library" element={<Library />} />
+            <Route path="/assistant-sec-gen" element={<AssistantSecGen />} />
             <Route path="/centers" element={<Centers />} />
             <Route path="/affiliates" element={<Affiliates />} />
             <Route path="/org-chart" element={<OrgChart />} />
