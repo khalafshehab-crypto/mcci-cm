@@ -11,7 +11,7 @@ import {
   LogIn,
   UserPlus
 } from "lucide-react";
-import { useFirestoreCollection } from "../lib/firebaseUtils";
+import { useFirestoreCollection, setFirestoreBlocked } from "../lib/firebaseUtils";
 import { auth } from "../lib/firebase";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 
