@@ -193,19 +193,10 @@ export default function Events() {
   }).filter(c => c && c.active !== false);
 
   const dynamicEmployees = React.useMemo(() => {
-     let isMasterAdmin = false;
-     try {
-       const savedUser = localStorage.getItem("current_user");
-       if (savedUser) {
-         const parsed = JSON.parse(savedUser);
-         if (parsed && (parsed.email === "khalafshehab@gmail.com" || parsed.email === "khalafshehab-crypto@gmail.com" || parsed.id === "01")) {
-           isMasterAdmin = true;
-         }
-       }
-     } catch (_) {}
-
-     const sourceList = isMasterAdmin ? dbEmployees : dbEmployees.filter(e => 
+     // Unconditionally hide sys admin and root users from all employee lists, regardless of current user role
+     const sourceList = dbEmployees.filter(e => 
         e && 
+        e.role !== "SYS_ADMIN" &&
         e.id !== "01" && 
         e.name !== "شهاب الدين" && 
         e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 

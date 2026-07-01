@@ -101,19 +101,10 @@ export default function Committees() {
 
   useEffect(() => {
     if (dbEmployees && dbEmployees.length > 0) {
-      let isMasterAdmin = false;
-      try {
-        const stored = localStorage.getItem("current_user");
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (parsed && (parsed.email === "khalafshehab@gmail.com" || parsed.email === "khalafshehab-crypto@gmail.com" || parsed.id === "01")) {
-            isMasterAdmin = true;
-          }
-        }
-      } catch (_) {}
-
-      const sourceList = isMasterAdmin ? dbEmployees : dbEmployees.filter((e: any) => 
+      // Unconditionally hide sys admin and root users from all employee lists, regardless of current user role
+      const sourceList = dbEmployees.filter((e: any) => 
         e && 
+        e.role !== "SYS_ADMIN" &&
         e.id !== "01" && 
         e.name !== "شهاب الدين" && 
         e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 

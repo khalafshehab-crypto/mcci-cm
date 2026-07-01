@@ -49,26 +49,15 @@ export default function Tasks() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
         let emps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
-        let isMasterAdmin = false;
-        try {
-          const savedUser = localStorage.getItem("current_user");
-          if (savedUser) {
-            const parsed = JSON.parse(savedUser);
-            if (parsed && (parsed.email === "khalafshehab@gmail.com" || parsed.email === "khalafshehab-crypto@gmail.com" || parsed.id === "01")) {
-              isMasterAdmin = true;
-            }
-          }
-        } catch (_) {}
-
-        if (!isMasterAdmin) {
-          emps = emps.filter(e => 
-            e && 
-            e.id !== "01" && 
-            e.name !== "شهاب الدين" && 
-            e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
-            e.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com"
-          );
-        }
+        // Unconditionally hide sys admin and root users from all employee lists, regardless of current user role
+        emps = emps.filter(e => 
+          e && 
+          e.role !== "SYS_ADMIN" &&
+          e.id !== "01" && 
+          e.name !== "شهاب الدين" && 
+          e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
+          e.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com"
+        );
         setEmployeesList(emps.map(e => e.name).filter(Boolean));
       }
     });

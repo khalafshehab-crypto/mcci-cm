@@ -237,19 +237,16 @@ export default function OrgChart() {
   }, [dbEmployees]);
 
   const safeDbEmployees = React.useMemo(() => {
-    const isMaster = currentUser && (currentUser.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || currentUser.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com");
-    if (isMaster) {
-      return dbEmployees;
-    }
     return dbEmployees.filter(emp => 
       emp && 
+      emp.role !== "SYS_ADMIN" &&
       emp.id !== "01" && 
       emp.id !== "1" &&
       emp.name !== "شهاب الدين" && 
       emp.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
       emp.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com"
     );
-  }, [dbEmployees, currentUser]);
+  }, [dbEmployees]);
 
   const masterFilteredData = React.useMemo(() => {
     const term = masterSearchQuery.trim().toLowerCase();
@@ -1073,8 +1070,8 @@ export default function OrgChart() {
 
   const filteredEmployees = React.useMemo(() => {
     return safeDbEmployees.filter(emp => {
-      const isMaster = currentUser && (currentUser.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || currentUser.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com");
-      if (!isMaster && (emp.role === "SYS_ADMIN" || emp.id === "01" || emp.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || emp.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com")) {
+      // Unconditionally hide sys admin and root users from all employee lists, regardless of current user role
+      if (emp.role === "SYS_ADMIN" || emp.id === "01" || emp.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || emp.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com") {
         return false;
       }
       const term = searchTerm.toLowerCase().trim();
@@ -1141,9 +1138,27 @@ export default function OrgChart() {
 
   const renderEmployeesForNode = (employees: Employee[]) => {
     if (employees.length === 0) return null;
+    
+    const rolePriority: Record<string, number> = {
+      SYS_ADMIN: 1,
+      SECRETARY_GENERAL: 2,
+      EXECUTIVE_OFFICE: 3,
+      ASSISTANT_SEC_GEN: 4,
+      MANAG_DIR: 5,
+      DEPT_HEAD: 6,
+      SPECIALIST: 7,
+      SECRETARY: 8
+    };
+
+    const sortedEmployees = [...employees].sort((a, b) => {
+      const aPriority = rolePriority[a.role] || 99;
+      const bPriority = rolePriority[b.role] || 99;
+      return aPriority - bPriority;
+    });
+
     return (
       <div className="mt-2 flex flex-col gap-1 w-full px-1 z-30 relative">
-        {employees.map(emp => (
+        {sortedEmployees.map(emp => (
           <div key={emp.id} className="flex items-center justify-between bg-white border border-gray-200 rounded px-1.5 py-1 text-[9px] group shadow-sm hover:border-brand/30 hover:bg-brand/5">
             <div className="flex flex-col items-start truncate">
               <span className="truncate text-gray-700 font-bold">{emp.name}</span>
@@ -1564,7 +1579,7 @@ export default function OrgChart() {
                           )}
                           <h3 className="font-black text-amber-900 text-sm">{rootNode.name}</h3>
                           <span className="text-[10px] text-amber-700 mt-1 block">مستوى الإدارة العليا</span>
-                          {renderEmployeesForNode(dbEmployees.filter(e => e.orgLevel1 === rootNode.name && !e.orgLevel2 && (!e.orgLevel5 || !dbOrgNodes.some(n => n.name === e.orgLevel5 && n.type === 'STAFF'))))}
+                          {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel1 === rootNode.name && !e.orgLevel2 && (!e.orgLevel5 || !dbOrgNodes.some(n => n.name === e.orgLevel5 && n.type === 'STAFF'))))}
                         </div>
                         
                         {currentUserRole === "SYS_ADMIN" && (
@@ -1585,7 +1600,7 @@ export default function OrgChart() {
                                 )}
                                 <h6 className="font-bold text-purple-900 text-[10px] mb-1">{staff.name}</h6>
                                 <span className="text-[8px] text-purple-700 block">سكرتير / وظيفة مساندة</span>
-                                {renderEmployeesForNode(dbEmployees.filter(e => e.orgLevel5 === staff.name))}
+                                {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel5 === staff.name))}
                               </div>
                             ))}
                           </div>
@@ -1618,9 +1633,9 @@ export default function OrgChart() {
                         <h4 className="font-black text-indigo-900 text-xs mb-2">{sector.name}</h4>
                         <div className="flex items-center justify-center gap-1 text-[9px] text-indigo-700 bg-white rounded-full px-2 py-0.5 border border-indigo-200 w-fit mx-auto">
                           <Users className="w-3 h-3" />
-                          <span>{dbEmployees.filter(e => e.orgLevel2 === sector.name).length} موظف</span>
+                          <span>{safeDbEmployees.filter(e => e.orgLevel2 === sector.name).length} موظف</span>
                         </div>
-                        {renderEmployeesForNode(dbEmployees.filter(e => e.orgLevel2 === sector.name && !e.orgLevel3 && (!e.orgLevel5 || !dbOrgNodes.some(n => n.name === e.orgLevel5 && n.type === 'STAFF'))))}
+                        {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel2 === sector.name && !e.orgLevel3 && (!e.orgLevel5 || !dbOrgNodes.some(n => n.name === e.orgLevel5 && n.type === 'STAFF'))))}
                       </div>
 
                       {currentUserRole === "SYS_ADMIN" && (
@@ -1646,7 +1661,7 @@ export default function OrgChart() {
                               )}
                               <h6 className="font-bold text-purple-900 text-[10px] mb-0.5">{staff.name}</h6>
                               <span className="text-[8px] text-purple-700 block">سكرتير / وظيفة مساندة</span>
-                              {renderEmployeesForNode(dbEmployees.filter(e => e.orgLevel5 === staff.name))}
+                              {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel5 === staff.name))}
                             </div>
                           ))}
                         </div>
@@ -1671,9 +1686,9 @@ export default function OrgChart() {
                                 <h5 className="font-black text-teal-900 text-[11px] mb-2">{dept.name}</h5>
                                 <div className="flex items-center justify-center gap-1 text-[9px] text-teal-700 bg-white rounded-full px-2 py-0.5 border border-teal-200 w-fit mx-auto">
                                   <Users className="w-3 h-3" />
-                                  <span>{dbEmployees.filter(e => e.orgLevel3 === dept.name).length} موظف</span>
+                                  <span>{safeDbEmployees.filter(e => e.orgLevel3 === dept.name).length} موظف</span>
                                 </div>
-                                {renderEmployeesForNode(dbEmployees.filter(e => e.orgLevel3 === dept.name && !e.orgLevel4 && (!e.orgLevel5 || !dbOrgNodes.some(n => n.name === e.orgLevel5 && n.type === 'STAFF'))))}
+                                {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel3 === dept.name && !e.orgLevel4 && (!e.orgLevel5 || !dbOrgNodes.some(n => n.name === e.orgLevel5 && n.type === 'STAFF'))))}
                               </div>
 
                               {currentUserRole === "SYS_ADMIN" && (
@@ -1689,7 +1704,7 @@ export default function OrgChart() {
                                     const explicitJobTitles = dbOrgNodes.filter(n => n.type === "JOB_TITLE" && n.parent === sec.name);
                                     const inferredJobTitles = Array.from(new Set(
                                       dbEmployees
-                                        .filter(e => e.orgLevel4 === sec.name && e.orgLevel5)
+                                        .filter(e => e.orgLevel4 === sec.name && e.orgLevel5 && e.role !== "DEPT_HEAD" && e.role !== "MANAG_DIR")
                                         .map(e => e.orgLevel5)
                                     )).filter(Boolean)
                                       .filter(title => !explicitJobTitles.some(n => n.name === title));
@@ -1706,9 +1721,9 @@ export default function OrgChart() {
                                           <h6 className="font-bold text-blue-900 text-[10px] mb-1">{sec.name}</h6>
                                           <div className="flex items-center justify-center gap-1 text-[8px] text-blue-700 bg-white rounded-full px-1.5 py-0.5 border border-blue-200 w-fit mx-auto">
                                             <Users className="w-2.5 h-2.5" />
-                                            <span>{dbEmployees.filter(e => e.orgLevel4 === sec.name).length} موظف</span>
+                                            <span>{safeDbEmployees.filter(e => e.orgLevel4 === sec.name).length} موظف</span>
                                           </div>
-                                          {renderEmployeesForNode(dbEmployees.filter(e => e.orgLevel4 === sec.name && !e.orgLevel5))}
+                                          {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel4 === sec.name && (!e.orgLevel5 || e.role === "DEPT_HEAD" || e.role === "MANAG_DIR")))}
                                         </div>
 
                                         {currentUserRole === "SYS_ADMIN" && (
@@ -1729,13 +1744,13 @@ export default function OrgChart() {
                                                   </div>
                                                 )}
                                                 <h6 className="font-bold text-indigo-900 text-[9px] mb-1 truncate">{job.name}</h6>
-                                                {renderEmployeesForNode(dbEmployees.filter(e => e.orgLevel4 === sec.name && e.orgLevel5 === job.name))}
+                                                {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel4 === sec.name && e.orgLevel5 === job.name && e.role !== "DEPT_HEAD" && e.role !== "MANAG_DIR"))}
                                               </div>
                                             ))}
                                             {inferredJobTitles.map((title, idx) => (
                                               <div key={`inferred-${idx}`} className="bg-gray-50 border border-gray-200 rounded-lg p-2 w-36 text-center shadow-sm relative">
                                                 <h6 className="font-bold text-gray-700 text-[9px] mb-1 truncate">{title}</h6>
-                                                {renderEmployeesForNode(dbEmployees.filter(e => e.orgLevel4 === sec.name && e.orgLevel5 === title))}
+                                                {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel4 === sec.name && e.orgLevel5 === title))}
                                               </div>
                                             ))}
                                           </div>

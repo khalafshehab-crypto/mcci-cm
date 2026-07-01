@@ -784,20 +784,9 @@ export default function Home() {
       })();
 
       if (Array.isArray(sourceList) && sourceList.length > 0) {
-        // Filter out master administrator accounts unless logged-in user is the master administrator
-        const storedUser = localStorage.getItem("current_user");
-        let isMasterAdmin = false;
-        if (storedUser) {
-          try {
-            const parsed = JSON.parse(storedUser);
-            if (parsed && (parsed.email === "khalafshehab@gmail.com" || parsed.email === "khalafshehab-crypto@gmail.com" || parsed.id === "01")) {
-              isMasterAdmin = true;
-            }
-          } catch (_) {}
-        }
-        
+        // Unconditionally hide sys admin and root users from all employee lists, regardless of current user role
         const allowedEmps = sourceList.filter(emp => {
-          if (!isMasterAdmin && (emp.role === "SYS_ADMIN" || emp.id === "01" || emp.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || emp.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com")) {
+          if (emp.role === "SYS_ADMIN" || emp.id === "01" || emp.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || emp.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com") {
             return false;
           }
           return true;
