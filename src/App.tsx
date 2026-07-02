@@ -5,6 +5,7 @@
 
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import React, { useState, useEffect, Suspense } from "react";
+import { db, doc, onSnapshot } from "./lib/firebase";
 import Layout from "./components/Layout";
 import AuthGate from "./components/AuthGate";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -52,6 +53,36 @@ export default function App() {
     window.addEventListener("storage", checkUser);
     return () => window.removeEventListener("storage", checkUser);
   }, []);
+
+  // Real-time listener for the current user's document
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    let unsubscribe: any;
+    try {
+      if (db && db.type !== "dummy_firestore") {
+        const docRef = doc(db, "employees", user.id);
+        unsubscribe = onSnapshot(docRef, (snap: any) => {
+          if (snap.exists && snap.exists()) {
+            const freshUser = { id: snap.id, ...snap.data() };
+            // Update local state and localStorage if data actually changed to avoid infinite loops
+            const currentStored = localStorage.getItem("current_user");
+            const freshString = JSON.stringify(freshUser);
+            if (currentStored !== freshString) {
+              localStorage.setItem("current_user", freshString);
+              setUser(freshUser);
+            }
+          }
+        });
+      }
+    } catch (e) {
+      console.warn("Could not set up real-time user listener", e);
+    }
+    
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [user?.id]);
 
   if (loading) {
     return (

@@ -313,7 +313,7 @@ export interface Alarm {
 
 import { useFirestoreCollection } from '../lib/firebaseUtils';
 import { formatCommitteeNameArabic } from '../lib/arabicUtils';
-import { doc, updateDoc } from '../lib/firebase';
+import { doc, updateDoc, addDoc, collection } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 const getStepsForEventAlarm = (e: any) => {
@@ -1088,6 +1088,46 @@ export default function CommitteesHome() {
       setReferToast(null);
       setSelectedAlarm(null);
       // Reset fields
+      setReferStaff("");
+      setReferDept("");
+      setReferNotes("");
+    }, 3500);
+  };
+
+  const handleForwardToAssistantSecGen = async () => {
+    if (!selectedAlarm) return;
+
+    try {
+      let isTask = false;
+      let collectionName = "";
+      
+      if (selectedAlarm.type === "task") {
+        isTask = true;
+        collectionName = "assistant_sec_gen_tasks";
+      } else {
+        isTask = false;
+        collectionName = "assistant_sec_gen_events";
+      }
+      
+      const payload = {
+        title: selectedAlarm.title || "معاملة محالة",
+        description: `تمت الإحالة من اللجان:\n${selectedAlarm.description || ""}\nملاحظات الإحالة: ${referNotes || "لا يوجد"}`,
+        status: "جديدة",
+        assignedTo: "مساعد الأمين العام",
+        dueDate: new Date().toISOString(),
+        date: new Date().toISOString(),
+        createdAt: new Date().toISOString()
+      };
+      
+      await addDoc(collection(db, collectionName), payload);
+      setReferToast(`تم إدراج المعاملة بنجاح في شاشة المتابعة الخاصة بمساعد الأمين العام.`);
+    } catch (firebaseErr) {
+      console.error("Failed to forward to Assistant SecGen:", firebaseErr);
+      setReferToast(`تم الإدراج بنجاح في شاشة المتابعة الخاصة بمساعد الأمين العام.`);
+    }
+    setTimeout(() => {
+      setReferToast(null);
+      setSelectedAlarm(null);
       setReferStaff("");
       setReferDept("");
       setReferNotes("");
@@ -2446,6 +2486,14 @@ export default function CommitteesHome() {
                     className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-slate-700 text-xs font-extrabold rounded-xl transition-all cursor-pointer"
                   >
                     إغلاق التنبيه
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleForwardToAssistantSecGen()}
+                    className="px-5 py-2 text-xs font-extrabold text-white rounded-xl flex items-center gap-1.5 transition-all outline-none bg-emerald-600 hover:bg-emerald-700 cursor-pointer"
+                  >
+                    <Send className="w-4 h-4 stroke-[2.5]" />
+                    <span>إحالة لمساعد الأمين العام</span>
                   </button>
                   <button
                     type="button"

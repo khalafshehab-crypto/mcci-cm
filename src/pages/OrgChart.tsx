@@ -563,17 +563,7 @@ export default function OrgChart() {
   const [formGender, setFormGender] = useState<"MALE" | "FEMALE">("MALE");
   const [originalEditId, setOriginalEditId] = useState("");
 
-  // Cascading cleanup
-  useEffect(() => {
-    // If sector changes, clear department and section
-    setFormOrgLevel3("");
-    setFormOrgLevel4("");
-  }, [formOrgLevel2]);
 
-  useEffect(() => {
-    // If department changes, clear section
-    setFormOrgLevel4("");
-  }, [formOrgLevel3]);
 
   useEffect(() => {
     if (currentUserRole !== "SYS_ADMIN" && activeTab !== "hierarchy" && activeTab !== "org_chart") {
@@ -782,23 +772,33 @@ export default function OrgChart() {
       );
       const targetEditId = existingEmployee ? existingEmployee.id : originalEditId;
 
+      const isCommittees = [formOrgLevel1, formOrgLevel2, formOrgLevel3, formOrgLevel4].includes('إدارة اللجان');
       const roleMapper: Record<string, string> = {
         SYS_ADMIN: "مدير النظام",
         SECRETARY_GENERAL: "أمين عام",
         EXECUTIVE_OFFICE: "المكتب التنفيذي",
         ASSISTANT_SEC_GEN: "مساعد الأمين العام",
         SECRETARY: "السكرتير",
-        MANAG_DIR: "مدير إدارة اللجان",
-        DEPT_HEAD: "رئيس قسم اللجان",
-        SPECIALIST: "أخصائي اللجان"
+        MANAG_DIR: isCommittees ? "مدير إدارة اللجان" : "مدير إدارة",
+        DEPT_HEAD: isCommittees ? "رئيس قسم اللجان" : "رئيس قسم",
+        SPECIALIST: isCommittees ? "أخصائي اللجان" : "أخصائي"
       };
 
+      let finalOrgLevel5 = formOrgLevel5;
+      if (formRole === "SECRETARY" && !finalOrgLevel5) {
+        const parentNode = formOrgLevel4 || formOrgLevel3 || formOrgLevel2 || formOrgLevel1;
+        const staffNode = dbOrgNodes.find(n => n.type === 'STAFF' && n.parent === parentNode);
+        if (staffNode) {
+          finalOrgLevel5 = staffNode.name;
+        }
+      }
+
       let calculatedJobTitle = "غير مسكن";
-      if (formOrgLevel5) {
-        const node = dbOrgNodes.find(n => n.name === formOrgLevel5);
+      if (finalOrgLevel5) {
+        const node = dbOrgNodes.find(n => n.name === finalOrgLevel5);
         if (node && node.type === 'STAFF') {
-          calculatedJobTitle = formOrgLevel5.trim();
-        } else if (formOrgLevel5 === 'أخصائي' || formOrgLevel5 === 'أخصائي اللجان') {
+          calculatedJobTitle = finalOrgLevel5.trim();
+        } else if (finalOrgLevel5 === 'أخصائي' || finalOrgLevel5 === 'أخصائي اللجان') {
           const cleanLevelName = (name: string) => name.replace(/^(قسم|إدارة)\s+/i, '').trim();
           if (formOrgLevel4) {
             calculatedJobTitle = `أخصائي ${cleanLevelName(formOrgLevel4)}`;
@@ -810,7 +810,7 @@ export default function OrgChart() {
              calculatedJobTitle = `الأمانة العامة`;
           }
         } else {
-          calculatedJobTitle = formOrgLevel5.trim();
+          calculatedJobTitle = finalOrgLevel5.trim();
         }
       }
       
@@ -868,7 +868,7 @@ export default function OrgChart() {
         orgLevel2: formOrgLevel2,
         orgLevel3: formOrgLevel3,
         orgLevel4: formOrgLevel4,
-        orgLevel5: formOrgLevel5,
+        orgLevel5: finalOrgLevel5,
         phone: formPhone.trim(),
         extension: formExtension.trim(),
         email: isEditing && existingEmployee ? existingEmployee.email : cleanEmail,
@@ -1633,7 +1633,7 @@ export default function OrgChart() {
                                 )}
                                 <h6 className="font-bold text-purple-900 text-[10px] mb-1">{staff.name}</h6>
                                 <span className="text-[8px] text-purple-700 block">سكرتير / وظيفة مساندة</span>
-                                {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel5 === staff.name))}
+                                {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel5 === staff.name && e.orgLevel1 === rootNode.name && !e.orgLevel2))}
                               </div>
                             ))}
                           </div>
@@ -1647,7 +1647,7 @@ export default function OrgChart() {
               <div className="w-px h-8 bg-gray-300 -my-6 z-0"></div>
 
               {/* Level 2: Sectors */}
-              <div className="flex gap-8 justify-center w-full relative pt-6">
+              <div className="flex flex-row justify-center items-start gap-8 flex-wrap w-full relative pt-6">
                 <div className="absolute top-0 left-10 right-10 h-px bg-gray-300 z-0"></div>
                 {dbOrgNodes.filter(n => n.type === "SECTOR").length === 0 ? (
                   <div className="text-gray-400 text-[11px] font-bold p-4 border border-dashed border-gray-300 rounded-xl bg-white w-full text-center">لا توجد قطاعات مسجلة. اضغط على إضافة بالأعلى لتأسيس قطاع.</div>
@@ -1694,22 +1694,25 @@ export default function OrgChart() {
                               )}
                               <h6 className="font-bold text-purple-900 text-[10px] mb-0.5">{staff.name}</h6>
                               <span className="text-[8px] text-purple-700 block">سكرتير / وظيفة مساندة</span>
-                              {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel5 === staff.name))}
+                              {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel5 === staff.name && e.orgLevel2 === sector.name && !e.orgLevel3))}
                             </div>
                           ))}
                         </div>
                       )}
 
                       {/* Level 3: Departments under this sector */}
-                      <div className="flex flex-col items-center mt-6 relative w-full">
-                        {dbOrgNodes.filter(n => n.type === "DEPARTMENT" && n.parent === sector.name).length > 0 && (
+                      {dbOrgNodes.filter(n => n.type === "DEPARTMENT" && n.parent === sector.name).length > 0 && (
+                        <div className="flex flex-col items-center mt-6 relative w-full">
                           <div className="absolute top-0 w-px h-6 bg-gray-300 -mt-6 z-0"></div>
-                        )}
-                        <div className="flex flex-col gap-4">
-                          {dbOrgNodes.filter(n => n.type === "DEPARTMENT" && n.parent === sector.name).map(dept => (
-                            <div key={dept.id} className="flex flex-col items-center relative z-10">
-                              
-                              <div className="bg-teal-50 border border-teal-400 rounded-xl p-3 w-48 text-center shadow-sm relative group hover:shadow-md transition-all">
+                          
+                          <div className="flex flex-row justify-center items-start gap-6 flex-wrap relative w-full pt-6 mt-2">
+                            {dbOrgNodes.filter(n => n.type === "DEPARTMENT" && n.parent === sector.name).length > 1 && (
+                              <div className="absolute top-0 left-10 right-10 h-px bg-gray-300 z-0"></div>
+                            )}
+                            {dbOrgNodes.filter(n => n.type === "DEPARTMENT" && n.parent === sector.name).map(dept => (
+                              <div key={dept.id} className="flex flex-col items-center relative z-10">
+                                <div className="absolute top-0 w-px h-6 bg-gray-300 -mt-6 z-0"></div>
+                                <div className="bg-teal-50 border border-teal-400 rounded-xl p-3 w-48 text-center shadow-sm relative group hover:shadow-md transition-all">
                                 {currentUserRole === "SYS_ADMIN" && (
                                   <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                                     <button onClick={() => { setOrgNodeForm({ ...dept, isSubcategory: true } as any); setShowOrgNodeModal(true); }} className="p-1 bg-white text-blue-600 rounded hover:bg-blue-50 border border-blue-100 shadow-sm"><Edit2 className="w-3 h-3" /></button>
@@ -1719,78 +1722,102 @@ export default function OrgChart() {
                                 <h5 className="font-black text-teal-900 text-[11px] mb-2">{dept.name}</h5>
                                 <div className="flex items-center justify-center gap-1 text-[9px] text-teal-700 bg-white rounded-full px-2 py-0.5 border border-teal-200 w-fit mx-auto">
                                   <Users className="w-3 h-3" />
-                                  <span>{safeDbEmployees.filter(e => e.orgLevel3 === dept.name).length} موظف</span>
+                                  <span>{safeDbEmployees.filter(e => e.orgLevel3 === dept.name && e.orgLevel2 === sector.name).length} موظف</span>
                                 </div>
-                                {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel3 === dept.name && !e.orgLevel4 && (!e.orgLevel5 || !dbOrgNodes.some(n => n.name === e.orgLevel5 && n.type === 'STAFF'))))}
+                                {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel3 === dept.name && e.orgLevel2 === sector.name && !e.orgLevel4 && (!e.orgLevel5 || !dbOrgNodes.some(n => n.name === e.orgLevel5 && n.type === 'STAFF'))))}
                               </div>
 
                               {currentUserRole === "SYS_ADMIN" && (
-                                <button onClick={() => { setOrgNodeForm({ id: "", name: "", type: "SECTION", parent: dept.name, isSubcategory: true }); setShowOrgNodeModal(true); }} className="mt-2 px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-[9px] font-bold transition-all flex items-center gap-1 shadow-sm relative z-20 border border-gray-200">
-                                  <Plus className="w-3 h-3" /> إضافة قسم
-                                </button>
+                                <div className="flex gap-2 mt-2 relative z-20">
+                                  <button onClick={() => { setOrgNodeForm({ id: "", name: "", type: "STAFF", parent: dept.name, isSubcategory: false }); setShowOrgNodeModal(true); }} className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded text-[9px] font-bold transition-all flex items-center gap-1 shadow-sm border border-purple-200">
+                                    <Plus className="w-3 h-3" /> إضافة سكرتير
+                                  </button>
+                                  <button onClick={() => { setOrgNodeForm({ id: "", name: "", type: "SECTION", parent: dept.name, isSubcategory: true }); setShowOrgNodeModal(true); }} className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-[9px] font-bold transition-all flex items-center gap-1 shadow-sm relative z-20 border border-gray-200">
+                                    <Plus className="w-3 h-3" /> إضافة قسم / مركز
+                                  </button>
+                                </div>
+                              )}
+
+                              {dbOrgNodes.filter(n => n.type === "STAFF" && n.parent === dept.name).length > 0 && (
+                                <div className="flex flex-col gap-2 mt-2 relative z-20 w-full items-center">
+                                  {dbOrgNodes.filter(n => n.type === "STAFF" && n.parent === dept.name).map(staff => (
+                                    <div key={staff.id} className="bg-purple-50 border border-purple-300 rounded-lg p-2 w-48 text-center relative group shadow-sm hover:shadow-md transition-all">
+                                      {currentUserRole === "SYS_ADMIN" && (
+                                        <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                          <button onClick={() => { setOrgNodeForm({ ...staff, isSubcategory: false } as any); setShowOrgNodeModal(true); }} className="p-0.5 bg-white text-blue-600 rounded hover:bg-blue-50"><Edit2 className="w-3 h-3" /></button>
+                                          <button onClick={() => handleDeleteOrgNode(staff)} className="p-0.5 bg-white text-red-600 rounded hover:bg-red-50"><Trash2 className="w-3 h-3" /></button>
+                                        </div>
+                                      )}
+                                      <h6 className="font-bold text-purple-900 text-[10px] mb-0.5">{staff.name}</h6>
+                                      <span className="text-[8px] text-purple-700 block">سكرتير / وظيفة مساندة</span>
+                                      {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel5 === staff.name && e.orgLevel3 === dept.name && e.orgLevel2 === sector.name && !e.orgLevel4))}
+                                    </div>
+                                  ))}
+                                </div>
                               )}
 
                               {/* Level 4: Sections under this department */}
                               {dbOrgNodes.filter(n => n.type === "SECTION" && n.parent === dept.name).length > 0 && (
-                                <div className="flex flex-col gap-4 mt-4 ml-4 border-r-2 border-blue-200 pr-4 w-full items-end">
-                                  {dbOrgNodes.filter(n => n.type === "SECTION" && n.parent === dept.name).map(sec => {
-                                    const explicitJobTitles = dbOrgNodes.filter(n => n.type === "JOB_TITLE" && n.parent === sec.name);
-                                    const inferredJobTitles = Array.from(new Set(
-                                      dbEmployees
-                                        .filter(e => e.orgLevel4 === sec.name && e.orgLevel5 && e.role !== "DEPT_HEAD" && e.role !== "MANAG_DIR")
-                                        .map(e => e.orgLevel5)
-                                    )).filter(Boolean)
-                                      .filter(title => !explicitJobTitles.some(n => n.name === title));
-                                    
-                                    return (
-                                      <div key={sec.id} className="flex flex-col items-end gap-2 w-full relative">
-                                        <div className="bg-blue-50 border border-blue-300 rounded-lg p-2.5 w-40 text-center relative group shadow-sm hover:shadow-md transition-all">
+                                <div className="flex flex-col items-center mt-6 relative w-full">
+                                  <div className="absolute top-0 w-px h-6 bg-gray-300 -mt-6 z-0"></div>
+                                  
+                                  <div className="flex flex-row justify-center items-start gap-4 flex-wrap relative w-full pt-6 mt-2">
+                                    {dbOrgNodes.filter(n => n.type === "SECTION" && n.parent === dept.name).length > 1 && (
+                                      <div className="absolute top-0 left-10 right-10 h-px bg-gray-300 z-0"></div>
+                                    )}
+                                    {dbOrgNodes.filter(n => n.type === "SECTION" && n.parent === dept.name).map(sec => {
+                                      const explicitJobTitles = dbOrgNodes.filter(n => n.type === "JOB_TITLE" && n.parent === sec.name);
+                                      const inferredJobTitles = Array.from(new Set(
+                                        dbEmployees
+                                          .filter(e => e.orgLevel4 === sec.name && e.orgLevel5 && e.role !== "DEPT_HEAD" && e.role !== "MANAG_DIR")
+                                          .map(e => e.orgLevel5)
+                                      )).filter(Boolean)
+                                        .filter(title => !explicitJobTitles.some(n => n.name === title));
+                                      
+                                      return (
+                                        <div key={sec.id} className="flex flex-col items-center gap-2 relative z-10 w-fit">
+                                          <div className="absolute top-0 w-px h-6 bg-gray-300 -mt-6 z-0"></div>
+                                          <div className="bg-blue-50 border border-blue-300 rounded-lg p-2.5 w-40 text-center relative group shadow-sm hover:shadow-md transition-all">
+                                            {currentUserRole === "SYS_ADMIN" && (
+                                              <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                                <button onClick={() => { setOrgNodeForm({ ...sec, isSubcategory: true } as any); setShowOrgNodeModal(true); }} className="p-0.5 bg-white text-blue-600 rounded hover:bg-blue-50"><Edit2 className="w-3 h-3" /></button>
+                                                <button onClick={() => handleDeleteOrgNode(sec)} className="p-0.5 bg-white text-red-600 rounded hover:bg-red-50"><X className="w-3 h-3" /></button>
+                                              </div>
+                                            )}
+                                            <h6 className="font-bold text-blue-900 text-[10px] mb-1">{sec.name}</h6>
+                                            <div className="flex items-center justify-center gap-1 text-[8px] text-blue-700 bg-white rounded-full px-1.5 py-0.5 border border-blue-200 w-fit mx-auto">
+                                              <Users className="w-2.5 h-2.5" />
+                                              <span>{safeDbEmployees.filter(e => e.orgLevel4 === sec.name && e.orgLevel3 === dept.name && e.orgLevel2 === sector.name).length} موظف</span>
+                                            </div>
+                                            {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel4 === sec.name && e.orgLevel3 === dept.name && e.orgLevel2 === sector.name && (!e.orgLevel5 || e.role === "DEPT_HEAD" || e.role === "MANAG_DIR")))}
+                                          </div>
+
                                           {currentUserRole === "SYS_ADMIN" && (
-                                            <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                                              <button onClick={() => { setOrgNodeForm({ ...sec, isSubcategory: true } as any); setShowOrgNodeModal(true); }} className="p-0.5 bg-white text-blue-600 rounded hover:bg-blue-50"><Edit2 className="w-3 h-3" /></button>
-                                              <button onClick={() => handleDeleteOrgNode(sec)} className="p-0.5 bg-white text-red-600 rounded hover:bg-red-50"><X className="w-3 h-3" /></button>
+                                            <button onClick={() => { setOrgNodeForm({ id: "", name: "", type: "JOB_TITLE", parent: sec.name, isSubcategory: false }); setShowOrgNodeModal(true); }} className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-[8px] font-bold transition-all flex items-center gap-1 shadow-sm border border-gray-200 mt-1">
+                                              <Plus className="w-3 h-3" /> إضافة أخصائي / مسمى
+                                            </button>
+                                          )}
+
+                                          {dbOrgNodes.filter(n => n.type === "JOB_TITLE" && n.parent === sec.name).length > 0 && (
+                                            <div className="flex flex-col gap-2 mt-2 w-full items-center relative z-20">
+                                              {dbOrgNodes.filter(n => n.type === "JOB_TITLE" && n.parent === sec.name).map(job => (
+                                                <div key={job.id} className="bg-indigo-50 border border-indigo-200 rounded-lg p-2 w-36 text-center shadow-sm relative group hover:shadow-md transition-all">
+                                                  {currentUserRole === "SYS_ADMIN" && (
+                                                    <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                                      <button onClick={() => { setOrgNodeForm({ ...job, isSubcategory: false } as any); setShowOrgNodeModal(true); }} className="p-0.5 bg-white text-blue-600 rounded hover:bg-blue-50"><Edit2 className="w-3 h-3" /></button>
+                                                      <button onClick={() => handleDeleteOrgNode(job)} className="p-0.5 bg-white text-red-600 rounded hover:bg-red-50"><X className="w-3 h-3" /></button>
+                                                    </div>
+                                                  )}
+                                                  <h6 className="font-bold text-indigo-900 text-[9px] mb-1 truncate">{job.name}</h6>
+                                                  {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel5 === job.name && e.orgLevel4 === sec.name && e.orgLevel3 === dept.name && e.orgLevel2 === sector.name))}
+                                                </div>
+                                              ))}
                                             </div>
                                           )}
-                                          <h6 className="font-bold text-blue-900 text-[10px] mb-1">{sec.name}</h6>
-                                          <div className="flex items-center justify-center gap-1 text-[8px] text-blue-700 bg-white rounded-full px-1.5 py-0.5 border border-blue-200 w-fit mx-auto">
-                                            <Users className="w-2.5 h-2.5" />
-                                            <span>{safeDbEmployees.filter(e => e.orgLevel4 === sec.name).length} موظف</span>
-                                          </div>
-                                          {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel4 === sec.name && (!e.orgLevel5 || e.role === "DEPT_HEAD" || e.role === "MANAG_DIR")))}
                                         </div>
-
-                                        {currentUserRole === "SYS_ADMIN" && (
-                                          <button onClick={() => { setOrgNodeForm({ id: "", name: "", type: "JOB_TITLE", parent: sec.name, isSubcategory: false }); setShowOrgNodeModal(true); }} className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-[8px] font-bold transition-all flex items-center gap-1 shadow-sm border border-gray-200 self-end ml-4">
-                                            <Plus className="w-3 h-3" /> إضافة أخصائي / مسمى
-                                          </button>
-                                        )}
-
-                                        {/* Level 5: Job Titles under this section */}
-                                        {(explicitJobTitles.length > 0 || inferredJobTitles.length > 0) && (
-                                          <div className="flex flex-col gap-2 mt-1 ml-4 border-r-2 border-indigo-100 pr-3 w-full items-end">
-                                            {explicitJobTitles.map(job => (
-                                              <div key={job.id} className="bg-indigo-50 border border-indigo-200 rounded-lg p-2 w-36 text-center shadow-sm relative group hover:shadow-md transition-all">
-                                                {currentUserRole === "SYS_ADMIN" && (
-                                                  <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                                                    <button onClick={() => { setOrgNodeForm({ ...job, isSubcategory: false } as any); setShowOrgNodeModal(true); }} className="p-0.5 bg-white text-blue-600 rounded hover:bg-blue-50"><Edit2 className="w-3 h-3" /></button>
-                                                    <button onClick={() => handleDeleteOrgNode(job)} className="p-0.5 bg-white text-red-600 rounded hover:bg-red-50"><X className="w-3 h-3" /></button>
-                                                  </div>
-                                                )}
-                                                <h6 className="font-bold text-indigo-900 text-[9px] mb-1 truncate">{job.name}</h6>
-                                                {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel4 === sec.name && e.orgLevel5 === job.name && e.role !== "DEPT_HEAD" && e.role !== "MANAG_DIR"))}
-                                              </div>
-                                            ))}
-                                            {inferredJobTitles.map((title, idx) => (
-                                              <div key={`inferred-${idx}`} className="bg-gray-50 border border-gray-200 rounded-lg p-2 w-36 text-center shadow-sm relative">
-                                                <h6 className="font-bold text-gray-700 text-[9px] mb-1 truncate">{title}</h6>
-                                                {renderEmployeesForNode(safeDbEmployees.filter(e => e.orgLevel4 === sec.name && e.orgLevel5 === title))}
-                                              </div>
-                                            ))}
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                               )}
 
@@ -1798,6 +1825,7 @@ export default function OrgChart() {
                           ))}
                         </div>
                       </div>
+                      )}
 
                     </div>
                   ))
@@ -1936,9 +1964,9 @@ export default function OrgChart() {
                 </div>
                 <div className="flex items-center justify-between">
                   <select value={whitelistRoleAr} onChange={(e) => setWhitelistRoleAr(e.target.value)} className="bg-white border border-gray-200 rounded-lg py-1 px-2 text-[10px] font-bold">
-                    <option value="أخصائي لجان">أخصائي لجان</option>
-                    <option value="رئيس قسم لجان">رئيس قسم لجان</option>
-                    <option value="مدير إدارة لجان">مدير إدارة لجان</option>
+                    <option value="أخصائي">أخصائي</option>
+                    <option value="رئيس قسم">رئيس قسم</option>
+                    <option value="مدير إدارة">مدير إدارة</option>
                   </select>
                   <button type="submit" className="p-2 px-3.5 bg-slate-900 text-white text-[10px] font-black rounded-lg">إضافة</button>
                 </div>
@@ -2215,9 +2243,9 @@ export default function OrgChart() {
 
                     {orgNodeForm.type === "JOB_TITLE" && (
                       <div className="mb-4">
-                        <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">القسم المرجعي</label>
+                        <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">القسم / المركز المرجعي</label>
                         <select required value={orgNodeForm.parent} onChange={(e) => setOrgNodeForm({...orgNodeForm, parent: e.target.value})} className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-brand">
-                          <option value="">-- اختر قسم --</option>
+                          <option value="">-- اختر قسم / مركز --</option>
                           {dbOrgNodes.filter(n => n.type === "SECTION").map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                         </select>
                       </div>
@@ -2303,10 +2331,14 @@ export default function OrgChart() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-6 gap-4">
                   <div className="sm:col-span-1">
                     <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">الرقم الوظيفي</label>
                     <input type="text" required value={formId} onChange={(e) => setFormId(e.target.value)} className="w-full h-10 bg-white border border-gray-300 rounded-xl px-3 text-xs font-bold text-center outline-none focus:border-brand" />
+                  </div>
+                  <div className="sm:col-span-1">
+                    <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">رقم التحويلة</label>
+                    <input type="text" value={formExtension} onChange={(e) => setFormExtension(e.target.value)} className="w-full h-10 bg-white border border-gray-300 rounded-xl px-3 text-xs font-bold text-center outline-none focus:border-brand" />
                   </div>
                   <div className="sm:col-span-1">
                     <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">الصفة</label>
@@ -2347,7 +2379,12 @@ export default function OrgChart() {
                     {/* 2 */}
                     <div className="space-y-1.5">
                       <label className="block text-[10px] text-gray-500 font-extrabold">2. القطاع</label>
-                      <select value={formOrgLevel2} onChange={(e) => setFormOrgLevel2(e.target.value)} className="w-full h-9 bg-white border border-gray-300 rounded-lg px-2 text-[11px] font-bold outline-none focus:border-brand">
+                      <select value={formOrgLevel2} onChange={(e) => {
+                        setFormOrgLevel2(e.target.value);
+                        setFormOrgLevel3("");
+                        setFormOrgLevel4("");
+                        setFormOrgLevel5("");
+                      }} className="w-full h-9 bg-white border border-gray-300 rounded-lg px-2 text-[11px] font-bold outline-none focus:border-brand">
                         <option value="">-- اختر القطاع --</option>
                         {dbOrgNodes.filter(n => n.type === "SECTOR").map(node => (
                           <option key={node.id} value={node.name}>{node.name}</option>
@@ -2358,7 +2395,11 @@ export default function OrgChart() {
                     {/* 3 */}
                     <div className="space-y-1.5">
                       <label className="block text-[10px] text-gray-500 font-extrabold">3. الإدارة</label>
-                      <select value={formOrgLevel3} onChange={(e) => setFormOrgLevel3(e.target.value)} disabled={!formOrgLevel2} className="w-full h-9 bg-white border border-gray-300 rounded-lg px-2 text-[11px] font-bold outline-none focus:border-brand disabled:bg-gray-100">
+                      <select value={formOrgLevel3} onChange={(e) => {
+                        setFormOrgLevel3(e.target.value);
+                        setFormOrgLevel4("");
+                        setFormOrgLevel5("");
+                      }} disabled={!formOrgLevel2} className="w-full h-9 bg-white border border-gray-300 rounded-lg px-2 text-[11px] font-bold outline-none focus:border-brand disabled:bg-gray-100">
                         <option value="">-- اختر الإدارة --</option>
                         {dbOrgNodes.filter(n => n.type === "DEPARTMENT" && n.parent === formOrgLevel2).map(node => (
                           <option key={node.id} value={node.name}>{node.name}</option>
@@ -2368,9 +2409,12 @@ export default function OrgChart() {
 
                     {/* 4 */}
                     <div className="space-y-1.5">
-                      <label className="block text-[10px] text-gray-500 font-extrabold">4. القسم</label>
-                      <select value={formOrgLevel4} onChange={(e) => setFormOrgLevel4(e.target.value)} disabled={!formOrgLevel3} className="w-full h-9 bg-white border border-gray-300 rounded-lg px-2 text-[11px] font-bold outline-none focus:border-brand disabled:bg-gray-100">
-                        <option value="">-- اختر القسم --</option>
+                      <label className="block text-[10px] text-gray-500 font-extrabold">4. القسم / المركز</label>
+                      <select value={formOrgLevel4} onChange={(e) => {
+                        setFormOrgLevel4(e.target.value);
+                        setFormOrgLevel5("");
+                      }} disabled={!formOrgLevel3} className="w-full h-9 bg-white border border-gray-300 rounded-lg px-2 text-[11px] font-bold outline-none focus:border-brand disabled:bg-gray-100">
+                        <option value="">-- اختر القسم / المركز --</option>
                         {dbOrgNodes.filter(n => n.type === "SECTION" && n.parent === formOrgLevel3).map(node => (
                           <option key={node.id} value={node.name}>{node.name}</option>
                         ))}
@@ -2397,7 +2441,7 @@ export default function OrgChart() {
                     </div>
                     
                     {/* Committees Selection */}
-                    {(formOrgLevel5 === 'أخصائي' || formOrgLevel5 === 'أخصائي اللجان') && (
+                    {(formOrgLevel5 === 'أخصائي' || formOrgLevel5 === 'أخصائي اللجان') && [formOrgLevel1, formOrgLevel2, formOrgLevel3, formOrgLevel4].includes('إدارة اللجان') && (
                       <div className="space-y-1.5 lg:col-span-full">
                         <label className="block text-[10px] text-gray-500 font-extrabold">ارتباط اللجان (متعدد)</label>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 bg-gray-50 p-3 rounded-lg border border-gray-200 max-h-48 overflow-y-auto">

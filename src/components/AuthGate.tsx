@@ -409,63 +409,6 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
                 </>
               )}
             </button>
-
-            {/* خط تقسيم أنيق */}
-            <div className="flex items-center my-6">
-              <div className="flex-1 border-t border-slate-700/50"></div>
-              <span className="px-3 text-[10px] text-slate-550 font-black tracking-wider text-center">أو تسجيل الدخول اليدوي (للمحافظة الرقمية)</span>
-              <div className="flex-1 border-t border-slate-700/50"></div>
-            </div>
-
-            <form onSubmit={handleEmailLogin} className="space-y-4">
-              <div className="bg-slate-800/60 border border-slate-700/40 rounded-2xl p-4 text-xs font-bold leading-relaxed text-slate-300">
-                <span className="text-sky-400 font-extrabold">ℹ️ الدخول والمصادقة الرقمية:</span>
-                <p className="mt-1.5 text-slate-450 leading-normal text-[11px] font-semibold">
-                  يرجى إدخال البريد الإلكتروني الرسمي المفعل لديك بالنظام.
-                </p>
-                <div className="mt-3 pt-2.5 border-t border-slate-700/30 flex flex-wrap gap-2 text-[10px] text-slate-400">
-                  <span>الحساب المستخدم:</span>
-                  <button 
-                    type="button"
-                    onClick={() => setLoginEmail("X.XXXX@makkahchamber.sa")}
-                    className="px-2 py-0.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 rounded-md border border-sky-400/20 transition-all font-mono cursor-pointer"
-                  >
-                    X.XXXX@makkahchamber.sa
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] text-slate-400 font-extrabold mb-1.5 text-right">البريد الإلكتروني المعتمد</label>
-                <div className="relative">
-                  <input
-                    type="email"
-                    required
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    placeholder="X.XXXX@makkahchamber.sa"
-                    className="w-full bg-slate-800 border border-slate-700/60 rounded-xl px-4 py-2.5 pr-10 text-slate-100 text-xs text-left focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-medium"
-                    dir="ltr"
-                  />
-                  <Mail className="absolute top-3 right-3 text-slate-500 w-4.5 h-4.5 shrink-0" />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 bg-sky-500 hover:bg-sky-600 text-white font-extrabold text-xs rounded-xl transition-all shadow-lg hover:shadow-sky-500/20 flex items-center justify-center gap-3 cursor-pointer text-center disabled:opacity-50"
-              >
-                {loading ? (
-                  <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                ) : (
-                  <>
-                    <LogIn className="w-4 h-4" />
-                    <span>دخول آمن ومباشر للنظام</span>
-                  </>
-                )}
-              </button>
-            </form>
           </div>
         )}
 
@@ -525,19 +468,6 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
                 />
                 <Mail className="absolute top-3 right-3 text-slate-500 w-4.5 h-4.5 shrink-0" />
               </div>
-            </div>
-
-            {/* Gender Selection */}
-            <div>
-              <label className="block text-[11px] text-slate-400 font-extrabold mb-1.5 text-right">الجنس (لتحديد اللقب تلقائياً بقواعد اللغة العربية)</label>
-              <select
-                value={regGender}
-                onChange={(e: any) => setRegGender(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700/60 rounded-xl px-4 py-2.5 text-slate-100 text-xs text-right focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-medium cursor-pointer"
-              >
-                <option value="MALE">ذكر (الأستاذ)</option>
-                <option value="FEMALE">أنثى (الأستاذة)</option>
-              </select>
             </div>
 
             {/* Submit application */}

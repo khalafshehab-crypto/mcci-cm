@@ -29,20 +29,55 @@ export default function AssistantSecGenTasks() {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
 
   useEffect(() => {
-    const q = query(collection(db, "assistant_sec_gen_tasks"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const dbTasks = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as TaskItem[];
-      setTasks(dbTasks);
+    const q1 = query(collection(db, "tasks"));
+    const q2 = query(collection(db, "affiliates_tasks"));
+    const q3 = query(collection(db, "centers_tasks"));
+    const q4 = query(collection(db, "assistant_sec_gen_tasks")); // Optional, if they also have their own tasks
+
+    const unsub1 = onSnapshot(q1, (snapshot) => {
+      const dbTasks = snapshot.docs.map(doc => ({ id: doc.id, _sourceCol: "tasks", ...doc.data() })) as (TaskItem & {_sourceCol: string})[];
+      setTasks(prev => {
+        const others = prev.filter(t => t._sourceCol !== "tasks");
+        return [...others, ...dbTasks].sort((a,b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
+      });
     });
-    return () => unsubscribe();
+
+    const unsub2 = onSnapshot(q2, (snapshot) => {
+      const dbTasks = snapshot.docs.map(doc => ({ id: doc.id, _sourceCol: "affiliates_tasks", ...doc.data() })) as (TaskItem & {_sourceCol: string})[];
+      setTasks(prev => {
+        const others = prev.filter(t => t._sourceCol !== "affiliates_tasks");
+        return [...others, ...dbTasks].sort((a,b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
+      });
+    });
+
+    const unsub3 = onSnapshot(q3, (snapshot) => {
+      const dbTasks = snapshot.docs.map(doc => ({ id: doc.id, _sourceCol: "centers_tasks", ...doc.data() })) as (TaskItem & {_sourceCol: string})[];
+      setTasks(prev => {
+        const others = prev.filter(t => t._sourceCol !== "centers_tasks");
+        return [...others, ...dbTasks].sort((a,b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
+      });
+    });
+
+    const unsub4 = onSnapshot(q4, (snapshot) => {
+      const dbTasks = snapshot.docs.map(doc => ({ id: doc.id, _sourceCol: "assistant_sec_gen_tasks", ...doc.data() })) as (TaskItem & {_sourceCol: string})[];
+      setTasks(prev => {
+        const others = prev.filter(t => t._sourceCol !== "assistant_sec_gen_tasks");
+        return [...others, ...dbTasks].sort((a,b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
+      });
+    });
+
+    return () => {
+      unsub1();
+      unsub2();
+      unsub3();
+      unsub4();
+    };
   }, []);
 
   const [employeesList, setEmployeesList] = useState<string[]>([
     "مدير النظام"
   ]);
+  const [allEmployeesData, setAllEmployeesData] = useState<any[]>([]);
 
   useEffect(() => {
     const q = query(collection(db, "employees"));
@@ -58,6 +93,7 @@ export default function AssistantSecGenTasks() {
           e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
           e.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com"
         );
+        setAllEmployeesData(emps);
         setEmployeesList(emps.map(e => e.name).filter(Boolean));
       }
     });
@@ -105,6 +141,7 @@ export default function AssistantSecGenTasks() {
   const [dueDate, setDueDate] = useState("");
   const [assignedBy, setAssignedBy] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
+  const [selectedAssignDept, setSelectedAssignDept] = useState("إدارة اللجان");
   const [status, setStatus] = useState<"جديدة" | "جاري العمل عليها" | "متأخرة" | "منجزة">("جديدة");
   const [achievementNotes, setAchievementNotes] = useState("");
   const [tempAttachments, setTempAttachments] = useState<Array<{ name: string; url: string; date: string }>>([]);
@@ -137,7 +174,9 @@ export default function AssistantSecGenTasks() {
     setPriority("عادية");
     setDueDate(new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10)); // 5 days from now
     setAssignedBy(currentUserName);
-    setAssignedTo(employeesList[0] || "");
+    setSelectedAssignDept("إدارة اللجان");
+    const deptEmps = allEmployeesData.filter(emp => emp.orgLevel3 === "إدارة اللجان" || emp.orgLevel2 === "إدارة اللجان" || emp.orgLevel1 === "إدارة اللجان");
+    setAssignedTo(deptEmps.length > 0 ? deptEmps[0].name : (employeesList[0] || ""));
     setStatus("جديدة");
     setAchievementNotes("");
     setTempAttachments([]);
@@ -186,6 +225,15 @@ export default function AssistantSecGenTasks() {
     setDueDate(task.dueDate);
     setAssignedBy(task.assignedBy);
     setAssignedTo(task.assignedTo);
+    
+    // Find department of assignedTo
+    const emp = allEmployeesData.find(e => e.name === task.assignedTo);
+    if (emp && (emp.orgLevel3 || emp.orgLevel2 || emp.orgLevel1)) {
+      setSelectedAssignDept((emp.orgLevel3 || emp.orgLevel2 || emp.orgLevel1) as string);
+    } else {
+      setSelectedAssignDept("إدارة اللجان");
+    }
+
     setStatus(task.status);
     setAchievementNotes(task.achievementNotes || "");
     setTempAttachments(task.attachments);
@@ -207,7 +255,7 @@ export default function AssistantSecGenTasks() {
     }
 
     try {
-      await updateDoc(doc(db, "assistant_sec_gen_tasks", currentTask.id), {
+      await updateDoc(doc(db, (currentTask as any)._sourceCol || "assistant_sec_gen_tasks", currentTask.id), {
         title,
         description,
         sourceType,
@@ -249,7 +297,7 @@ export default function AssistantSecGenTasks() {
     }
     
     try {
-      await updateDoc(doc(db, "assistant_sec_gen_tasks", currentTask.id), {
+      await updateDoc(doc(db, (currentTask as any)._sourceCol || "assistant_sec_gen_tasks", currentTask.id), {
         status,
         achievementNotes,
         escalationLevel: newEscLevel
@@ -312,7 +360,7 @@ export default function AssistantSecGenTasks() {
 
       localStorage.setItem("app_system_logs", JSON.stringify([logEntry, ...currentLogs]));
       
-      await deleteDoc(doc(db, "assistant_sec_gen_tasks", taskToDeleteId));
+      await deleteDoc(doc(db, (tasks.find(t => t.id === taskToDeleteId) as any)?._sourceCol || "assistant_sec_gen_tasks", taskToDeleteId));
     } catch (err) {
       console.error(err);
     }
@@ -1013,17 +1061,36 @@ export default function AssistantSecGenTasks() {
                   {sourceType === "جديدة" && <div className="hidden md:block col-span-1 md:col-span-1"></div>}
 
                   {/* Assigned to */}
-                  <div>
+                  <div className="space-y-2 lg:col-span-1">
                     <label className="block text-xs font-black text-gray-750 mb-1">مسندة إلى (الموظف المكلف) *</label>
-                    <select
-                      value={assignedTo}
-                      onChange={(e) => setAssignedTo(e.target.value)}
-                      className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                    >
-                      {employeesList.map((e, i) => (
-                        <option key={i} value={e}>{e}</option>
-                      ))}
-                    </select>
+                    <div className="flex flex-col gap-2">
+                      <select
+                        value={selectedAssignDept}
+                        onChange={(e) => {
+                          setSelectedAssignDept(e.target.value);
+                          const deptEmps = allEmployeesData.filter(emp => emp.orgLevel3 === e.target.value || emp.orgLevel2 === e.target.value || emp.orgLevel1 === e.target.value);
+                          if (deptEmps.length > 0) {
+                            setAssignedTo(deptEmps[0].name);
+                          } else {
+                            setAssignedTo("");
+                          }
+                        }}
+                        className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                      >
+                        {Array.from(new Set(allEmployeesData.map(e => e.orgLevel3 || e.orgLevel2 || e.orgLevel1).filter(Boolean))).map((dept, i) => (
+                          <option key={i} value={dept as string}>{dept as string}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={assignedTo}
+                        onChange={(e) => setAssignedTo(e.target.value)}
+                        className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                      >
+                        {allEmployeesData.filter(emp => emp.orgLevel3 === selectedAssignDept || emp.orgLevel2 === selectedAssignDept || emp.orgLevel1 === selectedAssignDept).map((e, i) => (
+                          <option key={i} value={e.name}>{e.name}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   {/* Coordinator (Assigned by) */}
@@ -1278,17 +1345,36 @@ export default function AssistantSecGenTasks() {
                   </div>
 
                   {/* Assignee */}
-                  <div>
+                  <div className="space-y-2 lg:col-span-1">
                     <label className="block text-xs font-black text-gray-750 mb-1">الموظف المكلف</label>
-                    <select
-                      value={assignedTo}
-                      onChange={(e) => setAssignedTo(e.target.value)}
-                      className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                    >
-                      {employeesList.map((e, i) => (
-                        <option key={i} value={e}>{e}</option>
-                      ))}
-                    </select>
+                    <div className="flex flex-col gap-2">
+                      <select
+                        value={selectedAssignDept}
+                        onChange={(e) => {
+                          setSelectedAssignDept(e.target.value);
+                          const deptEmps = allEmployeesData.filter(emp => emp.orgLevel3 === e.target.value || emp.orgLevel2 === e.target.value || emp.orgLevel1 === e.target.value);
+                          if (deptEmps.length > 0) {
+                            setAssignedTo(deptEmps[0].name);
+                          } else {
+                            setAssignedTo("");
+                          }
+                        }}
+                        className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                      >
+                        {Array.from(new Set(allEmployeesData.map(e => e.orgLevel3 || e.orgLevel2 || e.orgLevel1).filter(Boolean))).map((dept, i) => (
+                          <option key={i} value={dept as string}>{dept as string}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={assignedTo}
+                        onChange={(e) => setAssignedTo(e.target.value)}
+                        className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                      >
+                        {allEmployeesData.filter(emp => emp.orgLevel3 === selectedAssignDept || emp.orgLevel2 === selectedAssignDept || emp.orgLevel1 === selectedAssignDept).map((e, i) => (
+                          <option key={i} value={e.name}>{e.name}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   {/* Coordinator (Assigned by) */}
