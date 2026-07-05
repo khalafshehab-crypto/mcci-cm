@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
+import { GoogleGenAI } from "@google/genai";
 
 async function startServer() {
   const app = express();
@@ -96,6 +97,54 @@ async function startServer() {
     } catch (err: any) {
       console.error("Google Proxy Error:", err);
       return res.status(500).json({ error: { message: err.message || "Internal Server Error" } });
+    }
+  });
+
+  
+  app.post("/api/gemini/generate-letter", async (req, res) => {
+    try {
+      const { prompt, templateContent } = req.body;
+      if (!prompt || !templateContent) {
+        return res.status(400).json({ error: "Missing prompt or templateContent" });
+      }
+
+      if (!process.env.GEMINI_API_KEY) {
+        return res.status(500).json({ error: "GEMINI_API_KEY is missing from environment variables." });
+      }
+
+      const ai = new GoogleGenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
+
+      const fullPrompt = `
+You are an expert Arabic official letter writer.
+You have been given a template for an official letter. The user will provide instructions on how to fill in the variables.
+Maintain the exact structure, formatting, and formal tone of the template.
+Only change the specific fields (like names, dates, subject, etc.) as requested by the user.
+
+Template:
+${templateContent}
+
+User Instructions:
+${prompt}
+
+Output ONLY the final Arabic text of the letter, ready to be printed or used. Do not include markdown blocks or any other commentary.
+`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: fullPrompt,
+      });
+
+      return res.json({ result: response.text });
+    } catch (err) {
+      console.error("Gemini Generate Letter Error:", err);
+      return res.status(500).json({ error: err.message || "Internal Server Error" });
     }
   });
 

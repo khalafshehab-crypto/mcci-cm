@@ -27,11 +27,11 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    "assistant-sec-gen": true,
-    committees: true,
-    centers: true,
-    affiliates: true,
-    admin: true
+    "assistant-sec-gen": false,
+    committees: false,
+    centers: false,
+    affiliates: false,
+    admin: false
   });
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isDatabaseBlocked, setIsDatabaseBlocked] = useState(false);
@@ -330,7 +330,7 @@ export default function Layout({ children }: LayoutProps) {
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 5 }}
-                  className="absolute top-full right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden flex flex-col"
+                  className="absolute top-full right-0 mt-2 w-[280px] sm:w-80 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden flex flex-col"
                   style={{ maxHeight: '80vh' }}
                 >
                   <div className="p-1.5 space-y-1 overflow-y-auto flex-1">
@@ -437,11 +437,11 @@ export default function Layout({ children }: LayoutProps) {
           <div className="flex flex-row-reverse items-center gap-2 pr-0 pt-2 md:pt-0">
             {/* 1. Date Cards */}
             <div id="datetime-card" className="flex flex-col gap-1">
-              <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-gray-100 shadow-sm min-w-[150px]">
+              <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-gray-100 shadow-sm min-w-0 sm:min-w-[150px]">
                 <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded shadow-inner font-black">AD</span>
                 <span className="text-[10px] font-bold text-gray-700 uppercase tracking-tight">{gregorianDate} </span>
               </div>
-              <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-brand/20 shadow-sm min-w-[150px]">
+              <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-brand/20 shadow-sm min-w-0 sm:min-w-[150px]">
                 <span className="text-[9px] bg-brand/10 text-brand px-1.5 py-0.5 rounded shadow-inner font-black">HI</span>
                 <span className="text-[10px] font-bold text-brand uppercase tracking-tight">{hijriDate} </span>
               </div>
@@ -449,11 +449,11 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* 2. Time Card */}
             <div className="flex flex-col gap-1 hidden sm:flex">
-              <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-gray-100 shadow-sm min-w-[150px]">
+              <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-gray-100 shadow-sm min-w-0 sm:min-w-[150px]">
                 <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded shadow-inner font-black">DAY</span>
                 <span className="text-[10px] font-bold text-gray-700 uppercase tracking-tight">{dayName}</span>
               </div>
-              <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-gray-100 shadow-sm min-w-[150px]">
+              <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-gray-100 shadow-sm min-w-0 sm:min-w-[150px]">
                 <span className="text-[9px] bg-brand/10 text-brand px-1.5 py-0.5 rounded shadow-inner font-black">TIME</span>
                 <span className="text-[10px] font-bold text-brand uppercase tracking-tight font-mono">{timeStr}</span>
               </div>

@@ -1976,7 +1976,7 @@ ${formattedItems}
       ) : (
         /* TABLE REGISTER VIEW LAYOUT (سجل الفعاليات) */
         <div className="bg-[#e8e4e4] rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-right">
-          <div className="overflow-x-auto font-sans pb-36">
+          <div className="overflow-x-auto custom-scrollbar font-sans pb-36">
             <table className="w-full text-xs font-semibold text-gray-700 select-none border-collapse text-right">
               <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
                 <tr className="divide-x divide-x-reverse divide-gray-300">
@@ -3108,47 +3108,7 @@ ${formattedItems}
                         </>
                       )}
 
-                      {newType === "مفردة" && (
-                        <>
-                          {/* قبل الفعالية */}
-                          <div className="md:col-span-full space-y-1 border-t border-gray-200 mt-2 pt-4">
-                            <label className="text-[11px] font-black text-gray-500 block mb-2">قبل الفعالية</label>
-                            <div className="flex flex-wrap gap-2 text-right">
-                              {["تأكيد الموعد مع رئيس اللجنة", "إرسال الدعوات", "تأكيد الحضور"].map(st => (
-                                <button
-                                  key={st}
-                                  type="button"
-                                  onClick={() => setNewStatus(st)}
-                                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black border transition-all ${
-                                    newStatus === st ? "bg-blue-600 text-white border-blue-600 shadow" : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100/80"
-                                  }`}
-                                >
-                                  {st}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* بعد الاجتماع */}
-                          <div className="md:col-span-full space-y-1 border-t border-gray-200 mt-2 pt-4">
-                            <label className="text-[11px] font-black text-gray-500 block mb-2">بعد الاجتماع</label>
-                            <div className="flex flex-wrap gap-2 text-right">
-                              {["محضر الاجتماع", "التوصيات"].map(st => (
-                                <button
-                                  key={st}
-                                  type="button"
-                                  onClick={() => setNewStatus(st)}
-                                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black border transition-all ${
-                                    newStatus === st ? "bg-purple-600 text-white border-purple-600 shadow" : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100/80"
-                                  }`}
-                                >
-                                  {st}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </>
-                      )}
+                      
 
                   <div className="md:col-span-full space-y-1">
                     <label className="text-[11px] font-black text-gray-500 block">ملاحظات / تفاصيل</label>

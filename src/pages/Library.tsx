@@ -1,53 +1,49 @@
 import React, { useState, useEffect, FormEvent } from "react";
-import { motion, AnimatePresence } from "motion/react";
 import {
-  collection,
-  onSnapshot,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  doc,
-  query,
-} from "firebase/firestore";
-import { db } from "../lib/firebase";
-import GoogleWorkspaceCenter from "../components/GoogleWorkspaceCenter";
-import {
-  FileText,
-  Search,
-  Plus,
-  X,
-  Trash2,
-  Edit2,
-  LayoutGrid,
-  List,
-  AlertTriangle,
-  Check,
   BookOpen,
-  Clock,
-  Settings,
-  Copy,
   ChevronDown,
-  ChevronUp,
-  CheckCircle2,
-  FileSpreadsheet,
-  Paperclip,
   ChevronLeft,
+  ChevronUp,
+  Clock,
   Download,
-  Library as LibraryIcon,
+  Edit2,
   ExternalLink,
-  Share2,
-  Mail,
   FileJson,
+  FileSpreadsheet,
+  FileText,
+  LayoutGrid,
+  Library as LibraryIcon,
+  List,
+  Mail,
+  Paperclip,
+  Plus,
   Presentation,
   RefreshCw,
-  Send,
+  Search,
+  Settings,
+  Share2,
+  Trash2,
+  AlertTriangle,
   Upload,
+  CheckCircle2,
+  Check,
+  Send,
+  Copy,
+  Wand2,
+  Loader2,
+  Printer,
+  X
 } from "lucide-react";
+import { db } from "../lib/firebase";
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from "firebase/firestore";
+import { motion, AnimatePresence } from "motion/react";
+import GoogleWorkspaceCenter from "../components/GoogleWorkspaceCenter";
 
 export interface TemplateItem {
   id: string;
   title: string;
   description: string;
+  templateText?: string;
   type: "مستندات" | "عروض تقديمية" | "جداول بيانات" | "بريد إلكتروني" | "أخرى";
   creator: string;
   cloudUrl: string;
@@ -175,12 +171,64 @@ export default function Library() {
   // Modal State
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
+
+  const [isAIOpen, setIsAIOpen] = useState(false);
+  const [aiTemplate, setAiTemplate] = useState<TemplateItem | null>(null);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiResult, setAiResult] = useState("");
+  const [isAiLoading, setIsAiLoading] = useState(false);
+
+  const handleOpenAI = (t: TemplateItem) => {
+    setAiTemplate(t);
+    setAiResult("");
+    setAiPrompt("");
+    setIsAIOpen(true);
+  };
+
+  const handleGenerateAI = async () => {
+    if (!aiPrompt.trim()) return;
+    setIsAiLoading(true);
+    try {
+      const response = await fetch("/api/gemini/generate-letter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: aiPrompt,
+          templateContent: aiTemplate?.templateText || (aiTemplate?.title + " - " + (aiTemplate?.description || ""))
+        })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setAiResult(data.result);
+      } else {
+        alert("خطأ في التوليد: " + (data.error?.message || data.error));
+      }
+    } catch (err) {
+      console.error(err);
+      alert("تعذر الاتصال بالخادم");
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const handlePrintAI = () => {
+    const printContent = document.getElementById("printable-letter");
+    if (printContent) {
+      const originalContents = document.body.innerHTML;
+      document.body.innerHTML = printContent.innerHTML;
+      window.print();
+      document.body.innerHTML = originalContents;
+      window.location.reload(); // Quick restore of React state
+    }
+  };
+
   const [templateToShare, setTemplateToShare] = useState<TemplateItem | null>(
     null,
   );
 
   const [formTitle, setFormTitle] = useState("");
   const [formDesc, setFormDesc] = useState("");
+  const [formTemplateText, setFormTemplateText] = useState("");
   const [formType, setFormType] = useState<TemplateItem["type"]>("مستندات");
   const [formCloudUrl, setFormCloudUrl] = useState("");
   const [formIsSaving, setFormIsSaving] = useState(false);
@@ -406,6 +454,7 @@ ${t.description}
       await addDoc(collection(db, "templates"), {
         title: formTitle,
         description: formDesc,
+        templateText: formTemplateText,
         type: formType,
         creator: "أخصائي الحוكمة",
         cloudUrl: finalCloudUrl,
@@ -768,7 +817,7 @@ ${t.description}
                     صانع القالب: {t.creator}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-200/60">
+                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-200/60">
                     <a
                       href={t.cloudUrl}
                       target="_blank"
@@ -786,6 +835,25 @@ ${t.description}
                       تحميل
                       <Download className="w-3.5 h-3.5" />
                     </button>
+
+                          <button
+                            onClick={() => handleOpenAI(t)}
+                            className="p-1.5 text-brand hover:text-white hover:bg-brand rounded-lg transition-colors border border-brand/20 shadow-sm hover:shadow"
+                            title="تعبئة بالذكاء الاصطناعي"
+                          >
+                            <Wand2 className="w-4 h-4" />
+                          </button>
+
+
+                    <button
+                      onClick={() => handleOpenAI(t)}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-l from-brand to-brand/80 text-white hover:brightness-110 rounded-lg text-xs font-extrabold transition-all shadow-sm"
+                      title="المولد الذكي للخطابات"
+                    >
+                      توليد ذكي
+                      <Wand2 className="w-3.5 h-3.5" />
+                    </button>
+
                   </div>
                 </div>
               </div>
@@ -793,7 +861,7 @@ ${t.description}
           </div>
         ) : (
           <div className="box-border border border-gray-200 rounded-2xl overflow-hidden bg-[#e8e4e4] shadow-sm">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full text-right border-collapse">
                 <thead className="bg-[#dfdada] text-gray-700 font-extrabold text-sm border-b border-gray-300">
                   <tr>
@@ -851,6 +919,15 @@ ${t.description}
                           >
                             <Download className="w-4 h-4" />
                           </button>
+
+                          <button
+                            onClick={() => handleOpenAI(t)}
+                            className="p-1.5 text-brand hover:text-white hover:bg-brand rounded-lg transition-colors border border-brand/20 shadow-sm hover:shadow"
+                            title="تعبئة بالذكاء الاصطناعي"
+                          >
+                            <Wand2 className="w-4 h-4" />
+                          </button>
+
                           <button
                             onClick={() => {
                               setTemplateToShare(t);
@@ -953,6 +1030,20 @@ ${t.description}
                       onChange={(e) => setFormTitle(e.target.value)}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#0ea5e9] focus:ring-1 focus:ring-[#0ea5e9] outline-none transition-all placeholder:text-gray-400 font-medium"
                       placeholder="مثال: مسودة محضر اللجان"
+                    />
+                  </div>
+
+                  
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1.5 flex items-center justify-between">
+                      <span>هيكل القالب (للمولد الذكي) <span className="text-xs text-brand bg-brand/10 px-2 py-0.5 rounded-full mr-2">اختياري</span></span>
+                    </label>
+                    <textarea
+                      rows={5}
+                      value={formTemplateText}
+                      onChange={(e) => setFormTemplateText(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#0ea5e9] focus:ring-1 focus:ring-[#0ea5e9] outline-none transition-all resize-none font-medium text-sm text-gray-600"
+                      placeholder="انسخ محتوى الخطاب هنا لتمكين الذكاء الاصطناعي من تعبئته لاحقاً (مثال: السلام عليكم ورحمة الله، السيد/ [الاسم]...)"
                     />
                   </div>
 
@@ -1272,7 +1363,100 @@ ${t.description}
           </div>
         )}
 
-        {/* Delete Confirmation Modal */}
+        
+      {/* AI Generator Modal */}
+      {isAIOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden" dir="rtl">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-brand/10 flex items-center justify-center">
+                  <Wand2 className="w-5 h-5 text-brand" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-gray-800">المولد الذكي للخطابات</h2>
+                  <p className="text-sm font-bold text-gray-500 mt-1">
+                    قالب: {aiTemplate?.title}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAIOpen(false)}
+                className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-full transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col lg:flex-row gap-6">
+              
+              {/* Input Area */}
+              <div className="w-full lg:w-1/3 flex flex-col gap-4">
+                <div>
+                  <label className="block text-sm font-black text-gray-800 mb-2">تعليمات التعبئة الذكية</label>
+                  <p className="text-xs text-gray-500 mb-3 font-bold leading-relaxed">
+                    حدد المتغيرات (مثال: اسم الموظف، تاريخ الاجتماع، الجهة الموجه لها الخطاب) وسيقوم المولد بصياغة الخطاب بالاعتماد على الهيكل المعتمد.
+                  </p>
+                  <textarea
+                    rows={6}
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    placeholder="اكتب البيانات المطلوبة هنا..."
+                    className="w-full p-3 bg-slate-50 border border-gray-300 rounded-xl text-sm font-bold focus:ring-2 focus:ring-brand/50 focus:border-brand outline-none transition-all resize-none"
+                  ></textarea>
+                </div>
+                <button
+                  onClick={handleGenerateAI}
+                  disabled={!aiPrompt.trim() || isAiLoading}
+                  className="w-full py-3 bg-brand text-white font-black text-sm rounded-xl flex items-center justify-center gap-2 hover:bg-brand/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isAiLoading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      جاري التوليد والصياغة...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-5 h-5" />
+                      توليد الخطاب
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Output / Preview Area */}
+              <div className="w-full lg:w-2/3 bg-gray-100 rounded-xl border border-gray-200 p-4 flex flex-col">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-black text-gray-700">المعاينة للطباعة</h3>
+                  <button
+                    onClick={handlePrintAI}
+                    disabled={!aiResult}
+                    className="px-4 py-2 bg-white border border-gray-300 text-gray-700 hover:text-brand hover:border-brand rounded-lg text-xs font-black transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Printer className="w-4 h-4" />
+                    طباعة الخطاب
+                  </button>
+                </div>
+                
+                <div className="flex-1 bg-white border border-gray-300 shadow-sm rounded-lg p-8 overflow-y-auto min-h-[400px]">
+                  {aiResult ? (
+                    <div id="printable-letter" className="font-sans text-gray-900 leading-loose text-justify whitespace-pre-wrap">
+                      {aiResult}
+                    </div>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                      <Wand2 className="w-12 h-12 mb-4 opacity-20" />
+                      <p className="font-bold text-sm">سيظهر الخطاب الجاهز هنا بعد التوليد</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
         {deleteTarget && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pb-20">
             <motion.div

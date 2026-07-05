@@ -1908,7 +1908,7 @@ export default function Home() {
                 ) : meetingsViewMode === "table" ? (
                   /* 2. عرض سجل الاجتماعات (Table Register Layout) */
                   <div className="bg-[#e8e4e4] rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-right">
-                    <div className="overflow-x-auto font-sans">
+                    <div className="overflow-x-auto custom-scrollbar font-sans">
                       <table className="w-full text-xs font-semibold text-gray-700 select-none border-collapse text-right">
                         <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
                           <tr className="divide-x divide-x-reverse divide-gray-300">

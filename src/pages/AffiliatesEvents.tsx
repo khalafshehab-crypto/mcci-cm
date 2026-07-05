@@ -182,12 +182,13 @@ export default function AffiliatesEvents() {
   const dynamicEmployees = React.useMemo(() => {
      // Unconditionally hide sys admin and root users from all employee lists, regardless of current user role
      const sourceList = dbEmployees.filter(e => 
-        e && 
-        e.role !== "SYS_ADMIN" &&
-        e.id !== "01" && 
-        e.name !== "شهاب الدين" && 
-        e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
-        e.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com"
+         e && 
+         e.role !== "SYS_ADMIN" &&
+         e.id !== "01" && 
+         e.name !== "شهاب الدين" && 
+         e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
+         e.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com" &&
+         ((e.orgLevel1 && e.orgLevel1.match(/انتساب|الانتساب/)) || (e.orgLevel2 && e.orgLevel2.match(/انتساب|الانتساب/)) || (e.orgLevel3 && e.orgLevel3.match(/انتساب|الانتساب/)))
      );
      return sourceList.length > 0 ? sourceList.map(e => e.name).filter(Boolean) : EMPLOYEES;
   }, [dbEmployees]);
@@ -832,7 +833,7 @@ ${formattedItems}
       return;
     }
 
-    if (!newTitle.trim() || !newDate || !newCommitteeId || !singleTime) return;
+    if (!newTitle.trim() || !newDate || !singleTime) return;
 
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
 
@@ -1594,7 +1595,7 @@ ${formattedItems}
       ) : (
         /* TABLE REGISTER VIEW LAYOUT (سجل الفعاليات) */
         <div className="bg-[#e8e4e4] rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-right">
-          <div className="overflow-x-auto font-sans pb-36">
+          <div className="overflow-x-auto custom-scrollbar font-sans pb-36">
             <table className="w-full text-xs font-semibold text-gray-700 select-none border-collapse text-right">
               <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
                 <tr className="divide-x divide-x-reverse divide-gray-300">
@@ -3048,28 +3049,7 @@ ${formattedItems}
                       {newType === "مفردة" && (
                         <>
                           {/* Row 1 */}
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">اللجنة *</label>
-                            <select
-                              value={newCommitteeId}
-                              onChange={(e) => {
-                                const val = Number(e.target.value);
-                                setNewCommitteeId(val);
-                                setNewMembers([]);
-                                const matched = committees.find(c => c.id === val);
-                                if (matched && matched.specialist) {
-                                  setSingleEmployee(matched.specialist);
-                                  setSeriesAssignedEmployee(matched.specialist);
-                                }
-                              }}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                            >
-                              <option value={0} disabled>اختر اللجنة</option>
-                              {committees.map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                              ))}
-                            </select>
-                          </div>
+                          
                           <div className="space-y-1">
                             <label className="text-[11px] font-black text-gray-500 block">النوع *</label>
                             <select
@@ -3195,30 +3175,7 @@ ${formattedItems}
                             </select>
                           </div>
 
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">اللجنة</label>
-                            <select
-                              value={newCommitteeId}
-                              onChange={(e) => {
-                                const val = Number(e.target.value);
-                                setNewCommitteeId(val);
-                                setNewMembers([]); // Reset members when committee changes
-                                const matched = committees.find(c => c.id === val);
-                                if (matched && matched.specialist) {
-                                  setSingleEmployee(matched.specialist);
-                                  setSeriesAssignedEmployee(matched.specialist);
-                                } else {
-                                  setSeriesAssignedEmployee(dynamicEmployees[(val - 1) % dynamicEmployees.length] || dynamicEmployees[0] || EMPLOYEES[0]);
-                                }
-                              }}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                            >
-                              <option value={0} disabled>اختر اللجنة</option>
-                              {committees.map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                              ))}
-                            </select>
-                          </div>
+                          
 
                           {/* Row 2 */}
                           <div className="space-y-1">
@@ -3332,47 +3289,7 @@ ${formattedItems}
                         </>
                       )}
 
-                      {newType === "مفردة" && (
-                        <>
-                          {/* قبل الفعالية */}
-                          <div className="md:col-span-full space-y-1 border-t border-gray-200 mt-2 pt-4">
-                            <label className="text-[11px] font-black text-gray-500 block mb-2">قبل الفعالية</label>
-                            <div className="flex flex-wrap gap-2 text-right">
-                              {["تأكيد الموعد مع رئيس اللجنة", "إرسال الدعوات", "تأكيد الحضور"].map(st => (
-                                <button
-                                  key={st}
-                                  type="button"
-                                  onClick={() => setNewStatus(st)}
-                                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black border transition-all ${
-                                    newStatus === st ? "bg-blue-600 text-white border-blue-600 shadow" : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100/80"
-                                  }`}
-                                >
-                                  {st}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* بعد الاجتماع */}
-                          <div className="md:col-span-full space-y-1 border-t border-gray-200 mt-2 pt-4">
-                            <label className="text-[11px] font-black text-gray-500 block mb-2">بعد الاجتماع</label>
-                            <div className="flex flex-wrap gap-2 text-right">
-                              {["محضر الاجتماع", "التوصيات"].map(st => (
-                                <button
-                                  key={st}
-                                  type="button"
-                                  onClick={() => setNewStatus(st)}
-                                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black border transition-all ${
-                                    newStatus === st ? "bg-purple-600 text-white border-purple-600 shadow" : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100/80"
-                                  }`}
-                                >
-                                  {st}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </>
-                      )}
+                      
 
                   <div className="md:col-span-full space-y-1">
                     <label className="text-[11px] font-black text-gray-500 block">ملاحظات / تفاصيل</label>

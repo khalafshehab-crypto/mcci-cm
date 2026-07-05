@@ -654,44 +654,21 @@ export default function AssistantSecGen() {
   });
 
   // Active alarms list dynamic generator
+  // Filters for notifications center
+  const [notifTypeFilter, setNotifTypeFilter] = useState<string>("all");
+  const [viewRole, setViewRole] = useState<"SECRETARY" | "ASSISTANT_SEC_GEN">("SECRETARY");
+  const [notifUrgentFilter, setNotifUrgentFilter] = useState<boolean>(false);
+  const [notifWeekFilter, setNotifWeekFilter] = useState<string>("all");
   const [alarms, setAlarms] = useState<Alarm[]>([]);
 
   useEffect(() => {
     const list: Alarm[] = [];
 
-    // 1. Core Dynamic Recommendations
-    try {
-      const recs = dbRecs;
-      if (Array.isArray(recs)) {
-        // Exclude completed recommendations
-        const activeRecs = recs.filter((r: any) => r.status !== "منجزة" && r.status !== "مكتملة");
-        activeRecs.forEach((r: any) => {
-          const alarmId = r.id || `rec-${Math.random()}`;
-          // Default is normal (false) unless manually marked urgent
-          const isUrgent = !!manuallyUrgentAlarms[alarmId];
-
-          const normalStatus = r.status === "متأخرة" ? "متأخر" : r.status === "منجزة" ? "تمت الإحالة" : r.status === "جاري العمل عليها" ? "قيد الانتظار" : "جديد";
-
-          list.push({
-            id: alarmId,
-            type: "recommendation",
-            title: `توصية البند: ${r.title}`,
-            description: r.description || "",
-            dept: r.committeeName || "إدارة اللجان",
-            committee: r.committeeName || "العامة",
-            responsible: r.assignedTo || "أخصائي اللجنة",
-            isUrgent: isUrgent,
-            dateStr: r.date || "2026/06/11",
-            status: isUrgent ? "عاجل جداً" : normalStatus,
-            timeframe: getWeekTimeframe(r.date || "2026/06/11")
-          });
-        });
-      }
-    } catch (e) {}
+    // 1. Core Dynamic Recommendations (Removed - only referred tasks should appear)
 
     // 2. Core Dynamic Tasks
     try {
-      const parsedTasks = dbTasks;
+      const parsedTasks = dbTasks1;
       if (Array.isArray(parsedTasks)) {
         // Exclude completed tasks
         const activeTasks = parsedTasks.filter((t: any) => t.status !== "منجزة" && t.status !== "مكتملة" && t.status !== "منجز");
@@ -721,7 +698,7 @@ export default function AssistantSecGen() {
 
     // 3. Core Dynamic Events
     try {
-      const evts = dbEvents;
+      const evts = dbEvents1;
       if (Array.isArray(evts)) {
         // Exclude completed events
         const activeEvts = evts.filter((evt: any) => 
@@ -777,8 +754,22 @@ export default function AssistantSecGen() {
       }
     } catch (e) {}
 
-    setAlarms(list);
-  }, [dbRecs, dbTasks, dbEvents, manuallyUrgentAlarms]);
+    
+    // Filter alarms based on user role/name
+    
+    const filteredByRole = list.filter(alarm => {
+      const assigned = alarm.responsible || "";
+      if (viewRole === "SECRETARY") {
+        return assigned.includes("سكرتير") || assigned === "مدير النظام"; // fallback
+      } else {
+        return assigned === "مساعد الأمين العام" || assigned.includes("مساعد");
+      }
+    });
+
+    setAlarms(filteredByRole);
+
+
+  }, [dbRecs, dbTasks, dbEvents, manuallyUrgentAlarms, viewRole]);
 
   // Dynamic Online Staff loaded directly from the database of employees
   const [onlineStaff, setOnlineStaff] = useState<any[]>([]);
@@ -857,10 +848,6 @@ export default function AssistantSecGen() {
   const [chatMessages, setChatMessages] = useState<Array<{id: string, sender: string, text: string, isMine: boolean, time: string, photo?: string | null}>>([]);
   const [isTyping, setIsTyping] = useState(false);
 
-  // Filters for notifications center
-  const [notifTypeFilter, setNotifTypeFilter] = useState<string>("all");
-  const [notifUrgentFilter, setNotifUrgentFilter] = useState<boolean>(false);
-  const [notifWeekFilter, setNotifWeekFilter] = useState<string>("all");
 
   // Helper to resolve all detailed audit fields of a notification (alarm)
   const resolvedDetails = React.useMemo(() => {
@@ -992,6 +979,44 @@ export default function AssistantSecGen() {
   };
 
   // Submit Referral
+    const handleForwardToAssistantSecGen = async () => {
+    if (!selectedAlarm) return;
+    
+    try {
+      if (selectedAlarm.type === "task") {
+        const taskId = String(selectedAlarm.id).replace("task-", "");
+        const matchedTask = dbTasks1.find((t: any) => String(t.id) === taskId);
+        if (matchedTask) {
+          await updateDoc(doc(db, "assistant_sec_gen_tasks", taskId), {
+            assignedTo: "مساعد الأمين العام",
+            description: referNotes ? `${matchedTask.description || ""}\n[إحالة لمساعد الأمين العام - ${new Date().toLocaleDateString('ar-EG')}]: ${referNotes}` : (matchedTask.description || "")
+          });
+        }
+      } else if (selectedAlarm.type === "event") {
+        const eventId = String(selectedAlarm.id).replace("evt-", "");
+        const matchedEvent = dbEvents1.find((evt: any) => String(evt.id) === eventId);
+        if (matchedEvent) {
+          await updateDoc(doc(db, "assistant_sec_gen_events", eventId), {
+            assignedTo: "مساعد الأمين العام",
+            preparationsNotes: referNotes ? `${matchedEvent.preparationsNotes || ""}\n[إحالة لمساعد الأمين العام - ${new Date().toLocaleDateString('ar-EG')}]: ${referNotes}` : (matchedEvent.preparationsNotes || "")
+          });
+        }
+      }
+
+      setReferToast(`تم إحالة المعاملة إلى مساعد الأمين العام بنجاح.`);
+    } catch (firebaseErr) {
+      console.error("Failed to forward to Assistant SecGen:", firebaseErr);
+      setReferToast(`حدث خطأ أثناء الإحالة`);
+    }
+    setTimeout(() => {
+      setReferToast(null);
+      setSelectedAlarm(null);
+      setReferStaff("");
+      setReferDept("");
+      setReferNotes("");
+    }, 3500);
+  };
+
   const handleSubmitReferral = async () => {
     if (!selectedAlarm) return;
     
@@ -1335,6 +1360,25 @@ export default function AssistantSecGen() {
 
             {/* أدوات الفرز والتصفية المدمجة في مركز التنبيهات */}
             <div className="flex flex-wrap gap-2 items-center justify-end">
+              
+              {/* تبديل العرض بين السكرتير ومساعد الأمين العام */}
+              <div className="flex bg-slate-100 p-0.5 rounded-lg border border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setViewRole("SECRETARY")}
+                  className={`px-3 py-1 text-[10px] sm:text-xs font-bold rounded-md transition-all ${viewRole === "SECRETARY" ? "bg-white text-brand shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                >
+                  إشعارات السكرتير
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewRole("ASSISTANT_SEC_GEN")}
+                  className={`px-3 py-1 text-[10px] sm:text-xs font-bold rounded-md transition-all ${viewRole === "ASSISTANT_SEC_GEN" ? "bg-white text-brand shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                >
+                  إشعارات مساعد الأمين العام
+                </button>
+              </div>
+
               {/* تصنيف النوع */}
               <select 
                 value={notifTypeFilter} 
@@ -1877,7 +1921,7 @@ export default function AssistantSecGen() {
                 ) : meetingsViewMode === "table" ? (
                   /* 2. عرض سجل الاجتماعات (Table Register Layout) */
                   <div className="bg-[#e8e4e4] rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-right">
-                    <div className="overflow-x-auto font-sans">
+                    <div className="overflow-x-auto custom-scrollbar font-sans">
                       <table className="w-full text-xs font-semibold text-gray-700 select-none border-collapse text-right">
                         <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
                           <tr className="divide-x divide-x-reverse divide-gray-300">
@@ -2434,6 +2478,16 @@ export default function AssistantSecGen() {
                   >
                     إغلاق التنبيه
                   </button>
+                  {viewRole === "SECRETARY" && (
+                    <button
+                      type="button"
+                      onClick={() => handleForwardToAssistantSecGen()}
+                      className="px-5 py-2 text-xs font-extrabold text-white rounded-xl flex items-center gap-1.5 transition-all outline-none bg-emerald-600 hover:bg-emerald-700 cursor-pointer"
+                    >
+                      <Send className="w-4 h-4 stroke-[2.5]" />
+                      <span>تأكيد الإحالة لمساعد الأمين</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={handleSubmitReferral}

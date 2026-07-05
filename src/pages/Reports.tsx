@@ -387,7 +387,7 @@ export default function Reports() {
               </div>
             ) : (
               <div className="box-border border border-gray-200 rounded-2xl overflow-hidden bg-[#e8e4e4] shadow-sm">
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto custom-scrollbar">
                   <table className="w-full text-right border-collapse">
                     <thead className="bg-[#dfdada] text-gray-700 font-extrabold text-sm border-b border-gray-300">
                       <tr>
@@ -460,7 +460,7 @@ export default function Reports() {
              </div>
             ) : viewMode === "table" ? (
               <div className="box-border border border-gray-200 rounded-2xl overflow-hidden bg-[#e8e4e4] shadow-sm">
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto custom-scrollbar">
                   <table className="w-full text-right border-collapse">
                     <thead className="bg-[#dfdada] text-gray-700 font-extrabold text-sm border-b border-gray-300">
                       <tr>

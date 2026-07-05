@@ -209,7 +209,7 @@ export default function CommitteesTasks() {
 
     setStatus(task.status);
     setAchievementNotes(task.achievementNotes || "");
-    setTempAttachments(task.attachments);
+    setTempAttachments(task.attachments || []);
     setIsEditOpen(true);
   };
 
@@ -841,11 +841,11 @@ export default function CommitteesTasks() {
 
                   {/* Task Attachments */}
                   <div className="mb-4">
-                    {t.attachments.length === 0 ? (
+                    {(t.attachments || []).length === 0 ? (
                       <p className="text-[10px] text-gray-400 font-bold italic">لا توجد ملفات مرفقة.</p>
                     ) : (
                       <div className="space-y-1">
-                        {t.attachments.map((file, fileIdx) => (
+                        {(t.attachments || []).map((file, fileIdx) => (
                           <a
                             key={fileIdx}
                             href={file.url}
@@ -888,7 +888,7 @@ export default function CommitteesTasks() {
                       {/* Email */}
                       <button
                         type="button"
-                        onClick={() => handleSendEmail(t)}
+                        onClick={() => handleOpenSendModal(t)}
                         title="إرسال أو إحالة المهمة"
                         className="p-1 hover:bg-blue-100 rounded text-blue-600 cursor-pointer"
                       >
@@ -923,7 +923,7 @@ export default function CommitteesTasks() {
           </div>
         ) : (
           /* Table Standard Layout */
-          <div className="bg-[#e8e4e4] rounded-2xl border border-gray-200 shadow-sm overflow-hidden overflow-x-auto text-right">
+          <div className="bg-[#e8e4e4] rounded-2xl border border-gray-200 shadow-sm overflow-hidden overflow-x-auto custom-scrollbar text-right">
             <table className="w-full text-right border-collapse">
               <thead>
                 <tr className="bg-[#dfdada] border-b border-gray-300 text-gray-900 text-xs font-black">
@@ -968,7 +968,7 @@ export default function CommitteesTasks() {
                       </div>
                     </td>
                     <td className="px-4 py-3.5 whitespace-nowrap text-gray-800 text-right">
-                      <span className="text-gray-700 text-[10px] font-mono">{t.attachments.length} مرفقات</span>
+                      <span className="text-gray-700 text-[10px] font-mono">{(t.attachments || []).length} مرفقات</span>
                     </td>
                     <td className="px-4 py-3.5 whitespace-nowrap print:hidden text-center">
                       <div className="flex items-center justify-center gap-1.5">
@@ -1657,6 +1657,24 @@ export default function CommitteesTasks() {
               </div>
 
               <form onSubmit={handleSaveAction} className="overflow-y-auto p-6 space-y-4">
+                
+                {currentTask?.historyLog && currentTask.historyLog.length > 0 && (
+                  <div className="mb-4">
+                    <label className="block text-xs font-black text-gray-700 mb-2">سجل تتبع المهمة (المسار)</label>
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      {currentTask.historyLog.slice().reverse().map(log => (
+                        <div key={log.id} className="bg-slate-50 border border-gray-200 rounded-lg p-2.5 shadow-sm text-[11px]">
+                          <div className="flex justify-between items-center mb-1 text-gray-500">
+                            <span className="font-bold text-blue-600">{log.action} ({log.by})</span>
+                            <span className="font-mono text-[9px] font-bold" dir="ltr">{log.date} {log.time}</span>
+                          </div>
+                          <p className="font-semibold text-gray-800 leading-relaxed whitespace-pre-wrap">{log.note}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Select status */}
                 <div>
                   <label className="block text-xs font-black text-gray-700 mb-1">تعديل الحالة التنفيذية للمهمة</label>

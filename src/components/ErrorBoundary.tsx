@@ -36,7 +36,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
               تم اكتشاف خطأ برمجي طفيف في هذه الشاشة. لمساعدتك، لحسن الحظ جرى حصر المشكلة بنجاح عبر جدار الحماية التلقائي دون تعطل بقية النظام.
             </p>
             
-            <div className="bg-slate-950 p-4 rounded-xl border border-slate-850/60 overflow-x-auto">
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-850/60 overflow-x-auto custom-scrollbar">
               <p className="font-mono text-[10.5px] text-red-450 leading-relaxed break-words whitespace-pre-wrap text-left">
                 {this.state.error?.toString() || "Script error (استثناء برمجي خارجي)"}
               </p>

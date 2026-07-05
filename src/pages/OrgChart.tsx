@@ -1990,7 +1990,7 @@ export default function OrgChart() {
         {activeTab === "permissions" && currentUserRole === "SYS_ADMIN" && (
           <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-6">
             <h2 className="text-base font-black text-gray-900 flex items-center gap-1.5"><Lock className="w-5 h-5 text-indigo-600" /><span>صلاحيات الوصول</span></h2>
-            <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <div className="overflow-x-auto custom-scrollbar rounded-xl border border-gray-200">
               <table className="w-full text-right text-xs">
                 <thead className="bg-[#fcfdfd] border-b border-gray-200 text-gray-700 font-extrabold text-[10.5px]">
                   <tr>
@@ -2026,7 +2026,25 @@ export default function OrgChart() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-150 font-bold text-gray-600">
-                  {safeDbEmployees.map((emp) => {
+                  
+                  {Object.entries(
+                    safeDbEmployees.reduce((acc, emp) => {
+                      const dept = emp.orgLevel3 || emp.orgLevel2 || emp.orgLevel1 || "أخرى";
+                      if (!acc[dept]) acc[dept] = [];
+                      acc[dept].push(emp);
+                      return acc;
+                    }, {} as Record<string, any[]>)
+                  ).map(([dept, empsRaw]) => {
+                    const emps = empsRaw as any[];
+                    return (
+                    <React.Fragment key={dept}>
+                      <tr className="bg-gray-100">
+                        <td colSpan={23} className="p-2 font-black text-xs text-gray-800 border-y border-gray-200">
+                          {dept} <span className="text-[10px] text-gray-500 font-bold ml-2">({emps.length} موظف)</span>
+                        </td>
+                      </tr>
+                      {emps.map((emp: any) => {
+
                     const COMMITTEES_PAGES = ["/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library"];
                     const ASSISTANT_SEC_GEN_PAGES = ["/assistant-sec-gen", "/assistant-sec-gen/events", "/assistant-sec-gen/tasks"];
                     const CENTERS_PAGES = ["/centers", "/centers/events", "/centers/tasks"];
@@ -2104,8 +2122,11 @@ export default function OrgChart() {
                           <input type="checkbox" checked={emp.adminPermissions || false} onChange={async (e) => await updateFirebaseEmp(emp.id, { adminPermissions: e.target.checked })} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
                         </td>
                       </tr>
-                    )
+                    );
                   })}
+                  </React.Fragment>
+                  );
+                 })}
                 </tbody>
               </table>
             </div>
@@ -2116,7 +2137,7 @@ export default function OrgChart() {
         {activeTab === "logs" && currentUserRole === "SYS_ADMIN" && (
           <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-4">
             <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5"><FileText className="w-5 h-5 text-red-650" /><span>سجل المراقبة الأمني</span></h2>
-            <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <div className="overflow-x-auto custom-scrollbar rounded-xl border border-gray-200">
               <table className="w-full text-right text-xs">
                 <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold text-[10px]">
                   <tr><th className="p-4">التوقيت</th><th className="p-4">الموظف</th><th className="p-4">العملية</th><th className="p-4">التفاصيل</th></tr>
@@ -2145,7 +2166,7 @@ export default function OrgChart() {
                 <button key={tab.key} onClick={() => setSelectedSubCol(tab.key)} className={`px-3 py-1.5 rounded-full text-xs font-black border ${selectedSubCol === tab.key ? "bg-brand text-white border-brand" : "bg-gray-50 text-gray-600 border-gray-200"}`}>{tab.label} ({tab.count})</button>
               ))}
             </div>
-            <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <div className="overflow-x-auto custom-scrollbar rounded-xl border border-gray-200">
               <table className="w-full text-right text-xs">
                 {selectedSubCol === "committees" && (
                   <tbody className="divide-y divide-gray-100">
