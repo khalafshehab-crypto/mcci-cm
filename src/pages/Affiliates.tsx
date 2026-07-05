@@ -796,16 +796,43 @@ export default function Affiliates() {
         const activeEmps = allowedEmps.filter(emp => emp.active !== false);
         const listToUse = activeEmps.length > 0 ? activeEmps : allowedEmps;
 
-        const mapped = listToUse.slice(0, 7).map((emp, index) => {
+        const now = Date.now();
+        const THIRTY_MINUTES = 30 * 60 * 1000;
+        const TWO_HOURS = 2 * 60 * 60 * 1000;
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        const mapped = listToUse.map((emp, index) => {
           const nameStr = emp.name || "";
           const words = nameStr.split(" ");
           const avatar = words.length >= 2 ? (words[0][0] + " " + (words[1][0] || "")) : ((words[0] && words[0][0]) || "م");
           const colors = ["bg-blue-600", "bg-teal-600", "bg-indigo-600", "bg-purple-600", "bg-amber-500", "bg-rose-500", "bg-emerald-600"];
           const color = colors[index % colors.length];
           
-          // Allocate realistic diverse statuses for active work simulation
-          const possibleStatuses = ["متصل", "في اجتماع", "مشغول", "خارج المكتب", "متصل"];
-          const status = possibleStatuses[index % possibleStatuses.length];
+          let status = "خارج المكتب";
+          let lastActive = emp.lastActive || 0;
+          
+          if (now - lastActive < TWO_HOURS) {
+            status = "مشغول";
+            if (now - lastActive < THIRTY_MINUTES) {
+              status = "متصل";
+            }
+          }
+
+          // Check if employee has a confirmed event today
+          if (status !== "خارج المكتب") {
+             const hasMeeting = (dbEvents || []).some((evt: any) => {
+                 if (!evt.date || !evt.date.startsWith(todayStr)) return false;
+                 if (evt.status === "مؤكد" || evt.committeeConfirmed || evt.attendanceConfirmed || evt.status === "تأكيد الحضور" || evt.status === "محضر الاجتماع") {
+                     if (emp.committees && Array.isArray(emp.committees) && evt.committeeName) {
+                         return emp.committees.includes(evt.committeeName);
+                     }
+                 }
+                 return false;
+             });
+             if (hasMeeting) {
+                 status = "في اجتماع";
+             }
+          }
 
           const presetAvatars = [
             "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200", // Male 1
@@ -817,16 +844,16 @@ export default function Affiliates() {
             "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200" // Male 4
           ];
           const photo = emp.photo || presetAvatars[index % presetAvatars.length];
-
           return {
             name: emp.name,
             title: emp.jobTitle || emp.roleAr || "أخصائي لجان",
             avatar: avatar.trim(),
             photo,
             color,
-            status
+            status,
+            lastActive
           };
-        });
+        }).filter(emp => emp.status !== "خارج المكتب").sort((a, b) => b.lastActive - a.lastActive).slice(0, 7);
         setOnlineStaff(mapped);
       }
     } catch (e) {

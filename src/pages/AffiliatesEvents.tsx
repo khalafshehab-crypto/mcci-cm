@@ -20,6 +20,9 @@ interface EventItem {
   employees: string[];
   members: number[]; // Array of member IDs
   notes: string;
+  meetingStatus?: string;
+  postponeDate?: string;
+  cancelReason?: string;
   
   // New workflow step fields
   committeeConfirmed?: boolean;
@@ -592,17 +595,8 @@ ${formattedItems}
     }
   };
 
-  const isEventCompleted = (evt: EventItem): boolean => {
-    const stepValues = [
-      !!evt.committeeConfirmed,
-      !!evt.invitationSent,
-      !!evt.attendanceConfirmed,
-      !!evt.preparationsConfirmed,
-      !!(evt.agenda && evt.agenda.length > 0 && evt.agendaTransferred),
-      !!evt.minutesSaved,
-      !!evt.exportedRecommendationsToPage
-    ];
-    return stepValues.filter(Boolean).length === 7;
+    const isEventCompleted = (evt: EventItem): boolean => {
+    return evt.meetingStatus === "مؤكد" || evt.meetingStatus === "ملغي ويطلب سبب الإلغاء";
   };
 
   const getEventClassification = (title: string): string => {
@@ -957,7 +951,11 @@ ${formattedItems}
       case "تأكيد الحضور": return "text-amber-600 bg-amber-100 ring-amber-200";
       case "محضر الاجتماع": return "text-purple-600 bg-purple-100 ring-purple-200";
       case "التوصيات": return "text-brand bg-brand/10 ring-brand/20";
-      case "منتهية": return "text-emerald-600 bg-emerald-100 ring-emerald-200";
+            case "منتهية": return "text-emerald-600 bg-emerald-100 ring-emerald-200";
+      case "محجوز": return "text-blue-600 bg-blue-100 ring-blue-200";
+      case "مؤكد": return "text-emerald-600 bg-emerald-100 ring-emerald-200";
+      case "مؤجل ويطلب موعد بديل": return "text-amber-600 bg-amber-100 ring-amber-200";
+      case "ملغي ويطلب سبب الإلغاء": return "text-rose-600 bg-rose-100 ring-rose-200";
       default: return "text-gray-600 bg-gray-100 ring-gray-200";
     }
   };
@@ -1535,8 +1533,8 @@ ${formattedItems}
 
                           <div className="space-y-4">
                             <div className="flex flex-wrap gap-1.5 items-center">
-                              <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black ring-1 ${getStatusColor(evt.status)}`}>
-                                {evt.status}
+                              <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black ring-1 ${getStatusColor(evt.meetingStatus || evt.status)}`}>
+                                {evt.meetingStatus || evt.status}
                               </span>
                               <span
                                 className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wide border ${getEventKindStyle(
@@ -1622,8 +1620,7 @@ ${formattedItems}
               <tbody className="divide-y divide-gray-200 bg-[#e8e4e4]/85">
                 {sortedTableEvents.map((evt, idx) => {
                   const isExpanded = expandedEventId === evt.id;
-                  const nextStep = getCalculatedNextStep(evt);
-                  return (
+                                    return (
                     <React.Fragment key={evt.id}>
                       <tr 
                         id={`event-row-${evt.id}`}
@@ -1681,88 +1678,19 @@ ${formattedItems}
                         </td>
                         <td className="px-4 py-3.5 whitespace-nowrap text-center">
                           {(() => {
-                            const stepValues = [
-                              !!evt.committeeConfirmed,
-                              !!evt.invitationSent,
-                              !!evt.attendanceConfirmed,
-                              !!evt.preparationsConfirmed,
-                              !!(evt.agenda && evt.agenda.length > 0 && evt.agendaTransferred),
-                              !!evt.minutesSaved,
-                              !!evt.exportedRecommendationsToPage
-                            ];
+                            const displayStatus = evt.meetingStatus || "غير محدد";
                             
-                            const completedCount = stepValues.filter(Boolean).length;
-                            const activeIndex = stepValues.findIndex(val => !val); // 0 to 6, or -1 if all are complete
-                            
-                            const stepTitles = [
-                              "تأكيد الموعد مع رئيس اللجنة",
-                              "إرسال الدعوات للأعضاء",
-                              "تأكيد حضور الأعضاء والنصاب",
-                              "تجهيزات اللقاء",
-                              "جدول الأعمال (الأجندة)",
-                              "محضر الاجتماع وتدوين الوقائع",
-                              "التوصيات واعتماد المحضر"
-                            ];
-
-                            const shortStepTitles = [
-                              "تأكيد الموعد",
-                              "إرسال الدعوات للأعضاء",
-                              "تأكيد حضور الأعضاء",
-                              "تجهيزات اللقاء",
-                              "جدول الأعمال",
-                              "محضر الاجتماع",
-                              "تصدير التوصيات"
-                            ];
-                            
-                            let overallStatusText = "جديد";
-                            let overallStatusClass = "text-blue-600 bg-blue-50 ring-1 ring-blue-200 border-blue-200";
-                            
-                            if (completedCount === 7) {
-                              overallStatusText = "منجزة";
-                              overallStatusClass = "text-emerald-700 bg-emerald-50 ring-1 ring-emerald-250 border-emerald-250 font-black";
-                            } else if (completedCount > 0) {
-                              overallStatusText = `جاري العمل على ${shortStepTitles[activeIndex]}`;
-                              overallStatusClass = "text-amber-700 bg-amber-50 ring-1 ring-amber-250 border-amber-250 font-black";
-                            }
+                            let overallStatusClass = "text-gray-600 bg-gray-50 ring-1 ring-gray-200 border-gray-200";
+                            if (displayStatus === "محجوز") overallStatusClass = "text-blue-600 bg-blue-50 ring-1 ring-blue-200 border-blue-200";
+                            else if (displayStatus === "مؤكد") overallStatusClass = "text-emerald-700 bg-emerald-50 ring-1 ring-emerald-250 border-emerald-250 font-black";
+                            else if (displayStatus === "مؤجل ويطلب موعد بديل") overallStatusClass = "text-amber-700 bg-amber-50 ring-1 ring-amber-250 border-amber-250";
+                            else if (displayStatus === "ملغي ويطلب سبب الإلغاء") overallStatusClass = "text-rose-700 bg-rose-50 ring-1 ring-rose-250 border-rose-250";
 
                             return (
-                              <div className="flex flex-col items-center gap-1.5 justify-center">
-                                <span className={`inline-block px-1.5 py-0.5 rounded-full text-[9px] font-extrabold ring-1 ${overallStatusClass}`}>
-                                  {overallStatusText}
+                              <div className="flex flex-col items-center justify-center gap-1.5 w-full">
+                                <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-black ${overallStatusClass}`}>
+                                  {displayStatus}
                                 </span>
-                                {/* Checklist mini indicators */}
-                                <div className="flex items-center gap-[3px] mt-1">
-                                  {stepValues.map((isStepDone, i) => {
-                                    // Determine the color style of each dot
-                                    let dotColorClass = "bg-gray-300";
-                                    const isActive = i === activeIndex;
-
-                                    if (completedCount === 0) {
-                                      // All Blue as New
-                                      dotColorClass = isActive ? "bg-blue-800 ring-[1px] ring-blue-400 scale-125 z-10 font-bold shadow-sm" : "bg-blue-300/60";
-                                    } else if (completedCount === 7) {
-                                      // All Completed (Green)
-                                      dotColorClass = "bg-emerald-500";
-                                    } else {
-                                      // In Progress
-                                      if (isStepDone) {
-                                        dotColorClass = "bg-emerald-500";
-                                      } else if (isActive) {
-                                        dotColorClass = "bg-amber-700 ring-[1px] ring-amber-400 scale-125 z-10 font-bold shadow-sm";
-                                      } else {
-                                        dotColorClass = "bg-blue-200/50";
-                                      }
-                                    }
-
-                                    return (
-                                      <span 
-                                        key={i}
-                                        className={`w-[6px] h-[6px] rounded-full transition-all duration-300 ${dotColorClass}`}
-                                        title={`${stepTitles[i]} (${isStepDone ? 'مكتمل' : (isActive ? 'جاري العمل عليه حالياً' : 'مجدول')})`}
-                                      />
-                                    );
-                                  })}
-                                </div>
                               </div>
                             );
                           })()}
@@ -1828,1020 +1756,62 @@ ${formattedItems}
                               exit={{ opacity: 0, height: 0 }}
                               className="px-6 py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-y border-gray-200 text-right font-sans"
                             >
-                              <div className="flex flex-col md:flex-row gap-6">
+                              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                                <h3 className="text-sm font-black text-gray-800 mb-4 flex items-center gap-2">
+                                  <CheckCircle className="w-4 h-4 text-brand" />
+                                  تأكيد حالة الاجتماع
+                                </h3>
                                 
-                                {/* Right Column: Steps Stepper / Timeline Sidebar */}
-                                <div className="w-full md:w-1/3 flex flex-col gap-2.5 bg-white p-4 rounded-xl border border-gray-200 shadow-sm shrink-0">
-                                  <div className="pb-3 border-b border-gray-100 flex items-center justify-between">
-                                    <span className="text-xs font-extrabold text-[#111] flex items-center gap-2">
-                                      <Activity className="w-4 h-4 text-brand" />
-                                      مراحل الإجراءات والتحضير للفعالية
-                                    </span>
-                                    <span className="text-[9px] px-2 py-0.5 rounded bg-brand/10 text-brand font-black">
-                                      خطوة {getStepIndex(nextStep) + 1} من 7
-                                    </span>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  <div className="space-y-2">
+                                    <label className="text-xs font-black text-gray-700">حالة الاجتماع</label>
+                                    <select
+                                      value={evt.meetingStatus || ""}
+                                      onChange={async (e) => {
+                                        const val = e.target.value;
+                                        const docRef = doc(db, "affiliates_events", String(evt.id));
+                                        await updateDoc(docRef, { meetingStatus: val });
+                                      }}
+                                      className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-brand focus:border-brand"
+                                    >
+                                      <option value="">-- تحديد الحالة --</option>
+                                      <option value="محجوز">محجوز</option>
+                                      <option value="مؤكد">مؤكد</option>
+                                      <option value="مؤجل ويطلب موعد بديل">مؤجل ويطلب موعد بديل</option>
+                                      <option value="ملغي ويطلب سبب الإلغاء">ملغي ويطلب سبب الإلغاء</option>
+                                    </select>
                                   </div>
-                                  
-                                  {/* 7 timeline items */}
-                                  {(() => {
-                                    const isStep0Unlocked = true;
-                                    const isStep1Unlocked = !!evt.committeeConfirmed;
-                                    const isStep2Unlocked = isStep1Unlocked && !!evt.invitationSent;
-                                    const isStep3Unlocked = isStep2Unlocked && !!evt.attendanceConfirmed;
-                                    const isStep4Unlocked = isStep3Unlocked && !!evt.preparationsConfirmed;
-                                    const isStep5Unlocked = isStep4Unlocked && !!(evt.agenda && evt.agenda.length > 0 && evt.agendaTransferred);
-                                    const isStep6Unlocked = isStep5Unlocked && !!evt.minutesSaved;
-                                    
-                                    const isUnlockedByStepIndex = [
-                                      isStep0Unlocked,
-                                      isStep1Unlocked,
-                                      isStep2Unlocked,
-                                      isStep3Unlocked,
-                                      isStep4Unlocked,
-                                      isStep5Unlocked,
-                                      isStep6Unlocked
-                                    ];
 
-                                    const stepList = [
-                                      { title: "تأكيد الموعد مع رئيس اللجنة", desc: "التنسيق وتأكيد موعد وقاعة الفعالية", done: !!evt.committeeConfirmed },
-                                      { title: "إرسال الدعوات للأعضاء", desc: "توليد وتأكيد إرسال الدعوة للأعضاء", done: !!evt.invitationSent },
-                                      { title: "تأكيد حضور الأعضاء والنصاب", desc: "تأكيد واستيفاء قائمة الحضور القانونية", done: !!evt.attendanceConfirmed },
-                                      { title: "تجهيزات اللقاء", desc: "تأمين وتحضير وتجهيزات متطلبات الفعالية", done: !!evt.preparationsConfirmed },
-                                      { title: "جدول الأعمال (الأجندة)", desc: "ترحيل بنود وجداول المناقشات والمدد", done: !!(evt.agenda && evt.agenda.length > 0 && evt.agendaTransferred) },
-                                      { title: "محضر الاجتماع وتدوين الوقائع", desc: "صياغة المناقشة وتثبيت وقائع المحضر", done: !!evt.minutesSaved },
-                                      { title: "التوصيات واعتماد المحضر", desc: "اعتماد وتصدير وحفظ وسجل الترحيل النهائي", done: !!evt.exportedRecommendationsToPage },
-                                    ];
+                                  {evt.meetingStatus === "مؤجل ويطلب موعد بديل" && (
+                                    <div className="space-y-2">
+                                      <label className="text-xs font-black text-gray-700">الموعد البديل المقترح</label>
+                                      <input
+                                        type="date"
+                                        value={evt.postponeDate || ""}
+                                        onChange={async (e) => {
+                                          const docRef = doc(db, "affiliates_events", String(evt.id));
+                                          await updateDoc(docRef, { postponeDate: e.target.value });
+                                        }}
+                                        className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-brand focus:border-brand"
+                                      />
+                                    </div>
+                                  )}
 
-                                    return stepList.map((step, idx) => {
-                                      const isCurrent = getStepIndex(nextStep) === idx;
-                                      const isSelected = (activeStepTab[evt.id] ?? getStepIndex(nextStep)) === idx;
-                                      const isUnlocked = isUnlockedByStepIndex[idx];
-                                      
-                                      return (
-                                        <button
-                                          key={idx}
-                                          type="button"
-                                          disabled={!isUnlocked}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (!isUnlocked) return;
-                                            setActiveStepTab(prev => ({ ...prev, [evt.id]: idx }));
-                                          }}
-                                          className={`w-full text-right p-2.5 rounded-lg border transition-all flex items-start gap-3 ${
-                                            !isUnlocked 
-                                              ? "opacity-55 bg-gray-100/55 border-gray-150 text-gray-400 cursor-not-allowed select-none"
-                                              : isSelected 
-                                                ? "bg-blue-600 text-white border-blue-600 shadow-md cursor-pointer"
-                                                : isCurrent 
-                                                  ? "bg-brand/5 border-brand/35 text-slate-800 hover:bg-blue-50/70 hover:text-blue-600 hover:border-blue-300 cursor-pointer" 
-                                                  : "bg-gray-50/50 border-gray-200 text-gray-700 hover:bg-blue-50/50 hover:text-blue-600 hover:border-blue-200 cursor-pointer"
-                                          }`}
-                                        >
-                                          <div className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
-                                            !isUnlocked
-                                              ? "bg-gray-200 text-gray-400"
-                                              : isSelected
-                                                ? "bg-white text-blue-600"
-                                                : step.done
-                                                  ? "bg-emerald-500 text-white"
-                                                  : isCurrent
-                                                    ? "bg-brand text-white"
-                                                    : "bg-gray-200 text-gray-500"
-                                          }`}>
-                                            {step.done ? <Check className={`w-3 h-3 ${isSelected ? "text-blue-600" : ""}`} /> : (isUnlocked ? idx + 1 : <Lock className="w-3 h-3 text-gray-400" />)}
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between">
-                                              <span className="text-[10px] font-black truncate">{step.title}</span>
-                                              {step.done && <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded ${isSelected ? "bg-white/20 text-white" : "bg-emerald-500/10 text-emerald-600"}`}>مكتمل</span>}
-                                              {!step.done && isCurrent && <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded ${isSelected ? "bg-white/20 text-white" : "bg-amber-500/10 text-amber-600"}`}>الآن</span>}
-                                              {!isUnlocked && <span className="text-[8.5px] bg-gray-150 font-extrabold text-gray-400 px-1 py-0.5 rounded flex items-center gap-0.5"><Lock className="w-3 h-3 text-gray-350 shrink-0" /> معلق</span>}
-                                            </div>
-                                            <p className={`text-[8.5px] mt-0.5 truncate ${isSelected ? "text-blue-100" : "text-gray-500"}`}>{step.desc}</p>
-                                          </div>
-                                        </button>
-                                      );
-                                    });
-                                  })()}
-                                </div>
-
-                                {/* Left Column: Interactive Workspace for selected Step */}
-                                <div className="flex-1 bg-white p-5 rounded-xl border border-gray-200 shadow-sm min-w-0" onClick={(e) => e.stopPropagation()}>
-                                  {(() => {
-                                    const curTab = activeStepTab[evt.id] ?? getStepIndex(nextStep);
-                                    
-                                    switch (curTab) {
-                                      case 0: { // Step 1: Confirm with President
-                                        const president = allMembers.find(m => m.committeeId === evt.committeeId && m.active !== false && m.role === "رئيس");
-                                        const vicePres = allMembers.find(m => m.committeeId === evt.committeeId && m.active !== false && m.role === "نائب");
-                                        
-                                        return (
-                                          <div className="space-y-4">
-                                            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                                              <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                                                <CheckSquare className="w-4 h-4 text-brand" />
-                                                تنسيق وتأكيد موعد وقاعة الاجتماع مع رئيس اللجنة
-                                              </h3>
-                                              <span className="text-[9px] text-gray-500 font-bold leading-none">مرحلة 1 من 7</span>
-                                            </div>
-                                            
-                                            <p className="text-[10px] text-gray-550 leading-relaxed font-bold">
-                                              يتعين على الأخصائي الاتصال تلفونياً أو عبر البريد الإلكتروني برئيس اللجنة (أو نائب الرئيس حال انشغال الرئيس) للتوافق على موعد الفعالية، واعتماده رسمياً قبل إتمام الدعوة للأعضاء.
-                                            </p>
-                                            
-                                            {/* President Info Card */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-right font-sans">
-                                              <div className="p-3 bg-slate-50/70 rounded-lg border border-gray-150">
-                                                <span className="block text-[8px] text-brand font-black mb-1">بيانات رئيس اللجنة</span>
-                                                {president ? (
-                                                  <div>
-                                                    <p className="text-[10px] text-gray-800 font-extrabold">{president.title} {president.name}</p>
-                                                    <p className="text-[9px] text-gray-550 font-bold leading-relaxed mt-0.5">رقم الجوال: {president.phone} | البريد: {president.email}</p>
-                                                  </div>
-                                                ) : (
-                                                  <p className="text-[9px] text-amber-600 font-bold">لم يتم إسناد رئيس لهذه اللجنة بعد في سجل الأعضاء.</p>
-                                                )}
-                                              </div>
-                                              
-                                              <div className="p-3 bg-slate-50/70 rounded-lg border border-gray-150 text-right">
-                                                <span className="block text-[8px] text-[#4ea0b0] font-black mb-1 font-bold">نائب رئيس اللجنة</span>
-                                                {vicePres ? (
-                                                  <div>
-                                                    <p className="text-[10px] text-gray-800 font-extrabold">{vicePres.title} {vicePres.name}</p>
-                                                    <p className="text-[9px] text-gray-550 font-bold leading-relaxed mt-0.5">رقم الجوال: {vicePres.phone} | البريد: {vicePres.email}</p>
-                                                  </div>
-                                                ) : (
-                                                  <p className="text-[9px] text-amber-600 font-bold">لم يتم إسناد نائب رئيس لهذه اللجنة بعد.</p>
-                                                )}
-                                              </div>
-                                            </div>
-
-                                            <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
-                                              <label className="flex items-center gap-2.5 cursor-pointer">
-                                                <input 
-                                                  type="checkbox"
-                                                  checked={!!evt.committeeConfirmed}
-                                                  onChange={(e) => updateEventWorkflow(evt.id, { committeeConfirmed: e.target.checked })}
-                                                  className="w-4.5 h-4.5 rounded border-gray-150 text-brand focus:ring-brand cursor-pointer"
-                                                />
-                                                <span className="text-[10px] text-slate-900 font-extrabold select-none">
-                                                  تم التواصل واعتماد الموعد وتفاصيل القاعة لتأكيد الجدول مع رئيس اللجنة
-                                                </span>
-                                              </label>
-                                              
-                                              {evt.committeeConfirmed ? (
-                                                <span className="text-[9px] text-emerald-600 font-black flex items-center gap-1">
-                                                  <Check className="w-3.5 h-3.5" /> تم التأكيد وتخطي الخطوة بنجاح
-                                                </span>
-                                              ) : (
-                                                <span className="text-[9.5px] text-amber-600 font-bold">بانتظار التأكيد للمتابعة</span>
-                                              )}
-                                            </div>
-                                          </div>
-                                        );
-                                      }
-                                      
-                                      case 1: { // Step 2: Send Invitations
-                                        const invText = getGeneratedInvitation(evt);
-                                        
-                                        return (
-                                          <div className="space-y-4">
-                                            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                                              <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                                                <Send className="w-4 h-4 text-brand" />
-                                                توليد وتعديل وإرسال الدعوة لجميع أعضاء اللجنة الكرام
-                                              </h3>
-                                              <span className="text-[9px] text-gray-500 font-bold">مرحلة 2 من 7</span>
-                                            </div>
-                                            
-                                            <p className="text-[10px] text-gray-550 leading-relaxed font-bold">
-                                              يقوم النظام بتوليد صيغة مسودة الدعوة بناءً على تفاصيل الفعالية (الاسم، التاريخ، الساعة، والموقع). يمكنك التعديل يدوياً في الخانة أدناه ونسخها مباشرة.
-                                            </p>
-                                            
-                                            <div className="relative font-sans">
-                                              <textarea
-                                                value={invText}
-                                                onChange={(e) => updateEventWorkflow(evt.id, { invitationText: e.target.value })}
-                                                className="w-full h-32 p-3 text-[10px] font-bold text-gray-800 border border-gray-200 rounded-lg focus:ring-1 focus:ring-brand focus:border-brand/55 resize-none bg-slate-50 leading-relaxed text-right"
-                                                dir="rtl"
-                                              />
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  navigator.clipboard.writeText(invText);
-                                                  setCopiedEventId(evt.id);
-                                                  setTimeout(() => setCopiedEventId(null), 2000);
-                                                }}
-                                                className="absolute bottom-3 left-3 px-2.5 py-1.5 bg-[#4ea0b0] text-white hover:bg-[#3d8391] border-transparent rounded-md text-[9px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-sm"
-                                              >
-                                                <Copy className="w-3 h-3" />
-                                                {copiedEventId === evt.id ? "تم النسخ!" : "نسخ نص مسودة الدعوة"}
-                                              </button>
-                                            </div>
-
-                                            <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
-                                              <label className="flex items-center gap-2.5 cursor-pointer">
-                                                <input 
-                                                  type="checkbox"
-                                                  checked={!!evt.invitationSent}
-                                                  onChange={(e) => updateEventWorkflow(evt.id, { invitationSent: e.target.checked })}
-                                                  className="w-4.5 h-4.5 rounded border-gray-300 text-brand focus:ring-brand cursor-pointer"
-                                                />
-                                                <span className="text-[10px] text-slate-900 font-extrabold select-none">
-                                                  وضع علامة صح لتأكيد نسخ وإرسال نص الدعوة للأعضاء بنجاح للفعالية
-                                                </span>
-                                              </label>
-                                              
-                                              {evt.invitationSent ? (
-                                                <span className="text-[9px] text-emerald-600 font-black flex items-center gap-1">
-                                                  <Check className="w-3.5 h-3.5" /> جاهز
-                                                </span>
-                                              ) : (
-                                                <span className="text-[9.5px] text-amber-600 font-bold">يرجى تأكيد إرسال الدعوات المكتوبة</span>
-                                              )}
-                                            </div>
-                                          </div>
-                                        );
-                                      }
-                                      
-                                      case 2: { // Step 3: Attendance Confirmation
-                                        const commMems = allMembers.filter(m => m.committeeId === evt.committeeId && m.active !== false);
-                                        const totalCount = commMems.length;
-                                        const presentIds = evt.confirmedAttendees || [];
-                                        const presentMems = commMems.filter(m => presentIds.includes(m.id));
-                                        const ratioMet = totalCount > 0 ? (presentMems.length >= (totalCount / 2)) : false;
-                                        
-                                        const headPresent = presentMems.some(m => m.role === "رئيس" || m.role?.includes("رئيس"));
-                                        const vicePresent = presentMems.some(m => m.role === "نائب" || m.role?.includes("نائب") || m.role?.includes("أمين"));
-                                        const leaderOk = headPresent || vicePresent;
-                                        const quorumMet = ratioMet && leaderOk;
-                                        
-                                        return (
-                                          <div className="flex flex-col gap-4 text-right">
-                                            <div className="flex items-center justify-between pb-2 border-b border-gray-100 order-1">
-                                              <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                                                <Users className="w-4 h-4 text-brand" />
-                                                تأكيد حضور الأعضاء ورصد النصاب القانوني للاجتماع الحالي
-                                              </h3>
-                                              <span className="text-[9px] text-gray-500 font-bold">مرحلة 3 من 7</span>
-                                            </div>
-                                            
-                                            {/* Live Quorum Display */}
-                                            <div className={`p-4 rounded-xl border flex flex-col md:flex-row md:items-center md:justify-between gap-3 order-2 ${quorumMet ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200"}`}>
-                                              <div>
-                                                <span className="block text-[8.5px] text-gray-500 font-bold mb-0.5">حالة النصاب القانوني المعتمد للاجتماع</span>
-                                                <span className={`text-[10.5px] font-black flex items-center gap-1 ${quorumMet ? "text-emerald-700" : "text-amber-750"}`}>
-                                                  {quorumMet 
-                                                    ? "✓ اكتمل النصاب القانوني وتأكيد الاجتماع (تحول الحالة تلقائياً لـ \"مؤكد\")" 
-                                                    : "⚠ لم يكتمل النصاب المطلوب (حضور نصف الأعضاء + رئيس أو نائب رئيس)"}
-                                                </span>
-                                              </div>
-                                              
-                                              <div className="flex items-center gap-6 text-right">
-                                                <div className="border-r border-gray-300 pr-4">
-                                                  <span className="block text-[8px] text-gray-500 font-bold">نسبة حضور الأعضاء الكليين</span>
-                                                  <span className="text-[10.5px] font-extrabold text-slate-800 block">
-                                                    {presentMems.length} من {totalCount} ({totalCount > 0 ? Math.round((presentMems.length / totalCount) * 100) : 0}%)
-                   								  </span>
-                                                </div>
-                                                <div className="border-r border-gray-300 pr-4">
-                                                  <span className="block text-[8px] text-gray-500 font-bold">رئيس / نائب اللجنة حاضر؟</span>
-                                                  <span className="text-[10.5px] font-extrabold block">
-                                                    {leaderOk 
-                                                      ? <span className="text-emerald-600 font-black">✓ حاضر</span> 
-                                                      : <span className="text-amber-600 font-black">⚠ كلاهما غائب</span>}
-                                                  </span>
-                                                </div>
-                                              </div>
-                                            </div>
-
-                                            <div className="text-[9.5px] text-gray-500 leading-relaxed font-bold bg-slate-50 p-2.5 rounded-lg border border-gray-200 order-3">
-                                              💡 <span className="text-slate-900">تعليمات الحضور:</span> يشترط حضور نصف الأعضاء المعينين على الأقل للجنة، شريطة وجود رئيس اللجنة أو نائب الرئيس لتسجيل اعتماد نصاب الفعالية القانوني.
-                                             </div>
-
-                                             {/* Members list */}
-                                            <div>
-                                              <span className="block text-[10.5px] text-slate-800 font-black mb-2">رصد الحاضرين من كشف توقيع الحضور الفعلي</span>
-                                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-44 overflow-y-auto p-1.5 border border-gray-200 rounded-lg bg-gray-50/45">
-                                                {commMems.map(mem => {
-                                                  const isPresent = presentIds.includes(mem.id);
-                                                  return (
-                                                    <button
-                                                      key={mem.id}
-                                                      type="button"
-                                                      onClick={() => {
-                                                        let nextAttendees = [...presentIds];
-                                                        if (isPresent) {
-                                                          nextAttendees = nextAttendees.filter(id => id !== mem.id);
-                                                        } else {
-                                                          nextAttendees.push(mem.id);
-                                                        }
-                                                        updateEventWorkflow(evt.id, { confirmedAttendees: nextAttendees });
-                                                      }}
-                                                      className={`text-right p-2 rounded border transition-all flex items-center gap-2 cursor-pointer ${
-                                                        isPresent 
-                                                          ? "bg-emerald-500/10 border-emerald-500/40 text-slate-900" 
-                                                          : "bg-white border-gray-200 text-gray-600 hover:bg-gray-100"
-                                                      }`}
-                                                    >
-                                                      <input 
-                                                        type="checkbox"
-                                                        checked={isPresent}
-                                                        readOnly
-                                                        className="w-3.5 h-3.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 shrink-0 cursor-pointer"
-                                                      />
-                                                      <div className="min-w-0 flex-1 leading-snug">
-                                                        <p className="text-[9.5px] font-black truncate text-slate-900">{mem.title} {mem.name}</p>
-                                                        <p className="text-[8px] text-gray-500 font-extrabold">{mem.role}</p>
-                                                      </div>
-                                                    </button>
-                                                  );
-                                                })}
-                                              </div>
-                                            </div>
-
-                                             <div className="p-3 bg-emerald-50/70 border border-emerald-250 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-right mt-3">
-                                               <label className="flex items-center gap-2.5 cursor-pointer">
-                                                 <input 
-                                                   type="checkbox"
-                                                   checked={!!evt.attendanceConfirmed}
-                                                   onChange={(e) => updateEventWorkflow(evt.id, { attendanceConfirmed: e.target.checked })}
-                                                   className="w-4.5 h-4.5 rounded border-gray-350 text-brand focus:ring-brand cursor-pointer focus:outline-none shrink-0"
-                                                 />
-                                                 <span className="text-[10px] text-slate-900 font-extrabold select-none">
-                                                   تأكيد حضور الأعضاء والنصاب القانوني وتأكيد قائمة الحاضرين للسماح بالانتقال لتجهيزات اللقاء
-                                                 </span>
-                                               </label>
-                                               {evt.attendanceConfirmed ? (
-                                                 <span className="text-[9px] text-emerald-600 font-extrabold flex items-center gap-1 shrink-0"><Check className="w-3.5 h-3.5" /> تم التأكيد</span>
-                                               ) : (
-                                                 <span className="text-[9.5px] text-amber-600 font-extrabold shrink-0">بانتظار التأكيد</span>
-                                               )}
-                                             </div>
-                                          </div>
-                                        );
-                                      }
-
-                                      case 3: { // Step 4: Meeting Preparations
-                                        const prepText = getGeneratedPreparations(evt);
-                                        const currentPreps = evt.preparationsChecklist !== undefined ? evt.preparationsChecklist : DEFAULT_PREPARATIONS;
-                                        
-                                        return (
-                                          <div className="space-y-4 text-right">
-                                            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                                              <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                                                <Presentation className="w-4 h-4 text-brand" />
-                                                تجهيزات اللقاء وتأمين المتطلبات والضيافة والتغطية الإعلامية
-                                              </h3>
-                                              <span className="text-[9px] text-gray-500 font-bold">مرحلة 4 من 7</span>
-                                            </div>
-                                            
-                                            <p className="text-[10px] text-gray-550 leading-relaxed font-bold font-sans">
-                                              حدد المتطلبات والجاهزية المطلوبة للقاء من خلال قائمة التحقق التفاعلية، وسيتم توليد خطاب تأمين تجهيزات اللقاء الموجه للمختصين تلقائياً بالأسفل:
-                                            </p>
-
-                                            {/* Interactive Checklist of Preparations - At the TOP */}
-                                            <div className="bg-slate-50 p-4 rounded-xl border border-gray-200 font-sans space-y-3">
-                                              <div className="flex items-center justify-between">
-                                                <span className="block text-[10px] font-black text-brand">قائمة التحقق المبرمجة لتجهيز اللقاء (تفاعلية):</span>
-                                                <span className="text-[8.5px] font-bold text-gray-500">تم تحديد {currentPreps.length} من أصل {DEFAULT_PREPARATIONS.length}</span>
-                                              </div>
-                                              
-                                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                                                {DEFAULT_PREPARATIONS.map((prepItem) => {
-                                                  const isChecked = currentPreps.includes(prepItem);
-                                                  return (
-                                                    <label 
-                                                      key={prepItem} 
-                                                      className={`flex items-start gap-2.5 p-2 rounded-lg border cursor-pointer select-none transition-all ${
-                                                        isChecked 
-                                                          ? "bg-emerald-500/5 border-emerald-500/25 text-slate-900" 
-                                                          : "bg-white border-gray-200 text-gray-400 hover:bg-gray-100/50"
-                                                      }`}
-                                                    >
-                                                      <input 
-                                                        type="checkbox"
-                                                        checked={isChecked}
-                                                        onChange={(e) => {
-                                                          let nextPreps;
-                                                          if (e.target.checked) {
-                                                            nextPreps = [...currentPreps, prepItem];
-                                                          } else {
-                                                            nextPreps = currentPreps.filter(item => item !== prepItem);
-                                                          }
-                                                          const updatedEvt = { 
-                                                            ...evt, 
-                                                            preparationsChecklist: nextPreps, 
-                                                            preparationsText: undefined
-                                                          };
-                                                          const newText = getGeneratedPreparations(updatedEvt);
-                                                          updateEventWorkflow(evt.id, { 
-                                                            preparationsChecklist: nextPreps,
-                                                            preparationsText: newText
-                                                          });
-                                                        }}
-                                                        className="w-4 h-4 mt-0.5 rounded border-gray-300 text-brand focus:ring-brand cursor-pointer focus:outline-none shrink-0"
-                                                      />
-                                                      <span className={`text-[10px] font-bold leading-snug ${isChecked ? "text-slate-800" : "text-gray-500"}`}>{prepItem}</span>
-                                                    </label>
-                                                  );
-                                                })}
-                                              </div>
-
-                                              {/* Additional Special Request Inputs */}
-                                              <div className="mt-3 pt-3 border-t border-gray-200/80 flex flex-col gap-1.5">
-                                                <label className="text-[10.5px] font-black text-slate-800">تفاصيل إضافية / طلبات مخصصة للقاء (اكتب كل طلب في سطر جديد ليظهر كبند مستقل):</label>
-                                                <textarea 
-                                                  rows={3}
-                                                  value={evt.preparationsAdditional || ""}
-                                                  placeholder="اكتب أي متطلبات أو تجهيزات خاصة إضافية (يمكنك كتابة أكثر من سطر، وسيتم إدراج كل سطر كبند مستقل في الخطاب)..."
-                                                  onChange={(e) => {
-                                                    const val = e.target.value;
-                                                    const updatedEvt = { 
-                                                      ...evt, 
-                                                      preparationsAdditional: val, 
-                                                      preparationsText: undefined
-                                                    };
-                                                    const newText = getGeneratedPreparations(updatedEvt);
-                                                    updateEventWorkflow(evt.id, { 
-                                                      preparationsAdditional: val,
-                                                      preparationsText: newText
-                                                    });
-                                                  }}
-                                                  className="w-full text-[10px] font-bold p-2 border border-gray-200 rounded-lg bg-white text-right focus:ring-1 focus:ring-brand text-slate-800 placeholder-gray-400 leading-relaxed"
-                                                />
-                                              </div>
-                                            </div>
-
-                                            {/* Generated Letter / Textarea Block - At the BOTTOM */}
-                                            <div className="flex flex-col gap-1.5 pt-1">
-                                              <span className="block text-[10.5px] font-black text-slate-800">المولد الذكي لبريد التجهيزات الإلكتروني:</span>
-                                              <div className="relative font-sans">
-                                                <textarea
-                                                  value={prepText}
-                                                  onChange={(e) => updateEventWorkflow(evt.id, { preparationsText: e.target.value })}
-                                                  rows={9}
-                                                  className="w-full text-[9.5px] p-2.5 pb-10 border border-gray-200 rounded-lg text-right font-sans bg-amber-50/20 text-slate-800 focus:ring-1 focus:ring-brand leading-relaxed animate-none"
-                                                  dir="rtl"
-                                                />
-                                                <button
-                                                  type="button"
-                                                  onClick={() => {
-                                                    navigator.clipboard.writeText(prepText);
-                                                     setCopiedEventId(evt.id);
-                                                     setTimeout(() => setCopiedEventId(null), 2000);
-                                                  }}
-                                                  className="absolute bottom-3 left-3 px-2.5 py-1.5 bg-[#4ea0b0] text-white hover:bg-[#3d8391] border-transparent rounded-md text-[9px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-sm"
-                                                >
-                                                  <Copy className="w-3 h-3" />
-                                                  {copiedEventId === evt.id ? "تم النسخ!" : "نسخ بريد التجهيزات"}
-                                                </button>
-                                              </div>
-                                            </div>
-
-                                            {/* Confirmation */}
-                                            <div className="p-3 bg-emerald-50/70 border border-emerald-250 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-right">
-                                              <label className="flex items-center gap-2.5 cursor-pointer">
-                                                <input 
-                                                  type="checkbox"
-                                                  checked={!!evt.preparationsConfirmed}
-                                                  onChange={(e) => updateEventWorkflow(evt.id, { preparationsConfirmed: e.target.checked })}
-                                                  className="w-4.5 h-4.5 rounded border-gray-350 text-brand focus:ring-brand cursor-pointer focus:outline-none shrink-0"
-                                                />
-                                                <span className="text-[10px] text-slate-900 font-extrabold select-none">
-                                                  تأكيد استلام وتأمين كافة التجهيزات اللوجستية والفنية والضيافة والتغطيات للقاء الحالي
-                                                </span>
-                                              </label>
-                                              {evt.preparationsConfirmed ? (
-                                                <span className="text-[9px] text-emerald-600 font-extrabold flex items-center gap-1 shrink-0"><Check className="w-3.5 h-3.5" /> تم تأكيد التجهيزات</span>
-                                              ) : (
-                                                <span className="text-[9.5px] text-amber-600 font-extrabold shrink-0">بانتظار التأكيد</span>
-                                              )}
-                                            </div>
-                                          </div>
-                                        );
-                                      }
-                                      
-                                      case 4: { // Step 5: Agenda Builder
-										const agenda = evt.agenda || [];
-										const eventComm = committees.find(c => String(c.id) === String(evt.committeeId));
-										const commSpecialist = eventComm?.specialist || "أخصائي اللجنة";
-										const commMembers = allMembers.filter(m => String(m.committeeId) === String(evt.committeeId));
-										
-										const handleAddAgendaItem = () => {
-											if (!agendaFormTitle.trim()) return;
-											
-											const newItem = {
-												id: Math.random().toString(36).substring(2, 9),
-												title: agendaFormTitle.trim(),
-												duration: Number(agendaFormDuration) || 15,
-												specialist: agendaFormSpecialistId || commSpecialist,
-												discussion: "",
-												recommendation: "",
-												assignee: "",
-												durationRec: ""
-											};
-											
-											updateEventWorkflow(evt.id, { agenda: [...agenda, newItem] });
-											setAgendaFormTitle("");
-											setAgendaFormSpecialistId("");
-										};
-										
-										const handleRemoveAgendaItem = (itemId) => {
-											updateEventWorkflow(evt.id, { agenda: agenda.filter(item => item.id !== itemId) });
-										};
-										
-										return (
-											<div className="flex flex-col gap-4 font-sans text-right">
-												<div className="flex items-center justify-between pb-2 border-b border-gray-100 order-1">
-													<h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-														<Sliders className="w-4 h-4 text-brand" />
-														بناء بنود جدول أعمال الفعالية وتحديد المدد مع المختصين
-													</h3>
-													<span className="text-[9px] text-gray-500 font-bold">مرحلة 5 من 7</span>
-												</div>
-
-												{/* Form block */}
-												<div className="bg-slate-50 p-3.5 rounded-lg border border-gray-200/80 space-y-3 order-2">
-													<span className="block text-[10px] font-black text-brand">إضافة بند إضافي جديد لجدول الأعمال</span>
-													<div className="grid grid-cols-1 md:grid-cols-12 gap-2 text-right">
-														
-														<div className="md:col-span-6 flex flex-col gap-1">
-															<label className="text-[8.5px] font-bold text-gray-750">موضوع بند جدول الأعمال</label>
-															<input 
-																type="text"
-																placeholder="مثال: التصويت على اللائحة التنظيمية الجديدة"
-																value={agendaFormTitle}
-																onChange={(e) => setAgendaFormTitle(e.target.value)}
-																className="w-full text-[10px] font-bold p-1.5 border border-gray-200 rounded text-right bg-white"
-															/>
-														</div>
-														
-														<div className="md:col-span-2 flex flex-col gap-1">
-															<label className="text-[8.5px] font-bold text-gray-750">المدة الكلية (بالدقائق)</label>
-															<input 
-																type="number"
-																min="1"
-																value={agendaFormDuration}
-																onChange={(e) => setAgendaFormDuration(Number(e.target.value))}
-																className="w-full text-[10px] font-bold p-1.5 border border-gray-200 rounded text-center bg-white"
-															/>
-														</div>
-
-														<div className="md:col-span-4 flex flex-col gap-1">
-															<label className="text-[8.5px] font-bold text-gray-750">تحديد اسم المختص</label>
-															<select
-																value={agendaFormSpecialistId}
-																onChange={(e) => setAgendaFormSpecialistId(e.target.value)}
-																className="w-full text-[10px] font-bold p-1.5 border border-gray-200 rounded bg-white text-right"
-															>
-																<option value="">-- اختر المختص --</option>
-																{commSpecialist && (
-																	<optgroup label="أخصائي اللجنة المسؤول">
-																		<option value={commSpecialist}>{commSpecialist} (أخصائي اللجنة)</option>
-																	</optgroup>
-																)}
-																{commMembers.length > 0 && (
-																	<optgroup label="أعضاء اللجنة">
-																		{commMembers.map((m) => {
-																			const displayName = `${m.title} ${m.name} (${m.role})`;
-																			return (
-																				<option key={m.id} value={displayName}>
-																					{displayName}
-																				</option>
-																			);
-																		})}
-																	</optgroup>
-																)}
-															</select>
-														</div>
-													</div>
-													
-													<div className="flex justify-end pt-1">
-														<button
-															type="button"
-															onClick={handleAddAgendaItem}
-															className="px-4 py-2 bg-slate-900 border-transparent hover:bg-slate-800 text-white font-extrabold rounded text-[10px] flex items-center gap-1 cursor-pointer transition-all shadow-sm"
-														>
-															<Plus className="w-3.5 h-3.5" />
-															إدراج البند إلى جدول فعاليات الأعمال بالأسفل
-														</button>
-													</div>
-												</div>
-
-												{/* Agenda list table */}
-												<div className="order-3">
-													<span className="block text-[10px] text-slate-800 font-black mb-1.5">أجندة جدول الأعمال المسجلة للفعالية حتى الآن ({agenda.length})</span>
-													{agenda.length === 0 ? (
-														<div className="text-center p-6 border rounded-lg bg-gray-50 text-gray-500 text-[10px] font-bold border-gray-200">
-															لا يوجد بنود أعمال حالية في الفعالية. يرجى استخدام النموذج أعلاه لإدراج الأجندة وفتح المحضر.
-														</div>
-													) : (
-														<div className="border rounded-lg overflow-hidden bg-white shadow-sm">
-															<table className="w-full text-right font-sans text-[10.5px]">
-																<thead>
-																	<tr className="bg-slate-50 border-b border-gray-200 text-gray-700 font-bold text-[10px]">
-																		<th className="px-3 py-2 text-center w-12">م</th>
-																		<th className="px-3 py-2">البند / الموضوع الرئيسي</th>
-																		<th className="px-3 py-2 text-center w-28">المدة المحددة</th>
-																		<th className="px-3 py-2">المسؤول عن العرض/المناقشة</th>
-																		<th className="px-3 py-2 text-center w-16">مسح</th>
-																	</tr>
-																</thead>
-																<tbody className="divide-y text-gray-850 font-bold">
-																	{agenda.map((item, index) => (
-																		<tr key={item.id} className="hover:bg-slate-50/50">
-																			<td className="px-3 py-2 text-center font-bold text-gray-400">{index + 1}</td>
-																			<td className="px-3 py-2 font-black text-slate-900">{item.title}</td>
-																			<td className="px-3 py-2 text-center text-brand font-black">{item.duration} دقيقة</td>
-																			<td className="px-3 py-2 text-gray-800 font-black">{item.specialist}</td>
-																			<td className="px-3 py-2 text-center">
-																				<button
-																					type="button"
-																					onClick={() => handleRemoveAgendaItem(item.id)}
-																					className="text-red-600 hover:bg-red-50 p-1 rounded cursor-pointer transition-colors"
-																				>
-																					<Trash2 className="w-3.5 h-3.5" />
-																				</button>
-																			</td>
-																		</tr>
-																	))}
-																</tbody>
-															</table>
-														</div>
-													)}
-
-													{/* Bottom Confirmation Checkbox for Agenda is placed here at the absolute bottom */}
-													<div className="p-3 bg-emerald-50/70 border border-emerald-250 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-right mt-3 mb-0">
-														<label className="flex items-center gap-2.5 cursor-pointer">
-															<input 
-																type="checkbox"
-																checked={!!evt.agendaTransferred}
-																disabled={agenda.length === 0}
-																onChange={(e) => updateEventWorkflow(evt.id, { agendaTransferred: e.target.checked })}
-																className="w-4.5 h-4.5 rounded border-gray-300 text-brand focus:ring-brand cursor-pointer focus:outline-none shrink-0"
-															/>
-															<span className="text-[10px] text-slate-900 font-extrabold select-none">
-																ترحيل جدول الأعمال لمحضر الاجتماع وتأكيد الأجندة للانتقال لمحضر الاجتماع
-															</span>
-														</label>
-														{evt.agendaTransferred ? (
-															<span className="text-[9px] text-emerald-600 font-extrabold flex items-center gap-1 shrink-0"><Check className="w-3.5 h-3.5" /> تم الترحيل للمحضر</span>
-														) : (
-															<span className="text-[9.5px] text-amber-600 font-extrabold shrink-0">بانتظار تفعيل خيار الترحيل</span>
-														)}
-													</div>
-												</div>
-											</div>
-										);
-										}case 5: { // Step 6: Meeting Minutes
-                                        const agenda = evt.agenda || [];
-                                        
-                                        const handleUpdateAgendaMinutes = (itemId: string, fields: Partial<typeof agenda[0]>) => {
-                                          const updatedAgenda = agenda.map(item => {
-                                            if (item.id === itemId) return { ...item, ...fields };
-                                            return item;
-                                          });
-                                          updateEventWorkflow(evt.id, { agenda: updatedAgenda });
-                                        };
-                                        
-                                        return (
-                                          <div className="space-y-4 text-right font-sans">
-                                            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                                              <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                                                <BookOpen className="w-4 h-4 text-brand" />
-                                                تحرير بنود المحضر وكتابة التوصية والمسؤول والمدة (الوقائع الرسمية)
-                                              </h3>
-                                              <span className="text-[9px] text-gray-500 font-bold">مرحلة 6 من 7</span>
-                                            </div>
-
-                                            {agenda.length === 0 ? (
-                                              <div className="text-center p-6 border border-yellow-250 rounded-lg bg-yellow-50 text-amber-700 text-[10px] font-bold">
-                                                ⚠ تنبيه: لم يتم تسجيل أي بنود في الأجندة بعد. يرجى ملء جدول الأعمال في (الخطوة 4) أولاً.
-                                              </div>
-                                            ) : (
-                                              <div className="space-y-4 max-h-[350px] overflow-y-auto pr-1">
-                                                {agenda.map((item, idx) => (
-                                                  <div key={item.id} className="p-3.5 border border-gray-200 rounded-lg bg-slate-50 space-y-3 shadow-inner">
-                                                    <div className="flex items-center justify-between border-b pb-1.5 border-gray-200">
-                                                      <span className="font-extrabold text-[10.5px] text-slate-900">
-                                                        {idx + 1}. {item.title} ({item.specialist})
-                                                      </span>
-                                                      <span className="text-[8.5px] font-black text-slate-500 bg-slate-200/50 px-2 py-0.5 rounded">
-                                                        المدة الكلية المتاحة: {item.duration} دقيقة
-                                                      </span>
-                                                    </div>
-                                                    
-                                                    <div className="flex flex-col gap-3 text-right font-sans">
-                                                      <div className="flex flex-col gap-1 w-full">
-                                                        <label className="text-[8.5px] font-extrabold text-gray-750">المناقشة وتدوين مجريات الوقائع</label>
-                                                        <textarea
-                                                          value={item.discussion || ""}
-                                                          onChange={(e) => handleUpdateAgendaMinutes(item.id, { discussion: e.target.value })}
-                                                          placeholder="تحدث الحضور حول البند وتم رصد الآتي..."
-                                                          className="w-full text-[9.5px] font-bold p-2 border border-gray-200 rounded leading-relaxed bg-white h-18 resize-none text-right"
-                                                        />
-                                                      </div>
-
-                                                      <div className="flex flex-col gap-1 w-full">
-                                                        <label className="text-[8.5px] font-extrabold text-[#4ea0b0]">التوصية المنبثقة من البند (الزر الذهبي)</label>
-                                                        <textarea
-                                                          value={item.recommendation || ""}
-                                                          onChange={(e) => handleUpdateAgendaMinutes(item.id, { recommendation: e.target.value })}
-                                                          placeholder="تمت التوصية بـ..."
-                                                          className="w-full text-[9.5px] font-bold p-2 border border-[#4ea0b0]/40 focus:ring-[#4ea0b0] rounded leading-relaxed bg-white h-18 resize-none text-right"
-                                                        />
-                                                      </div>
-                                                    </div>
-
-                                                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 text-right pt-2.5 border-t border-dashed border-gray-200 font-sans items-end">
-                                                      <div className="md:col-span-5 flex flex-col gap-1">
-                                                        <label className="text-[8.5px] font-bold text-gray-750">المكلف برصد ومتابعة تنفيذ التوصية</label>
-                                                        <select
-                                                          value={item.assignee || ""}
-                                                          onChange={(e) => handleUpdateAgendaMinutes(item.id, { assignee: e.target.value })}
-                                                          className="w-full text-[9.5px] font-bold p-1.5 border border-gray-200 rounded bg-white text-right h-8.5 focus:ring-brand focus:border-brand focus:outline-none"
-                                                        >
-                                                          <option value="">-- كشف المكلفين المتاحين --</option>
-                                                          <option value="الأخصائي">أخصائي اللجنة</option>
-                                                          {allMembers.filter(m => m.committeeId === evt.committeeId).map(m => (
-                                                            <option key={m.id} value={`${m.title} ${m.name}`}>{m.title} {m.name} ({m.role})</option>
-                                                          ))}
-                                                          <option value="برنامج التطوير">فريق العمل الفني (موظف أخر)</option>
-                                                        </select>
-                                                      </div>
-
-                                                      <div className="md:col-span-4 flex flex-col gap-1 w-full">
-                                                        <label className="text-[8.5px] font-bold text-gray-750">المهلة المحددة للتنفيذ (عدد أيام العمل، بدون الجمعة والسبت)</label>
-                                                        <input
-                                                          type="number"
-                                                          min="1"
-                                                          value={item.workDays || ""}
-                                                          onChange={(e) => {
-                                                            const dVal = parseInt(e.target.value) || 0;
-                                                            const calcDate = calculateWorkingDaysDate(evt.date || new Date().toISOString().split('T')[0], dVal);
-                                                            handleUpdateAgendaMinutes(item.id, { 
-                                                              workDays: dVal,
-                                                              durationRec: calcDate ? `تاريخ استحقاق: ${calcDate} (${dVal} أيام عمل)` : ""
-                                                            });
-                                                          }}
-                                                          placeholder="مثال: 5، 10، 15 يوم عمل"
-                                                          className="w-full text-[10px] font-bold p-1.5 border border-gray-200 rounded bg-white text-right focus:outline-none focus:border-brand h-8.5"
-                                                        />
-                                                      </div>
-
-                                                      <div className="md:col-span-3 flex items-center justify-end h-8.5 pb-1">
-                                                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                                                          <input 
-                                                            type="checkbox"
-                                                            checked={!!item.hasImpact}
-                                                            onChange={(e) => handleUpdateAgendaMinutes(item.id, { hasImpact: e.target.checked })}
-                                                            className="w-4 h-4 rounded border-gray-300 text-brand focus:ring-brand cursor-pointer"
-                                                          />
-                                                          <span className="text-[9.5px] text-slate-900 font-extrabold">
-                                                            توصية ذات أثر (مهمة ومؤثرة)
-                                                          </span>
-                                                        </label>
-                                                      </div>
-
-                                                      {item.durationRec && (
-                                                        <div className="md:col-span-12 text-[8.5px] text-emerald-600 font-extrabold mr-1 -mt-1.5">
-                                                          {item.durationRec}
-                                                        </div>
-                                                      )}
-                                                    </div>
-                                                  </div>
-                                                ))}
-                                              </div>
-                                            )}
-
-                                            {agenda.length > 0 && (
-                                              <div className="pt-3 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                                                <button
-                                                  type="button"
-                                                  onClick={() => updateEventWorkflow(evt.id, { minutesSaved: true, minutesExportChecked: true })}
-                                                  className="px-5 py-2.5 bg-emerald-600 border-transparent hover:bg-emerald-555 text-white font-extrabold rounded-lg text-[10px] flex items-center gap-1.5 cursor-pointer transition-all shadow-md shadow-emerald-500/10"
-                                                >
-                                                  <CheckCircle className="w-4 h-4" />
-                                                  حفظ وتثبيت وقائع المحضر بالكامل
-                                                </button>
-                                                
-                                                {evt.minutesSaved && (
-                                                  <label className="flex items-center gap-2 bg-emerald-50 text-emerald-600 p-2 rounded-lg border border-emerald-250 shadow-sm font-black">
-                                                    <input 
-                                                      type="checkbox"
-                                                      checked={true} style={{ display: "none" }}
-                                                      onChange={() => {}}
-                                                      className="w-4.5 h-4.5 rounded border-gray-350 text-brand focus:ring-brand cursor-pointer"
-                                                    />
-                                                    <span className="text-[9.5px] text-emerald-700 font-extrabold select-none">
-                                                      تم تأكيد وتثبيت وقائع المحضر بنجاح. يمكنك التقدّم الآن لمرحلة ترحيل التوصيات.
-                                                    </span>
-                                                  </label>
-                                                )}
-                                              </div>
-                                            )}
-                                          </div>
-                                        );
-                                      }
-                                      
-                                      case 6: { // Step 7: Export & Confirm to Recommendations Page
-                                        const agenda = evt.agenda || [];
-                                        const recsToExport = agenda.filter(item => item.recommendation && item.recommendation.trim() !== "");
-                                        const existingMeetingRecs = allDbRecommendations.filter(rec => rec && rec.id && rec.id.startsWith(`custom-rec-${evt.id}-`));
-
-                                        // Auto selection checklist initialization
-                                        const nextSelections = { ...selectedAgendaRecsExport };
-                                        let needsStateUpdate = false;
-                                        recsToExport.forEach(item => {
-                                          const key = `${evt.id}-${item.id}`;
-                                          if (nextSelections[key] === undefined) {
-                                            nextSelections[key] = true;
-                                            needsStateUpdate = true;
-                                          }
-                                        });
-                                        if (needsStateUpdate) {
-                                          setTimeout(() => {
-                                            setSelectedAgendaRecsExport(prev => {
-                                              const updated = { ...prev };
-                                              recsToExport.forEach(item => {
-                                                const key = `${evt.id}-${item.id}`;
-                                                if (updated[key] === undefined) updated[key] = true;
-                                              });
-                                              return updated;
-                                            });
-                                          }, 50);
-                                        }
-
-                                        const handleConfirmExportFinal = async () => {
-                                          const selectedIds = recsToExport
-                                            .filter(item => !!selectedAgendaRecsExport[`${evt.id}-${item.id}`])
-                                            .map(item => item.id);
-
-                                          const count = await exportRecommendationsToLocalStorage(evt, selectedIds);
-                                          updateEventWorkflow(evt.id, { exportedRecommendationsToPage: true });
-                                        };
-                                        
-                                        return (
-                                          <div className="space-y-4 text-right font-sans">
-                                            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                                              <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                                                <Sparkles className="w-4 h-4 text-brand" />
-                                                سجل ترحيل التوصيات التلقائي المتقدم والموازنة
-                                              </h3>
-                                              <span className="text-[9px] text-gray-500 font-bold">مرحلة 7 من 7</span>
-                                            </div>
-
-                                            {!evt.minutesSaved ? (
-                                              <div className="text-center p-6 border border-orange-250 rounded-lg bg-orange-50 text-orange-700 text-[10px] font-bold">
-                                                ⚠ يرجى حفظ وتثبيت وقائع المحضر بالكامل أولاً في (الخطوة 5).
-                                              </div>
-                                            ) : (
-                                              <div className="space-y-3">
-                                                
-                                                <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg text-emerald-800">
-                                                  <p className="text-[10px] font-black flex items-center gap-2 font-bold">
-                                                    <CheckCircle className="w-4 h-4 shrink-0 rounded-full text-emerald-600" />
-                                                    تم تأكيد جاهزية التوصيات المستخرجة تلقائياً من محضر الاجتماع. يمكنك اختيار بنود محددة للترحيل.
-                                                  </p>
-                                                </div>
-
-                                                {/* Comparison History Panel */}
-                                                {existingMeetingRecs.length > 0 && (
-                                                  <div className="border border-slate-200 rounded-lg bg-slate-50 p-2.5 space-y-2">
-                                                    <div className="flex items-center gap-1.5 pb-1 border-b border-gray-200">
-                                                      <div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div>
-                                                      <span className="text-[10px] font-black text-slate-700">التوصيات المرحلة سابقاً في قاعدة البيانات لهذة الفعالية ({existingMeetingRecs.length})</span>
-                                                    </div>
-                                                    <div className="space-y-1 text-[9px]">
-                                                      {existingMeetingRecs.map((dbRec) => (
-                                                        <div key={dbRec.id} className="p-2 bg-white rounded border border-gray-150 flex items-center justify-between gap-4 font-bold text-gray-600">
-                                                          <div className="flex flex-col">
-                                                            <span className="text-slate-800">توصية محفوظة: {dbRec.description}</span>
-                                                            <span className="text-[8px] text-slate-400">المكلف: {dbRec.assignedTo} | المدة: {dbRec.duration}</span>
-                                                          </div>
-                                                          <span className="text-[7.5px] bg-slate-100 text-slate-500 px-1 rounded shrink-0">سارية بالنظام</span>
-                                                        </div>
-                                                      ))}
-                                                    </div>
-                                                  </div>
-                                                )}
-
-                                                <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
-                                                  <div className="p-2.5 bg-slate-100 border-b border-gray-200 flex items-center justify-between font-bold text-[10px]">
-                                                    <span className="text-slate-800 font-black">سجل التوصيات النشطة للفعالية (تحديد ومزامنة)</span>
-                                                    <span className="bg-slate-900 text-white font-black px-1.5 py-0.5 rounded text-[8.5px]">
-                                                      عدد التوصيات الكلية بالمحضر: {recsToExport.length}
-                                                    </span>
-                                                  </div>
-                                                  
-                                                  {recsToExport.length === 0 ? (
-                                                    <div className="p-6 text-center space-y-4">
-                                                      <div className="text-gray-500 text-[10px] font-bold">
-                                                        لم يتم تدوين أي توصيات في بنود المحضر لهذا الاجتماع. هل ترغب في إقفال المحضر واعتماده مباشرة بدون توصيات لإنهاء الفعالية بالكامل وتحويل الحالة إلى مكتمل؟
-                                                      </div>
-                                                      <div className="pt-2 flex justify-center">
-                                                        {evt.exportedRecommendationsToPage ? (
-                                                          <div className="p-2.5 bg-emerald-50 border border-emerald-250 text-emerald-700 text-[10.5px] font-black rounded-lg flex items-center justify-between gap-2 font-bold w-full">
-                                                            <span className="flex items-center gap-2">
-                                                              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                                                              تم إقفال واعتماد المحضر بدون توصيات بنجاح! الفعالية مكتملة الآن.
-                                                            </span>
-                                                          </div>
-                                                        ) : (
-                                                          <button
-                                                            type="button"
-                                                            onClick={() => updateEventWorkflow(evt.id, { exportedRecommendationsToPage: true })}
-                                                            className="px-5 py-2.5 bg-slate-900 border-transparent hover:bg-slate-800 text-white font-black rounded-lg text-[10.5px] flex items-center gap-2 cursor-pointer transition-all shadow-md"
-                                                          >
-                                                            <Lock className="w-4 h-4 text-brand shadow animate-pulse" />
-                                                            إقفال المحضر واعتماده مباشرة بدون توصيات
-                                                          </button>
-                                                        )}
-                                                      </div>
-                                                    </div>
-                                                  ) : (
-                                                    <div className="divide-y text-[10px] text-slate-800 font-sans border-t">
-                                                      {recsToExport.map((rec, index) => {
-                                                        const isSelected = !!selectedAgendaRecsExport[`${evt.id}-${rec.id}`];
-                                                        const matchingDbRec = existingMeetingRecs.find(dbRec => dbRec.id === `custom-rec-${evt.id}-${rec.id}`);
-                                                        const isIdExistInDb = !!matchingDbRec;
-                                                        const hasDifference = matchingDbRec ? matchingDbRec.description !== rec.recommendation : false;
-
-                                                        return (
-                                                          <div key={rec.id} className={`p-3 transition-colors ${isSelected ? "bg-white" : "bg-gray-50/50 opacity-60"} flex items-start gap-3`}>
-                                                            <input 
-                                                              type="checkbox"
-                                                              checked={isSelected}
-                                                              onChange={(e) => setSelectedAgendaRecsExport(prev => ({
-                                                                ...prev,
-                                                                [`${evt.id}-${rec.id}`]: e.target.checked
-                                                              }))}
-                                                              className="w-4.5 h-4.5 rounded border-gray-300 text-brand focus:ring-brand mt-0.5 cursor-pointer shrink-0"
-                                                            />
-                                                            <div className="flex-1 flex flex-col gap-1.5 leading-snug">
-                                                              <div className="flex items-start justify-between gap-4">
-                                                                <span className="font-extrabold text-slate-950">توصية البند {index + 1}: {rec.recommendation}</span>
-                                                                
-                                                                {/* Status badges */}
-                                                                {!isIdExistInDb ? (
-                                                                  <span className="text-[7.5px] bg-blue-50 text-blue-600 border border-blue-200 font-black px-1.5 py-0.5 rounded shrink-0">جديدة كلياً</span>
-                                                                ) : hasDifference ? (
-                                                                  <span className="text-[7.5px] bg-amber-50 text-amber-700 border border-amber-200 font-black px-1.5 py-0.5 rounded shrink-0">تعديل مقترح (معدلة)</span>
-                                                                ) : (
-                                                                  <span className="text-[7.5px] bg-emerald-50 text-emerald-600 border border-emerald-200 font-black px-1.5 py-0.5 rounded shrink-0">مرحلة ومطابقة</span>
-                                                                )}
-                                                              </div>
-                                                              <div className="flex items-center gap-3 text-gray-500 font-bold text-[8.5px]">
-                                                                <span>المكلف: {rec.assignee || "غير محدد"}</span>
-                                                                <span>|</span>
-                                                                <span>مدة أو تاريخ التنفيذ: {rec.durationRec || "غير محدد"}</span>
-                                                              </div>
-                                                            </div>
-                                                          </div>
-                                                        );
-                                                      })}
-                                                    </div>
-                                                  )}
-                                                </div>
-
-                                                {recsToExport.length > 0 && (
-                                                  <div className="pt-2 flex justify-end">
-                                                    {evt.exportedRecommendationsToPage ? (
-                                                      <div className="p-2.5 bg-emerald-50 border border-emerald-250 text-emerald-700 text-[10.5px] font-black rounded-lg flex items-center justify-between gap-2 font-bold w-full">
-                                                        <span className="flex items-center gap-2">
-                                                          <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                                                          تم ترحيل وتأكيد مزامنة التوصيات المختارة بنجاح بصفحة اللجان والتوصيات!
-                                                        </span>
-                                                        <button
-                                                          type="button"
-                                                          onClick={handleConfirmExportFinal}
-                                                          className="px-2.5 py-1 text-[8.5px] bg-white border border-emerald-300 text-emerald-700 hover:bg-slate-50 rounded transition-colors font-black cursor-pointer shadow-sm"
-                                                        >
-                                                          تحديث المزامنة الحالية
-                                                        </button>
-                                                      </div>
-                                                    ) : (
-                                                      <button
-                                                        type="button"
-                                                        onClick={handleConfirmExportFinal}
-                                                        className="px-5 py-2.5 bg-slate-900 border-transparent hover:bg-slate-800 text-white font-black rounded-lg text-[10.5px] flex items-center gap-2 cursor-pointer transition-all shadow-md"
-                                                      >
-                                                        <Sparkles className="w-4 h-4 text-brand shadow animate-pulse" />
-                                                        تأكيد وإتمام ترحيل التوصيات المقترحة لصفحة التوصيات الرسمية
-                                                      </button>
-                                                    )}
-                                                  </div>
-                                                )}
-                                              </div>
-                                            )}
-                                          </div>
-                                        );
-                                      }
-                                      
-                                      default: return null;
-                                    }
-                                  })()}
+                                  {evt.meetingStatus === "ملغي ويطلب سبب الإلغاء" && (
+                                    <div className="space-y-2">
+                                      <label className="text-xs font-black text-gray-700">سبب الإلغاء</label>
+                                      <input
+                                        type="text"
+                                        placeholder="اكتب سبب الإلغاء..."
+                                        value={evt.cancelReason || ""}
+                                        onChange={async (e) => {
+                                          const docRef = doc(db, "affiliates_events", String(evt.id));
+                                          await updateDoc(docRef, { cancelReason: e.target.value });
+                                        }}
+                                        className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-brand focus:border-brand"
+                                      />
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </motion.div>
