@@ -20,6 +20,7 @@ interface EventItem {
   employees: string[];
   members: number[]; // Array of member IDs
   notes: string;
+  referredFrom?: string;
   
   // New workflow step fields
   committeeConfirmed?: boolean;
@@ -164,41 +165,7 @@ import { useFirestoreCollection } from '../lib/firebaseUtils';
 
 export default function AssistantSecGenEvents() {
   const location = useLocation();
-  const { data: events1, addDocument: addFirebaseEvent1, updateDocument: updateFirebaseEvent1, deleteDocument: deleteFirebaseEvent1 } = useFirestoreCollection<EventItem>("assistant_sec_gen_events", []);
-  const { data: events2, updateDocument: updateFirebaseEvent2, deleteDocument: deleteFirebaseEvent2 } = useFirestoreCollection<EventItem>("events", []);
-  const { data: events3, updateDocument: updateFirebaseEvent3, deleteDocument: deleteFirebaseEvent3 } = useFirestoreCollection<EventItem>("affiliates_events", []);
-  const { data: events4, updateDocument: updateFirebaseEvent4, deleteDocument: deleteFirebaseEvent4 } = useFirestoreCollection<EventItem>("centers_events", []);
-
-  const events = React.useMemo(() => {
-    return [
-      ...events1.map(e => ({ ...e, _sourceCol: "assistant_sec_gen_events" })),
-      ...events2.map(e => ({ ...e, _sourceCol: "events" })),
-      ...events3.map(e => ({ ...e, _sourceCol: "affiliates_events" })),
-      ...events4.map(e => ({ ...e, _sourceCol: "centers_events" }))
-    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [events1, events2, events3, events4]);
-
-  const addFirebaseEvent = addFirebaseEvent1;
-
-  const updateFirebaseEvent = (id: string, updates: any) => {
-    const e = events.find(ev => String(ev.id) === String(id));
-    if (!e) return;
-    const col = (e as any)._sourceCol;
-    if (col === "assistant_sec_gen_events") updateFirebaseEvent1(id, updates);
-    else if (col === "events") updateFirebaseEvent2(id, updates);
-    else if (col === "affiliates_events") updateFirebaseEvent3(id, updates);
-    else if (col === "centers_events") updateFirebaseEvent4(id, updates);
-  };
-
-  const deleteFirebaseEvent = (id: string) => {
-    const e = events.find(ev => String(ev.id) === String(id));
-    if (!e) return;
-    const col = (e as any)._sourceCol;
-    if (col === "assistant_sec_gen_events") deleteFirebaseEvent1(id);
-    else if (col === "events") deleteFirebaseEvent2(id);
-    else if (col === "affiliates_events") deleteFirebaseEvent3(id);
-    else if (col === "centers_events") deleteFirebaseEvent4(id);
-  };
+  const { data: events, addDocument: addFirebaseEvent, updateDocument: updateFirebaseEvent, deleteDocument: deleteFirebaseEvent } = useFirestoreCollection<EventItem>("assistant_sec_gen_events", []);
   const { data: rawCommittees } = useFirestoreCollection<any>("committees", []);
   const { data: allMembers } = useFirestoreCollection<Member>("members", []);
   const { data: dbEmployees } = useFirestoreCollection<any>("employees", []);
@@ -213,19 +180,22 @@ export default function AssistantSecGenEvents() {
      return comm;
   }).filter(c => c && c.active !== false);
 
-  const dynamicEmployees = React.useMemo(() => {
-     // Unconditionally hide sys admin and root users from all employee lists, regardless of current user role
+  const allEmployeesList = React.useMemo(() => {
      const sourceList = dbEmployees.filter(e => 
          e && 
          e.role !== "SYS_ADMIN" &&
          e.id !== "01" && 
          e.name !== "شهاب الدين" && 
          e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
-         e.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com" &&
-         ((e.orgLevel1 && e.orgLevel1.match(/مساعد الأمين/)) || (e.orgLevel2 && e.orgLevel2.match(/مساعد الأمين/)) || (e.orgLevel3 && e.orgLevel3.match(/مساعد الأمين/)))
+         e.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com"
      );
-     return sourceList.length > 0 ? sourceList.map(e => e.name).filter(Boolean) : EMPLOYEES;
+     return sourceList.map(e => e.name).filter(Boolean);
   }, [dbEmployees]);
+
+  const dynamicEmployees = React.useMemo(() => {
+     const secs = allEmployeesList.filter(name => name.includes("سكرتير"));
+     return secs.length > 0 ? secs : ["السكرتير"];
+  }, [allEmployeesList]);
 
   const setEvents = (action: React.SetStateAction<EventItem[]>) => {
     let nextEvents = typeof action === 'function' ? action(events) : action;
@@ -517,7 +487,8 @@ ${formattedItems}
   const [isSeqManuallyEdited, setIsSeqManuallyEdited] = useState(false);
   const [singleTime, setSingleTime] = useState("");
   const [singleRoom, setSingleRoom] = useState("");
-  const [singleEmployee, setSingleEmployee] = useState(dynamicEmployees[0] || EMPLOYEES[0] || "");
+  const [singleEmployee, setSingleEmployee] = useState(dynamicEmployees[0] || "");
+  const [singleReferredFrom, setSingleReferredFrom] = useState("");
 
   useEffect(() => {
     setIsSeqManuallyEdited(false);
@@ -580,7 +551,8 @@ ${formattedItems}
   // Series specific form state
   const [seriesKind, setSeriesKind] = useState("");
   const [seriesClassification, setSeriesClassification] = useState("");
-  const [seriesAssignedEmployee, setSeriesAssignedEmployee] = useState(dynamicEmployees[0] || EMPLOYEES[0] || "");
+  const [seriesAssignedEmployee, setSeriesAssignedEmployee] = useState(dynamicEmployees[0] || "");
+  const [seriesReferredFrom, setSeriesReferredFrom] = useState("");
   const [seriesDayOfWeek, setSeriesDayOfWeek] = useState("الأحد");
   const [seriesStartDate, setSeriesStartDate] = useState("");
   const [seriesEndDate, setSeriesEndDate] = useState("");
@@ -686,12 +658,14 @@ ${formattedItems}
     setSingleEventNumber("الأول");
     setSingleTime("");
     setSingleRoom("");
-    setSingleEmployee(dynamicEmployees[0] || EMPLOYEES[0] || "");
+    setSingleEmployee(dynamicEmployees[0] || "");
+    setSingleReferredFrom("");
     
     // reset series
     setSeriesKind("");
     setSeriesClassification("");
-    setSeriesAssignedEmployee(dynamicEmployees[0] || EMPLOYEES[0] || "");
+    setSeriesAssignedEmployee(dynamicEmployees[0] || "");
+    setSeriesReferredFrom("");
     setSeriesDayOfWeek("الأحد");
     setSeriesStartDate("");
     setSeriesEndDate("");
@@ -844,6 +818,7 @@ ${formattedItems}
       status: "تجهيز الفعاليات",
       location: seriesRooms.length > 0 ? seriesRooms.join("، ") : "حضوري",
       employees: [seriesAssignedEmployee].filter(Boolean),
+          referredFrom: seriesReferredFrom,
       members: newMembers,
       notes: newNotes,
     }));
@@ -889,6 +864,7 @@ ${formattedItems}
         status: newStatus,
         location: singleRoom,
         employees: [singleEmployee].filter(Boolean),
+        referredFrom: singleReferredFrom,
         members: newMembers,
         notes: newNotes
       } : ev));
@@ -905,6 +881,7 @@ ${formattedItems}
           status: newStatus,
           location: singleRoom,
           employees: [singleEmployee].filter(Boolean),
+        referredFrom: singleReferredFrom,
           members: newMembers,
           notes: newNotes
         },
@@ -1693,7 +1670,7 @@ ${formattedItems}
                               {evt.title}
                             </span>
                             <div className="text-[9.5px] text-gray-500 font-bold">
-                              رئيس اللجنة: {allMembers.find(m => m.committeeId === evt.committeeId && m.role === "رئيس")?.name || "غير محدد"} - الموظف: {evt.employees[0] || "غير محدد"}
+                              رئيس اللجنة: {allMembers.find(m => m.committeeId === evt.committeeId && m.role === "رئيس")?.name || "غير محدد"} - الموظف: {evt.employees[0] || "غير محدد"}{evt.referredFrom ? ` - محالة من: ${evt.referredFrom}` : ""}
                             </div>
                           </div>
                         </td>
@@ -3153,6 +3130,19 @@ ${formattedItems}
                               {dynamicEmployees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
                             </select>
                           </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-black text-gray-500 block">محالة من</label>
+                            <select
+                              value={singleReferredFrom}
+                              onChange={(e) => setSingleReferredFrom(e.target.value)}
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                            >
+                              <option value="">تحديد الموظف...</option>
+                              {allEmployeesList.map(emp => <option key={emp} value={emp}>{emp}</option>)}
+                            </select>
+                          </div>
+
                           <div className="space-y-1 md:col-span-1">
                             <label className="text-[11px] font-black text-gray-500 block">القاعة *</label>
                             <select
@@ -3223,6 +3213,19 @@ ${formattedItems}
                               {dynamicEmployees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
                             </select>
                           </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-black text-gray-500 block">محالة من</label>
+                            <select
+                              value={seriesReferredFrom}
+                              onChange={(e) => setSeriesReferredFrom(e.target.value)}
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                            >
+                              <option value="">تحديد الموظف...</option>
+                              {allEmployeesList.map(emp => <option key={emp} value={emp}>{emp}</option>)}
+                            </select>
+                          </div>
+
                           
                           <div className="space-y-1">
                             <label className="text-[11px] font-black text-gray-500 block">يوم الانعقاد *</label>

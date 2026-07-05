@@ -202,7 +202,7 @@ export default function Events() {
         e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
         e.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com"
      );
-     return sourceList.length > 0 ? sourceList.map(e => e.name).filter(Boolean) : EMPLOYEES;
+     return sourceList.map(e => e.name).filter(Boolean);
   }, [dbEmployees]);
 
   const setEvents = (action: React.SetStateAction<EventItem[]>) => {
@@ -490,7 +490,7 @@ ${formattedItems}
   const [isSeqManuallyEdited, setIsSeqManuallyEdited] = useState(false);
   const [singleTime, setSingleTime] = useState("");
   const [singleRoom, setSingleRoom] = useState("");
-  const [singleEmployee, setSingleEmployee] = useState(dynamicEmployees[0] || EMPLOYEES[0] || "");
+  const [singleEmployee, setSingleEmployee] = useState(dynamicEmployees[0] || "");
 
   useEffect(() => {
     setIsSeqManuallyEdited(false);
@@ -553,7 +553,7 @@ ${formattedItems}
   // Series specific form state
   const [seriesKind, setSeriesKind] = useState("");
   const [seriesClassification, setSeriesClassification] = useState("");
-  const [seriesAssignedEmployee, setSeriesAssignedEmployee] = useState(dynamicEmployees[0] || EMPLOYEES[0] || "");
+  const [seriesAssignedEmployee, setSeriesAssignedEmployee] = useState(dynamicEmployees[0] || "");
   const [seriesDayOfWeek, setSeriesDayOfWeek] = useState("الأحد");
   const [seriesStartDate, setSeriesStartDate] = useState("");
   const [seriesEndDate, setSeriesEndDate] = useState("");
@@ -662,12 +662,12 @@ ${formattedItems}
     setSingleEventNumber("الأول");
     setSingleTime("");
     setSingleRoom("");
-    setSingleEmployee(dynamicEmployees[0] || EMPLOYEES[0] || "");
+    setSingleEmployee(dynamicEmployees[0] || "");
     
     // reset series
     setSeriesKind("");
     setSeriesClassification("");
-    setSeriesAssignedEmployee(dynamicEmployees[0] || EMPLOYEES[0] || "");
+    setSeriesAssignedEmployee(dynamicEmployees[0] || "");
     setSeriesDayOfWeek("الأحد");
     setSeriesStartDate("");
     setSeriesEndDate("");
@@ -2984,7 +2984,7 @@ ${formattedItems}
                                   setSingleEmployee(matched.specialist);
                                   setSeriesAssignedEmployee(matched.specialist);
                                 } else {
-                                  setSeriesAssignedEmployee(dynamicEmployees[(val - 1) % dynamicEmployees.length] || dynamicEmployees[0] || EMPLOYEES[0]);
+                                  setSeriesAssignedEmployee(dynamicEmployees[(val - 1) % dynamicEmployees.length] || dynamicEmployees[0] );
                                 }
                               }}
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
