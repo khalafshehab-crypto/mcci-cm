@@ -500,9 +500,8 @@ ${formattedItems}
   useEffect(() => {
     if (isSeqManuallyEdited) return; // skip auto-calculating if user manually changed it
     if (newType === "مفردة" && newCommitteeId > 0) {
-      if (!newCommitteeId || newCommitteeId === 0) { alert("يرجى اختيار اللجنة أولاً"); return; }
-    const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
-    if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات لهذه اللجنة"); return; }
+      const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
+    if (commName && !canUserEditCommittee(commName)) { return; }
       const classifStr = singleClassification === "دوري" ? "الدوري" : singleClassification === "استثنائي" ? "الاستثنائي" : singleClassification === "طارئ" ? "الطارئ" : singleClassification === "فريق عمل" ? "فريق العمل" : singleClassification;
       const formattedCommName = commName ? formatCommitteeNameArabic(commName) : "";
       const prefixToMatch = `${singleKind} ${formattedCommName} ${classifStr}`.trim();
@@ -514,9 +513,8 @@ ${formattedItems}
   useEffect(() => {
     if (isTitleManuallyEdited) return;
     if (newType === "مفردة") {
-      if (!newCommitteeId || newCommitteeId === 0) { alert("يرجى اختيار اللجنة أولاً"); return; }
-    const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
-    if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات لهذه اللجنة"); return; }
+      const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
+    if (commName && !canUserEditCommittee(commName)) { return; }
       const classifStr = singleClassification === "دوري" ? "الدوري" : singleClassification === "استثنائي" ? "الاستثنائي" : singleClassification === "طارئ" ? "الطارئ" : singleClassification === "فريق عمل" ? "فريق العمل" : singleClassification;
       const formattedCommName = commName ? formatCommitteeNameArabic(commName) : "";
       const numWord = getArabicOrdinal(singleEventNumber);
