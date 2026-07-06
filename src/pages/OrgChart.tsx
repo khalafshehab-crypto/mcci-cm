@@ -2212,7 +2212,7 @@ export default function OrgChart() {
                     const CENTERS_PAGES = ["/centers", "/centers/events", "/centers/tasks"];
                     const AFFILIATES_PAGES = ["/affiliates", "/affiliates/events", "/affiliates/tasks"];
                     
-                    const currentAllowed = emp.allowedPages?.length ? emp.allowedPages : ["/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library"];
+                    const currentAllowed = Array.isArray(emp.allowedPages) ? emp.allowedPages : [];
                     
                     const handleCheckbox = async (path: string) => {
                       const updated = currentAllowed.includes(path) ? currentAllowed.filter(p => p !== path) : [...currentAllowed, path];
