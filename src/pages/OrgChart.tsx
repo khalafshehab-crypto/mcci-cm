@@ -1265,6 +1265,10 @@ export default function OrgChart() {
     if (emp.orgLevel4) parts.push(emp.orgLevel4);
     
     parts.push(calculateDisplayJobTitle(emp));
+
+    if (emp.committees && emp.committees.length > 0) {
+      parts.push(...emp.committees);
+    }
     
     return parts;
   };
@@ -1580,7 +1584,7 @@ export default function OrgChart() {
                               {path.length > 0 ? path.map((level, index, array) => (
                                 <div key={index} className="flex items-center gap-1">
                                   <span className={`px-1.5 py-0.5 rounded ${
-                                    index === array.length - 1 ? "bg-brand text-white" : "bg-gray-50 border border-gray-200"
+                                    index >= array.length - 1 - (emp.committees?.length || 0) ? "bg-brand text-white" : "bg-gray-50 border border-gray-200"
                                   }`}>
                                     {level}
                                   </span>
@@ -2682,6 +2686,35 @@ export default function OrgChart() {
                     </div>
                   )}
                 </div>
+
+                {/* Committees Assignment (If applicable) */}
+                {formRole === "SPECIALIST" && (
+                  <div className="space-y-1.5 pt-2 border-t border-gray-100">
+                    <label className="block text-[11px] text-gray-500 font-extrabold">ربط الموظف بلجنة أو أكثر (مهمة أخصائي اللجان)</label>
+                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 max-h-40 overflow-y-auto custom-scrollbar flex flex-col gap-2">
+                      {dbCommittees.map(comm => (
+                        <label key={comm.id} className="flex items-center gap-2 cursor-pointer p-1.5 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-gray-200">
+                          <input 
+                            type="checkbox" 
+                            checked={formCommittees.includes(comm.name)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormCommittees(prev => [...prev, comm.name]);
+                              } else {
+                                setFormCommittees(prev => prev.filter(c => c !== comm.name));
+                              }
+                            }}
+                            className="w-4 h-4 text-brand rounded border-gray-300 focus:ring-brand"
+                          />
+                          <span className="text-[11px] font-bold text-gray-800">{comm.name}</span>
+                        </label>
+                      ))}
+                      {(!dbCommittees || dbCommittees.length === 0) && (
+                        <span className="text-xs text-gray-400 font-bold p-2">لا يوجد لجان مشكلة حالياً بالنظام.</span>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="pt-4 border-t border-gray-100 flex justify-end gap-3">
                   <button type="button" onClick={() => setShowFormModal(false)} className="px-5 py-2.5 text-xs font-bold text-gray-600 bg-white border border-gray-300 rounded-xl hover:bg-gray-50">إلغاء</button>
