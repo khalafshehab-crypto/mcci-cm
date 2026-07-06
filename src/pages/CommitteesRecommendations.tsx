@@ -2467,17 +2467,34 @@ ${formattedItems}
                                                     type="button"
                                                     onClick={() => {
                                                       const dayArabic = getDayNameFromDate(evt.date) || "الاثنين";
-                                                      const generatedProposal = `الموضوع: تفعيل توصية رقم (001) الصادرة عن اجتماع ${evt.committeeName || "اللجنة الصناعية"} الأول (التأسيسي)
+                                                      const isPassing = evt.recommendationClassification === "بالتمرير";
+                                                      const rType = evt.recommendationType === "عاجلة" ? "عاجلة" : "عادية";
+                                                      const attachmentsText = attachmentsList && attachmentsList.length > 0 ? attachmentsList.map((a) => a.name).join(", ") : "لا يوجد مرفقات";
+                                                      const generatedProposal = isPassing 
+                                                        ? `الموضوع: تفعيل التوصية رقم (001) الصادرة بالتمرير لـ ${evt.committeeName || "اللجنة"}
 
-توصية متسلسلة صادرة عن اجتماع ${evt.committeeName || "اللجنة الصناعية"} الدوري الأول (التأسيسي)
-المنعقد في تمام الساعة ${formatTime12h(evt.time || "01:30")} من ظهر يوم ${dayArabic} ${evt.date || "12/12/2026م"} بقاعة ${evt.location || "مشعل الزايدي"}
+توصية ${rType} صادرة بالتمرير لـ ${evt.committeeName || "اللجنة"}
+تم تمريرها بتاريخ ${dayArabic} ${evt.date || "12/12/2026م"} عبر ${evt.recommendationPassMethod || "البريد الإلكتروني"}
+
 رقم التوصية: 001
-البند الأول: مراجعة محضر اجتماع اللجنة السابق
-المناقشة: ناقشت اللجنة إمكانية تفعيل التوصيات الاجتماعات السابقة
-التوصية: يتم مراجعة التوصيات الغير مفعلة لإعادة تفعيلها
+البند الأول: ${evt.title || "موضوع التوصية"}
+المناقشة: ${evt.recommendationDiscussion || "تمت مناقشة التوصية وإبداء الآراء والملاحظات من قبل الأعضاء"}
+التوصية: ${evt.recommendationText || "يتم اعتماد التوصية والبدء بتنفيذها"}
 المكلف: أخصائي اللجنة - ${evt.employees && evt.employees[0] ? evt.employees[0] : "خلف شعبان"}
 مدة التنفيذ: 5 أيام عمل
-المرفقات: ${attachmentsList.map((a: any) => a.name).join(", ") || "دراسة جدوى ومحضر الإعاشة"}`;
+المرفقات: ${attachmentsText}` 
+                                                        : `الموضوع: تفعيل التوصية رقم (001) الصادرة عن اجتماع ${evt.committeeName || "اللجنة"}
+
+توصية ${rType} صادرة عن اجتماع ${evt.committeeName || "اللجنة"}
+المنعقد في تمام الساعة ${formatTime12h(evt.time || "01:30")} من ظهر يوم ${dayArabic} ${evt.date || "12/12/2026م"} بقاعة ${evt.location || "الاجتماعات"}
+
+رقم التوصية: 001
+البند الأول: ${evt.title || "موضوع التوصية"}
+المناقشة: ${evt.recommendationDiscussion || "ناقشت اللجنة إمكانية تفعيل التوصيات"}
+التوصية: ${evt.recommendationText || "يتم مراجعة التوصيات الغير مفعلة لإعادة تفعيلها"}
+المكلف: أخصائي اللجنة - ${evt.employees && evt.employees[0] ? evt.employees[0] : "خلف شعبان"}
+مدة التنفيذ: 5 أيام عمل
+المرفقات: ${attachmentsText}`;
                                                       
                                                       updateEventWorkflow(evt.id, { preparationsText: generatedProposal });
                                                     }}
