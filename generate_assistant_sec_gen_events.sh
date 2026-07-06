@@ -1,7 +1,8 @@
+cat << 'INNER_EOF' > src/pages/AssistantSecGenEvents.tsx
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
-  Calendar, CheckCircle, Search, Plus, X, Trash2, Edit2, Clock, MapPin, Download, CheckSquare, Check
+  Calendar, CheckCircle, Search, Plus, X, Trash2, Edit2, Clock, MapPin, Download, CheckSquare
 } from "lucide-react";
 import { useFirestoreCollection } from "../lib/firebaseUtils";
 
@@ -377,3 +378,4 @@ export default function AssistantSecGenEvents() {
     </div>
   );
 }
+INNER_EOF

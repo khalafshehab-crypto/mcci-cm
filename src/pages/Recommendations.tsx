@@ -2,7 +2,7 @@ import React, { useState, useEffect, FormEvent } from "react";
 import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { 
-  Calendar, CheckCircle, Search, Plus, X, Users2, Trash2, Edit2, LayoutGrid, List, AlertTriangle, Check, BookOpen, Clock, Presentation, MapPin, AlignLeft, Send, PlayCircle, Filter, Users, Settings, Copy, ChevronDown, ChevronUp, CheckSquare, Sparkles, Activity, Sliders, Lock, Loader2, Paperclip, Mail
+  Calendar, CheckCircle, Search, Plus, X, Users2, Trash2, Edit2, LayoutGrid, List, AlertTriangle, Check, BookOpen, Clock, Presentation, MapPin, AlignLeft, Send, PlayCircle, Filter, Users, Settings, Copy, ChevronDown, ChevronUp, CheckSquare, Sparkles, Activity, Sliders, Lock, Loader2, Paperclip, Mail, UploadCloud
 } from "lucide-react";
 import { Member } from "../data/initialMembers";
 import { formatCommitteeNameArabic } from "../lib/arabicUtils";
@@ -40,6 +40,14 @@ interface EventItem {
   }>;
   minutesSaved?: boolean;
   minutesExportChecked?: boolean;
+  recommendationType?: string;
+  recommendationClassification?: string;
+  recommendationPassMethod?: string;
+  recommendationDiscussion?: string;
+  recommendationText?: string;
+  recommendationAssignee?: string;
+  recommendationDuration?: string;
+  recommendationAttachments?: string;
   exportedRecommendationsToPage?: boolean;
   attendanceConfirmed?: boolean;
   preparationsConfirmed?: boolean;
@@ -181,7 +189,7 @@ export default function Events() {
   const { data: rawCommittees } = useFirestoreCollection<any>("committees", []);
   const { data: allMembers } = useFirestoreCollection<Member>("members", []);
   const { data: dbEmployees } = useFirestoreCollection<any>("employees", []);
-  const { data: allDbRecommendations } = useFirestoreCollection<any>("recommendations", []);
+  const { data: allDbRecommendations, addDocument: addFirebaseRecommendation } = useFirestoreCollection<any>("recommendations", []);
 
   const committees = rawCommittees.map(comm => {
      if (!comm) return comm;
@@ -204,6 +212,8 @@ export default function Events() {
      );
      return sourceList.map(e => e.name).filter(Boolean);
   }, [dbEmployees]);
+
+
 
   const setEvents = (action: React.SetStateAction<EventItem[]>) => {
     let nextEvents = typeof action === 'function' ? action(events) : action;
@@ -475,8 +485,25 @@ ${formattedItems}
   const [newTitle, setNewTitle] = useState("");
   const [isTitleManuallyEdited, setIsTitleManuallyEdited] = useState(false);
   const [newType, setNewType] = useState<"مفردة" | "متسلسلة">("مفردة");
+  const [newRecType, setNewRecType] = useState("");
+  const [newRecClassification, setNewRecClassification] = useState("");
+  const [newRecEventId, setNewRecEventId] = useState("");
+  const [newRecPassMethod, setNewRecPassMethod] = useState("عبر البريد الإلكتروني");
+  const [newRecTitle, setNewRecTitle] = useState("");
+  const [newRecDiscussion, setNewRecDiscussion] = useState("");
+  const [newRecText, setNewRecText] = useState("");
+  const [newRecAssignee, setNewRecAssignee] = useState("");
+  const [newRecDuration, setNewRecDuration] = useState("");
+  const [newRecAttachments, setNewRecAttachments] = useState<{name: string, url: string}[]>([]);
+  const [dragActive, setDragActive] = useState(false);
   const [newDate, setNewDate] = useState("");
   const [newCommitteeId, setNewCommitteeId] = useState<number>(0);
+  const availableAssignees = React.useMemo(() => {
+    const comm = committees.find(c => c.id === newCommitteeId);
+    const specialist = comm?.specialist || "";
+    const members = allMembers.filter(m => m.committeeId === newCommitteeId).map(m => m.name);
+    return Array.from(new Set([specialist, ...members].filter(Boolean)));
+  }, [committees, allMembers, newCommitteeId]);
   const [newStatus, setNewStatus] = useState<EventItem["status"]>("تجهيز الفعاليات");
   const [newLocation, setNewLocation] = useState<"حضوري" | "عن بعد">("حضوري");
   const [newEmployees, setNewEmployees] = useState<string[]>([]);
@@ -567,6 +594,139 @@ ${formattedItems}
   const [selectedSchedules, setSelectedSchedules] = useState<number[]>([]);
   const [isConfirmingSeries, setIsConfirmingSeries] = useState(false);
   const [showSuccessMsg, setShowSuccessMsg] = useState(false);
+
+  // Import recommendations states
+  const [importCommitteeId, setImportCommitteeId] = useState<number>(0);
+  const [importSearchResults, setImportSearchResults] = useState<any[]>([]);
+  const [selectedImportRecs, setSelectedImportRecs] = useState<string[]>([]);
+  const [isImportSearched, setIsImportSearched] = useState(false);
+
+
+  
+  const handleSearchImport = () => {
+    if (!importCommitteeId) return;
+    
+    // Find events for the selected committee
+    const committeeEvents = events.filter(e => e.committeeId === importCommitteeId);
+    let results: any[] = [];
+    
+    committeeEvents.forEach(evt => {
+      if (evt.agenda && Array.isArray(evt.agenda)) {
+        evt.agenda.forEach((item, index) => {
+          if (item.recommendation && item.recommendation.trim() !== "") {
+            const isAdded = events.some(e => e.exportedRecommendationsToPage && e.title === item.title && e.committeeId === importCommitteeId);
+            results.push({
+              eventId: evt.id,
+              eventTitle: evt.title,
+              agendaId: item.id || String(index),
+              title: item.title,
+              recommendationText: item.recommendation,
+              assignee: item.assignee || "",
+              duration: item.durationRec || "",
+              isAdded
+            });
+          }
+        });
+      }
+    });
+    
+    setImportSearchResults(results);
+    setIsImportSearched(true);
+    setSelectedImportRecs([]);
+  };
+
+  const toggleImportRecSelection = (id: string) => {
+    if (selectedImportRecs.includes(id)) {
+      setSelectedImportRecs(selectedImportRecs.filter(r => r !== id));
+    } else {
+      setSelectedImportRecs([...selectedImportRecs, id]);
+    }
+  };
+
+  const handleImportSelected = async () => {
+    const selectedRecs = importSearchResults.filter(r => selectedImportRecs.includes(r.eventId + "-" + r.agendaId));
+    
+    if (selectedRecs.length === 0) return;
+    
+    const commName = committees.find(c => c.id === importCommitteeId)?.name || "";
+    
+    for (const rec of selectedRecs) {
+      if (rec.isAdded) continue; // Skip if already added
+      
+      const newRec: any = {
+        id: Date.now() + Math.floor(Math.random() * 1000),
+        title: rec.title,
+        type: "مفردة",
+        date: new Date().toISOString().split("T")[0],
+        time: "10:00",
+        committeeId: importCommitteeId,
+        committeeName: commName,
+        status: "تجهيز التوصية والمسودة",
+        location: "حضوري",
+        employees: [rec.assignee].filter(Boolean),
+        members: [],
+        notes: rec.recommendationText,
+        exportedRecommendationsToPage: true,
+        
+        recommendationType: "عادية",
+        recommendationClassification: "عادية",
+        recommendationEventId: String(rec.eventId),
+        recommendationDiscussion: "",
+        recommendationText: rec.recommendationText,
+        recommendationAssignee: rec.assignee,
+        recommendationDuration: rec.duration,
+        recommendationAttachments: "",
+        
+        preparationsText: rec.recommendationText,
+        preparationsAttachments: []
+      };
+      
+      await addFirebaseEvent(newRec);
+    }
+    
+    setImportCommitteeId(0);
+    setImportSearchResults([]);
+    setSelectedImportRecs([]);
+    setIsImportSearched(false);
+    setIsAddOpen(false);
+    setShowSuccessMsg(true);
+    setTimeout(() => setShowSuccessMsg(false), 3000);
+  };
+
+    const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const filesArray = Array.from(e.dataTransfer.files) as File[];
+      const mapped = filesArray.map(f => ({
+        name: f.name,
+        url: `https://drive.google.com/drive/folders/uploaded_${Date.now()}`
+      }));
+      setNewRecAttachments([...newRecAttachments, ...mapped]);
+    }
+  };
+
+  const handleAddLinkAttachment = () => {
+    const linkName = prompt("أدخل اسم المرفق:");
+    const linkUrl = prompt("أدخل رابط المرفق:", "https://...");
+    if (linkName && linkUrl) {
+      setNewRecAttachments([
+        ...newRecAttachments,
+        { name: linkName, url: linkUrl }
+      ]);
+    }
+  };
 
   const handleSearchCommit = (e: FormEvent) => {
     e.preventDefault();
@@ -835,61 +995,89 @@ ${formattedItems}
     setTimeout(() => setShowSuccessMsg(false), 3000);
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setConflictWarning(null);
     
     if (newType === "متسلسلة") {
-      generateDates();
+      // This is handled by handleImportSelected now, but just in case
       return;
     }
 
-    if (!newTitle.trim() || !newDate || !newCommitteeId || !singleTime) return;
+    if (!newRecTitle.trim() || !newCommitteeId) return;
 
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
-
-    const conflict = checkConflict(newDate, singleTime, [singleRoom].filter(Boolean), [singleEmployee].filter(Boolean), editingEvent?.id);
-    if (conflict) {
-      setConflictWarning(conflict);
-      return;
-    }
+    const eventName = events.find(ev => ev.id === Number(newRecEventId))?.title || "توصية بالتمرير";
 
     if (editingEvent) {
-      setEvents(events.map(ev => ev.id === editingEvent.id ? {
-        ...ev,
-        title: newTitle,
-        type: newType,
-        date: newDate,
-        time: singleTime,
+      const updatedRec = {
+        ...editingEvent,
+        title: newRecTitle,
         committeeId: newCommitteeId,
         committeeName: commName,
-        status: newStatus,
-        location: singleRoom,
-        employees: [singleEmployee].filter(Boolean),
-        members: newMembers,
-        notes: newNotes,
-        exportedRecommendationsToPage: true
-      } : ev));
+        employees: [newRecAssignee].filter(Boolean),
+        notes: newRecText,
+        
+        recommendationType: newRecType,
+        recommendationClassification: newRecClassification,
+        recommendationEventId: newRecEventId,
+        recommendationPassMethod: newRecPassMethod,
+        recommendationDiscussion: newRecDiscussion,
+        recommendationText: newRecText,
+        recommendationAssignee: newRecAssignee,
+        recommendationDuration: newRecDuration,
+        recommendationAttachments: newRecAttachments,
+        
+        preparationsText: newRecText,
+        preparationsAttachments: newRecAttachments ? [{ id: '1', name: newRecAttachments, url: '#' }] : (editingEvent.preparationsAttachments || [])
+      };
+      setEvents(events.map(ev => ev.id === editingEvent.id ? updatedRec : ev));
     } else {
-      setEvents([
-        {
-          id: Date.now(),
-          title: newTitle,
-          type: newType,
-          date: newDate,
-          time: singleTime,
-          committeeId: newCommitteeId,
-          committeeName: commName,
-          status: newStatus,
-          location: singleRoom,
-          employees: [singleEmployee].filter(Boolean),
-          members: newMembers,
-          notes: newNotes,
-          exportedRecommendationsToPage: true
-        },
-        ...events
-      ]);
+      const recEventId = Date.now();
+      const newRec: any = {
+        id: recEventId,
+        title: newRecTitle,
+        type: "مفردة",
+        date: new Date().toISOString().split("T")[0],
+        time: "10:00",
+        committeeId: newCommitteeId,
+        committeeName: commName,
+        status: "تجهيز التوصية والمسودة",
+        location: "حضوري",
+        employees: [newRecAssignee].filter(Boolean),
+        members: [],
+        notes: newRecText,
+        exportedRecommendationsToPage: true,
+        
+        recommendationType: newRecType,
+        recommendationClassification: newRecClassification,
+        recommendationEventId: newRecEventId,
+        recommendationPassMethod: newRecPassMethod,
+        recommendationDiscussion: newRecDiscussion,
+        recommendationText: newRecText,
+        recommendationAssignee: newRecAssignee,
+        recommendationDuration: newRecDuration,
+        recommendationAttachments: newRecAttachments,
+        
+        preparationsText: newRecText,
+        preparationsAttachments: newRecAttachments ? [{ id: '1', name: newRecAttachments, url: '#' }] : []
+      };
+
+      setEvents([newRec, ...events]);
     }
+    
+    // Clear form
+    setNewRecTitle("");
+    setNewRecDiscussion("");
+    setNewRecText("");
+    setNewRecAssignee("");
+    setNewRecDuration("");
+    setNewRecAttachments([]);
+    setNewCommitteeId(0);
+    
+    setIsAddOpen(false);
+    setShowSuccessMsg(true);
+    setTimeout(() => setShowSuccessMsg(false), 3000);
     setIsAddOpen(false);
   };
 
@@ -2658,9 +2846,9 @@ ${formattedItems}
                   </div>
                   <div>
                     <h3 className="font-extrabold text-gray-900 text-base leading-tight">
-                      {editingEvent ? `تعديل فعالية: ${editingEvent.title}` : "إضافة فعالية جديدة"}
+                      {editingEvent ? `تعديل توصية: ${editingEvent.title}` : "إضافة توصية جديدة"}
                     </h3>
-                    <p className="text-xs text-gray-500 font-medium">سجل بيانات الفعالية بدقة لربط وتحديث مؤشرات الأداء والمهام</p>
+                    <p className="text-xs text-gray-500 font-medium">سجل بيانات التوصية بدقة لربط وتحديث مؤشرات الأداء والمهام</p>
                   </div>
                 </div>
                 <button
@@ -2804,7 +2992,7 @@ ${formattedItems}
                               newType === "مفردة" ? "bg-blue-600 text-white shadow" : "text-gray-500 hover:text-gray-700"
                             }`}
                           >
-                            فعالية مفردة
+                            توصية جديدة
                           </button>
                           <button
                             type="button"
@@ -2813,31 +3001,20 @@ ${formattedItems}
                               newType === "متسلسلة" ? "bg-blue-600 text-white shadow" : "text-gray-500 hover:text-gray-700"
                             }`}
                           >
-                            فعالية متسلسلة
+                            استيراد التوصيات
                           </button>
                         </div>
                       </div>
                     </div>
-
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-right" dir="rtl">
                       
                       {newType === "مفردة" && (
                         <>
-                          {/* Row 1 */}
                           <div className="space-y-1">
                             <label className="text-[11px] font-black text-gray-500 block">اللجنة *</label>
                             <select
                               value={newCommitteeId}
-                              onChange={(e) => {
-                                const val = Number(e.target.value);
-                                setNewCommitteeId(val);
-                                setNewMembers([]);
-                                const matched = committees.find(c => c.id === val);
-                                if (matched && matched.specialist) {
-                                  setSingleEmployee(matched.specialist);
-                                  setSeriesAssignedEmployee(matched.specialist);
-                                }
-                              }}
+                              onChange={(e) => setNewCommitteeId(Number(e.target.value))}
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value={0} disabled>اختر اللجنة</option>
@@ -2849,258 +3026,150 @@ ${formattedItems}
                           <div className="space-y-1">
                             <label className="text-[11px] font-black text-gray-500 block">النوع *</label>
                             <select
-                              value={singleKind}
-                              onChange={(e) => setSingleKind(e.target.value)}
+                              value={newRecType}
+                              onChange={(e) => setNewRecType(e.target.value)}
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
-                              <option value="" disabled>اختر نوع الفعالية</option>
-                              {EVENT_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
+                              <option value="" disabled>اختر النوع</option>
+                              <option value="عادية">عادية</option>
+                              <option value="عاجلة">عاجلة</option>
                             </select>
                           </div>
                           <div className="space-y-1">
                             <label className="text-[11px] font-black text-gray-500 block">التصنيف *</label>
                             <select
-                              value={singleClassification}
-                              onChange={(e) => setSingleClassification(e.target.value)}
+                              value={newRecClassification}
+                              onChange={(e) => setNewRecClassification(e.target.value)}
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
-                              <option value="">اختر نوع التصنيف</option>
-                              {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                              <option value="" disabled>اختر التصنيف</option>
+                              <option value="عادية">عادية</option>
+                              <option value="بالتمرير">بالتمرير</option>
                             </select>
                           </div>
 
-                          {/* Row 2 */}
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">رقم الفعالية *</label>
-                            <input
-                              type="text"
-                              value={singleEventNumber}
-                              onChange={(e) => {
-                                setSingleEventNumber(e.target.value);
-                                setIsSeqManuallyEdited(true);
-                              }}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                              placeholder="مثال: الأول، الثاني..."
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">الوقت *</label>
-                            <input
-                              type="time"
-                              required
-                              value={singleTime}
-                              onChange={(e) => setSingleTime(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">التاريخ *</label>
-                            <input
-                              type="date"
-                              required
-                              value={newDate}
-                              onChange={(e) => setNewDate(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                            />
-                          </div>
-
-                          {/* Row 3 */}
-                          <div className="space-y-1 md:col-span-2">
-                            <label className="text-[11px] font-black text-gray-500 block">الموظف المختص *</label>
-                            <select
-                              value={singleEmployee}
-                              onChange={(e) => setSingleEmployee(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                            >
-                              {dynamicEmployees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
-                            </select>
-                          </div>
-                          <div className="space-y-1 md:col-span-1">
-                            <label className="text-[11px] font-black text-gray-500 block">القاعة *</label>
-                            <select
-                              value={singleRoom}
-                              onChange={(e) => setSingleRoom(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                            >
-                              <option value="" disabled>اختر قاعة...</option>
-                              {ROOMS.map(rm => <option key={rm} value={rm}>{rm}</option>)}
-                            </select>
-                          </div>
-
-                          {/* Row 4 */}
-                          <div className="md:col-span-full space-y-1 border-t border-gray-200 mt-2 pt-4">
-                            <label className="text-[11px] font-black text-gray-500 block">عنوان الفعالية</label>
-                            <input
-                              type="text"
-                              value={newTitle}
-                              onChange={(e) => {
-                                setNewTitle(e.target.value);
-                                setIsTitleManuallyEdited(true);
-                              }}
-                              className="w-full bg-gray-50 text-gray-900 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                              placeholder="أدخل عنوان الفعالية أو قم بتعديله يدوياً..."
-                            />
-                          </div>
-                        </>
-                      )}
-
-                      {newType === "متسلسلة" && (
-                        <>
-                          {/* Row 1 */}
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">النوع *</label>
-                            <select
-                              value={seriesKind}
-                              onChange={(e) => setSeriesKind(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                            >
-                              <option value="" disabled>اختر نوع الفعالية</option>
-                              {EVENT_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
-                            </select>
-                          </div>
-                          
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">التصنيف *</label>
-                            <select
-                              value={seriesClassification}
-                              onChange={(e) => setSeriesClassification(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                            >
-                              <option value="">اختر نوع التصنيف</option>
-                              {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">اللجنة</label>
-                            <select
-                              value={newCommitteeId}
-                              onChange={(e) => {
-                                const val = Number(e.target.value);
-                                setNewCommitteeId(val);
-                                setNewMembers([]); // Reset members when committee changes
-                                const matched = committees.find(c => c.id === val);
-                                if (matched && matched.specialist) {
-                                  setSingleEmployee(matched.specialist);
-                                  setSeriesAssignedEmployee(matched.specialist);
-                                } else {
-                                  setSeriesAssignedEmployee(dynamicEmployees[(val - 1) % dynamicEmployees.length] || dynamicEmployees[0] );
-                                }
-                              }}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                            >
-                              <option value={0} disabled>اختر اللجنة</option>
-                              {committees.map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          {/* Row 2 */}
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">الموظف المعني</label>
-                            <select
-                              value={seriesAssignedEmployee}
-                              onChange={(e) => setSeriesAssignedEmployee(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                            >
-                              <option value="">تحديد الموظف...</option>
-                              {dynamicEmployees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
-                            </select>
-                          </div>
-                          
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">يوم الانعقاد *</label>
-                            <select
-                              value={seriesDayOfWeek}
-                              onChange={(e) => setSeriesDayOfWeek(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                            >
-                              {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
-                            </select>
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">أسبوع الانعقاد *</label>
-                            <select
-                              value={seriesWeekOfMonth}
-                              onChange={(e) => setSeriesWeekOfMonth(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                            >
-                              {Object.keys(WEEKSMap).map(w => <option key={w} value={w}>{w}</option>)}
-                            </select>
-                          </div>
-
-                          {/* Row 3 */}
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">تاريخ البداية *</label>
-                            <input
-                              type="date"
-                              required
-                              value={seriesStartDate}
-                              onChange={(e) => setSeriesStartDate(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">تاريخ النهاية *</label>
-                            <input
-                              type="date"
-                              required
-                              value={seriesEndDate}
-                              onChange={(e) => setSeriesEndDate(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                            />
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">الوقت</label>
-                            <input
-                              type="time"
-                              value={seriesTime}
-                              onChange={(e) => setSeriesTime(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                            />
-                          </div>
-
-                          {/* Row 4 */}
-                          <div className="md:col-span-3 space-y-2 mt-2">
-                            <label className="text-[11px] font-black text-gray-500 block">القاعة</label>
-                            <div className="flex gap-2">
-                              <select 
-                                value={selectedRoom}
-                                onChange={(e) => setSelectedRoom(e.target.value)}
-                                className="flex-1 bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                          {newRecClassification === "عادية" ? (
+                            <div className="md:col-span-full space-y-1">
+                              <label className="text-[11px] font-black text-gray-500 block">ارتباط التوصية بالمحضر (الاجتماع)</label>
+                              <select
+                                value={newRecEventId}
+                                onChange={(e) => setNewRecEventId(e.target.value)}
+                                className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                               >
-                                <option value="" disabled>اختر قاعة...</option>
-                                {ROOMS.map(rm => <option key={rm} value={rm}>{rm}</option>)}
+                                <option value="" disabled>اختر الاجتماع...</option>
+                                {events.filter(e => e.committeeId === newCommitteeId && e.type !== "متسلسلة").map(ev => (
+                                  <option key={ev.id} value={ev.id}>{ev.title} ({ev.date})</option>
+                                ))}
+                                <option value="unlinked">بدون ارتباط (تسجيل التوصية يدوياً)</option>
                               </select>
+                            </div>
+                          ) : (
+                            <div className="md:col-span-full space-y-1">
+                              <label className="text-[11px] font-black text-gray-500 block">طريقة التمرير</label>
+                              <select
+                                value={newRecPassMethod}
+                                onChange={(e) => setNewRecPassMethod(e.target.value)}
+                                className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              >
+                                <option value="عبر البريد الإلكتروني">عبر البريد الإلكتروني</option>
+                                <option value="الواتس آب">الواتس آب</option>
+                                <option value="غير ذلك">غير ذلك (أذكرها في الملاحظات)</option>
+                              </select>
+                            </div>
+                          )}
+
+                          <div className="md:col-span-2 space-y-1">
+                            <label className="text-[11px] font-black text-gray-500 block">عنوان التوصية *</label>
+                            <input
+                              type="text"
+                              value={newRecTitle}
+                              onChange={(e) => setNewRecTitle(e.target.value)}
+                              className="w-full bg-gray-50 text-gray-900 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              placeholder="أدخل عنوان التوصية..."
+                            />
+                          </div>
+                          <div className="md:col-span-1 space-y-1">
+                            <label className="text-[11px] font-black text-gray-500 block">المكلف *</label>
+                            <select
+                              value={newRecAssignee}
+                              onChange={(e) => setNewRecAssignee(e.target.value)}
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                            >
+                              <option value="">اختر المكلف</option>
+                              {availableAssignees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
+                            </select>
+                          </div>
+
+                          <div className="md:col-span-full space-y-1">
+                            <label className="text-[11px] font-black text-gray-500 block">المناقشة</label>
+                            <textarea
+                              value={newRecDiscussion}
+                              onChange={(e) => setNewRecDiscussion(e.target.value)}
+                              rows={2}
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand resize-none"
+                              placeholder="تفاصيل المناقشة..."
+                            ></textarea>
+                          </div>
+
+                          <div className="md:col-span-2 space-y-1">
+                            <label className="text-[11px] font-black text-gray-500 block">نص التوصية</label>
+                            <textarea
+                              value={newRecText}
+                              onChange={(e) => setNewRecText(e.target.value)}
+                              rows={2}
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand resize-none"
+                              placeholder="نص التوصية هنا..."
+                            ></textarea>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-black text-gray-500 block">مدة التنفيذ</label>
+                            <input
+                              type="text"
+                              value={newRecDuration}
+                              onChange={(e) => setNewRecDuration(e.target.value)}
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              placeholder="مثال: أسبوعين، 5 أيام..."
+                            />
+                          </div>
+
+                                                    <div className="md:col-span-full space-y-1">
+                            <label className="block text-xs font-black text-gray-750">المرفقات</label>
+                            <div
+                              onDragEnter={handleDrag}
+                              onDragOver={handleDrag}
+                              onDragLeave={handleDrag}
+                              onDrop={handleDrop}
+                              className={`border-2 border-dashed p-4 rounded-xl text-center flex flex-col items-center justify-center transition-all ${
+                                dragActive ? "border-blue-600 bg-blue-50" : "border-gray-200 bg-slate-50"
+                              }`}
+                            >
+                              <Paperclip className="w-5 h-5 text-blue-600 mb-1 animate-bounce" />
+                              <p className="text-[10px] font-bold text-gray-500">مرفقات تكميلية بالملفات أو رابط Google Drive</p>
                               <button
                                 type="button"
-                                onClick={() => {
-                                  if (selectedRoom && !seriesRooms.includes(selectedRoom)) {
-                                     setSeriesRooms([...seriesRooms, selectedRoom]);
-                                  }
-                                  setSelectedRoom(""); // Reset after adding
-                                }}
-                                className="w-11 h-11 bg-brand text-white rounded-xl flex items-center justify-center hover:bg-brand/90 transition-colors shadow-sm shrink-0"
+                                onClick={handleAddLinkAttachment}
+                                className="mt-2.5 px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-[9px] font-black"
                               >
-                                <Plus className="w-5 h-5" />
+                                أو الصق رابط جوجل درايف يدوياً
                               </button>
                             </div>
-                            {seriesRooms.length > 0 && (
-                              <div className="flex flex-wrap gap-2 mt-3">
-                                {seriesRooms.map(rm => (
-                                  <span key={rm} className="px-3 py-1.5 text-xs font-black rounded-lg border bg-[#4ea0b0]/10 text-[#4ea0b0] border-[#4ea0b0]/30 shadow-sm flex items-center gap-2">
-                                    {rm}
-                                    <button
-                                      type="button"
-                                      onClick={() => setSeriesRooms(seriesRooms.filter(r => r !== rm))}
-                                      className="text-[#4ea0b0] hover:text-red-500 transition-colors"
+                            {newRecAttachments.length > 0 && (
+                              <div className="pt-2 text-[10px] text-gray-600 font-bold space-y-1">
+                                {newRecAttachments.map((f: any, idx: number) => (
+                                  <div key={idx} className="flex items-center justify-between py-1 bg-slate-50 px-2 rounded">
+                                    <div className="flex items-center gap-2">
+                                      <Paperclip className="w-3 h-3 text-blue-500" />
+                                      <span>{f.name}</span>
+                                    </div>
+                                    <button 
+                                      type="button" 
+                                      onClick={() => setNewRecAttachments(newRecAttachments.filter((_, i) => i !== idx))}
+                                      className="text-red-500 hover:text-red-700"
                                     >
-                                      <X className="w-3.5 h-3.5" />
+                                      <X className="w-3 h-3" />
                                     </button>
-                                  </span>
+                                  </div>
                                 ))}
                               </div>
                             )}
@@ -3108,27 +3177,102 @@ ${formattedItems}
                         </>
                       )}
 
-                      
+                      {newType === "متسلسلة" && (
+                        <div className="md:col-span-full">
+                           <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200">
+                             <div className="flex gap-4 items-end">
+                               <div className="flex-1 space-y-1">
+                                 <label className="text-[11px] font-black text-gray-500 block">اختر اللجنة *</label>
+                                 <select
+                                   value={importCommitteeId}
+                                   onChange={(e) => setImportCommitteeId(Number(e.target.value))}
+                                   className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                                 >
+                                   <option value={0} disabled>اختر اللجنة لاستيراد التوصيات</option>
+                                   {committees.map(c => (
+                                     <option key={c.id} value={c.id}>{c.name}</option>
+                                   ))}
+                                 </select>
+                               </div>
+                               <button
+                                 type="button"
+                                 onClick={handleSearchImport}
+                                 className="px-8 py-2.5 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-gray-800 transition-colors shadow-lg shadow-gray-900/20"
+                               >
+                                 البحث في المحاضر
+                               </button>
+                             </div>
 
-                  <div className="md:col-span-full space-y-1">
-                    <label className="text-[11px] font-black text-gray-500 block">ملاحظات / تفاصيل</label>
-                    <textarea
-                      value={newNotes}
-                      onChange={(e) => setNewNotes(e.target.value)}
-                      rows={3}
-                      className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand resize-none"
-                    ></textarea>
-                  </div>
-
-                </div>
+                             {isImportSearched && (
+                               <div className="mt-6">
+                                 {importSearchResults.length === 0 ? (
+                                   <div className="text-center py-8">
+                                      <p className="text-sm font-bold text-gray-500">لا توجد توصيات متاحة للاستيراد من اجتماعات هذه اللجنة.</p>
+                                   </div>
+                                 ) : (
+                                   <div className="space-y-3 mt-4 max-h-[300px] overflow-y-auto pl-2">
+                                     <p className="text-[11px] font-black text-gray-500 mb-3">نتائج البحث ({importSearchResults.length} توصية):</p>
+                                     {importSearchResults.map((rec, idx) => {
+                                       const uniqueId = rec.eventId + "-" + rec.agendaId;
+                                       const isSelected = selectedImportRecs.includes(uniqueId);
+                                       return (
+                                         <div 
+                                           key={uniqueId} 
+                                           onClick={() => !rec.isAdded && toggleImportRecSelection(uniqueId)}
+                                           className={`p-4 rounded-xl border-2 transition-all flex items-start gap-4 ${rec.isAdded ? 'border-gray-200 bg-gray-100 opacity-60 cursor-not-allowed' : isSelected ? 'border-blue-500 bg-blue-50 cursor-pointer' : 'border-gray-200 bg-white cursor-pointer hover:border-blue-300'}`}
+                                         >
+                                           <div className={`w-5 h-5 mt-0.5 rounded border flex items-center justify-center shrink-0 ${rec.isAdded ? 'bg-gray-300 border-gray-400' : isSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
+                                             {(isSelected || rec.isAdded) && <Check className="w-3.5 h-3.5 text-white" />}
+                                           </div>
+                                           <div className="flex-1 space-y-1">
+                                             <div className="flex items-center gap-2">
+                                               <h4 className="text-sm font-bold text-gray-900">{rec.title}</h4>
+                                               {rec.isAdded && <span className="px-2 py-0.5 bg-gray-200 text-gray-600 text-[10px] font-black rounded-full">مضافة مسبقاً</span>}
+                                             </div>
+                                             <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">{rec.recommendationText}</p>
+                                             <div className="flex items-center gap-4 mt-2">
+                                               <div className="flex items-center gap-1.5 text-[10px] text-gray-500 font-bold bg-white px-2 py-1 rounded border border-gray-100">
+                                                 <Calendar className="w-3 h-3" />
+                                                 <span>محضر: {rec.eventTitle}</span>
+                                               </div>
+                                               {rec.assignee && (
+                                                 <div className="flex items-center gap-1.5 text-[10px] text-gray-500 font-bold bg-white px-2 py-1 rounded border border-gray-100">
+                                                   <Users2 className="w-3 h-3" />
+                                                   <span>المكلف: {rec.assignee}</span>
+                                                 </div>
+                                               )}
+                                             </div>
+                                           </div>
+                                         </div>
+                                       );
+                                     })}
+                                   </div>
+                                 )}
+                               </div>
+                             )}
+                           </div>
+                        </div>
+                      )}
+                    </div>
 
                 <div className="mt-8 pt-5 border-t border-gray-100 flex items-center justify-end flex-row-reverse gap-3">
-                  <button
-                    type="submit"
-                    className="px-6 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand/90 transition-colors shadow-lg shadow-brand/20 active:scale-95"
-                  >
-                    {newType === "متسلسلة" ? "استعراض الجدول" : (editingEvent ? "حفظ التعديلات" : "إضافة الفعالية")}
-                  </button>
+                  {newType === "متسلسلة" ? (
+                    <button
+                      type="button"
+                      onClick={handleImportSelected}
+                      disabled={selectedImportRecs.length === 0}
+                      className="px-6 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand/90 transition-colors shadow-lg shadow-brand/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      إدراج ({selectedImportRecs.length}) توصية
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      className="px-6 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand/90 transition-colors shadow-lg shadow-brand/20 active:scale-95"
+                    >
+                      {editingEvent ? "حفظ التعديلات" : "إضافة التوصية"}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setIsAddOpen(false)}

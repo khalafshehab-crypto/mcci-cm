@@ -27,13 +27,16 @@ import {
   List,
   SlidersHorizontal,
   Check,
+  CheckSquare,
   AlertCircle,
   Bell,
   UserCheck,
   Printer,
   Send,
   Eye,
-  RefreshCw
+  RefreshCw,
+  Settings,
+  X
 } from "lucide-react";
 import { 
   BarChart, 
@@ -699,7 +702,7 @@ export default function CommitteesHome() {
             title: t.title,
             description: t.description || "",
             dept: "إدارة اللجان والفعاليات",
-            committee: "العامة واللوائح التنظيمية",
+            committee: (t as any).sourceCommittee || "مهام مخصصة",
             responsible: t.assignedTo || "مدير النظام",
             isUrgent: isUrgent,
             dateStr: t.dueDate || "2026/06/11",
@@ -883,6 +886,8 @@ export default function CommitteesHome() {
   const [notifTypeFilter, setNotifTypeFilter] = useState<string>("all");
   const [notifUrgentFilter, setNotifUrgentFilter] = useState<boolean>(false);
   const [notifWeekFilter, setNotifWeekFilter] = useState<string>("all");
+  const [activeGearMenuId, setActiveGearMenuId] = useState<string | null>(null);
+  const [showReferralSelect, setShowReferralSelect] = useState(false);
 
   // Helper to resolve all detailed audit fields of a notification (alarm)
   const resolvedDetails = React.useMemo(() => {
@@ -1197,7 +1202,7 @@ export default function CommitteesHome() {
       title: `مخاطبة عاجلة: تم تنبيه ${targetName} بنجاح`,
       description: `تم إرسال إشعار فوري للعمل والتنسيق: "${userMsg}" - والموظف متصل الآن وجاري التعامل.`,
       dept: "قنوات التنسيق الداخلي",
-      committee: "الاتصال والتنسيق الفوري",
+      committee: "تنسيق فوري",
       responsible: targetName,
       isUrgent: true,
       dateStr: new Date().toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" }),
@@ -1390,7 +1395,7 @@ export default function CommitteesHome() {
                 )}
               </div>
               <div className="text-right">
-                <h3 className="font-extrabold text-gray-900 text-sm">مركز عمليات الإشعارات والتنبيهات المبرمجة</h3>
+                <h3 className="font-extrabold text-gray-900 text-sm">مركز الإشعارات والتنبيهات</h3>
                 <p style={{ width: '250px' }} className="text-[10px] text-gray-500 font-bold mt-0.5">تنبيهات مبرمجة لمتابعة استحقاق المهام والتوصيات وأعمال اللجان</p>
               </div>
             </div>
@@ -1547,17 +1552,6 @@ export default function CommitteesHome() {
 
                     {/* الجانب الأيسر: أزرار التحكم بالتنبيه */}
                     <div className="flex items-center gap-1.5 shrink-0 justify-end" onClick={(e) => e.stopPropagation()}>
-                      {/* زر عرض التفاصيل للتوجيه والإحالة */}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedAlarm(a)}
-                        className="px-2.5 py-1.5 bg-brand hover:bg-brand/90 text-white rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>عرض التفاصيل للتوجيه</span>
-                      </button>
-
-                      {/* زر الإهمال (يخفي التنبيه مؤقتا للمدة المحددة بالساعات) */}
                       {snoozeAlarmId === a.id ? (
                         <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-lg p-1 animate-pulse" onClick={(e) => e.stopPropagation()}>
                           <span className="text-[9px] text-amber-900 font-extrabold px-1">المدة (1-24 س):</span>
@@ -1594,37 +1588,37 @@ export default function CommitteesHome() {
                           </button>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={(e) => handleMarkUrgent(a, e)}
-                            title="تحديد هذا التنبيه بشكل عاجل جداً وفوري وبثه في قواعد البيانات"
-                            className={`px-2 py-1.5 rounded-lg text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 border ${
-                              manuallyUrgentAlarms[a.id]
-                                ? "bg-red-600 text-white border-red-650 hover:bg-red-700"
-                                : "bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
-                            }`}
-                          >
-                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                            <span>عاجل جداً</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSnoozeAlarmId(a.id);
-                              setSnoozeHours(24);
-                            }}
-                            title="إهمال مخصص للمدة المطلوبة بالساعات (الحد الأقصى 24 ساعة)"
-                            className="px-2 py-1.5 bg-slate-200 hover:bg-amber-100 hover:text-amber-800 text-gray-600 rounded-lg text-[10px] font-black transition-all cursor-pointer"
-                          >
-                            <span>إهمال مؤقت</span>
-                          </button>
+                        <div className="flex items-center gap-1 relative">
+                          {activeGearMenuId === a.id ? (
+                             <div className="flex items-center gap-1 bg-white border border-gray-200 p-1 rounded-xl shadow-sm animate-fade-in absolute left-0 z-50">
+                              <button onClick={() => { setSelectedAlarm(a); setActiveGearMenuId(null); setShowReferralSelect(false); }} className="px-2 py-1.5 bg-brand hover:bg-brand/90 text-white rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                                <Eye className="w-3.5 h-3.5" /><span>عرض التفاصيل والتوجيه</span>
+                              </button>
+                              <button onClick={(e) => { handleMarkUrgent(a, e); setActiveGearMenuId(null); }} className={`px-2 py-1.5 rounded-lg text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 border whitespace-nowrap ${manuallyUrgentAlarms[a.id] ? "bg-red-600 text-white border-red-650" : "bg-red-50 hover:bg-red-100 text-red-700 border-red-200"}`}>
+                                <AlertCircle className="w-3.5 h-3.5 shrink-0" /><span>عاجل جداً</span>
+                              </button>
+                              <button onClick={(e) => { e.stopPropagation(); setSnoozeAlarmId(a.id); setSnoozeHours(24); setActiveGearMenuId(null); }} className="px-2 py-1.5 bg-slate-200 hover:bg-amber-100 hover:text-amber-800 text-gray-600 rounded-lg text-[10px] font-black transition-all cursor-pointer whitespace-nowrap">
+                                <Clock className="w-3.5 h-3.5 shrink-0" /><span>إهمال مؤقت</span>
+                              </button>
+                              <button onClick={(e) => { e.stopPropagation(); setActiveGearMenuId(null); }} className="p-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors shrink-0">
+                                <X className="w-4 h-4" />
+                              </button>
+                             </div>
+                          ) : (
+                             <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveGearMenuId(activeGearMenuId === a.id ? null : a.id);
+                                }}
+                                className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition-colors cursor-pointer"
+                              >
+                                <Settings className="w-4 h-4" />
+                              </button>
+                          )}
                         </div>
                       )}
                     </div>
-
                   </motion.div>
                 );
               })
@@ -2281,7 +2275,9 @@ export default function CommitteesHome() {
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-extrabold text-gray-900 text-lg leading-tight">
-                        متابعة الإجراء: {resolvedDetails.itemNumber}
+                        {selectedAlarm.type === "task" ? "متابعة مسار المهمة" :
+                         selectedAlarm.type === "recommendation" ? "متابعة مسار التوصية" :
+                         `متابعة الفعالية`}
                       </h3>
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black ${
                         selectedAlarm.status === "متأخر" ? "bg-rose-100 text-rose-800" :
@@ -2314,84 +2310,241 @@ export default function CommitteesHome() {
                 
                 {/* 1. Header Metadata Section */}
                 <div className="bg-[#fcfbfb] border border-[#d2cece] rounded-2xl p-4 shadow-sm space-y-4">
-                  <h4 className="text-xs font-black text-gray-400 tracking-wider">البيانات الإدارية والتنظيمية</h4>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
-                        <Users2 className="w-5 h-5 text-brand" />
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[10px] text-gray-400 font-black block">اللجنة</span>
-                        <span className="text-xs font-bold text-gray-900">{resolvedDetails.committeeName}</span>
-                      </div>
-                    </div>
+                  {selectedAlarm.type === "task" ? (() => {
+                    const matchedTask = dbTasks.find((t: any) => String(t.id) === String(selectedAlarm.id).replace("task-", ""));
+                    return (
+                      <>
+                        <h4 className="text-xs font-black text-gray-400 tracking-wider">تفاصيل مسار المهمة</h4>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
+                              <UserCheck className="w-5 h-5 text-brand" />
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[10px] text-gray-400 font-black block">الموظف المسؤول</span>
+                              <span className="text-xs font-bold text-gray-900">{matchedTask?.assignedTo || selectedAlarm.responsible || "غير محدد"}</span>
+                            </div>
+                          </div>
 
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
-                        <Calendar className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[10px] text-gray-400 font-black block">رقم اللقاء</span>
-                        <span className="text-xs font-bold text-gray-900">{resolvedDetails.meetingSeq}</span>
-                      </div>
-                    </div>
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+                              <Calendar className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[10px] text-gray-400 font-black block">تاريخ الإسناد</span>
+                              <span className="text-xs font-bold text-gray-900 text-left" dir="ltr">{matchedTask?.createdAt ? new Date(matchedTask.createdAt).toLocaleDateString("en-GB") : selectedAlarm.dateStr}</span>
+                            </div>
+                          </div>
 
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
-                        <Clock className="w-5 h-5 text-purple-600" />
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[10px] text-gray-400 font-black block">تاريخ الاجتماع</span>
-                        <span className="text-xs font-bold text-gray-900">{resolvedDetails.meetingDate}</span>
-                      </div>
-                    </div>
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
+                              <Clock className="w-5 h-5 text-purple-600" />
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[10px] text-gray-400 font-black block">تاريخ التسليم المتوقع</span>
+                              <span className="text-xs font-bold text-gray-900 text-left" dir="ltr">{matchedTask?.dueDate || selectedAlarm.dateStr}</span>
+                            </div>
+                          </div>
 
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
-                        <UserCheck className="w-5 h-5 text-indigo-600" />
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+                              <CheckSquare className="w-5 h-5 text-emerald-600" />
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[10px] text-gray-400 font-black block">حالة المهمة</span>
+                              <span className="text-xs font-bold text-gray-900">{matchedTask?.status || selectedAlarm.status}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })() : selectedAlarm.type === "recommendation" ? (() => {
+                    const matchedRec = dbRecs.find((r: any) => String(r.id) === String(selectedAlarm.id).replace("rec-", "").replace("custom-rec-", ""));
+                    return (
+                      <>
+                        <h4 className="text-xs font-black text-gray-400 tracking-wider">تفاصيل مسار التوصية</h4>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
+                              <UserCheck className="w-5 h-5 text-brand" />
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[10px] text-gray-400 font-black block">المسؤول عن التنفيذ</span>
+                              <span className="text-xs font-bold text-gray-900">{matchedRec?.assignedTo || selectedAlarm.responsible || "غير محدد"}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+                              <Calendar className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[10px] text-gray-400 font-black block">تاريخ الإصدار</span>
+                              <span className="text-xs font-bold text-gray-900 text-left" dir="ltr">{selectedAlarm.dateStr}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
+                              <Clock className="w-5 h-5 text-purple-600" />
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[10px] text-gray-400 font-black block">المدة الزمنية</span>
+                              <span className="text-xs font-bold text-gray-900">{matchedRec?.duration || "غير محدد"}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+                              <CheckSquare className="w-5 h-5 text-emerald-600" />
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[10px] text-gray-400 font-black block">مرحلة الاعتماد</span>
+                              <span className="text-xs font-bold text-gray-900">{matchedRec?.approvalStage || "غير محدد"}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })() : (
+                    <>
+                      <h4 className="text-xs font-black text-gray-400 tracking-wider">البيانات الإدارية والتنظيمية</h4>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
+                            <Users2 className="w-5 h-5 text-brand" />
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] text-gray-400 font-black block">اللجنة</span>
+                            <span className="text-xs font-bold text-gray-900">{resolvedDetails.committeeName}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+                            <Calendar className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] text-gray-400 font-black block">رقم اللقاء</span>
+                            <span className="text-xs font-bold text-gray-900">{resolvedDetails.meetingSeq}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
+                            <Clock className="w-5 h-5 text-purple-600" />
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] text-gray-400 font-black block">تاريخ الاجتماع</span>
+                            <span className="text-xs font-bold text-gray-900 text-left" dir="ltr">{resolvedDetails.meetingDate}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+                            <UserCheck className="w-5 h-5 text-indigo-600" />
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] text-gray-400 font-black block">الأخصائي المسؤول</span>
+                            <span className="text-xs font-bold text-gray-900">{resolvedDetails.staffName}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <span className="text-[10px] text-gray-400 font-black block">الأخصائي المسؤول</span>
-                        <span className="text-xs font-bold text-gray-900">{resolvedDetails.staffName}</span>
-                      </div>
-                    </div>
-                  </div>
+                    </>
+                  )}
                 </div>
-
-                {/* 2. Agenda Item & recommendation text section */}
+                {/* 2. Dynamic Details Section */}
                 <div className="space-y-4">
-                  <h4 className="text-xs font-black text-gray-400 tracking-wider">تفاصيل وقائع ومقررات البند</h4>
+                  <h4 className="text-xs font-black text-gray-400 tracking-wider">التفاصيل وسجل التتبع</h4>
                   
                   <div className="bg-[#fcfbfb] border border-[#d2cece] rounded-2xl p-4 shadow-inner space-y-4">
-                    <div>
-                      <span className="text-[10px] text-gray-400 font-black block mb-1">موضوع البند:</span>
-                      <p className="text-xs font-extrabold text-blue-900 bg-blue-50/50 p-2.5 rounded-lg border border-blue-100">
-                        {resolvedDetails.itemTitle}
-                      </p>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] text-gray-400 font-black block mb-1">تدوين وقائع المناقشة:</span>
-                      <p className="text-xs font-medium text-slate-700 leading-relaxed bg-white p-3 rounded-xl border border-gray-150">
-                        {resolvedDetails.itemDiscussion}
-                      </p>
-                    </div>
-
-                    <div className="border-t border-gray-200/80 pt-3">
-                      <span className="text-[10px] text-[#b59410] font-black block mb-1">نص التوصية المعتمدة:</span>
-                      <p className="text-xs font-bold text-gray-950 bg-[#fffdf5] p-3 rounded-xl border border-[#e8d284] leading-relaxed">
-                        {resolvedDetails.recommendationText}
-                      </p>
-                    </div>
+                    {selectedAlarm.type === "task" ? (
+                      <div>
+                        <span className="text-[10px] text-gray-400 font-black block mb-1">وصف المهمة:</span>
+                        <p className="text-xs font-extrabold text-blue-900 bg-blue-50/50 p-2.5 rounded-lg border border-blue-100">
+                          {selectedAlarm.description || resolvedDetails.itemTitle}
+                        </p>
+                      </div>
+                    ) : selectedAlarm.type === "event" ? (
+                      <div>
+                        <span className="text-[10px] text-gray-400 font-black block mb-1">تفاصيل الفعالية:</span>
+                        <p className="text-xs font-extrabold text-blue-900 bg-blue-50/50 p-2.5 rounded-lg border border-blue-100">
+                          {selectedAlarm.description || resolvedDetails.itemTitle}
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <span className="text-[10px] text-gray-400 font-black block mb-1">موضوع البند:</span>
+                          <p className="text-xs font-extrabold text-blue-900 bg-blue-50/50 p-2.5 rounded-lg border border-blue-100">
+                            {resolvedDetails.itemTitle}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-gray-400 font-black block mb-1">تدوين وقائع المناقشة:</span>
+                          <p className="text-xs font-medium text-slate-700 leading-relaxed bg-white p-3 rounded-xl border border-gray-150">
+                            {resolvedDetails.itemDiscussion}
+                          </p>
+                        </div>
+                        <div className="border-t border-gray-200/80 pt-3">
+                          <span className="text-[10px] text-[#b59410] font-black block mb-1">نص التوصية المعتمدة:</span>
+                          <p className="text-xs font-bold text-gray-950 bg-[#fffdf5] p-3 rounded-xl border border-[#e8d284] leading-relaxed">
+                            {resolvedDetails.recommendationText}
+                          </p>
+                        </div>
+                      </>
+                    )}
+                    
+                    {/* Add History Log similar to Tasks */}
+                    {selectedAlarm.type === "task" ? (() => {
+                      const matchedTask = dbTasks.find((t: any) => String(t.id) === String(selectedAlarm.id).replace("task-", ""));
+                      if (!matchedTask || !matchedTask.historyLog || matchedTask.historyLog.length === 0) return null;
+                      return (
+                        <div className="mt-4 border-t border-gray-200/80 pt-4">
+                          <label className="block text-xs font-black text-gray-700 mb-2">سجل تتبع المهمة (المسار)</label>
+                          <div className="space-y-2 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
+                            {matchedTask.historyLog.slice().reverse().map((log: any) => (
+                              <div key={log.id} className="bg-white border border-gray-200 rounded-lg p-2.5 shadow-sm text-[11px]">
+                                <div className="flex justify-between items-center mb-1 text-gray-500">
+                                  <span className="font-bold text-blue-600">{log.action} ({log.by})</span>
+                                  <span className="font-mono text-[9px] font-bold" dir="ltr">{log.date} {log.time}</span>
+                                </div>
+                                <div className="text-gray-900 font-medium whitespace-pre-wrap leading-relaxed">{log.note}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })() : selectedAlarm.type === "recommendation" ? (() => {
+                      const matchedRec = dbRecs.find((r: any) => String(r.id) === String(selectedAlarm.id).replace("rec-", "").replace("custom-rec-", ""));
+                      if (!matchedRec || !matchedRec.auditLogs || matchedRec.auditLogs.length === 0) return null;
+                      return (
+                        <div className="mt-4 border-t border-gray-200/80 pt-4">
+                          <label className="block text-xs font-black text-gray-700 mb-2">سجل مسار التوصية</label>
+                          <div className="space-y-2 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
+                            {matchedRec.auditLogs.slice().reverse().map((log: any, index: number) => (
+                              <div key={index} className="bg-white border border-gray-200 rounded-lg p-2.5 shadow-sm text-[11px]">
+                                <div className="flex justify-between items-center mb-1 text-gray-500">
+                                  <span className="font-bold text-blue-600">{log.action} ({log.user})</span>
+                                  <span className="font-mono text-[9px] font-bold" dir="ltr">{log.timestamp}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })() : null}
                   </div>
                 </div>
 
-                {/* 3. Operational Update Form (مستجدات التوصية والإفادة) */}
+                {/* 3. Operational Update Form */}
                 <div className="border-t border-gray-150 pt-4 space-y-4 text-right">
                   <h4 className="text-sm font-black text-slate-800 flex items-center gap-1.5">
                     <Send className="w-4 h-4 text-brand" />
-                    <span>تسجيل مستجدات التوصية وشرح الإفادة ونسبة الإنجاز</span>
+                    <span>المستجدات</span>
                   </h4>
 
                   {referToast && (
@@ -2406,13 +2559,12 @@ export default function CommitteesHome() {
                   )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Status update selector */}
                     <div className="space-y-1">
                       <label className="text-[11px] font-black text-slate-700 block">
-                        تحديث حالة التوصية بالعملية <span className="text-red-500">*</span>
+                        تحديث الحالة <span className="text-red-500">*</span>
                       </label>
                       <select
-                        value={selectedAlarm.status}
+                        value={selectedAlarm.status || ""}
                         onChange={(e) => {
                           const val = e.target.value as any;
                           setAlarms(prev => prev.map(a => a.id === selectedAlarm.id ? { ...a, status: val } : a));
@@ -2420,49 +2572,78 @@ export default function CommitteesHome() {
                         }}
                         className="w-full bg-slate-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-950 focus:bg-white focus:border-brand focus:ring-1 focus:ring-brand outline-none"
                       >
-                        <option value="جديد">جديد - بانتظار اتخاذ الإجراء الإداري</option>
-                        <option value="قيد الانتظار">قيد الانتظار - جاري التنسيق والمتابعة</option>
-                        <option value="تمت الإحالة">تم الإنجاز - تم تنفيذ التوصية والإفادة</option>
-                        <option value="متأخر">متأخر - تجاوزت المدة المقررة للتنفيذ</option>
+                        <option value="جديد">جديد - بانتظار الإجراء</option>
+                        <option value="قيد الانتظار">قيد الانتظار - جاري التنفيذ</option>
+                        <option value="تمت الإحالة">تم الإنجاز - تم التنفيذ</option>
+                        <option value="متأخر">متأخر - تجاوز المدة المقررة</option>
                       </select>
                     </div>
 
-                    {/* Employee writing the update */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-black text-slate-700 block">
-                        منسق الإفادة / الموظف المستجِد <span className="text-red-500">*</span>
+                      <label className="text-[11px] font-black text-slate-700 block text-right">
+                        شرح المستجدات وتفاصيل العمل المنجز
                       </label>
-                      <select
-                        value={referStaff}
-                        onChange={(e) => setReferStaff(e.target.value)}
-                        className="w-full bg-slate-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-950 focus:bg-white focus:border-brand focus:ring-1 focus:ring-brand outline-none"
-                      >
-                        <option value="">-- اختر الموظف كاتب الإفادة --</option>
-                        {onlineStaff.map((staff, sIdx) => (
-                          <option key={sIdx} value={staff.name}>
-                            {staff.name} ({staff.title})
-                          </option>
-                        ))}
-                      </select>
+                      <textarea
+                        value={referNotes}
+                      onChange={(e) => setReferNotes(e.target.value)}
+                      placeholder="اكتب هنا الشرح التفصيلي للمستجدات..."
+                        rows={3}
+                        className="w-full bg-slate-50 border border-gray-300 rounded-xl p-3 text-xs font-medium text-gray-950 focus:bg-white focus:border-brand focus:ring-1 focus:ring-brand outline-none resize-none placeholder:text-gray-400"
+                      />
                     </div>
                   </div>
+                  
+                  {showReferralSelect && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="space-y-3 mt-3"
+                    >
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-black text-slate-700 block">
+                          اختر الإدارة للإحالة
+                        </label>
+                        <select
+                          value={referDept}
+                          onChange={(e) => {
+                            setReferDept(e.target.value);
+                            const deptEmps = dbEmployees.filter((emp: any) => emp.orgLevel3 === e.target.value || emp.orgLevel2 === e.target.value || emp.orgLevel1 === e.target.value);
+                            if (deptEmps.length > 0) {
+                              setReferStaff(deptEmps[0].name);
+                            } else {
+                              setReferStaff("");
+                            }
+                          }}
+                          className="w-full bg-slate-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-950 focus:bg-white focus:border-brand focus:ring-1 focus:ring-brand outline-none"
+                        >
+                          <option value="">-- عرض جميع الموظفين --</option>
+                          {Array.from(new Set((dbEmployees || []).map((e: any) => e.orgLevel3 || e.orgLevel2 || e.orgLevel1).filter(Boolean))).map((dept: any, i) => (
+                            <option key={i} value={dept}>{dept}</option>
+                          ))}
+                        </select>
+                      </div>
 
-                  {/* Recommendation updates / comments */}
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-black text-slate-700 block text-right">
-                      شرح مستجدات التوصية وتفاصيل العمل المنجز
-                    </label>
-                    <textarea
-                      value={referNotes}
-                      onChange={(e) => setReferNotes(e.target.value)}
-                      placeholder="اكتب هنا الشرح التفصيلي للمستجدات مثل: 'تمت إحالة الملف للجنة ومخاطبة غرفة مكة وبانتظار رد الغرفة خلال يوم عمل...'"
-                      rows={3}
-                      className="w-full bg-slate-50 border border-gray-300 rounded-xl p-3 text-xs font-medium text-gray-950 focus:bg-white focus:border-brand focus:ring-1 focus:ring-brand outline-none resize-none placeholder:text-gray-400"
-                    />
-                  </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-black text-slate-700 block">
+                          اختر الموظف أو المسؤول للإحالة
+                        </label>
+                        <select
+                          value={referStaff}
+                          onChange={(e) => setReferStaff(e.target.value)}
+                          className="w-full bg-slate-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-950 focus:bg-white focus:border-brand focus:ring-1 focus:ring-brand outline-none"
+                        >
+                          <option value="">-- اختر الموظف --</option>
+                          {(dbEmployees || []).filter((emp: any) => referDept ? (emp.orgLevel3 === referDept || emp.orgLevel2 === referDept || emp.orgLevel1 === referDept) : true).map((staff: any, sIdx: number) => (
+                            <option key={sIdx} value={staff.name}>
+                              {staff.name} - {staff.jobTitle || staff.title || staff.role || "موظف"}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </motion.div>
+                  )}
                 </div>
               </div>
-
               {/* Action Buttons */}
               <div className="bg-slate-50 p-4 border-t border-gray-200 flex items-center justify-between shrink-0 font-sans w-full">
                 {resolvedDetails.eventId ? (
@@ -2489,24 +2670,39 @@ export default function CommitteesHome() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleForwardToAssistantSecGen()}
-                    className="px-5 py-2 text-xs font-extrabold text-white rounded-xl flex items-center gap-1.5 transition-all outline-none bg-emerald-600 hover:bg-emerald-700 cursor-pointer"
+                    onClick={() => {
+                       // Only submit updates, don't forward yet unless staff is selected
+                       if(referNotes) {
+                         handleSubmitReferral();
+                       } else {
+                         setReferToast("الرجاء كتابة المستجدات أولاً");
+                         setTimeout(() => setReferToast(null), 3000);
+                       }
+                    }}
+                    className="px-5 py-2 text-xs font-extrabold text-white bg-brand hover:shadow-md hover:brightness-105 rounded-xl flex items-center gap-1.5 transition-all outline-none cursor-pointer"
                   >
-                    <Send className="w-4 h-4 stroke-[2.5]" />
-                    <span>إحالة لمساعد الأمين العام</span>
+                    <Check className="w-4 h-4 stroke-[2.5]" />
+                    <span>حفظ المستجدات</span>
                   </button>
                   <button
                     type="button"
-                    onClick={handleSubmitReferral}
-                    disabled={!referStaff}
-                    className={`px-5 py-2 text-xs font-extrabold text-white rounded-xl flex items-center gap-1.5 transition-all outline-none ${
-                      referStaff 
-                        ? "bg-brand hover:shadow-md hover:brightness-105 cursor-pointer" 
-                        : "bg-gray-400 cursor-not-allowed opacity-60"
-                    }`}
+                    onClick={() => {
+                      if (!showReferralSelect) {
+                        setShowReferralSelect(true);
+                      } else {
+                        // Action to submit referral
+                        if (!referStaff) {
+                           setReferToast("الرجاء اختيار الموظف للإحالة");
+                           setTimeout(() => setReferToast(null), 3000);
+                           return;
+                        }
+                        handleSubmitReferral();
+                      }
+                    }}
+                    className="px-5 py-2 text-xs font-extrabold text-white rounded-xl flex items-center gap-1.5 transition-all outline-none bg-emerald-600 hover:bg-emerald-700 cursor-pointer"
                   >
-                    <Check className="w-4 h-4 stroke-[2.5]" />
-                    <span>حفظ المستجدات والإفادة</span>
+                    <Send className="w-4 h-4 stroke-[2.5]" />
+                    <span>{showReferralSelect ? "تأكيد الإحالة" : "إحالة"}</span>
                   </button>
                 </div>
               </div>

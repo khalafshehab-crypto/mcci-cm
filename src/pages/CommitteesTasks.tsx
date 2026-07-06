@@ -502,9 +502,9 @@ export default function CommitteesTasks() {
             <div className="p-2 bg-blue-100 text-brand rounded-xl">
               <CheckSquare className="w-7 h-7 text-brand" />
             </div>
-            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight font-sans">بوابة المهام الإدارية الداخلية</h1>
+            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight font-sans">المهام الإدارية</h1>
           </div>
-          <p className="text-gray-600 text-sm font-medium mt-1">إسناد ومتابعة الأعمال الإدارية واليومية بين منسوبي الغرفة وإحصاء مستحقاتها تلقائياً</p>
+          <p className="text-gray-600 text-sm font-medium mt-1">إسناد ومتابعة المهام الإدارية اليومية</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 justify-center md:justify-end">
@@ -1660,7 +1660,7 @@ export default function CommitteesTasks() {
                 
                 {currentTask?.historyLog && currentTask.historyLog.length > 0 && (
                   <div className="mb-4">
-                    <label className="block text-xs font-black text-gray-700 mb-2">سجل تتبع المهمة (المسار)</label>
+                    <label className="block text-xs font-black text-gray-700 mb-2">سجل تتبع المهمة</label>
                     <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                       {currentTask.historyLog.slice().reverse().map(log => (
                         <div key={log.id} className="bg-slate-50 border border-gray-200 rounded-lg p-2.5 shadow-sm text-[11px]">
@@ -1677,26 +1677,26 @@ export default function CommitteesTasks() {
 
                 {/* Select status */}
                 <div>
-                  <label className="block text-xs font-black text-gray-700 mb-1">تعديل الحالة التنفيذية للمهمة</label>
+                  <label className="block text-xs font-black text-gray-700 mb-1">تحديث الحالة</label>
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value as any)}
                     className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                   >
-                    <option value="جديدة">جديدة (أزرق)</option>
-                    <option value="جاري العمل عليها">جاري العمل عليها (أصفر)</option>
-                    <option value="متأخرة">متأخرة (أحمر)</option>
-                    <option value="منجزة">منجزة مكتملة (أخضر)</option>
+                    <option value="جديدة">جديدة</option>
+                    <option value="جاري العمل عليها">جاري العمل عليها</option>
+                    <option value="متأخرة">متأخرة</option>
+                    <option value="منجزة">منجزة مكتملة</option>
                   </select>
                 </div>
 
                 {/* Achievement progress notes */}
                 <div>
-                  <label className="block text-xs font-black text-gray-700 mb-1">كتابة المنجز والتفاصيل المستكشفة *</label>
+                  <label className="block text-xs font-black text-gray-700 mb-1">المستجدات*</label>
                   <textarea
                     required
                     rows={3}
-                    placeholder="مثال: تم إرسال 12 كتاب رسمي للدعوات للجهات، وبانتظار الإفادة بممثليهم الأبجديين."
+                    placeholder="مثال: تم الإرسال وبانتظار الإفادة."
                     value={newProgressNote}
                     onChange={(e) => setNewProgressNote(e.target.value)}
                     className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black leading-relaxed focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
@@ -1715,7 +1715,7 @@ export default function CommitteesTasks() {
                     type="submit"
                     className="px-5 py-2 text-xs font-black bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-all"
                   >
-                    تأكيد وحفظ حالة الإنجاز
+                    تأكيد وحفظ
                   </button>
                 </div>
               </form>
@@ -1752,7 +1752,7 @@ export default function CommitteesTasks() {
                   </div>
                   <div>
                     <h3 className="font-extrabold text-red-950 text-base leading-tight">طلب إداري: تأكيد حذف مهمة العمل</h3>
-                    <p className="text-xs text-red-700 font-medium font-sans">هذا الإجراء يتطلب تدوين سبب الحذف في المراقبة الأمنية للرصد والشفافية</p>
+                    <p className="text-xs text-red-700 font-medium font-sans">هذا الإجراء يتطلب تدوين سبب الحذف</p>
                   </div>
                 </div>
                 <button
@@ -1766,7 +1766,7 @@ export default function CommitteesTasks() {
 
               <form onSubmit={handleConfirmDeleteTask} className="p-6 space-y-4">
                 <div className="text-xs text-gray-600 font-bold leading-relaxed bg-slate-50 border border-gray-200 p-3.5 rounded-2xl">
-                  تنبيه بقواعد النظام: عند مسح المهمة القطاعية، سيتم رصد العملية باسمك وتوقيتها وصور الحذف لأرشفتها في شاشة الرقابة الأمنية. الرجاء كتابة المبرر والسبب الرسمي.
+                  تنبيه بقواعد النظام: عند مسح المهمة سيتم رصد العملية باسمك وتوقيتها.
                 </div>
 
                 <div>
@@ -1774,7 +1774,7 @@ export default function CommitteesTasks() {
                   <textarea
                     required
                     rows={3}
-                    placeholder="اكتب هنا سبب المسح الإداري (مثال: تم إقرار دمج المهمة مع بنود توصية ورشة العمل السادسة)"
+                    placeholder="اكتب هنا سبب المسح (مثال: تم تسجيل مهمة خاطئة)"
                     value={deleteReason}
                     onChange={(e) => setDeleteReason(e.target.value)}
                     className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black leading-relaxed focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all placeholder:text-gray-400"

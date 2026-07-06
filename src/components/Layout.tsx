@@ -157,34 +157,37 @@ export default function Layout({ children }: LayoutProps) {
   const hijriDate = formatDate(currentTime, 'islamic-umalqura');
  
   const departments = [
-    {
+        {
       id: "assistant-sec-gen",
       nameAr: "مساعد الأمين العام",
       icon: <UserCheck className="w-4 h-4" />,
       pages: [
-        { name: "Dashboard", nameAr: "شاشة المتابعة", path: "/assistant-sec-gen", icon: <LayoutDashboard className="w-4 h-4" /> },
+        { name: "Dashboard", nameAr: "مساعد الأمين العام", path: "/assistant-sec-gen", icon: <UserCheck className="w-4 h-4" /> },
         { name: "Events", nameAr: "الفعاليات", path: "/assistant-sec-gen/events", icon: <Calendar className="w-4 h-4" /> },
-        { name: "Tasks", nameAr: "المهام الإدارية", path: "/assistant-sec-gen/tasks", icon: <CheckSquare className="w-4 h-4" /> }
+        
+        
       ]
     },
-    {
+        {
       id: "centers",
       nameAr: "إدارة المراكز",
       icon: <Building2 className="w-4 h-4" />,
       pages: [
-        { name: "Dashboard", nameAr: "شاشة المتابعة", path: "/centers", icon: <LayoutDashboard className="w-4 h-4" /> },
+        { name: "Dashboard", nameAr: "إدارة المراكز", path: "/centers", icon: <Building2 className="w-4 h-4" /> },
         { name: "Events", nameAr: "الفعاليات", path: "/centers/events", icon: <Calendar className="w-4 h-4" /> },
-        { name: "Tasks", nameAr: "المهام الإدارية", path: "/centers/tasks", icon: <CheckSquare className="w-4 h-4" /> }
+        
+        
       ]
     },
-    {
+        {
       id: "affiliates",
       nameAr: "إدارة المنتسبين",
       icon: <Users className="w-4 h-4" />,
       pages: [
-        { name: "Dashboard", nameAr: "شاشة المتابعة", path: "/affiliates", icon: <LayoutDashboard className="w-4 h-4" /> },
+        { name: "Dashboard", nameAr: "إدارة المنتسبين", path: "/affiliates", icon: <Users className="w-4 h-4" /> },
         { name: "Events", nameAr: "الفعاليات", path: "/affiliates/events", icon: <Calendar className="w-4 h-4" /> },
-        { name: "Tasks", nameAr: "المهام الإدارية", path: "/affiliates/tasks", icon: <CheckSquare className="w-4 h-4" /> }
+        
+        
       ]
     },
     {
@@ -196,8 +199,8 @@ export default function Layout({ children }: LayoutProps) {
         { name: "تشكيل اللجان", nameAr: "تشكيل اللجان", path: "/committees", icon: <Users2 className="w-4 h-4" /> },
         { name: "سجل الأعضاء", nameAr: "سجل الأعضاء", path: "/members", icon: <Library className="w-4 h-4" /> },
         { name: "سجل الفعاليات", nameAr: "الفعاليات", path: "/events", icon: <Calendar className="w-4 h-4" /> },
-        { name: "Recommendations", nameAr: "التوصيات القطاعية", path: "/recommendations", icon: <CheckCircle2 className="w-4 h-4" /> },
-        { name: "Tasks", nameAr: "المهام الإدارية", path: "/tasks", icon: <CheckSquare className="w-4 h-4" /> },
+        { name: "Recommendations", nameAr: "التوصيات", path: "/recommendations", icon: <CheckCircle2 className="w-4 h-4" /> },
+        { name: "Tasks", nameAr: "المهام", path: "/tasks", icon: <CheckSquare className="w-4 h-4" /> },
         { name: "Reports", nameAr: "التقارير", path: "/reports", icon: <FileText className="w-4 h-4" /> },
         { name: "Library", nameAr: "المكتبة الرقمية", path: "/library", icon: <BookOpen className="w-4 h-4" /> },
       ]
@@ -231,9 +234,9 @@ export default function Layout({ children }: LayoutProps) {
     // Fallback: Default to all pages if allowedPages is undefined
     const SYSTEM_PAGES = [
       "/", "/committees", "/members", "/events", "/recommendations", "/tasks", "/reports", "/library", 
-      "/assistant-sec-gen", "/assistant-sec-gen/events", "/assistant-sec-gen/tasks", 
-      "/centers", "/centers/events", "/centers/tasks", 
-      "/affiliates", "/affiliates/events", "/affiliates/tasks"
+      "/assistant-sec-gen", "/assistant-sec-gen/events",
+      "/centers", "/centers/events",
+      "/affiliates", "/affiliates/events"
     ];
     return SYSTEM_PAGES.includes(page.path);
   });
@@ -338,7 +341,7 @@ export default function Layout({ children }: LayoutProps) {
                       const deptPages = getFilteredDeptPages(dept.pages);
                       if (deptPages.length === 0) return null;
                       
-                      const hasSubPages = true; // Always show accordion
+                      const hasSubPages = deptPages.length > 1;
                       const isExpanded = expandedSections[dept.id] || false;
                       
                       return (

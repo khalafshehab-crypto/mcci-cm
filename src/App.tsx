@@ -21,15 +21,12 @@ const OrgChart = React.lazy(() => import("./pages/OrgChart"));
 const CommitteesReports = React.lazy(() => import("./pages/CommitteesReports"));
 const CommitteesLibrary = React.lazy(() => import("./pages/CommitteesLibrary"));
 const Centers = React.lazy(() => import("./pages/Centers"));
-const Affiliates = React.lazy(() => import("./pages/Affiliates"));
-const AssistantSecGen = React.lazy(() => import("./pages/AssistantSecGen"));
-
-const AssistantSecGenEvents = React.lazy(() => import("./pages/AssistantSecGenEvents"));
-const AssistantSecGenTasks = React.lazy(() => import("./pages/AssistantSecGenTasks"));
 const CentersEvents = React.lazy(() => import("./pages/CentersEvents"));
-const CentersTasks = React.lazy(() => import("./pages/CentersTasks"));
+const Affiliates = React.lazy(() => import("./pages/Affiliates"));
 const AffiliatesEvents = React.lazy(() => import("./pages/AffiliatesEvents"));
-const AffiliatesTasks = React.lazy(() => import("./pages/AffiliatesTasks"));
+const AssistantSecGen = React.lazy(() => import("./pages/AssistantSecGen"));
+const AssistantSecGenEvents = React.lazy(() => import("./pages/AssistantSecGenEvents"));
+
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -121,13 +118,10 @@ export default function App() {
               <Route path="/library" element={<CommitteesLibrary />} />
               <Route path="/assistant-sec-gen" element={<AssistantSecGen />} />
               <Route path="/assistant-sec-gen/events" element={<AssistantSecGenEvents />} />
-              <Route path="/assistant-sec-gen/tasks" element={<AssistantSecGenTasks />} />
               <Route path="/centers" element={<Centers />} />
               <Route path="/centers/events" element={<CentersEvents />} />
-              <Route path="/centers/tasks" element={<CentersTasks />} />
               <Route path="/affiliates" element={<Affiliates />} />
               <Route path="/affiliates/events" element={<AffiliatesEvents />} />
-              <Route path="/affiliates/tasks" element={<AffiliatesTasks />} />
               <Route path="/org-chart" element={<OrgChart />} />
             </Routes>
           </Suspense>
