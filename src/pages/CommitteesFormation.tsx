@@ -46,7 +46,7 @@ const EMPLOYEES = [
 ];
 
 import { useFirestoreCollection } from '../lib/firebaseUtils';
-import { cascadeCommitteeRename } from '../lib/cascadeUpdates';
+import { cascadeCommitteeRename, cascadeCommitteeDelete } from '../lib/cascadeUpdates';
 
 export default function CommitteesFormation() {
   const { data: dbCommittees, updateDocument: updateFirebaseComm, deleteDocument: deleteFirebaseComm } = useFirestoreCollection<Committee>("committees", []);
@@ -60,6 +60,7 @@ export default function CommitteesFormation() {
     dbCommittees.forEach(existing => {
        if (!nextItems.find(e => e.id === existing.id)) {
           deleteFirebaseComm(String(existing.id));
+          cascadeCommitteeDelete(existing.name).catch(console.error);
        }
     });
     nextItems.forEach(nextI => {

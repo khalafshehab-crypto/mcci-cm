@@ -509,7 +509,7 @@ export default function OrgChart() {
   const handleRemoveCommitteeFromEmployee = async (committeeName: string) => {
     if (!selectedEmployee) return;
     const currentComms = selectedEmployee.committees || [];
-    const updatedComms = Array.from(new Set(currentComms.filter(c => c !== committeeName && dbCommittees.some((dc: any) => dc.name === c))));
+    const updatedComms = Array.from(new Set<string>(currentComms.filter(c => c !== committeeName && dbCommittees.some((dc: any) => dc.name === c))));
     
     try {
       await updateFirebaseEmp(selectedEmployee.id, { committees: updatedComms });
@@ -2750,7 +2750,7 @@ export default function OrgChart() {
                   <div key={idx} className="p-2.5 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between text-xs">
                     <span className="font-bold text-gray-800">{comName}</span>
                     {currentUserRole === "SYS_ADMIN" && (
-                      <button onClick={() => handleRemoveCommitteeFromEmployee(comName)} className="p-1 px-2 text-[10px] bg-red-50 text-red-650 rounded border border-red-100">إلغاء</button>
+                      <button onClick={() => handleRemoveCommitteeFromEmployee(comName as string)} className="p-1 px-2 text-[10px] bg-red-50 text-red-650 rounded border border-red-100">إلغاء</button>
                     )}
                   </div>
                 ))}
