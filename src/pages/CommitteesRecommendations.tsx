@@ -528,6 +528,7 @@ ${formattedItems}
     if (isSeqManuallyEdited) return; // skip auto-calculating if user manually changed it
     if (newType === "مفردة" && newCommitteeId > 0) {
       const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
+    if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات أو مهام لهذه اللجنة"); return; }
       const classifStr = singleClassification === "دوري" ? "الدوري" : singleClassification === "استثنائي" ? "الاستثنائي" : singleClassification === "طارئ" ? "الطارئ" : singleClassification === "فريق عمل" ? "فريق العمل" : singleClassification;
       const formattedCommName = commName ? formatCommitteeNameArabic(commName) : "";
       const prefixToMatch = `${singleKind} ${formattedCommName} ${classifStr}`.trim();
@@ -540,6 +541,7 @@ ${formattedItems}
     if (isTitleManuallyEdited) return;
     if (newType === "مفردة") {
       const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
+    if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات أو مهام لهذه اللجنة"); return; }
       const classifStr = singleClassification === "دوري" ? "الدوري" : singleClassification === "استثنائي" ? "الاستثنائي" : singleClassification === "طارئ" ? "الطارئ" : singleClassification === "فريق عمل" ? "فريق العمل" : singleClassification;
       const formattedCommName = commName ? formatCommitteeNameArabic(commName) : "";
       const numWord = getArabicOrdinal(singleEventNumber);
@@ -642,6 +644,7 @@ ${formattedItems}
     if (selectedRecs.length === 0) return;
     
     const commName = committees.find(c => c.id === importCommitteeId)?.name || "";
+    if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات أو مهام لهذه اللجنة"); return; }
     
     for (const rec of selectedRecs) {
       if (rec.isAdded) continue; // Skip if already added
@@ -894,6 +897,7 @@ ${formattedItems}
     
     const results: {id: number, date: string, title: string, time: string}[] = [];
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
+    if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات أو مهام لهذه اللجنة"); return; }
     const classifStr = seriesClassification === "دوري" ? "الدوري" : seriesClassification === "استثنائي" ? "الاستثنائي" : seriesClassification === "طارئ" ? "الطارئ" : seriesClassification === "فريق عمل" ? "فريق العمل" : seriesClassification;
     const formattedCommName = commName ? formatCommitteeNameArabic(commName) : "";
     const prefixToMatch = `${seriesKind} ${formattedCommName} ${classifStr}`.trim();
@@ -951,6 +955,7 @@ ${formattedItems}
 
   const handleInsertSeries = () => {
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
+    if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات أو مهام لهذه اللجنة"); return; }
     const selectedGen = generatedSchedules.filter(s => selectedSchedules.includes(s.id));
     
     // Check conflicts
@@ -1000,6 +1005,7 @@ ${formattedItems}
     if (!newRecTitle.trim() || !newCommitteeId) return;
 
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
+    if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات أو مهام لهذه اللجنة"); return; }
     const eventName = events.find(ev => ev.id === Number(newRecEventId))?.title || "توصية بالتمرير";
 
     if (editingEvent) {
@@ -3011,7 +3017,7 @@ ${formattedItems}
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value={0} disabled>اختر اللجنة</option>
-                              {committees.map(c => (
+                              {committees.filter(c => canUserEditCommittee(c.name)).map(c => (
                                 <option key={c.id} value={c.id}>{c.name}</option>
                               ))}
                             </select>
@@ -3182,7 +3188,7 @@ ${formattedItems}
                                    className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                                  >
                                    <option value={0} disabled>اختر اللجنة لاستيراد التوصيات</option>
-                                   {committees.map(c => (
+                                   {committees.filter(c => canUserEditCommittee(c.name)).map(c => (
                                      <option key={c.id} value={c.id}>{c.name}</option>
                                    ))}
                                  </select>

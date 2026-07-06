@@ -461,6 +461,7 @@ export default function CommitteesMembers() {
     }
 
     const matchedComm = allCommittees.find(c => c.id === Number(selectedCommitteeId)) || { name: "لجنة" };
+    if (matchedComm && matchedComm.name !== "لجنة" && !canUserEditCommittee(matchedComm.name)) { alert("غير مصرح لك بإضافة أعضاء لهذه اللجنة"); return; }
 
     if (!canUserEditCommittee(matchedComm.name)) {
       setFormError("عذراً، لا تملك الصلاحية لإضافة أو تعديل عضو في هذه اللجنة. يمكنك فقط إدارة لجانك المكلف بها.");
@@ -1419,7 +1420,7 @@ export default function CommitteesMembers() {
                     className="w-full h-10 px-2 bg-gray-50 border border-gray-250 rounded-xl text-xs font-extrabold text-right focus:bg-white focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all cursor-pointer"
                   >
                     <option value={0}>يرجى اختيار اللجنة</option>
-                    {allCommittees.map((c) => (
+                    {allCommittees.filter(c => canUserEditCommittee(c.name)).map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
