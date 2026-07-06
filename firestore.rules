@@ -57,6 +57,9 @@ service cloud.firestore {
     match /approved_emails/{id} {
       allow read, write: if isVerifiedUser();
     }
+    match /delegations/{id} {
+      allow read, write: if isVerifiedUser();
+    }
     
     match /assistant_sec_gen_events/{id} {
       allow read, write: if isVerifiedUser();

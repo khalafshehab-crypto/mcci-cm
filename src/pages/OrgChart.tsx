@@ -229,6 +229,7 @@ export default function OrgChart() {
   const { data: dbReports, deleteDocument: deleteFirebaseReport } = useFirestoreCollection<any>("reports", []);
   const { data: dbKpis, deleteDocument: deleteFirebaseKpi } = useFirestoreCollection<any>("kpis", []);
   const { data: dbTemplates, deleteDocument: deleteFirebaseTemplate } = useFirestoreCollection<any>("templates", []);
+  const { data: dbDelegations, addDocument: addFirebaseDelegation, updateDocument: updateFirebaseDelegation } = useFirestoreCollection<any>("delegations", []);
 
   useEffect(() => {
     if (dbEmployees && dbEmployees.length > 0) {
@@ -1026,6 +1027,88 @@ export default function OrgChart() {
     } catch (error) { }
   };
 
+  const sourceEmpStats = React.useMemo(() => {
+    if (!sourceEmpId) return { committees: 0, tasks: 0, events: 0 };
+    const sourceEmp = dbEmployees.find(emp => emp.id === sourceEmpId);
+    const comms = dbCommittees.filter(c => c.specialistId === sourceEmpId || (sourceEmp && c.specialistName === sourceEmp.name)).length;
+    const tasks = dbTasks.filter(t => t.assignedToId === sourceEmpId || (sourceEmp && t.assignedTo === sourceEmp.name)).length;
+    const events = dbEvents.filter(ev => ev.employeeId === sourceEmpId || ev.specialistId === sourceEmpId || (sourceEmp && ev.specialistName === sourceEmp.name)).length;
+    return { committees: comms, tasks: tasks, events: events };
+  }, [sourceEmpId, dbCommittees, dbTasks, dbEvents, dbEmployees]);
+
+  React.useEffect(() => {
+    if (sourceEmpStats) {
+      setTransferCommittees(sourceEmpStats.committees > 0);
+      setTransferTasks(sourceEmpStats.tasks > 0);
+      setTransferEvents(sourceEmpStats.events > 0);
+    }
+  }, [sourceEmpStats]);
+
+
+
+  const handleEndDelegation = async (delId: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "تأكيد إنهاء التكليف",
+      message: "هل أنت متأكد من إنهاء فترة التكليف وإرجاع المهام للموظف الأساسي؟",
+      confirmText: "تأكيد وإنهاء",
+      cancelText: "إلغاء",
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        try {
+          const del = dbDelegations.find((d: any) => d.id === delId);
+          if (!del) return;
+
+          const sourceEmp = dbEmployees.find((e: any) => e.id === del.sourceEmpId);
+          const targetEmp = dbEmployees.find((e: any) => e.id === del.targetEmpId);
+
+          if (sourceEmp && targetEmp) {
+            const noteStr = `
+
+[تم إنهاء التكليف وإرجاع الأعمال من الموظف ${targetEmp.name} إلى ${sourceEmp.name}]`;
+            
+            if (del.transferCommittees) {
+              const matchingComms = dbCommittees.filter((c: any) => c.specialistId === targetEmp.id);
+              for (const c of matchingComms) {
+                const newDesc = c.desc ? c.desc + noteStr : noteStr;
+                await updateFirebaseComm(c.id, { specialistId: sourceEmp.id, specialistName: sourceEmp.name, desc: newDesc });
+              }
+              const sourceComms = sourceEmp.committees || [];
+              await updateFirebaseEmp(sourceEmp.id, { committees: Array.from(new Set([...sourceComms, ...matchingComms.map((c: any) => c.name)])) });
+            }
+
+            if (del.transferTasks) {
+              const matchingTasks = dbTasks.filter((t: any) => (t.assignedToId === targetEmp.id || t.assignedTo === targetEmp.name));
+              for (const t of matchingTasks) {
+                const newNotes = t.additionalNotes ? t.additionalNotes + noteStr : noteStr;
+                await updateFirebaseTask(t.id, { assignedToId: sourceEmp.id, assignedTo: sourceEmp.name, assignedToName: sourceEmp.name, additionalNotes: newNotes });
+              }
+            }
+
+            if (del.transferEvents) {
+              const matchingEvents = dbEvents.filter((ev: any) => (ev.employeeId === targetEmp.id || ev.specialistId === targetEmp.id));
+              for (const ev of matchingEvents) {
+                const updateObj: any = {};
+                if (ev.employeeId === targetEmp.id) updateObj.employeeId = sourceEmp.id;
+                if (ev.specialistId === targetEmp.id) { updateObj.specialistId = sourceEmp.id; updateObj.specialistName = sourceEmp.name; }
+                await updateFirebaseEvent(ev.id, updateObj);
+              }
+            }
+          }
+
+          await updateFirebaseDelegation(delId, { status: "ended", endTimestamp: new Date().toISOString() });
+          setTransferSuccess("تم إنهاء التكليف بنجاح واسترجاع الأعمال.");
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          setTimeout(() => setTransferSuccess(""), 4000);
+        } catch (e: any) {
+          console.error("Failed to end delegation", e);
+          setTransferError("حدث خطأ أثناء إنهاء التكليف: " + e.message);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }
+    });
+  };
+
   const handleTransferDuties = async (e: React.FormEvent) => {
     e.preventDefault();
     setTransferSuccess("");
@@ -1089,6 +1172,23 @@ export default function OrgChart() {
         const updatedAllowed = Array.from(new Set([...currentTargetAllowed, ...sourceAllowed]));
         await updateFirebaseEmp(targetEmpId, { allowedPages: updatedAllowed });
       }
+
+      // Record delegation in db
+      await addFirebaseDelegation({
+        sourceEmpId,
+        sourceEmpName: sourceEmp.name,
+        targetEmpId,
+        targetEmpName: targetEmp.name,
+        transferMode,
+        delegationEndDate: transferMode === "delegation" ? delegationEndDate : "",
+        transferCommittees,
+        transferTasks,
+        transferEvents,
+        delegatePermissions: transferMode === "delegation" ? delegatePermissions : false,
+        timestamp: new Date().toISOString(),
+        status: "active"
+      });
+
 
       setTransferSuccess(transferMode === "full" ? `تمت عملية تفويض ونقل الأعمال بالكامل بنجاح.` : `تم تكليف المهام والصلاحيات بنجاح حتى ${delegationEndDate}.`);
       setSourceEmpId("");
@@ -1904,16 +2004,16 @@ export default function OrgChart() {
                 <span className="block text-xs font-black text-gray-800">العناصر المشمولة بالنقل:</span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-1">
                   <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
-                    <input type="checkbox" checked={transferCommittees} onChange={(e) => setTransferCommittees(e.target.checked)} className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4" />
-                    <span>اللجان القطاعية</span>
+                    <input type="checkbox" disabled={sourceEmpStats.committees === 0} checked={transferCommittees} onChange={(e) => setTransferCommittees(e.target.checked)} className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4" />
+                    <span>اللجان القطاعية ({sourceEmpStats.committees})</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
-                    <input type="checkbox" checked={transferTasks} onChange={(e) => setTransferTasks(e.target.checked)} className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4" />
-                    <span>المهام الإدارية</span>
+                    <input type="checkbox" disabled={sourceEmpStats.tasks === 0} checked={transferTasks} onChange={(e) => setTransferTasks(e.target.checked)} className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4" />
+                    <span>المهام الإدارية ({sourceEmpStats.tasks})</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
-                    <input type="checkbox" checked={transferEvents} onChange={(e) => setTransferEvents(e.target.checked)} className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4" />
-                    <span>الفعاليات</span>
+                    <input type="checkbox" disabled={sourceEmpStats.events === 0} checked={transferEvents} onChange={(e) => setTransferEvents(e.target.checked)} className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4" />
+                    <span>الفعاليات ({sourceEmpStats.events})</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
                     <input type="checkbox" checked={transferRecs} onChange={(e) => setTransferRecs(e.target.checked)} className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4" />
@@ -1927,7 +2027,69 @@ export default function OrgChart() {
                 </button>
               </div>
             </form>
+            
+            {dbDelegations && dbDelegations.length > 0 && (
+              <div className="mt-8 border-t border-gray-200 pt-6">
+                <h3 className="text-sm font-black text-gray-900 flex items-center gap-2 mb-4">
+                  <FileText className="w-4 h-4 text-blue-500" />
+                  <span>سجل عمليات النقل والتكليف</span>
+                </h3>
+                <div className="overflow-x-auto border border-gray-200 rounded-xl">
+                  <table className="w-full text-right text-xs">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="px-4 py-3 font-extrabold text-gray-500">التاريخ</th>
+                        <th className="px-4 py-3 font-extrabold text-gray-500">النوع</th>
+                        <th className="px-4 py-3 font-extrabold text-gray-500">المصدر</th>
+                        <th className="px-4 py-3 font-extrabold text-gray-500">المستهدف</th>
+                        <th className="px-4 py-3 font-extrabold text-gray-500">التفاصيل</th>
+                        <th className="px-4 py-3 font-extrabold text-gray-500">الحالة</th>
+                        <th className="px-4 py-3 font-extrabold text-gray-500">إجراء</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {dbDelegations.slice().sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).map((del: any) => (
+                        <tr key={del.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-gray-600 font-mono" dir="ltr">{new Date(del.timestamp).toLocaleDateString('en-GB')}</td>
+                          <td className="px-4 py-3 font-bold text-gray-900">{del.transferMode === "full" ? "نقل دائم" : "تكليف مؤقت"}</td>
+                          <td className="px-4 py-3 font-bold text-red-700">{del.sourceEmpName}</td>
+                          <td className="px-4 py-3 font-bold text-emerald-700">{del.targetEmpName}</td>
+                          <td className="px-4 py-3 text-gray-500">
+                            {[
+                              del.transferCommittees ? "لجان" : "",
+                              del.transferTasks ? "مهام" : "",
+                              del.transferEvents ? "فعاليات" : ""
+                            ].filter(Boolean).join("، ")}
+                          </td>
+                          <td className="px-4 py-3">
+                            {del.transferMode === "full" ? (
+                              <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-md text-[10px] font-black">مكتمل</span>
+                            ) : del.status === "ended" ? (
+                              <span className="px-2 py-1 bg-red-50 text-red-600 rounded-md text-[10px] font-black">منتهي</span>
+                            ) : (
+                              <span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded-md text-[10px] font-black">نشط حتى {del.delegationEndDate}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {del.transferMode === "delegation" && del.status !== "ended" && (
+                              <button
+                                type="button"
+                                onClick={() => handleEndDelegation(del.id)}
+                                className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-[10px] font-black transition-colors"
+                              >
+                                إنهاء التكليف
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
+
         )}
 
         {/* TAB: APPROVALS */}
