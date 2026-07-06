@@ -818,6 +818,7 @@ export default function CommitteesFormation() {
                 <div className="absolute top-4 left-4 z-20">
                   <button
                     onClick={() => setActiveGearMenuId(activeGearMenuId === comm.id ? null : comm.id)}
+                    style={{ display: canUserEditCommittee(comm.name) ? 'flex' : 'none' }}
                     className="p-1.5 bg-white/80 hover:bg-white text-gray-600 hover:text-gray-950 rounded-lg border border-gray-200/80 shadow-sm transition-all cursor-pointer"
                     title="التحكم باللجنة"
                   >
@@ -1049,6 +1050,7 @@ export default function CommitteesFormation() {
                       <div className="flex items-center justify-center gap-1.5 relative dropdown-container">
                         <button
                           onClick={() => setActiveGearMenuId(activeGearMenuId === comm.id ? null : comm.id)}
+                    style={{ display: canUserEditCommittee(comm.name) ? 'flex' : 'none' }}
                           className="p-1.5 hover:bg-gray-150 text-gray-650 hover:text-gray-900 rounded-lg border border-transparent hover:border-gray-350 transition-all cursor-pointer"
                           title="الإجراءات"
                         >

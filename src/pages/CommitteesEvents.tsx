@@ -500,7 +500,8 @@ ${formattedItems}
   useEffect(() => {
     if (isSeqManuallyEdited) return; // skip auto-calculating if user manually changed it
     if (newType === "مفردة" && newCommitteeId > 0) {
-      const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
+      if (!newCommitteeId || newCommitteeId === 0) { alert("يرجى اختيار اللجنة أولاً"); return; }
+    const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
     if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات لهذه اللجنة"); return; }
       const classifStr = singleClassification === "دوري" ? "الدوري" : singleClassification === "استثنائي" ? "الاستثنائي" : singleClassification === "طارئ" ? "الطارئ" : singleClassification === "فريق عمل" ? "فريق العمل" : singleClassification;
       const formattedCommName = commName ? formatCommitteeNameArabic(commName) : "";
@@ -513,7 +514,8 @@ ${formattedItems}
   useEffect(() => {
     if (isTitleManuallyEdited) return;
     if (newType === "مفردة") {
-      const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
+      if (!newCommitteeId || newCommitteeId === 0) { alert("يرجى اختيار اللجنة أولاً"); return; }
+    const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
     if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات لهذه اللجنة"); return; }
       const classifStr = singleClassification === "دوري" ? "الدوري" : singleClassification === "استثنائي" ? "الاستثنائي" : singleClassification === "طارئ" ? "الطارئ" : singleClassification === "فريق عمل" ? "فريق العمل" : singleClassification;
       const formattedCommName = commName ? formatCommitteeNameArabic(commName) : "";
@@ -732,6 +734,7 @@ ${formattedItems}
     const targetWeek = WEEKSMap[seriesWeekOfMonth];
     
     const results: {id: number, date: string, title: string, time: string}[] = [];
+    if (!newCommitteeId || newCommitteeId === 0) { alert("يرجى اختيار اللجنة أولاً"); return; }
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
     if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات لهذه اللجنة"); return; }
     const classifStr = seriesClassification === "دوري" ? "الدوري" : seriesClassification === "استثنائي" ? "الاستثنائي" : seriesClassification === "طارئ" ? "الطارئ" : seriesClassification === "فريق عمل" ? "فريق العمل" : seriesClassification;
@@ -790,6 +793,7 @@ ${formattedItems}
   };
 
   const handleInsertSeries = () => {
+    if (!newCommitteeId || newCommitteeId === 0) { alert("يرجى اختيار اللجنة أولاً"); return; }
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
     if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات لهذه اللجنة"); return; }
     const selectedGen = generatedSchedules.filter(s => selectedSchedules.includes(s.id));
@@ -839,6 +843,7 @@ ${formattedItems}
 
     if (!newTitle.trim() || !newDate || !newCommitteeId || !singleTime) return;
 
+    if (!newCommitteeId || newCommitteeId === 0) { alert("يرجى اختيار اللجنة أولاً"); return; }
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
     if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات لهذه اللجنة"); return; }
 
@@ -1495,6 +1500,7 @@ ${formattedItems}
                           <div className="absolute top-4 left-4 z-20">
                             <button
                               onClick={() => setActiveGearMenuId(activeGearMenuId === evt.id ? null : evt.id)}
+                              style={{ display: canUserEditCommittee(evt.committeeName) ? 'flex' : 'none' }}
                               className="p-1.5 bg-white/80 hover:bg-white text-gray-600 hover:text-gray-950 rounded-lg border border-gray-200/80 shadow-sm transition-all cursor-pointer"
                               title="التحكم بالفعالية"
                             >
@@ -1776,6 +1782,7 @@ ${formattedItems}
                           <div className="flex items-center justify-center gap-1.5 relative dropdown-container">
                             <button
                               onClick={() => setActiveGearMenuId(activeGearMenuId === evt.id ? null : evt.id)}
+                              style={{ display: canUserEditCommittee(evt.committeeName) ? 'flex' : 'none' }}
                               className="p-1.5 hover:bg-gray-150 text-gray-650 hover:text-gray-900 rounded-lg border border-transparent hover:border-gray-350 transition-all cursor-pointer"
                               title="الإجراءات"
                             >
@@ -3080,7 +3087,12 @@ ${formattedItems}
                             <label className="text-[11px] font-black text-gray-500 block">النوع *</label>
                             <select
                               value={singleKind}
-                              onChange={(e) => setSingleKind(e.target.value)}
+                              onChange={(e) => {
+                                setSingleKind(e.target.value);
+                                if (e.target.value !== "اجتماع") {
+                                  setSingleClassification("");
+                                }
+                              }}
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value="" disabled>اختر نوع الفعالية</option>
@@ -3092,7 +3104,8 @@ ${formattedItems}
                             <select
                               value={singleClassification}
                               onChange={(e) => setSingleClassification(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              disabled={singleKind !== "اجتماع"}
+                              className={`w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand ${singleKind !== "اجتماع" ? "opacity-50 cursor-not-allowed" : ""}`}
                             >
                               <option value="">اختر نوع التصنيف</option>
                               {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c}</option>)}
@@ -3181,7 +3194,12 @@ ${formattedItems}
                             <label className="text-[11px] font-black text-gray-500 block">النوع *</label>
                             <select
                               value={seriesKind}
-                              onChange={(e) => setSeriesKind(e.target.value)}
+                              onChange={(e) => {
+                                setSeriesKind(e.target.value);
+                                if (e.target.value !== "اجتماع") {
+                                  setSeriesClassification("");
+                                }
+                              }}
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value="" disabled>اختر نوع الفعالية</option>
@@ -3194,7 +3212,8 @@ ${formattedItems}
                             <select
                               value={seriesClassification}
                               onChange={(e) => setSeriesClassification(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              disabled={seriesKind !== "اجتماع"}
+                              className={`w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand ${seriesKind !== "اجتماع" ? "opacity-50 cursor-not-allowed" : ""}`}
                             >
                               <option value="">اختر نوع التصنيف</option>
                               {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c}</option>)}

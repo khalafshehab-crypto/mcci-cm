@@ -1006,6 +1006,7 @@ export default function CommitteesMembers() {
                 <div className="relative dropdown-container">
                   <button
                     onClick={() => setActiveGearMenuId(activeGearMenuId === m.id ? null : m.id)}
+                    style={{ display: canUserEditCommittee(m.committeeName) ? 'flex' : 'none' }}
                     className="p-1.5 hover:bg-white text-gray-650 hover:text-gray-900 rounded-lg border border-transparent hover:border-gray-300 transition-all cursor-pointer"
                     title="التحكم بالإجراءات"
                   >
@@ -1223,6 +1224,7 @@ export default function CommitteesMembers() {
                       <div className="flex items-center justify-center gap-1.5 relative dropdown-container">
                         <button
                           onClick={() => setActiveGearMenuId(activeGearMenuId === m.id ? null : m.id)}
+                    style={{ display: canUserEditCommittee(m.committeeName) ? 'flex' : 'none' }}
                           className="p-1.5 hover:bg-gray-150 text-gray-650 hover:text-gray-900 rounded-lg border border-transparent hover:border-gray-350 transition-all cursor-pointer"
                           title="الإجراءات"
                         >

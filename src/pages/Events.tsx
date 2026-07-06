@@ -3074,7 +3074,12 @@ ${formattedItems}
                             <label className="text-[11px] font-black text-gray-500 block">النوع *</label>
                             <select
                               value={singleKind}
-                              onChange={(e) => setSingleKind(e.target.value)}
+                              onChange={(e) => {
+                                setSingleKind(e.target.value);
+                                if (e.target.value !== "اجتماع") {
+                                  setSingleClassification("");
+                                }
+                              }}
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value="" disabled>اختر نوع الفعالية</option>
@@ -3086,7 +3091,8 @@ ${formattedItems}
                             <select
                               value={singleClassification}
                               onChange={(e) => setSingleClassification(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              disabled={singleKind !== "اجتماع"}
+                              className={`w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand ${singleKind !== "اجتماع" ? "opacity-50 cursor-not-allowed" : ""}`}
                             >
                               <option value="">اختر نوع التصنيف</option>
                               {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c}</option>)}
@@ -3175,7 +3181,12 @@ ${formattedItems}
                             <label className="text-[11px] font-black text-gray-500 block">النوع *</label>
                             <select
                               value={seriesKind}
-                              onChange={(e) => setSeriesKind(e.target.value)}
+                              onChange={(e) => {
+                                setSeriesKind(e.target.value);
+                                if (e.target.value !== "اجتماع") {
+                                  setSeriesClassification("");
+                                }
+                              }}
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value="" disabled>اختر نوع الفعالية</option>
@@ -3188,7 +3199,8 @@ ${formattedItems}
                             <select
                               value={seriesClassification}
                               onChange={(e) => setSeriesClassification(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              disabled={seriesKind !== "اجتماع"}
+                              className={`w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand ${seriesKind !== "اجتماع" ? "opacity-50 cursor-not-allowed" : ""}`}
                             >
                               <option value="">اختر نوع التصنيف</option>
                               {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c}</option>)}
