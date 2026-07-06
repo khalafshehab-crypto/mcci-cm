@@ -1366,7 +1366,7 @@ ${formattedItems}
               })()}
             </div>
           ) : /* Level 3: Classifications inside selected Event Kind & Committee */
-          selectedClassificationForCards === null ? (
+          selectedClassificationForCards === null && selectedEventKindForCards === "اجتماع" ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-black text-gray-800">
@@ -1439,19 +1439,37 @@ ${formattedItems}
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-black text-gray-800">
-                    قائمة الفعاليات الـ (<span className="text-emerald-600">{selectedClassificationForCards}</span>) من نوع (
-                    <span className="text-blue-600">{selectedEventKindForCards}</span>) لـ (
-                    <span className="text-brand">
-                      {rawCommittees.find((c) => c.id === selectedCommIdForCards)?.name}
-                    </span>
-                    )
+                    {selectedEventKindForCards === "اجتماع" ? (
+                      <>
+                        قائمة الفعاليات الـ (<span className="text-emerald-600">{selectedClassificationForCards}</span>) من نوع (
+                        <span className="text-blue-600">{selectedEventKindForCards}</span>) لـ (
+                        <span className="text-brand">
+                          {rawCommittees.find((c) => c.id === selectedCommIdForCards)?.name}
+                        </span>
+                        )
+                      </>
+                    ) : (
+                      <>
+                        قائمة فعاليات نوع (<span className="text-blue-600">{selectedEventKindForCards}</span>) لـ (
+                        <span className="text-brand">
+                          {rawCommittees.find((c) => c.id === selectedCommIdForCards)?.name}
+                        </span>
+                        )
+                      </>
+                    )}
                   </h3>
                 </div>
                 <button
-                  onClick={() => setSelectedClassificationForCards(null)}
+                  onClick={() => {
+                    if (selectedEventKindForCards !== "اجتماع") {
+                      setSelectedEventKindForCards(null);
+                    } else {
+                      setSelectedClassificationForCards(null);
+                    }
+                  }}
                   className="text-xs text-brand font-black hover:underline"
                 >
-                  الرجوع خطوة للأعلى (الفرز والتصنيفات) ↑
+                  {selectedEventKindForCards !== "اجتماع" ? "الرجوع خطوة للأعلى (عناوين أنواع الفعاليات) ↑" : "الرجوع خطوة للأعلى (الفرز والتصنيفات) ↑"}
                 </button>
               </div>
 
@@ -1460,7 +1478,7 @@ ${formattedItems}
                   (e) =>
                     e.committeeId === selectedCommIdForCards &&
                     getEventKindStr(e.title) === selectedEventKindForCards &&
-                    getEventClassification(e.title) === selectedClassificationForCards
+                    (selectedEventKindForCards !== "اجتماع" || getEventClassification(e.title) === selectedClassificationForCards)
                 );
 
                 if (finalList.length === 0) {
