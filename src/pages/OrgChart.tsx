@@ -509,7 +509,7 @@ export default function OrgChart() {
   const handleRemoveCommitteeFromEmployee = async (committeeName: string) => {
     if (!selectedEmployee) return;
     const currentComms = selectedEmployee.committees || [];
-    const updatedComms = currentComms.filter(c => c !== committeeName);
+    const updatedComms = Array.from(new Set(currentComms.filter(c => c !== committeeName && dbCommittees.some((dc: any) => dc.name === c))));
     
     try {
       await updateFirebaseEmp(selectedEmployee.id, { committees: updatedComms });
@@ -991,7 +991,13 @@ export default function OrgChart() {
     setFormActive(emp.active !== false);
     setFormLoginEnabled(emp.loginEnabled !== false);
     setFormPassword(emp.password || "");
-    setFormCommittees(emp.committees || []);
+    
+    // Filter to only existing committees to prevent duplicates/dangling ones from persisting
+    const validCommittees = Array.from(new Set(
+      (emp.committees || []).filter(c => dbCommittees.some((dc: any) => dc.name === c))
+    ));
+    setFormCommittees(validCommittees);
+    
     setFormAllowedPages(emp.allowedPages || []);
     setFormGender((emp as any).gender || "MALE");
     setIsEditing(true);
@@ -1266,11 +1272,16 @@ export default function OrgChart() {
     
     parts.push(calculateDisplayJobTitle(emp));
 
+    let validCount = 0;
     if (emp.committees && emp.committees.length > 0) {
-      parts.push(...emp.committees);
+      const validCommittees = Array.from(new Set(
+        emp.committees.filter(c => dbCommittees.some((dbComm: any) => dbComm.name === c))
+      ));
+      parts.push(...validCommittees);
+      validCount = validCommittees.length;
     }
     
-    return parts;
+    return { parts, validCount };
   };
 
   const renderEmployeesForNode = (employees: Employee[]) => {
@@ -1581,10 +1592,10 @@ export default function OrgChart() {
                               الارتباط بالهيكل:
                             </span>
                             <div className="flex flex-wrap items-center gap-1 text-[9px] font-bold text-gray-600 bg-white p-2 rounded-lg border border-gray-100 shadow-inner">
-                              {path.length > 0 ? path.map((level, index, array) => (
+                              {path.parts.length > 0 ? path.parts.map((level, index, array) => (
                                 <div key={index} className="flex items-center gap-1">
                                   <span className={`px-1.5 py-0.5 rounded ${
-                                    index >= array.length - 1 - (emp.committees?.length || 0) ? "bg-brand text-white" : "bg-gray-50 border border-gray-200"
+                                    index >= array.length - path.validCount ? "bg-brand text-white" : "bg-gray-50 border border-gray-200"
                                   }`}>
                                     {level}
                                   </span>
@@ -1595,10 +1606,8 @@ export default function OrgChart() {
                               )}
                             </div>
                           </div>
-
                         </div>
                       </div>
-
                       <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-end gap-1.5">
                         {(currentUserRole === "SYS_ADMIN" || currentUserRole === "MANAG_DIR" || currentUserRole === "DEPT_HEAD" || isSelf) && (
                           <button
@@ -1656,7 +1665,7 @@ export default function OrgChart() {
                             </td>
                             <td className="p-4">
                               <span className="text-[9px] text-gray-500 mt-1 block">
-                                {path.length > 0 ? path.join(" ← ") : "غير مسكن"}
+                                {path.parts.length > 0 ? path.parts.join(" ← ") : "غير مسكن"}
                               </span>
                             </td>
                             <td className="p-4 font-mono text-gray-600">{emp.email}</td>
@@ -2737,7 +2746,7 @@ export default function OrgChart() {
               <button onClick={() => setSelectedEmployee(null)} className="absolute top-4 left-4 text-gray-400"><X className="w-5 h-5" /></button>
               <h3 className="font-extrabold text-sm mb-2">اللجان المربوطة بـ: {selectedEmployee.name}</h3>
               <div className="space-y-2 mt-4 max-h-60 overflow-y-auto">
-                {selectedEmployee.committees.length === 0 ? <span className="text-gray-400 text-xs">لا يوجد.</span> : selectedEmployee.committees.map((comName, idx) => (
+                {Array.from(new Set(selectedEmployee.committees.filter(c => dbCommittees.some((dc: any) => dc.name === c)))).length === 0 ? <span className="text-gray-400 text-xs">لا يوجد.</span> : Array.from(new Set(selectedEmployee.committees.filter(c => dbCommittees.some((dc: any) => dc.name === c)))).map((comName, idx) => (
                   <div key={idx} className="p-2.5 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between text-xs">
                     <span className="font-bold text-gray-800">{comName}</span>
                     {currentUserRole === "SYS_ADMIN" && (

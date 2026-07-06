@@ -1,0 +1,91 @@
+            ) : viewMode === "grid" ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <AnimatePresence mode="popLayout">
+                  {filteredEmployees.map((emp) => {
+                    const isSelf = emp.id === currentUser?.id;
+                    const path = getHierarchyPath(emp);
+
+                    return (
+                      <motion.div
+                        key={emp.id}
+                        layout
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.3 }}
+                        className={`bg-[#e8e4e4] hover:bg-[#e2dede] transition-colors duration-300 rounded-2xl p-5 border shadow-sm flex flex-col justify-between relative overflow-hidden group ${
+                          isSelf ? "ring-2 ring-brand ring-offset-2 border-brand/40" : "border-gray-200"
+                        } ${emp.active === false ? "opacity-50 grayscale-[30%] border-gray-300" : ""}`}
+                      >
+                      <div>
+                        <div className="absolute top-4 left-4 flex items-center gap-1.5">
+                          {emp.active !== false ? (
+                            <span className="flex items-center gap-1 bg-emerald-50 text-emerald-600 text-[9px] px-1.5 py-0.5 rounded-full border border-emerald-200 font-bold">
+                              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>
+                              <span>متصل الآن</span>
+                            </span>
+                          ) : (
+                            <span className="bg-red-50 text-red-500 text-[9px] px-1.5 py-0.5 rounded-full border border-red-100 font-bold">
+                              معطل
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-3.5 mb-4">
+                          <img
+                            src={emp.photo || PRESET_AVATARS[0]}
+                            alt={emp.name}
+                            className="w-14 h-14 rounded-2xl object-crop ring-2 ring-gray-100 bg-gray-50"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div>
+                            <h3 className="font-extrabold text-sm text-gray-900 leading-snug flex items-center gap-1">
+                              <span>{getEmployeePrefix(emp)} {emp.name}</span>
+                              {isSelf && <span className="text-[10px] text-brand bg-brand/10 px-1 py-0.5 rounded font-black">(أنت)</span>}
+                            </h3>
+                            <p className="text-gray-500 text-[10px] font-bold mt-0.5">{calculateDisplayJobTitle(emp) || emp.roleAr}</p>
+                            <span className="inline-block text-[9px] font-black px-2 py-0.5 mt-2 rounded-md bg-white border border-gray-200 text-gray-700">
+                              {emp.roleAr}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 border-t border-gray-100 pt-3 text-[11px] text-gray-600 font-semibold">
+                          <div className="flex items-center gap-2">
+                            <Lock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="text-gray-400">الرقم:</span>
+                            <span className="font-mono font-black text-gray-800">{emp.id}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Mail className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="text-gray-400">البريد:</span>
+                            <span className="text-gray-800 truncate">{emp.email}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="text-gray-400">الجوال:</span>
+                            <span className="font-mono text-gray-800">{emp.phone} {emp.extension && <span className="text-brand">(تحويلة: {emp.extension})</span>}</span>
+                          </div>
+
+                          <div className="mt-3 pt-3 border-t border-gray-100">
+                            <span className="text-[10px] font-black text-gray-800 flex items-center gap-1.5 mb-2">
+                              <Building2 className="w-3.5 h-3.5 text-brand" />
+                              الارتباط بالهيكل:
+                            </span>
+                            <div className="flex flex-wrap items-center gap-1 text-[9px] font-bold text-gray-600 bg-white p-2 rounded-lg border border-gray-100 shadow-inner">
+                              {path.length > 0 ? path.map((level, index, array) => (
+                                <div key={index} className="flex items-center gap-1">
+                                  <span className={`px-1.5 py-0.5 rounded ${
+                                    index >= array.length - 1 - (emp.committees?.length || 0) ? "bg-brand text-white" : "bg-gray-50 border border-gray-200"
+                                  }`}>
+                                    {level}
+                                  </span>
+                                  {index < array.length - 1 && <ChevronDown className="w-2.5 h-2.5 text-gray-400 rotate-90" />}
+                                </div>
+                              )) : (
+                                <span className="text-gray-400">غير مسكن في الهيكل</span>
+                              )}
+                            </div>
+                          </div>
+
+                        </div>

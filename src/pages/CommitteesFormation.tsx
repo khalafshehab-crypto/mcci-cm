@@ -46,6 +46,7 @@ const EMPLOYEES = [
 ];
 
 import { useFirestoreCollection } from '../lib/firebaseUtils';
+import { cascadeCommitteeRename } from '../lib/cascadeUpdates';
 
 export default function CommitteesFormation() {
   const { data: dbCommittees, updateDocument: updateFirebaseComm, deleteDocument: deleteFirebaseComm } = useFirestoreCollection<Committee>("committees", []);
@@ -495,7 +496,7 @@ export default function CommitteesFormation() {
     setActiveGearMenuId(null);
   };
 
-  const handleFormSubmit = (e: FormEvent) => {
+  const handleFormSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       setNewMtgError("يرجى إدخال اسم اللجنة بالكامل");
@@ -511,6 +512,10 @@ export default function CommitteesFormation() {
     }
 
     if (editingComm) {
+      const oldName = editingComm.name;
+      const newName = name.trim();
+      const nameChanged = oldName !== newName;
+
       // Modify
       setCommittees(prev => prev.map(c => {
         if (c.id === editingComm.id) {
@@ -532,6 +537,10 @@ export default function CommitteesFormation() {
         }
         return c;
       }));
+
+      if (nameChanged) {
+        await cascadeCommitteeRename(oldName, newName);
+      }
     } else {
       // Add
       const newComm: Committee = {
