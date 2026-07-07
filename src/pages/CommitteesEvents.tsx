@@ -115,7 +115,7 @@ const exportRecommendationsToLocalStorage = async (evt: EventItem, selectedAgend
       const recId = `custom-rec-${evt.id}-${rec.id || index}`;
       return {
         id: recId,
-        title: rec.title,
+        title: evt.title,
         description: rec.recommendation || "",
         committeeName: evt.committeeName || "لجنة الإعلام والتسويق",
         eventName: evt.title || "مصدرة من جدول أعمال الفعاليات",
@@ -504,7 +504,7 @@ ${formattedItems}
     if (commName && !canUserEditCommittee(commName)) { return; }
       const classifStr = singleClassification === "دوري" ? "الدوري" : singleClassification === "استثنائي" ? "الاستثنائي" : singleClassification === "طارئ" ? "الطارئ" : singleClassification === "فريق عمل" ? "فريق العمل" : singleClassification;
       const formattedCommName = commName ? formatCommitteeNameArabic(commName) : "";
-      const prefixToMatch = `${singleKind} ${formattedCommName} ${classifStr}`.trim();
+      const prefixToMatch = (singleKind === "اجتماع" ? `${singleKind} ${formattedCommName} ${classifStr}` : `${singleKind} ${formattedCommName}`).trim();
       const count = events.filter(e => e.committeeId === newCommitteeId && e.title.startsWith(prefixToMatch)).length;
       setSingleEventNumber(getArabicOrdinal(count + 1));
     }
@@ -518,7 +518,7 @@ ${formattedItems}
       const classifStr = singleClassification === "دوري" ? "الدوري" : singleClassification === "استثنائي" ? "الاستثنائي" : singleClassification === "طارئ" ? "الطارئ" : singleClassification === "فريق عمل" ? "فريق العمل" : singleClassification;
       const formattedCommName = commName ? formatCommitteeNameArabic(commName) : "";
       const numWord = getArabicOrdinal(singleEventNumber);
-      let autoTitle = `${singleKind} ${formattedCommName} ${classifStr} ${numWord}`.trim();
+      let autoTitle = (singleKind === "اجتماع" ? `${singleKind} ${formattedCommName} ${classifStr} ${numWord}` : `${singleKind} ${formattedCommName} ${numWord}`).trim();
       if (singleKind === "اجتماع" && singleClassification === "دوري" && numWord === "الأول") {
         autoTitle += " (التأسيسي)";
       }
@@ -576,6 +576,9 @@ ${formattedItems}
   };
 
   const filteredEvents = events.filter((e) => {
+    // Hide recommendation pseudo-events
+    if (e.recommendationClassification) return false;
+
     const term = filterQuery.trim().toLowerCase();
     if (!term) return true;
     return (
@@ -737,7 +740,7 @@ ${formattedItems}
     if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات لهذه اللجنة"); return; }
     const classifStr = seriesClassification === "دوري" ? "الدوري" : seriesClassification === "استثنائي" ? "الاستثنائي" : seriesClassification === "طارئ" ? "الطارئ" : seriesClassification === "فريق عمل" ? "فريق العمل" : seriesClassification;
     const formattedCommName = commName ? formatCommitteeNameArabic(commName) : "";
-    const prefixToMatch = `${seriesKind} ${formattedCommName} ${classifStr}`.trim();
+    const prefixToMatch = (seriesKind === "اجتماع" ? `${seriesKind} ${formattedCommName} ${classifStr}` : `${seriesKind} ${formattedCommName}`).trim();
     let existingCount = events.filter(e => e.committeeId === newCommitteeId && e.title.startsWith(prefixToMatch)).length;
     
     const current = new Date(start);

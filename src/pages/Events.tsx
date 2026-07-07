@@ -573,6 +573,9 @@ ${formattedItems}
   };
 
   const filteredEvents = events.filter((e) => {
+    // Hide recommendation pseudo-events
+    if (e.recommendationClassification) return false;
+
     const term = filterQuery.trim().toLowerCase();
     if (!term) return true;
     return (

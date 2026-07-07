@@ -147,8 +147,8 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
               if (!active) return;
               hasLoaded = true;
               const docs = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
+                ...doc.data(),
+                id: doc.id
               })) as T[];
               setData(docs);
               setLoading(false);
@@ -239,7 +239,7 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
   const addDocument = async (item: Omit<T, 'id'>) => {
     const list = getLocalCollection(collectionName);
     const newId = `${collectionName.substring(0, 4)}_${Math.random().toString(36).substring(2, 11)}`;
-    const localItem = { id: newId, ...item } as unknown as T;
+    const localItem = { ...item, id: newId } as unknown as T;
     list.push(localItem);
     saveLocalCollection(collectionName, list);
 
@@ -314,9 +314,9 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
     const list = getLocalCollection(collectionName);
     const index = list.findIndex(x => String(x.id) === String(id));
     if (index >= 0) {
-      list[index] = { id, ...item } as any;
+      list[index] = { ...item, id } as any;
     } else {
-      list.push({ id, ...item } as any);
+      list.push({ ...item, id } as any);
     }
     saveLocalCollection(collectionName, list);
 

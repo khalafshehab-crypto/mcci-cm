@@ -111,7 +111,7 @@ export default function AssistantSecGenEvents() {
 
   // Build combined events for import
   const allImportableEvents = [
-    ...committeesEvents.map(e => ({ ...e, source: "إدارة اللجان" })),
+    ...committeesEvents.filter(e => !e.recommendationClassification).map(e => ({ ...e, source: "إدارة اللجان" })),
     ...centersEvents.map(e => ({ ...e, source: "إدارة المراكز" })),
     ...affiliatesEvents.map(e => ({ ...e, source: "إدارة المنتسبين" }))
   ].filter(e => !myEvents.find(my => my.originalEventId === e.id)); // exclude already imported

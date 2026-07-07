@@ -340,7 +340,7 @@ export default function CommitteesFormation() {
       let allMembers = dbMembers || [];
       
       // 2. Get exact events
-      let allEvents = dbEvents || [];
+      let allEvents = (dbEvents || []).filter((e: any) => !e.recommendationClassification);
 
       // 3. Get exact recommendations
       let allRecs = dbRecs ? [...dbRecs] : [];
@@ -587,7 +587,7 @@ export default function CommitteesFormation() {
     let allMembers = dbMembers || [];
 
     // 2. Get exact events
-    let allEvents = dbEvents || [];
+    let allEvents = (dbEvents || []).filter((e: any) => !e.recommendationClassification);
 
     // 3. Get exact recommendations
     let allRecs = dbRecs ? [...dbRecs] : [];

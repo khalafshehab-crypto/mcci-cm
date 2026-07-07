@@ -490,8 +490,9 @@ export default function CommitteesHome() {
       });
     }
 
-    list.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
-    return list;
+    const uniqueList = Array.from(new Map(list.map(a => [a.id, a])).values());
+    uniqueList.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+    return uniqueList;
   }, [dbEvents]);
 
   // Real-time Database computations - completely dynamic based on actual data in the system
@@ -537,8 +538,9 @@ export default function CommitteesHome() {
       // 2. Events & Meetings
       const evts = dbEvents;
       if (Array.isArray(evts)) {
-        eventsCount = evts.length;
-        meetingsCount = evts.filter((e: any) => e.type === "اجتماع" || e.type === "لقاء" || e.category === "event").length;
+        const realEvents = evts.filter((e: any) => !e.recommendationClassification);
+        eventsCount = realEvents.length;
+        meetingsCount = realEvents.filter((e: any) => e.type === "اجتماع" || e.type === "لقاء" || e.category === "event").length;
       }
 
       // 3. Members
@@ -771,7 +773,7 @@ export default function CommitteesHome() {
       }
     } catch (e) {}
 
-    setAlarms(list);
+    setAlarms(Array.from(new Map(list.map(a => [a.id, a])).values()));
   }, [dbRecs, dbTasks, dbEvents, manuallyUrgentAlarms]);
 
   // Dynamic Online Staff loaded directly from the database of employees

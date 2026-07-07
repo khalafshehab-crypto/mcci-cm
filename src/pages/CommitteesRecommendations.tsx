@@ -1719,7 +1719,14 @@ ${formattedItems}
                             </div>
 
                             <h4 className="text-sm font-black text-slate-850 leading-snug shrink-0 min-h-[40px]">
-                              {evt.title}
+                              {(() => {
+                                if (evt.recommendationClassification === "بالتمرير") return evt.title;
+                                if (evt.recommendationEventId && evt.recommendationEventId !== "unlinked") {
+                                    const linkedEvent = events.find(e => String(e.id) === String(evt.recommendationEventId));
+                                    if (linkedEvent) return linkedEvent.title;
+                                }
+                                return evt.title;
+                              })()}
                             </h4>
 
                             <div className="space-y-2 text-xs font-bold text-gray-700 bg-white/75 p-4 rounded-2xl border border-gray-300/60 shadow-sm">
@@ -2223,7 +2230,14 @@ ${formattedItems}
                         <td className="px-4 py-3.5 whitespace-nowrap font-black text-gray-900 group/row" title="انقر لتشغيل منصة التحضير">
                           <div className="flex flex-col text-right truncate">
                             <span className="text-[11.5px] font-bold text-gray-900 leading-tight transition-colors group-hover/row:text-brand underline decoration-dotted decoration-brand/45 underline-offset-4 truncate mb-1">
-                              {evt.title}
+                              {(() => {
+                                if (evt.recommendationClassification === "بالتمرير") return evt.title;
+                                if (evt.recommendationEventId && evt.recommendationEventId !== "unlinked") {
+                                    const linkedEvent = events.find(e => String(e.id) === String(evt.recommendationEventId));
+                                    if (linkedEvent) return linkedEvent.title;
+                                }
+                                return evt.title;
+                              })()}
                             </span>
                             {evt.preparationsText ? (
                               <div className="text-[9.5px] text-brand font-bold truncate max-w-sm">
@@ -2470,7 +2484,10 @@ ${formattedItems}
                                                       const isPassing = evt.recommendationClassification === "بالتمرير";
                                                       const rType = evt.recommendationType === "عاجلة" ? "عاجلة" : "عادية";
                                                       const attachmentsText = attachmentsList && attachmentsList.length > 0 ? attachmentsList.map((a) => a.name).join(", ") : "لا يوجد مرفقات";
-                                                      const generatedProposal = isPassing 
+                                                      
+const linkedEvent = events.find(e => String(e.id) === String(evt.recommendationEventId));
+const meetingName = linkedEvent ? linkedEvent.title : (evt.eventName && evt.eventName !== "توصية غير محددة" ? evt.eventName : (evt.title.includes("اجتماع") ? evt.title : `اجتماع ${evt.committeeName || "اللجنة"}`));
+const generatedProposal = isPassing 
                                                         ? `الموضوع: تفعيل التوصية رقم (001) الصادرة بالتمرير لـ ${evt.committeeName || "اللجنة"}
 
 توصية ${rType} صادرة بالتمرير لـ ${evt.committeeName || "اللجنة"}
@@ -2483,9 +2500,9 @@ ${formattedItems}
 المكلف: أخصائي اللجنة - ${evt.employees && evt.employees[0] ? evt.employees[0] : "خلف شعبان"}
 مدة التنفيذ: 5 أيام عمل
 المرفقات: ${attachmentsText}` 
-                                                        : `الموضوع: تفعيل التوصية رقم (001) الصادرة عن اجتماع ${evt.committeeName || "اللجنة"}
+                                                        : `الموضوع: تفعيل التوصية رقم (001) الصادرة عن ${meetingName}
 
-توصية ${rType} صادرة عن اجتماع ${evt.committeeName || "اللجنة"}
+توصية ${rType} صادرة عن ${meetingName}
 المنعقد في تمام الساعة ${formatTime12h(evt.time || "01:30")} من ظهر يوم ${dayArabic} ${evt.date || "12/12/2026م"} بقاعة ${evt.location || "الاجتماعات"}
 
 رقم التوصية: 001
