@@ -387,8 +387,16 @@ export default function Home() {
   const { data: dbCommittees } = useFirestoreCollection<any>("committees", []);
   const { data: dbEvents } = useFirestoreCollection<any>("events", []);
   const { data: dbMembers } = useFirestoreCollection<any>("members", []);
-  const { data: dbRecs } = useFirestoreCollection<any>("recommendations", []);
-  const { data: dbTasks } = useFirestoreCollection<any>("tasks", []);
+  const { data: dbRecsAll } = useFirestoreCollection<any>("recommendations", []);
+  const { data: dbTasksAll } = useFirestoreCollection<any>("tasks", []);
+  
+  const dbRecs = React.useMemo(() => {
+    return (dbRecsAll || []).filter((r: any) => !r.department || r.department === "إدارة اللجان" || r.committeeName);
+  }, [dbRecsAll]);
+
+  const dbTasks = React.useMemo(() => {
+    return (dbTasksAll || []).filter((t: any) => !t.department || t.department === "إدارة اللجان");
+  }, [dbTasksAll]);
   const { data: dbEmployees } = useFirestoreCollection<any>("employees", []);
 
   const [currentUserRole, setCurrentUserRole] = useState("SPECIALIST");
@@ -423,7 +431,7 @@ export default function Home() {
     const list: Meeting[] = [];
     
     if (Array.isArray(dbEvents)) {
-      dbEvents.forEach((evt) => {
+      dbEvents.filter((e: any) => !e.recommendationClassification).forEach((evt) => {
         const dateObj = evt.date ? new Date(evt.date) : new Date();
         
         // Dynamic checklists of preparations
@@ -718,6 +726,7 @@ export default function Home() {
       if (Array.isArray(evts)) {
         // Exclude completed events
         const activeEvts = evts.filter((evt: any) => 
+          !evt.recommendationClassification &&
           evt.status !== "منتهية" && 
           evt.status !== "مكتملة" && 
           !(evt.minutesSaved && evt.exportedRecommendationsToPage)

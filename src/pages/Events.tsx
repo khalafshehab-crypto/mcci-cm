@@ -118,7 +118,7 @@ const exportRecommendationsToLocalStorage = async (evt: EventItem, selectedAgend
         title: rec.title,
         description: rec.recommendation || "",
         committeeName: evt.committeeName || "لجنة الإعلام والتسويق",
-        eventName: evt.title || "مصدرة من جدول أعمال الفعاليات",
+        eventName: evt.title || "مصدرة من جدول أعمال الفعاليات", department: "إدارة اللجان",
         date: evt.date || "2026-06-11",
         status: "جديدة",
         approvalStage: "أخصائي",

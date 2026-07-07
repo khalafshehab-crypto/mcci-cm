@@ -162,7 +162,7 @@ export default function Layout({ children }: LayoutProps) {
       nameAr: "مساعد الأمين العام",
       icon: <UserCheck className="w-4 h-4" />,
       pages: [
-        { name: "Dashboard", nameAr: "مساعد الأمين العام", path: "/assistant-sec-gen", icon: <UserCheck className="w-4 h-4" /> },
+        { name: "Dashboard", nameAr: "لوحة المتابعة الشاملة", path: "/assistant-sec-gen", icon: <UserCheck className="w-4 h-4" /> },
         { name: "Events", nameAr: "الفعاليات", path: "/assistant-sec-gen/events", icon: <Calendar className="w-4 h-4" /> },
         
         

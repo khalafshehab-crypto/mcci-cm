@@ -180,7 +180,7 @@ export default function Tasks() {
     };
 
     try {
-      await addDoc(collection(db, "tasks"), newTask);
+      newTask.department = "إدارة اللجان"; await addDoc(collection(db, "tasks"), newTask);
       setIsAddOpen(false);
     } catch (e) {
       console.error(e);
