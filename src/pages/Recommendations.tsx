@@ -743,9 +743,7 @@ ${formattedItems}
   const filteredEvents = events.filter((e) => {
     // Only show events that have exported recommendations (independent Recommendations page)
     if (!e.exportedRecommendationsToPage) return false;
-    // Hide recommendation pseudo-events from the meetings list
-    if (e.recommendationClassification) return false;
-    
+
     const term = filterQuery.trim().toLowerCase();
     if (!term) return true;
     return (
@@ -785,24 +783,26 @@ ${formattedItems}
     return "دوري";
   };
 
-    const sortedTableEvents = React.useMemo(() => {
-    const term = filterQuery.trim().toLowerCase();
-    const list = allDbRecommendations.filter((r: any) => {
-      if (!r || (r.department && r.department !== "إدارة اللجان")) return false;
-      if (!term) return true;
-      return (
-        (r.title && r.title.toLowerCase().includes(term)) ||
-        (r.committeeName && r.committeeName.toLowerCase().includes(term))
-      );
-    });
+  const sortedTableEvents = React.useMemo(() => {
+    const list = [...filteredEvents];
+    const nowTimestamp = Date.now();
     
     return list.sort((a, b) => {
-      // sort by date descending
-      const dateA = new Date(a.date || 0).getTime();
-      const dateB = new Date(b.date || 0).getTime();
-      return dateB - dateA;
+      const aComp = isEventCompleted(a);
+      const bComp = isEventCompleted(b);
+      
+      if (aComp && !bComp) return 1;
+      if (!aComp && bComp) return -1;
+      
+      const timeValA = getEventTimeValue(a);
+      const timeValB = getEventTimeValue(b);
+      
+      const diffA = Math.abs(timeValA - nowTimestamp);
+      const diffB = Math.abs(timeValB - nowTimestamp);
+      
+      return diffA - diffB;
     });
-  }, [allDbRecommendations, filterQuery]);
+  }, [filteredEvents]);
 
   const resetForm = () => {
     setNewTitle("");
@@ -900,12 +900,10 @@ ${formattedItems}
     const targetWeek = WEEKSMap[seriesWeekOfMonth];
     
     const results: {id: number, date: string, title: string, time: string}[] = [];
-    if (!newCommitteeId || newCommitteeId === 0) { alert("يرجى اختيار اللجنة أولاً"); return; }
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
-    if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات لهذه اللجنة"); return; }
     const classifStr = seriesClassification === "دوري" ? "الدوري" : seriesClassification === "استثنائي" ? "الاستثنائي" : seriesClassification === "طارئ" ? "الطارئ" : seriesClassification === "فريق عمل" ? "فريق العمل" : seriesClassification;
     const formattedCommName = commName ? formatCommitteeNameArabic(commName) : "";
-    const prefixToMatch = (seriesKind === "اجتماع" ? `${seriesKind} ${formattedCommName} ${classifStr}` : `${seriesKind} ${formattedCommName}`).trim();
+    const prefixToMatch = `${seriesKind} ${formattedCommName} ${classifStr}`.trim();
     let existingCount = events.filter(e => e.committeeId === newCommitteeId && e.title.startsWith(prefixToMatch)).length;
     
     const current = new Date(start);
@@ -959,9 +957,7 @@ ${formattedItems}
   };
 
   const handleInsertSeries = () => {
-    if (!newCommitteeId || newCommitteeId === 0) { alert("يرجى اختيار اللجنة أولاً"); return; }
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
-    if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات أو مهام لهذه اللجنة"); return; }
     const selectedGen = generatedSchedules.filter(s => selectedSchedules.includes(s.id));
     
     // Check conflicts
@@ -1007,56 +1003,69 @@ ${formattedItems}
       // This is handled by handleImportSelected now, but just in case
       return;
     }
+
     if (!newRecTitle.trim() || !newCommitteeId) return;
 
-    if (!newCommitteeId || newCommitteeId === 0) { alert("يرجى اختيار اللجنة أولاً"); return; }
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
-    if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات أو مهام لهذه اللجنة"); return; }
     const eventName = events.find(ev => ev.id === Number(newRecEventId))?.title || "توصية بالتمرير";
 
     if (editingEvent) {
       const updatedRec = {
         ...editingEvent,
         title: newRecTitle,
-        description: newRecText,
+        committeeId: newCommitteeId,
         committeeName: commName,
-        eventName: eventName,
-        assignedTo: newRecAssignee,
-        duration: newRecDuration,
-        department: "إدارة اللجان",
-        attachments: newRecAttachments ? [{ id: '1', name: newRecAttachments, url: '#' }] : (editingEvent.attachments || [])
+        employees: [newRecAssignee].filter(Boolean),
+        notes: newRecText,
+        
+        recommendationType: newRecType,
+        recommendationClassification: newRecClassification,
+        recommendationEventId: newRecEventId,
+        recommendationPassMethod: newRecPassMethod,
+        recommendationDiscussion: newRecDiscussion,
+        recommendationText: newRecText,
+        recommendationAssignee: newRecAssignee,
+        recommendationDuration: newRecDuration,
+        recommendationAttachments: newRecAttachments,
+        
+        preparationsText: newRecText,
+        preparationsAttachments: newRecAttachments ? [{ id: '1', name: newRecAttachments, url: '#' }] : (editingEvent.preparationsAttachments || [])
       };
-      
-      // Update the recommendation in the db
-      updateDoc(doc(db, "recommendations", String(editingEvent.id)), updatedRec).catch(console.error);
+      setEvents(events.map(ev => ev.id === editingEvent.id ? updatedRec : ev));
     } else {
-      const recId = String(Date.now() + Math.floor(Math.random() * 1000));
+      const recEventId = Date.now();
       const newRec: any = {
-        id: recId,
+        id: recEventId,
         title: newRecTitle,
-        description: newRecText,
-        committeeName: commName,
-        eventName: eventName,
+        type: "مفردة",
         date: new Date().toISOString().split("T")[0],
-        status: "جديدة",
-        approvalStage: "أخصائي",
-        assignedTo: newRecAssignee,
-        duration: newRecDuration,
-        department: "إدارة اللجان",
-        attachments: newRecAttachments ? [{ id: '1', name: newRecAttachments, url: '#' }] : [],
-        auditLogs: [
-          {
-            timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-            action: "إنشاء توصية منفصلة",
-            user: "أخصائي اللجنة"
-          }
-        ]
+        time: "10:00",
+        committeeId: newCommitteeId,
+        committeeName: commName,
+        status: "تجهيز التوصية والمسودة",
+        location: "حضوري",
+        employees: [newRecAssignee].filter(Boolean),
+        members: [],
+        notes: newRecText,
+        exportedRecommendationsToPage: true,
+        
+        recommendationType: newRecType,
+        recommendationClassification: newRecClassification,
+        recommendationEventId: newRecEventId,
+        recommendationPassMethod: newRecPassMethod,
+        recommendationDiscussion: newRecDiscussion,
+        recommendationText: newRecText,
+        recommendationAssignee: newRecAssignee,
+        recommendationDuration: newRecDuration,
+        recommendationAttachments: newRecAttachments,
+        
+        preparationsText: newRecText,
+        preparationsAttachments: newRecAttachments ? [{ id: '1', name: newRecAttachments, url: '#' }] : []
       };
-      
-      // Add recommendation in the db
-      setDoc(doc(db, "recommendations", recId), newRec).catch(console.error);
-    }
 
+      setEvents([newRec, ...events]);
+    }
+    
     // Clear form
     setNewRecTitle("");
     setNewRecDiscussion("");
@@ -1069,6 +1078,7 @@ ${formattedItems}
     setIsAddOpen(false);
     setShowSuccessMsg(true);
     setTimeout(() => setShowSuccessMsg(false), 3000);
+    setIsAddOpen(false);
   };
 
   const handleDelete = () => {
@@ -2185,9 +2195,9 @@ ${formattedItems}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-[#e8e4e4]/85">
-                {sortedTableEvents.map((evt: any, idx: number) => {
+                {sortedTableEvents.map((evt, idx) => {
                   const isExpanded = expandedEventId === evt.id;
-                  
+                  const nextStep = getCalculatedNextStep(evt);
                   return (
                     <React.Fragment key={evt.id}>
                       <tr 
@@ -2218,86 +2228,627 @@ ${formattedItems}
                         <td className="px-4 py-3.5 whitespace-nowrap font-black text-gray-900 group/row" title="انقر لتشغيل منصة التحضير">
                           <div className="flex flex-col text-right truncate">
                             <span className="text-[11.5px] font-bold text-gray-900 leading-tight transition-colors group-hover/row:text-brand underline decoration-dotted decoration-brand/45 underline-offset-4 truncate mb-1">
-                              {evt.title || "بدون عنوان"}
+                              {(() => {
+                                if (evt.recommendationClassification === "بالتمرير") return evt.title;
+                                if (evt.recommendationEventId && evt.recommendationEventId !== "unlinked") {
+                                    const linkedEvent = events.find(e => String(e.id) === String(evt.recommendationEventId));
+                                    if (linkedEvent) return linkedEvent.title;
+                                }
+                                return evt.title;
+                              })()}
                             </span>
-                            {evt.description ? (
+                            {evt.preparationsText ? (
                               <div className="text-[9.5px] text-brand font-bold truncate max-w-sm">
-                                {evt.description.substring(0, 65).replace(/[\\r\\n]+/g, " ")}...
-
+                                {evt.preparationsText.substring(0, 65).replace(/[\r\n]+/g, " ")}...
                               </div>
                             ) : (
                               <div className="text-[9px] text-gray-400 font-bold">
-                                (لا يوجد وصف تفصيلي)
+                                (اضغط على الإجراءات لتجهيز صياغة التوصية والمسودة)
                               </div>
                             )}
                           </div>
                         </td>
 
                         {/* اللجنة */}
-                        <td className="px-4 py-3.5 whitespace-nowrap text-right">
-                          <div className="flex flex-col">
-                            <span className="font-black text-gray-800 text-[11px]">
-                              {evt.committeeName || "غير محدد"}
-                            </span>
-                            <span className="text-[9.5px] text-gray-500 font-bold mt-0.5 max-w-[12rem] truncate">
-                              مستخرجة من: {evt.eventName || "توصية مستقلة"}
-                            </span>
-                          </div>
+                        <td className="px-4 py-3.5 whitespace-nowrap text-xs font-bold text-gray-800 text-right">
+                          <span className="block text-gray-900 font-bold mb-1">{evt.committeeName}</span>
+                          <span className="block text-[9.5px] text-gray-500 font-bold">
+                            رئيس اللجنة: {allMembers.find(m => m.committeeId === evt.committeeId && m.role === "رئيس")?.name || "غير محدد"}
+                          </span>
                         </td>
 
                         {/* تاريخ التوصية */}
                         <td className="px-4 py-3.5 whitespace-nowrap text-center">
-                          <div className="flex flex-col items-center">
-                            <span className="font-mono text-gray-800 font-black">{evt.date || "-"}</span>
-                          </div>
+                          <span className="block text-gray-900 font-bold text-[11px] mb-0.5" dir="ltr">{evt.date}</span>
+                          <span className="block text-gray-500 font-bold text-[10px]" dir="ltr">{formatTime12h(evt.time || "01:30")}</span>
                         </td>
 
                         {/* الحالة */}
                         <td className="px-4 py-3.5 whitespace-nowrap text-center">
-                          <span className={`inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-black border
-                            ${evt.status === 'منجزة' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
-                              evt.status === 'متأخرة' ? 'bg-red-50 text-red-700 border-red-200' : 
-                              evt.status === 'جاري العمل عليها' ? 'bg-amber-50 text-amber-700 border-amber-200' : 
-                              'bg-blue-50 text-blue-700 border-blue-200'}
-                          `}>
-                            {evt.status || "جديدة"}
-                          </span>
+                          {(() => {
+                            const rStat = getRecommendationStatus(evt);
+                            return (
+                              <span className={`inline-block px-2.5 py-1 rounded-full text-[9px] font-extrabold ring-1 ${rStat.colorClass}`}>
+                                {rStat.text}
+                              </span>
+                            );
+                          })()}
                         </td>
 
                         {/* الإجراءات */}
-                        <td className="px-4 py-3.5 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button 
-                              onClick={() => {}} // Disabled editing from table view for now
-                              className="p-1.5 bg-white border border-gray-200 text-blue-600 hover:bg-blue-50 hover:border-blue-200 rounded shadow-sm transition-all"
-                              title="تعديل (غير متاح في وضع السجل حالياً)"
+                        <td className="px-4 py-3.5 text-center relative whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-1.5 relative dropdown-container">
+                            <button
+                              type="button"
+                              onClick={() => setActiveGearMenuId(activeGearMenuId === evt.id ? null : evt.id)}
+                              className="p-1.5 hover:bg-[#d6cfcf] text-gray-700 hover:text-gray-950 rounded-lg border border-transparent hover:border-gray-350 transition-all cursor-pointer"
+                              title="الإجراءات"
                             >
-                              <Edit2 className="w-3.5 h-3.5" />
+                              <Settings className="w-4 h-4" />
                             </button>
-                            <button 
-                              onClick={() => {}} // Disabled deletion from table view for now
-                              className="p-1.5 bg-white border border-gray-200 text-red-600 hover:bg-red-50 hover:border-red-200 rounded shadow-sm transition-all"
-                              title="حذف (غير متاح في وضع السجل حالياً)"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            
+                            {activeGearMenuId === evt.id && (
+                              <>
+                                <div 
+                                  className="fixed inset-0 z-30" 
+                                  onClick={() => setActiveGearMenuId(null)} 
+                                />
+                                
+                                <div className="absolute left-2 top-full mt-1.5 w-48 bg-white rounded-xl shadow-xl border border-gray-200 py-1 z-40 text-right font-sans">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEdit(evt)}
+                                    className="w-full px-3 py-2 text-xs font-black text-gray-700 hover:bg-blue-50 hover:text-blue-650 flex items-center justify-end gap-2 transition-colors cursor-pointer"
+                                  >
+                                    <span>تعديل التوصية</span>
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveGearMenuId(null);
+                                      setExpandedEventId(expandedEventId === evt.id ? null : evt.id);
+                                    }}
+                                    className="w-full px-3 py-2 text-xs font-black text-blue-600 hover:bg-blue-50 flex items-center justify-end gap-2 transition-colors cursor-pointer"
+                                  >
+                                    <span>تجهيز التوصية والمسودة</span>
+                                    <Activity className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenDelete(evt)}
+                                    className="w-full px-3 py-2 text-xs font-black text-red-600 hover:bg-red-50 flex items-center justify-end gap-2 transition-colors cursor-pointer"
+                                  >
+                                    <span>حذف التوصية</span>
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
                       
-                      {/* Expanded Area placeholder */}
                       {isExpanded && (
-                        <tr className="bg-slate-50 border-b border-gray-200 shadow-inner">
-                          <td colSpan={7} className="p-0">
-                            <div className="p-6">
-                              <p className="text-sm font-bold text-gray-700">{evt.description || "لا يوجد تفاصيل إضافية."}</p>
-                            </div>
+                        <tr>
+                          <td colSpan={7} className="p-0 bg-slate-50 border-t border-b border-gray-200 text-right font-sans">
+                            <motion.div 
+                              initial={{ opacity: 0, height: 0 }} 
+                              animate={{ opacity: 1, height: "auto" }} 
+                              exit={{ opacity: 0, height: 0 }}
+                              className="px-6 py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-y border-gray-200 text-right font-sans"
+                            >
+                              <div className="flex flex-col md:flex-row gap-6">
+                                {/* Right Column: Steps Stepper / Timeline Sidebar */}
+                                <div className="w-full md:w-1/3 flex flex-col gap-2.5 bg-white p-4 rounded-xl border border-gray-200 shadow-sm shrink-0">
+                                  <div className="pb-3 border-b border-gray-100 flex items-center justify-between">
+                                    <span className="text-xs font-extrabold text-[#111] flex items-center gap-2">
+                                      <Activity className="w-4 h-4 text-brand" />
+                                      مراحل الإجراءات وتفعيل التوصية
+                                    </span>
+                                    <span className="text-[9px] px-2 py-0.5 rounded bg-brand/10 text-brand font-black">
+                                      خطوة {getStepIndex(nextStep) + 1} من 3
+                                    </span>
+                                  </div>
+                                  
+                                  {/* 3 recommendation timeline steps */}
+                                  {(() => {
+                                    const isStep0Unlocked = true;
+                                    const isStep1Unlocked = !!evt.preparationsConfirmed;
+                                    const isStep2Unlocked = isStep1Unlocked && !!evt.agendaTransferred;
+                                    
+                                    const isUnlockedByStepIndex = [
+                                      isStep0Unlocked,
+                                      isStep1Unlocked,
+                                      isStep2Unlocked
+                                    ];
+
+                                    const stepList = [
+                                      { title: "تجهيز التوصية والمسودة", desc: "المولد الذكي للمحتوى وإرفاق المرفقات الرسمية", done: !!evt.preparationsConfirmed },
+                                      { title: "إحالة التوصية واعتماداتها", desc: "إضافة الشروحات وصياغة قرار تفعيل التوصية", done: !!evt.agendaTransferred },
+                                      { title: "مراجعة الاعتمادات والقرار الهيكلي", desc: "تسجيل الملاحظات وحفظ التوصية غير مفعلة أو تفعيلها كلياً", done: !!evt.minutesSaved },
+                                    ];
+
+                                    return stepList.map((step, idx) => {
+                                      const isCurrent = getStepIndex(nextStep) === idx;
+                                      const isSelected = (activeStepTab[evt.id] ?? getStepIndex(nextStep)) === idx;
+                                      const isUnlocked = isUnlockedByStepIndex[idx];
+                                      
+                                      return (
+                                        <button
+                                          key={idx}
+                                          type="button"
+                                          disabled={!isUnlocked}
+                                          onClick={() => {
+                                            setActiveStepTab(prev => ({
+                                              ...prev,
+                                              [evt.id]: idx
+                                            }));
+                                          }}
+                                          className={`w-full p-2.5 rounded-xl border text-right transition-all flex items-start gap-2.5 cursor-pointer relative overflow-hidden ${
+                                            isSelected 
+                                              ? "bg-slate-900 border-transparent text-white shadow-md font-extrabold" 
+                                              : isUnlocked 
+                                                ? "bg-slate-50 border-gray-200 text-slate-800 hover:bg-slate-100" 
+                                                : "bg-slate-50/50 border-slate-100/50 text-slate-400 opacity-60 cursor-not-allowed"
+                                          }`}
+                                        >
+                                          <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-black ${
+                                            step.done 
+                                              ? "bg-emerald-500 text-white" 
+                                              : isSelected 
+                                                ? "bg-brand text-slate-900" 
+                                                : "bg-gray-200 text-gray-600"
+                                          }`}>
+                                            {step.done ? <Check className="w-3.5 h-3.5" /> : idx + 1}
+                                          </div>
+                                          <div className="flex-1 text-right">
+                                            <div className="text-[10.5px] font-black leading-tight flex items-center gap-1.5 justify-start">
+                                              {step.title}
+                                              {isCurrent && (
+                                                <span className={`text-[8px] px-1 py-0.5 rounded font-black ${isSelected ? "bg-brand text-slate-900 animate-pulse" : "bg-blue-100 text-blue-600"}`}>
+                                                  الحالي
+                                                </span>
+                                              )}
+                                            </div>
+                                            <p className={`text-[8.5px] leading-normal font-bold mt-0.5 ${isSelected ? "text-gray-300" : "text-gray-550"}`}>
+                                              {step.desc}
+                                            </p>
+                                          </div>
+                                        </button>
+                                      );
+                                    });
+                                  })()}
+                                </div>
+
+                                {/* Left Column: Active Step Form Content */}
+                                <div className="flex-1 bg-white p-5 rounded-xl border border-gray-200 shadow-sm relative text-right min-h-[300px]">
+                                  {(() => {
+                                    const currentTab = activeStepTab[evt.id] ?? getStepIndex(nextStep);
+                                    switch (currentTab) {
+                                      case 0: { // Step 0: Prep Recommendation
+                                        const sampleFiles = ["موافقة_اللجنة_الفنية.pdf", "دراسة_الجدوى_المبدئية.pdf", "سجل_الاجتماع_التحضيري.pdf", "أدلة_القطاع_الداعم.jpg"];
+                                        const attachmentsList = evt.attachments || [];
+                                        
+                                        return (
+                                          <div className="space-y-4 animate-fade-in text-right">
+                                            <div className="flex items-center justify-between pb-2 border-b border-gray-100 font-sans">
+                                              <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5 font-sans">
+                                                <Sparkles className="w-4 h-4 text-brand animate-bounce" />
+                                                تجهيز التوصية وصياغتها الفنية مع المرفقات
+                                              </h3>
+                                              <span className="text-[9px] text-[#4ea0b0] font-extrabold px-2 py-0.5 rounded bg-[#4ea0b0]/5 font-sans">مرحلة 1 من 3</span>
+                                            </div>
+                                            
+                                            <p className="text-[10px] text-gray-550 leading-relaxed font-bold font-sans text-right">
+                                              صغ المسودة الفنية للتوصية في الصندوق أدناه، أو استخدم خيار التوليد الذكي المقرّن بمحتوى التوصية للتصحيح الهيكلي الموحد، ثم أرفق الوثائق الرسمية لدعم الموثوقية والأرشفة.
+                                            </p>
+                                            
+                                            <div className="space-y-3 font-sans">
+                                              <div className="flex justify-between items-center">
+                                                <label className="text-[9.5px] text-slate-900 font-extrabold font-sans">الصياغة الفنية المقترحة للتوصية:</label>
+                                                <div className="flex gap-1">
+                                                  {evt.preparationsText && (
+                                                    <>
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                          navigator.clipboard.writeText(evt.preparationsText || "");
+                                                          alert("تم نسخ الصياغة الفنية الذكية للتوصية للمحافظة بنجاح!");
+                                                        }}
+                                                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[8.5px] font-black rounded-lg cursor-pointer flex items-center gap-1 transition-all border border-gray-200 font-sans"
+                                                      >
+                                                        <Copy className="w-3.5 h-3.5" />
+                                                        نسخ القرار
+                                                      </button>
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                          window.location.href = `mailto:?subject=${encodeURIComponent("تفعيل توصية قطاعية دائرية")}&body=${encodeURIComponent(evt.preparationsText || "")}`;
+                                                        }}
+                                                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[8.5px] font-black rounded-lg cursor-pointer flex items-center gap-1 transition-all border border-gray-200 font-sans"
+                                                      >
+                                                        <Mail className="w-3.5 h-3.5" />
+                                                        إرسال بالإيميل
+                                                      </button>
+                                                    </>
+                                                  )}
+
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      const dayArabic = getDayNameFromDate(evt.date) || "الاثنين";
+                                                      const isPassing = evt.recommendationClassification === "بالتمرير";
+                                                      const rType = evt.recommendationType === "عاجلة" ? "عاجلة" : "عادية";
+                                                      const attachmentsText = attachmentsList && attachmentsList.length > 0 ? attachmentsList.map((a) => a.name).join(", ") : "لا يوجد مرفقات";
+                                                      
+const linkedEvent = events.find(e => String(e.id) === String(evt.recommendationEventId));
+const meetingName = linkedEvent ? linkedEvent.title : (evt.eventName && evt.eventName !== "توصية غير محددة" ? evt.eventName : (evt.title.includes("اجتماع") ? evt.title : `اجتماع ${evt.committeeName || "اللجنة"}`));
+const generatedProposal = isPassing 
+                                                        ? `الموضوع: تفعيل التوصية رقم (001) الصادرة بالتمرير لـ ${evt.committeeName || "اللجنة"}
+
+توصية ${rType} صادرة بالتمرير لـ ${evt.committeeName || "اللجنة"}
+تم تمريرها بتاريخ ${dayArabic} ${evt.date || "12/12/2026م"} عبر ${evt.recommendationPassMethod || "البريد الإلكتروني"}
+
+رقم التوصية: 001
+البند الأول: ${evt.title || "موضوع التوصية"}
+المناقشة: ${evt.recommendationDiscussion || "تمت مناقشة التوصية وإبداء الآراء والملاحظات من قبل الأعضاء"}
+التوصية: ${evt.recommendationText || "يتم اعتماد التوصية والبدء بتنفيذها"}
+المكلف: أخصائي اللجنة - ${evt.employees && evt.employees[0] ? evt.employees[0] : "خلف شعبان"}
+مدة التنفيذ: 5 أيام عمل
+المرفقات: ${attachmentsText}` 
+                                                        : `الموضوع: تفعيل التوصية رقم (001) الصادرة عن ${meetingName}
+
+توصية ${rType} صادرة عن ${meetingName}
+المنعقد في تمام الساعة ${formatTime12h(evt.time || "01:30")} من ظهر يوم ${dayArabic} ${evt.date || "12/12/2026م"} بقاعة ${evt.location || "الاجتماعات"}
+
+رقم التوصية: 001
+البند الأول: ${evt.title || "موضوع التوصية"}
+المناقشة: ${evt.recommendationDiscussion || "ناقشت اللجنة إمكانية تفعيل التوصيات"}
+التوصية: ${evt.recommendationText || "يتم مراجعة التوصيات الغير مفعلة لإعادة تفعيلها"}
+المكلف: أخصائي اللجنة - ${evt.employees && evt.employees[0] ? evt.employees[0] : "خلف شعبان"}
+مدة التنفيذ: 5 أيام عمل
+المرفقات: ${attachmentsText}`;
+                                                      
+                                                      updateEventWorkflow(evt.id, { preparationsText: generatedProposal });
+                                                    }}
+                                                    className="px-2.5 py-1.5 bg-slate-900 border-transparent hover:bg-slate-800 text-brand text-[8.5px] font-black rounded-lg cursor-pointer flex items-center gap-1 shadow transition-all duration-200 animate-pulse font-sans"
+                                                  >
+                                                    <Sparkles className="w-3.5 h-3.5" />
+                                                    توليد الصياغة الفنية الذكية
+                                                  </button>
+                                                </div>
+                                              </div>
+                                              
+                                              <textarea
+                                                value={evt.preparationsText || ""}
+                                                onChange={(e) => updateEventWorkflow(evt.id, { preparationsText: e.target.value })}
+                                                placeholder="اكتب هنا النص التفصيلي للتوصية أو الصياغة الصادرة للهيكل التنفيذي..."
+                                                className="w-full h-32 p-3 text-[10px] font-bold text-slate-800 border border-gray-200 rounded-lg focus:ring-1 focus:ring-brand focus:border-brand resize-none bg-slate-50/70 leading-relaxed text-right font-sans"
+                                                dir="rtl"
+                                              />
+                                              
+                                              {/* Digital Library Drag & Drop Simulator */}
+                                              <div className="border-2 border-dashed border-slate-200 rounded-xl p-3 bg-slate-50/20 text-center relative hover:border-brand/45 transition-colors font-sans">
+                                                <p className="text-[9.5px] text-slate-600 font-extrabold font-sans">المكتبة الرقمية: اسحب وأفلت المرفق هنا أو اضغط لربطه بجوجل درايف</p>
+                                                
+                                                <div className="mt-2.5 flex flex-wrap justify-center gap-1.5 font-sans">
+                                                  {sampleFiles.map((fn, idx) => (
+                                                    <button
+                                                      key={idx}
+                                                      type="button"
+                                                      onClick={() => {
+                                                        const exists = attachmentsList.some((a: any) => a.name === fn);
+                                                        if (!exists) {
+                                                          const newAtt = { name: fn, size: "1.8 MB", date: new Date().toLocaleDateString('ar-SA') };
+                                                          updateEventWorkflow(evt.id, { attachments: [...attachmentsList, newAtt] });
+                                                        }
+                                                      }}
+                                                      className="px-2 py-1 bg-white hover:bg-gray-150 text-gray-700 text-[8px] font-bold border border-gray-200 rounded-lg shadow-sm transition-all flex items-center gap-1 cursor-pointer font-sans"
+                                                    >
+                                                      <Paperclip className="w-2.5 h-2.5 text-[#4ea0b0]" />
+                                                      إرفاق {fn}
+                                                    </button>
+                                                  ))}
+                                                </div>
+                                                
+                                                {attachmentsList.length > 0 && (
+                                                  <div className="mt-3.5 border-t border-slate-100 pt-2 text-right font-sans">
+                                                    <span className="text-[8px] text-[#4ea0b0] font-black block mb-1">المستندات المرفقة بالتوصية حتى الآن ({attachmentsList.length}):</span>
+                                                    <div className="space-y-1 font-sans">
+                                                      {attachmentsList.map((att: any, index: number) => (
+                                                        <div key={index} className="flex items-center justify-between bg-white px-2 py-1 rounded border border-gray-150 text-[8.5px] text-slate-800 font-extrabold animate-fade-in font-sans">
+                                                          <span className="flex items-center gap-1">
+                                                            <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                                                            {att.name}
+                                                          </span>
+                                                          <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                              const filtered = attachmentsList.filter((_: any, i: number) => i !== index);
+                                                              updateEventWorkflow(evt.id, { attachments: filtered });
+                                                            }}
+                                                            className="text-red-500 hover:text-red-700 font-bold px-1"
+                                                          >
+                                                            حذف
+                                                          </button>
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </div>
+                                            
+                                            <div className="pt-3 border-t border-gray-100 flex items-center justify-between font-sans">
+                                              <label className="flex items-center gap-2.5 cursor-pointer font-sans">
+                                                <input 
+                                                  type="checkbox"
+                                                  checked={!!evt.preparationsConfirmed}
+                                                  onChange={(e) => updateEventWorkflow(evt.id, { preparationsConfirmed: e.target.checked })}
+                                                  className="w-4.5 h-4.5 rounded border-gray-350 text-brand focus:ring-brand cursor-pointer focus:outline-none"
+                                                />
+                                                <span className="text-[10px] text-slate-900 font-extrabold select-none font-sans">
+                                                  تم الانتهاء من صياغة مسودة التوصية الفنية وإرفاق المستندات المرجعية والداعمة كلياً
+                                                </span>
+                                              </label>
+                                              
+                                              {evt.preparationsConfirmed ? (
+                                                <span className="text-[9px] text-emerald-600 font-black flex items-center gap-1 shrink-0 font-sans">
+                                                  <Check className="w-3.5 h-3.5" /> جاهز
+                                                </span>
+                                              ) : (
+                                                <span className="text-[9.5px] text-amber-600 font-bold shrink-0 font-sans">بانتظار تجهيز التوصية</span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+                                      case 1: { // Step 2: Refer Recommendation (إحالة التوصية)
+                                        return (
+                                          <div className="space-y-4 animate-fade-in text-right">
+                                            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                                              <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5 font-sans">
+                                                <Users className="w-4 h-4 text-brand" />
+                                                إحالة التوصية وشروحات سلسلة الاعتمادات
+                                              </h3>
+                                              <span className="text-[9px] text-[#4ea0b0] font-extrabold px-2 py-0.5 rounded bg-[#4ea0b0]/5">مرحلة 2 من 3</span>
+                                            </div>
+                                            
+                                            <p className="text-[10px] text-gray-550 leading-relaxed font-bold font-sans text-right">
+                                              وثق هنا الشروحات والتوجيهات المكتوبة لكل جهة بالهيكل الإداري لغرفة مكة؛ لدعم وتأطير قرار تفعيل التوصية رسمياً، ومزامنة مخرجات العمل:
+                                            </p>
+                                            
+                                            <div className="space-y-3 font-sans overflow-y-auto max-h-[220px] pr-1">
+                                              {/* Specialist Comment Box */}
+                                              <div className="p-2.5 bg-slate-50 rounded-lg border border-gray-150 text-right">
+                                                <div className="flex items-center justify-between mb-1">
+                                                  <span className="text-[9px] text-slate-800 font-black">1. أخصائي اللجنة المسؤول (توثيق المبررات الفنية)</span>
+                                                  <span className="text-[7.5px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-bold">الأخصائي</span>
+                                                </div>
+                                                <textarea 
+                                                  value={evt.specialistExplanation || ""}
+                                                  placeholder="يرجى كتابة شرح الأخصائي حول جدوى وصحة التوصية..."
+                                                  onChange={(e) => updateEventWorkflow(evt.id, { specialistExplanation: e.target.value })}
+                                                  className="w-full text-[9px] p-2 border border-gray-200 rounded text-right focus:ring-1 focus:ring-brand bg-white font-bold leading-normal resize-none h-10"
+                                                />
+                                              </div>
+
+                                              {/* President/Section President Comment Box */}
+                                              <div className="p-2.5 bg-slate-50 rounded-lg border border-gray-150 text-right">
+                                                <div className="flex items-center justify-between mb-1">
+                                                  <span className="text-[9px] text-slate-800 font-black">2. رئيس القسم اللجان القطاعية (الموافقة المبدئية)</span>
+                                                  <span className="text-[7.5px] bg-[#4ea0b0]/10 text-[#4ea0b0] px-1 py-0.5 rounded font-black">رئيس القسم</span>
+                                                </div>
+                                                <textarea 
+                                                  value={evt.presidentExplanation || ""}
+                                                  placeholder="يرجى كتابة مرئيات رئيس القسم تمهيداً للإرسال لمدير الإدارة..."
+                                                  onChange={(e) => updateEventWorkflow(evt.id, { presidentExplanation: e.target.value })}
+                                                  className="w-full text-[9px] p-2 border border-gray-200 rounded text-right focus:ring-1 focus:ring-brand bg-white font-bold leading-normal resize-none h-10"
+                                                />
+                                              </div>
+
+                                              {/* Director Comment Box */}
+                                              <div className="p-2.5 bg-slate-50 rounded-lg border border-gray-150 text-right">
+                                                <div className="flex items-center justify-between mb-1">
+                                                  <span className="text-[9px] text-slate-800 font-black">3. مدير إدارة اللجان والوفود القطاعية</span>
+                                                  <span className="text-[7.5px] bg-[#4ea0b0]/20 text-[#3d8391] px-1 py-0.5 rounded font-black">مدير الإدارة</span>
+                                                </div>
+                                                <textarea 
+                                                  value={evt.directorExplanation || ""}
+                                                  placeholder="يرجى تدوين توجيهات مدير الإدارة والأثر المتوقع لتسهيل الأرشفة..."
+                                                  onChange={(e) => updateEventWorkflow(evt.id, { directorExplanation: e.target.value })}
+                                                  className="w-full text-[9px] p-2 border border-gray-200 rounded text-right focus:ring-1 focus:ring-brand bg-white font-bold leading-normal resize-none h-10"
+                                                />
+                                              </div>
+
+                                              {/* Assistant Comment Box */}
+                                              <div className="p-2.5 bg-slate-50 rounded-lg border border-gray-150 text-right">
+                                                <div className="flex items-center justify-between mb-1">
+                                                  <span className="text-[9px] text-slate-800 font-black">4. مساعد الأمين العام لقطاع الأعمال</span>
+                                                  <span className="text-[7.5px] bg-brand/10 text-brand px-1 py-0.5 rounded font-black">مساعد الأمين</span>
+                                                </div>
+                                                <textarea 
+                                                  value={evt.assistantExplanation || ""}
+                                                  placeholder="تدوين توجيه أو شرح وتصديق مساعد الأمين العام للغرفة..."
+                                                  onChange={(e) => updateEventWorkflow(evt.id, { assistantExplanation: e.target.value })}
+                                                  className="w-full text-[9px] p-2 border border-gray-200 rounded text-right focus:ring-1 focus:ring-brand bg-white font-bold leading-normal resize-none h-10"
+                                                />
+                                              </div>
+
+                                              {/* Executive Comment Box */}
+                                              <div className="p-2.5 bg-slate-50 rounded-lg border border-gray-150 text-right">
+                                                <div className="flex items-center justify-between mb-1">
+                                                  <span className="text-[9px] text-slate-800 font-black">5. المكتب التنفيذي المتكامل (صاحب القرار الفاصل)</span>
+                                                  <span className="text-[7.5px] bg-indigo-50 text-indigo-600 px-1 py-0.5 rounded font-bold">المكتب التنفيذي</span>
+                                                </div>
+                                                <textarea 
+                                                  value={evt.executiveExplanation || ""}
+                                                  placeholder="قرار المكتب التنفيذي النهائي المعني..."
+                                                  onChange={(e) => updateEventWorkflow(evt.id, { executiveExplanation: e.target.value })}
+                                                  className="w-full text-[9px] p-2 border border-gray-200 rounded text-right focus:ring-1 focus:ring-indigo-500 bg-white font-bold leading-normal resize-none h-10"
+                                                />
+                                              </div>
+
+                                              {/* Approval Selector Buttons */}
+                                              <div className="bg-slate-50 p-2.5 rounded-lg border border-gray-200 text-right space-y-1.5">
+                                                <span className="block text-[8.5px] text-slate-800 font-black">حالة قرار تفعيل التوصية (اعتماد أو حفظ):</span>
+                                                <div className="flex items-center gap-1.5">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => updateEventWorkflow(evt.id, { activationApproved: "approved" })}
+                                                    className={`flex-1 py-1.5 rounded-lg text-[9px] font-black border transition-all cursor-pointer ${
+                                                      evt.activationApproved === "approved"
+                                                        ? "bg-emerald-500 text-white border-transparent shadow-sm"
+                                                        : "bg-white border-gray-200 text-emerald-600 hover:bg-emerald-50/20"
+                                                    }`}
+                                                  >
+                                                    ✓ موافقة واعتماد التفعيل القطاعي
+                                                  </button>
+                                                  
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => updateEventWorkflow(evt.id, { activationApproved: "rejected" })}
+                                                    className={`flex-1 py-1.5 rounded-lg text-[9px] font-black border transition-all cursor-pointer ${
+                                                      evt.activationApproved === "rejected"
+                                                        ? "bg-amber-600 text-white border-transparent shadow-sm"
+                                                        : "bg-white border-gray-200 text-amber-700 hover:bg-amber-50/20"
+                                                    }`}
+                                                  >
+                                                    𐄂 رفض وحفظ التوصية غير مفعلة
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            </div>
+
+                                            <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+                                              <label className="flex items-center gap-2.5 cursor-pointer">
+                                                <input 
+                                                  type="checkbox"
+                                                  checked={!!evt.agendaTransferred}
+                                                  onChange={(e) => updateEventWorkflow(evt.id, { agendaTransferred: e.target.checked })}
+                                                  className="w-4.5 h-4.5 rounded border-gray-150 text-brand focus:ring-brand cursor-pointer focus:outline-none shrink-0"
+                                                />
+                                                <span className="text-[10px] text-slate-900 font-extrabold select-none">
+                                                  اعتماد الشروحات وصياغة قرار تفعيل التوصية وإحالتها للمستوى الإداري النهائي
+                                                </span>
+                                              </label>
+                                              {evt.agendaTransferred ? (
+                                                <span className="text-[9px] text-emerald-600 font-black flex items-center gap-1 shrink-0"><Check className="w-3.5 h-3.5" /> جاهز</span>
+                                              ) : (
+                                                <span className="text-[9.5px] text-amber-600 font-bold shrink-0">بانتظار الإحالة</span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+
+                                      /* COMPLETED DUMMY STAGE */
+                                      case 2: { // Step 3: Final Approvals Review (مراجعة الاعتمادات)
+                                        return (
+                                          <div className="space-y-4 text-right animate-fade-in font-sans">
+                                            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                                              <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5 font-sans">
+                                                <Presentation className="w-4 h-4 text-brand" />
+                                                مراجعة الاعتمادات وإصدار الإفادة والهيكل التنظيمي المكتمل
+                                              </h3>
+                                              <span className="text-[9px] text-[#4ea0b0] font-extrabold px-2 py-0.5 rounded bg-[#4ea0b0]/5">مرحلة 3 من 3</span>
+                                            </div>
+                                            
+                                            <p className="text-[10px] text-gray-550 leading-relaxed font-bold font-sans">
+                                              استعرض هنا حالة وحيثيات الاعتماد الإدارية الصادرة، حيث يتم تثبيت القرار بالتفعيل أو الحفظ والإلغاء تلبية للأعراف المنصوص بها في الغرفة:
+                                            </p>
+
+                                            {/* Final Status Display Block */}
+                                            <div className="rounded-xl p-3 border font-sans space-y-1.5 shadow-sm text-right bg-white">
+                                              <span className="text-[8px] text-brand font-black block">إفادتنا الإدارية النهائية:</span>
+                                              
+                                              {evt.activationApproved === 'approved' ? (
+                                                <div className="bg-emerald-50 border border-emerald-250 p-3 rounded-xl">
+                                                  <div className="flex items-center gap-1.5 font-black text-[10px] text-emerald-700">
+                                                    <CheckCircle className="w-4 h-4 text-emerald-600" />
+                                                    <span>موافق عليها قطاعياً وتم اعتماد التفعيل بنجاح!</span>
+                                                  </div>
+                                                  <p className="text-[9px] font-bold text-emerald-600 mt-1.5 leading-relaxed">
+                                                    بناءً على اعتمادات الهيكل الإداري والمكتب التنفيذي، تقرر تفعيل التوصية رقم <span className="underline font-black">REC-{String(evt.id || "").substring(0, 5).toUpperCase()}</span> رسمياً وتكليف اللجان بمتابعة الأداء مع تسكين مؤشرات الرصد المطلوبة وتحديث لوحة المؤشرات الذكية.
+                                                  </p>
+                                                </div>
+                                              ) : evt.activationApproved === 'rejected' ? (
+                                                <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl">
+                                                  <div className="flex items-center gap-1.5 font-black text-[10px] text-amber-500">
+                                                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                                                    <span>تقرر حفظ المعاملة غير مفعلة وإهمال تذكيراتها كلياً في مركز عمليات اللوحة كمسألة خاملة.</span>
+                                                  </div>
+                                                  <p className="text-[9px] font-bold text-amber-600 mt-1.5 leading-relaxed font-sans">
+                                                    تقرر حفظ المعاملة غير مفعلة بنظام اللجان؛ نتيجة لانتفاء جدواها الفنية بالمحيط التنفيذي الحالي أو للتكرارية مع عينات قطاعية موازية.
+                                                  </p>
+                                                </div>
+                                              ) : (
+                                                <div className="bg-blue-50 border border-blue-250 p-2.5 rounded-xl text-slate-800">
+                                                  <div className="flex items-center gap-1.5 font-bold text-[9.5px]">
+                                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-brand" />
+                                                    <span>القرار الإداري معلق حالياً بانتظار الإجراء في (الخطوة 2).</span>
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+
+                                            {/* Final Decree Input Textarea */}
+                                            <div className="flex flex-col gap-1.5 pt-1">
+                                              <span className="block text-[10px] font-black text-slate-800">بيان مسودة قرار تفعيل/حفظ التوصية الرسمي الصادر:</span>
+                                              <textarea
+                                                value={evt.finalExecutiveDecision || ''}
+                                                onChange={(e) => updateEventWorkflow(evt.id, { finalExecutiveDecision: e.target.value })}
+                                                rows={4}
+                                                placeholder="اكتب هنا التوجيه الرسمي النهائي للتوثيق..."
+                                                className="w-full text-[9.5px] p-2.5 border border-gray-200 rounded-lg text-right font-sans bg-slate-50/70 text-slate-800 focus:ring-1 focus:ring-brand leading-relaxed resize-none font-bold"
+                                                dir="rtl"
+                                              />
+                                            </div>
+
+                                            {/* Confirmation Checkbox */}
+                                            <div className="p-3 bg-emerald-50/70 border border-emerald-250 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-right font-sans">
+                                              <label className="flex items-center gap-2.5 cursor-pointer">
+                                                <input 
+                                                  type="checkbox"
+                                                  checked={!!evt.minutesSaved}
+                                                  onChange={(e) => {
+                                                    updateEventWorkflow(evt.id, { minutesSaved: e.target.checked });
+                                                    // Automatically transition main event list status when fully completed
+                                                    if (e.target.checked) {
+                                                      const finalStatus = evt.activationApproved === 'rejected' ? 'غير فعالة' : 'مكتملة';
+                                                      updateEventWorkflow(evt.id, { status: finalStatus });
+                                                    }
+                                                  }}
+                                                  className="w-4.5 h-4.5 rounded border-gray-350 text-brand focus:ring-brand cursor-pointer focus:outline-none shrink-0"
+                                                />
+                                                <span className="text-[10px] text-slate-900 font-extrabold select-none">
+                                                  تثبيت وإقفال وإصدار الإفادة الرسمية وإدراج التوصية بنظام الغرفة بشكل نهائي
+                                                </span>
+                                              </label>
+                                              {evt.minutesSaved ? (
+                                                <span className="text-[9px] text-emerald-600 font-extrabold flex items-center gap-1 shrink-0"><Check className="w-3.5 h-3.5" /> جاهز</span>
+                                              ) : (
+                                                <span className="text-[9.5px] text-amber-600 font-extrabold shrink-0">بانتظار تثبيت القرار</span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+                                      
+                                      default: return null;
+                                    }
+                                  })()}
+                                </div>
+                              </div>
+                            </motion.div>
                           </td>
                         </tr>
                       )}
                     </React.Fragment>
                   );
-                })}              </tbody>
+                })}
+              </tbody>
             </table>
           </div>
         </div>
