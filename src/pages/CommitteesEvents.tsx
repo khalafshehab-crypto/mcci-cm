@@ -1378,7 +1378,7 @@ ${formattedItems}
               })()}
             </div>
           ) : /* Level 3: Classifications inside selected Event Kind & Committee */
-          selectedClassificationForCards === null && selectedEventKindForCards === "اجتماع" ? (
+          selectedClassificationForCards === null ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-black text-gray-800">
@@ -1391,7 +1391,6 @@ ${formattedItems}
                   الرجوع خطوة للأعلى (عناوين أنواع الفعاليات) ↑
                 </button>
               </div>
-
               {(() => {
                 const kindEvents = filteredEvents.filter(
                   (e) => e.committeeId === selectedCommIdForCards && getEventKindStr(e.title) === selectedEventKindForCards
@@ -1410,6 +1409,7 @@ ${formattedItems}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {activeClassifications.map((cls) => {
                       const count = kindEvents.filter((e) => getEventClassification(e.title) === cls).length;
+
                       return (
                         <motion.div
                           key={cls}
@@ -1426,11 +1426,9 @@ ${formattedItems}
                               <p className="text-[10px] text-gray-400 font-bold">نمط الإضافة في الجداول المبرمجة</p>
                             </div>
                           </div>
-
                           <span className="inline-block self-start px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-black rounded-lg">
                             {count} فعاليات مسجلة
                           </span>
-
                           <button
                             onClick={() => setSelectedClassificationForCards(cls)}
                             className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
@@ -1451,46 +1449,22 @@ ${formattedItems}
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-black text-gray-800">
-                    {selectedEventKindForCards === "اجتماع" ? (
-                      <>
-                        قائمة الفعاليات الـ (<span className="text-emerald-600">{selectedClassificationForCards}</span>) من نوع (
-                        <span className="text-blue-600">{selectedEventKindForCards}</span>) لـ (
-                        <span className="text-brand">
-                          {rawCommittees.find((c) => c.id === selectedCommIdForCards)?.name}
-                        </span>
-                        )
-                      </>
-                    ) : (
-                      <>
-                        قائمة فعاليات نوع (<span className="text-blue-600">{selectedEventKindForCards}</span>) لـ (
-                        <span className="text-brand">
-                          {rawCommittees.find((c) => c.id === selectedCommIdForCards)?.name}
-                        </span>
-                        )
-                      </>
-                    )}
+                    قائمة الفعاليات الـ (<span className="text-emerald-600">{selectedClassificationForCards}</span>) من نوع (<span className="text-blue-600">{selectedEventKindForCards}</span>) لـ (<span className="text-brand">{rawCommittees.find((c) => c.id === selectedCommIdForCards)?.name}</span>)
                   </h3>
                 </div>
                 <button
-                  onClick={() => {
-                    if (selectedEventKindForCards !== "اجتماع") {
-                      setSelectedEventKindForCards(null);
-                    } else {
-                      setSelectedClassificationForCards(null);
-                    }
-                  }}
+                  onClick={() => setSelectedClassificationForCards(null)}
                   className="text-xs text-brand font-black hover:underline"
                 >
-                  {selectedEventKindForCards !== "اجتماع" ? "الرجوع خطوة للأعلى (عناوين أنواع الفعاليات) ↑" : "الرجوع خطوة للأعلى (الفرز والتصنيفات) ↑"}
+                  الرجوع خطوة للأعلى (الفرز والتصنيفات) ↑
                 </button>
               </div>
-
               {(() => {
                 const finalList = filteredEvents.filter(
                   (e) =>
                     e.committeeId === selectedCommIdForCards &&
                     getEventKindStr(e.title) === selectedEventKindForCards &&
-                    (selectedEventKindForCards !== "اجتماع" || getEventClassification(e.title) === selectedClassificationForCards)
+                    getEventClassification(e.title) === selectedClassificationForCards
                 );
 
                 if (finalList.length === 0) {

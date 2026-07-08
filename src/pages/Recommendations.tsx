@@ -1728,6 +1728,14 @@ ${formattedItems}
                             </h4>
 
                             <div className="space-y-2 text-xs font-bold text-gray-700 bg-white/75 p-4 rounded-2xl border border-gray-300/60 shadow-sm">
+                              <div className="flex items-center gap-2 text-brand">
+                                <Users className="w-3.5 h-3.5" />
+                                <span>المكلف: {evt.recommendationAssignee || (evt.employees && evt.employees[0]) || "غير محدد"}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Activity className="w-3.5 h-3.5 text-gray-500" />
+                                <span>اللجنة: {evt.committeeName}</span>
+                              </div>
                               <div className="flex items-center gap-2">
                                 <Calendar className="w-3.5 h-3.5 text-gray-500" />
                                 <span>يوم {dayName} الموافق {dateStr}</span>
@@ -2251,15 +2259,15 @@ ${formattedItems}
 
                         {/* اللجنة */}
                         <td className="px-4 py-3.5 whitespace-nowrap text-xs font-bold text-gray-800 text-right">
-                          <span className="block text-gray-900 font-bold mb-1">{evt.committeeName}</span>
+                          <span className="block text-gray-900 font-bold mb-1">{evt.committeeName || (evt.committeeId ? committees.find(c => String(c.id) === String(evt.committeeId))?.name : "") || "لجنة غير محددة"}</span>
                           <span className="block text-[9.5px] text-gray-500 font-bold">
-                            رئيس اللجنة: {allMembers.find(m => m.committeeId === evt.committeeId && m.role === "رئيس")?.name || "غير محدد"}
+                            المكلف: {evt.recommendationAssignee || (evt.employees && evt.employees[0]) || "غير محدد"}
                           </span>
                         </td>
 
                         {/* تاريخ التوصية */}
                         <td className="px-4 py-3.5 whitespace-nowrap text-center">
-                          <span className="block text-gray-900 font-bold text-[11px] mb-0.5" dir="ltr">{evt.date}</span>
+                          <span className="block text-gray-900 font-bold text-[11px] mb-0.5" dir="ltr">{getDayNameFromDate(evt.date)} {evt.date}</span>
                           <span className="block text-gray-500 font-bold text-[10px]" dir="ltr">{formatTime12h(evt.time || "01:30")}</span>
                         </td>
 
@@ -2295,14 +2303,16 @@ ${formattedItems}
                                 />
                                 
                                 <div className="absolute left-2 top-full mt-1.5 w-48 bg-white rounded-xl shadow-xl border border-gray-200 py-1 z-40 text-right font-sans">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenEdit(evt)}
-                                    className="w-full px-3 py-2 text-xs font-black text-gray-700 hover:bg-blue-50 hover:text-blue-650 flex items-center justify-end gap-2 transition-colors cursor-pointer"
-                                  >
-                                    <span>تعديل التوصية</span>
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  {!!evt.recommendationType && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEdit(evt)}
+                                      className="w-full px-3 py-2 text-xs font-black text-gray-700 hover:bg-blue-50 hover:text-blue-650 flex items-center justify-end gap-2 transition-colors cursor-pointer"
+                                    >
+                                      <span>تعديل التوصية</span>
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -2314,14 +2324,16 @@ ${formattedItems}
                                     <span>تجهيز التوصية والمسودة</span>
                                     <Activity className="w-3.5 h-3.5" />
                                   </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenDelete(evt)}
-                                    className="w-full px-3 py-2 text-xs font-black text-red-600 hover:bg-red-50 flex items-center justify-end gap-2 transition-colors cursor-pointer"
-                                  >
-                                    <span>حذف التوصية</span>
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  {!!evt.recommendationType && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenDelete(evt)}
+                                      className="w-full px-3 py-2 text-xs font-black text-red-600 hover:bg-red-50 flex items-center justify-end gap-2 transition-colors cursor-pointer"
+                                    >
+                                      <span>حذف التوصية</span>
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
                                 </div>
                               </>
                             )}

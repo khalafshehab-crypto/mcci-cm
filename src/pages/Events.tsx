@@ -1369,7 +1369,7 @@ ${formattedItems}
               })()}
             </div>
           ) : /* Level 3: Classifications inside selected Event Kind & Committee */
-          selectedClassificationForCards === null && selectedEventKindForCards === "اجتماع" ? (
+          selectedClassificationForCards === null ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-black text-gray-800">
@@ -1481,7 +1481,7 @@ ${formattedItems}
                   (e) =>
                     e.committeeId === selectedCommIdForCards &&
                     getEventKindStr(e.title) === selectedEventKindForCards &&
-                    (selectedEventKindForCards !== "اجتماع" || getEventClassification(e.title) === selectedClassificationForCards)
+                    getEventClassification(e.title) === selectedClassificationForCards
                 );
 
                 if (finalList.length === 0) {

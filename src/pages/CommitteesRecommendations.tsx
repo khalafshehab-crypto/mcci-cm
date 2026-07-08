@@ -842,31 +842,43 @@ ${formattedItems}
     setIsAddOpen(true);
   };
 
-  const handleOpenEdit = (evt: EventItem) => {
-    if (!canUserEditCommittee(evt.committeeName)) {
+  const handleOpenEdit = (evt: any) => {
+    if (evt.committeeName && !canUserEditCommittee(evt.committeeName)) {
       alert("عذراً، لا تملك الصلاحية لتعديل هذه الفعالية. يمكنك فقط تعديل فعاليات اللجان المكلف بها.");
       return;
     }
     setEditingEvent(evt);
-    setNewTitle(evt.title);
+    setNewTitle(evt.title || "");
     setIsTitleManuallyEdited(true);
-    setNewType(evt.type);
-    setNewDate(evt.date);
-    setNewCommitteeId(evt.committeeId);
-    setNewStatus(evt.status);
-    setNewLocation(evt.location);
-    setNewEmployees(evt.employees);
+    setNewType(evt.type || "مفردة");
+    setNewDate(evt.date || "");
+    setNewCommitteeId(evt.committeeId || 0);
+    setNewStatus(evt.status || "");
+    setNewLocation(evt.location || "");
+    setNewEmployees(evt.employees || []);
     setNewMembers(evt.members || []);
-    setNewNotes(evt.notes);
+    setNewNotes(evt.notes || "");
     
+    // Set Recommendation specific fields
+    setNewRecTitle(evt.title || "");
+    setNewRecType(evt.recommendationType || "");
+    setNewRecClassification(evt.recommendationClassification || "");
+    setNewRecEventId(evt.recommendationEventId || "");
+    setNewRecPassMethod(evt.recommendationPassMethod || "عبر البريد الإلكتروني");
+    setNewRecDiscussion(evt.recommendationDiscussion || "");
+    setNewRecText(evt.recommendationText || evt.notes || "");
+    setNewRecAssignee(evt.recommendationAssignee || (evt.employees && evt.employees[0]) || "");
+    setNewRecDuration(evt.recommendationDuration || "");
+    setNewRecAttachments(evt.recommendationAttachments || []);
+
     if (evt.type === "مفردة") {
       setSingleTime(evt.time || "");
-      setSingleRoom(evt.location);
-      setSingleEmployee(evt.employees[0] || "");
-    } else {
+      setSingleRoom(evt.location || "");
+      setSingleEmployee((evt.employees && evt.employees[0]) || "");
+    } else if (evt.type === "متسلسلة") {
       setSeriesTime(evt.time || "");
-      setSeriesRooms(evt.location.split("،").map(s => s.trim()));
-      setSeriesAssignedEmployee(evt.employees[0] || "");
+      setSeriesRooms(evt.location ? evt.location.split("،").map((s: string) => s.trim()) : []);
+      setSeriesAssignedEmployee((evt.employees && evt.employees[0]) || "");
     }
 
     setIsAddOpen(true);
@@ -1587,16 +1599,22 @@ ${formattedItems}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {committees.map((comm) => {
                   // Count events/meetings under this committee
-                  const commSessions = events.filter((e) => e.committeeId === comm.id);
+                  const commSessions = events.filter((e) => e.committeeId === comm.id && (!e.recommendationType && !e.recommendationClassification));
                   const sessionsCount = commSessions.length;
 
                   // Count recommendations under this committee
-                  const commRecsCount = allDbRecommendations.filter((rec: any) => {
+                  const dbRecsCount = allDbRecommendations.filter((rec: any) => {
                     const matchedEvent = events.find((e) => e.title === rec.eventName || String(rec.id).includes(`custom-rec-${e.id}-`));
                     return matchedEvent?.committeeId === comm.id;
-                  }).length + commSessions.reduce((acc, evt) => {
+                  }).length;
+                  
+                  const agendaRecsCount = commSessions.reduce((acc, evt) => {
                     return acc + (evt.agenda || []).filter((g: any) => g.recommendation && g.recommendation.trim() !== "").length;
                   }, 0);
+                  
+                  const standaloneRecsCount = events.filter((e) => e.committeeId === comm.id && !!e.recommendationType).length;
+                  
+                  const commRecsCount = dbRecsCount + agendaRecsCount + standaloneRecsCount;
 
                   return (
                     <motion.div
@@ -1638,49 +1656,49 @@ ${formattedItems}
                   );
                 })}
               </div>
-            </div>
-          ) : selectedEventIdForCards === null ? (
-            /* Screen 2: List of Meetings/Events of the selected Committee */
+            </div>) : selectedEventIdForCards === null ? (
+            /* Screen 2: List of Meetings inside Selected Committee */
             <div className="space-y-6 text-right" dir="rtl">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#e8e4e4] p-5 rounded-3xl border border-gray-200 shadow-sm">
-                <div>
-                  <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
-                    <span className="w-2 h-5 bg-brand rounded-full inline-block animate-pulse"></span>
-                    <span>تصفح اجتماعات وفعاليات: </span>
-                    <span className="text-brand">
-                      {committees.find((c) => c.id === selectedCommIdForCards)?.name || "اللجنة المحددة"}
-                    </span>
-                  </h3>
-                  <p className="text-xs text-gray-600 font-bold mt-1">
-                    يرجى اختيار الاجتماع من السجل أدناه لعرض وبناء بطاقات التوصيات له
-                  </p>
+              <div className="bg-[#e8e4e4] p-5 rounded-3xl border border-gray-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand">
+                    <BookOpen className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-800">
+                      الاجتماعات المسجلة
+                    </h3>
+                    <p className="text-xs text-gray-500 font-bold mt-0.5">
+                      اللجنة: {committees.find((c) => c.id === selectedCommIdForCards)?.name || ""}
+                    </p>
+                  </div>
                 </div>
                 <button
-                  onClick={() => {
-                    setSelectedCommIdForCards(null);
-                    setSelectedEventIdForCards(null);
-                  }}
-                  className="px-4 py-2 text-xs bg-white text-slate-800 hover:bg-slate-100 font-black rounded-xl transition duration-205 flex items-center gap-1.5 cursor-pointer shadow-sm border border-gray-300/80"
+                  onClick={() => setSelectedCommIdForCards(null)}
+                  className="px-4 py-2 bg-white hover:bg-gray-50 text-slate-700 font-black text-xs rounded-xl border border-gray-300 transition duration-200 flex items-center gap-2 cursor-pointer shadow-sm"
                 >
-                  <span>الرجوع للوحة اللجان الرئيسية ↑</span>
+                  <List className="w-4 h-4" />
+                  <span>الرجوع للوحة اللجان</span>
                 </button>
               </div>
 
               {(() => {
-                const commEvents = filteredEvents.filter((e) => e.committeeId === selectedCommIdForCards);
+                const commEvents = events.filter((e) => e.committeeId === selectedCommIdForCards && (!e.recommendationType && !e.recommendationClassification));
+                const standaloneRecs = events.filter((e) => e.committeeId === selectedCommIdForCards && !!e.recommendationType);
 
-                if (commEvents.length === 0) {
+                if (commEvents.length === 0 && standaloneRecs.length === 0) {
                   return (
                     <div className="bg-[#e8e4e4] border-2 border-dashed border-gray-300 rounded-3xl p-12 text-center text-gray-500 font-bold text-sm">
                       <div className="w-16 h-16 rounded-full bg-white/70 border border-gray-300 flex items-center justify-center mx-auto mb-4 text-slate-400">
                         <Calendar className="w-8 h-8" />
                       </div>
-                      لا توجد أية اجتماعات مسجلة لهذه اللجنة حالياً تحتوي على توصيات.
+                      لا توجد أية اجتماعات مسجلة لهذه اللجنة حالياً.
                     </div>
                   );
                 }
 
                 return (
+                  <>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {commEvents.map((evt) => {
                       // Calculate recommendation count for this meeting/event
@@ -1688,11 +1706,9 @@ ${formattedItems}
                         String(rec.id).startsWith(`custom-rec-${evt.id}-`) ||
                         (rec.eventName && rec.eventName === evt.title)
                       ).length;
-
                       const agendaCount = (evt.agenda || []).filter(
                         (g: any) => g.recommendation && g.recommendation.trim() !== ""
                       ).length;
-
                       const totalRecs = dbRecommendationsCount + agendaCount;
 
                       // Extract date and day details
@@ -1730,6 +1746,14 @@ ${formattedItems}
                             </h4>
 
                             <div className="space-y-2 text-xs font-bold text-gray-700 bg-white/75 p-4 rounded-2xl border border-gray-300/60 shadow-sm">
+                              <div className="flex items-center gap-2 text-brand">
+                                <Users className="w-3.5 h-3.5" />
+                                <span>المكلف: {evt.recommendationAssignee || (evt.employees && evt.employees[0]) || "غير محدد"}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Activity className="w-3.5 h-3.5 text-gray-500" />
+                                <span>اللجنة: {evt.committeeName}</span>
+                              </div>
                               <div className="flex items-center gap-2">
                                 <Calendar className="w-3.5 h-3.5 text-gray-500" />
                                 <span>يوم {dayName} الموافق {dateStr}</span>
@@ -1765,6 +1789,144 @@ ${formattedItems}
                       );
                     })}
                   </div>
+                  
+                  {standaloneRecs.length > 0 && (
+                    <div className="mt-10">
+                      <div className="flex items-center gap-2 mb-6">
+                        <div className="w-8 h-8 rounded-xl bg-brand/10 flex items-center justify-center text-brand">
+                          <CheckCircle className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-sm font-black text-slate-800">التوصيات المباشرة (خارج الاجتماعات)</h4>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {standaloneRecs.map((rec: any, idx: number) => {
+                          const statusStr = rec.status || "جديدة";
+                          let badgeBg = "bg-blue-50 text-blue-700 border-blue-200";
+                          let statusTextLabel = "توصية جديدة";
+
+                          if (statusStr.includes("منجز") || statusStr.includes("مكتمل") || statusStr === "منجزة") {
+                            badgeBg = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                            statusTextLabel = "توصية منجزة";
+                          } else if (statusStr.includes("متأخر")) {
+                            badgeBg = "bg-rose-50 text-rose-700 border-rose-200";
+                            statusTextLabel = "توصية متأخرة";
+                          } else if (statusStr.includes("جاري")) {
+                            badgeBg = "bg-amber-50 text-amber-700 border-amber-200";
+                            statusTextLabel = "جاري العمل عليها";
+                          }
+
+                          const approvalStagesList = ["أخصائي", "رئيس قسم", "مدير الإدارة", "مكتملة"];
+                          const currentStageText = rec.approvalStage || "أخصائي";
+                          
+                          let mappedIdx = 0;
+                          if (currentStageText.includes("أخصائي")) mappedIdx = 0;
+                          else if (currentStageText.includes("رئيس")) mappedIdx = 1;
+                          else if (currentStageText.includes("مدير")) mappedIdx = 2;
+                          else if (currentStageText.includes("مكتمل") || currentStageText.includes("منجز")) mappedIdx = 3;
+
+                          return (
+                            <motion.div
+                              key={`standalone-${rec.id}`}
+                              layout
+                              initial={{ opacity: 0, scale: 0.98 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              className={`bg-[#e8e4e4] hover:bg-[#e2dede] border border-gray-200 hover:border-brand/40 shadow-sm hover:shadow-md transition-all duration-300 rounded-3xl p-6 flex flex-col justify-between space-y-6 text-right relative`}
+                            >
+                              <div className="space-y-4">
+                                <div className="flex items-start justify-between gap-2">
+                                  <span className={`inline-flex items-center px-2.5 py-1 text-[11px] font-black rounded-lg border ${badgeBg}`}>
+                                    {statusTextLabel}
+                                  </span>
+                                  <span className="text-[10px] text-brand font-bold bg-[#dfba6b]/10 border border-[#dfba6b]/20 px-2 py-0.5 rounded-lg">
+                                    توصية مباشرة
+                                  </span>
+                                </div>
+                                <div className="space-y-2">
+                                  <h4 className="text-sm font-black text-slate-850 leading-snug">
+                                    {rec.title}
+                                  </h4>
+                                  <p className="text-xs text-gray-700 font-semibold leading-relaxed bg-white/75 p-4 rounded-xl border border-gray-300/60 shadow-sm min-h-[50px]">
+                                    {rec.notes || rec.recommendationText || "لا يوجد وصف"}
+                                  </p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 pt-1 text-xs">
+                                  <div className="flex items-center gap-1.5 font-extrabold text-gray-700 bg-white/75 px-2.5 py-1.5 rounded-lg border border-gray-300/50 shadow-sm">
+                                    <Users className="w-3.5 h-3.5 text-brand shrink-0" />
+                                    <span className="truncate">المسؤول: {rec.recommendationAssignee || (rec.employees && rec.employees[0]) || "غير محدد"}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 font-extrabold text-gray-700 bg-white/75 px-2.5 py-1.5 rounded-lg border border-gray-300/50 shadow-sm font-sans">
+                                    <Clock className="w-3.5 h-3.5 text-brand shrink-0" />
+                                    <span>المدة: {rec.recommendationDuration || "غير محدد"}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="bg-white/75 p-4 rounded-2.5xl border border-gray-300/60 shadow-sm space-y-3">
+                                <div className="text-[10px] text-gray-500 font-extrabold flex items-center justify-between">
+                                  <span>تتبع مسار الاعتماد الإداري للتوصية</span>
+                                  <span className="text-brand font-black bg-[#dfba6b]/10 px-2 py-0.5 rounded-md border border-[#dfba6b]/20">
+                                    المرحلة الحالية: {currentStageText}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between relative pt-1" dir="rtl">
+                                  {approvalStagesList.map((st, i) => {
+                                    const isPassed = i <= mappedIdx;
+                                    const isCurrent = i === mappedIdx;
+                                    return (
+                                      <div key={st} className="flex flex-col items-center flex-1 relative z-10">
+                                        <div
+                                          className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black transition-all ${
+                                            isPassed
+                                              ? "bg-brand text-[#1e293b] font-black scale-110 shadow-md ring-4 ring-brand/10"
+                                              : "bg-gray-300 text-gray-500"
+                                          }`}
+                                        >
+                                          {i + 1}
+                                        </div>
+                                        <span
+                                          className={`text-[9px] font-extrabold mt-1.5 transition-colors ${
+                                            isCurrent
+                                              ? "text-brand font-black"
+                                              : isPassed
+                                              ? "text-slate-800 font-semibold"
+                                              : "text-gray-500"
+                                          }`}
+                                        >
+                                          {st}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                  <div className="absolute top-[11px] right-[10%] left-[10%] h-0.5 bg-gray-200 -z-0 rounded-full" />
+                                  <div
+                                    className="absolute top-[11px] right-[10%] h-0.5 bg-brand -z-0 transition-all duration-500 rounded-full"
+                                    style={{ width: `${(mappedIdx / 3) * 80}%` }}
+                                  />
+                                </div>
+                                <div className="flex items-center justify-between mt-4">
+                                  {mappedIdx < 3 ? (
+                                    <button
+                                      onClick={() => {
+                                        // This page does not support standalone rec status update via same handler easily, 
+                                        // but we can route it via handleUpdateStandaloneRecommendationStatus
+                                      }}
+                                      className="px-3 py-1.5 bg-brand hover:bg-[#dfba6b] hover:text-[#1e293b] font-black text-[10px] rounded-lg transition text-white shadow-sm opacity-50 cursor-not-allowed"
+                                    >
+                                      الترقية من الجدول فقط
+                                    </button>
+                                  ) : (
+                                    <span className="text-[10px] text-emerald-800 font-black bg-emerald-50 px-2 py-1 rounded-md border border-emerald-250">
+                                      ✓ معتمدة بالكامل
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
                 );
               })()}
             </div>
@@ -1775,7 +1937,7 @@ ${formattedItems}
                 const chosenEvent = events.find((e) => e.id === selectedEventIdForCards);
                 if (!chosenEvent) {
                   return (
-                    <div className="bg-white p-8 text-center rounded-3xl border text-gray-500 font-bold">
+                    <div className="bg-[#e8e4e4] border-2 border-dashed border-gray-300 rounded-3xl p-12 text-center text-gray-500 font-bold text-sm">
                       تعذر العثور على بيانات الفعالية المحددة.
                     </div>
                   );
@@ -1790,21 +1952,17 @@ ${formattedItems}
                 const agendaRecs = (chosenEvent.agenda || [])
                   .filter((g: any) => g.recommendation && g.recommendation.trim() !== "")
                   .map((g: any, idx: number) => {
-                    const isAlreadyInDb = dbRecommendations.some((dr: any) => dr.title === g.title);
-                    if (isAlreadyInDb) return null;
                     return {
                       id: `agenda-rec-${chosenEvent.id}-${idx}`,
-                      title: g.title,
+                      title: `توصية من: ${g.topic || "بند جدول أعمال"}`,
                       description: g.recommendation,
-                      assignedTo: g.assignee || "غير حدد",
-                      duration: g.durationRec || "أسبوعين",
-                      status: "جديدة",
-                      approvalStage: "أخصائي",
-                      auditLogs: [],
+                      assignedTo: g.assignee || "غير محدد",
+                      duration: g.durationRec || "غير محدد",
+                      status: "مكتملة", // usually agenda recs are completed
+                      approvalStage: "مكتملة",
                       isAgendaSource: true
                     };
-                  })
-                  .filter(Boolean);
+                  });
 
                 const combinedRecs = [...dbRecommendations, ...agendaRecs];
 
@@ -1820,175 +1978,50 @@ ${formattedItems}
                           </h3>
                         </div>
                         <p className="text-xs text-gray-600 font-bold mt-1">
-                          يمكنك إضافة توصيات، تتبع مسارات الاعتماد، وتحديث الحالات مع تسجيل الأرشيف لكل حالة
+                          يمكنك تتبع مسارات الاعتماد وتحديث الحالات والتواصل بشأن هذه التوصيات
                         </p>
                       </div>
 
                       <div className="flex items-center gap-2.5 shrink-0">
                         <button
-                          onClick={() => setDirectAddRecOpen(true)}
-                          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl transition duration-200 shadow-sm cursor-pointer flex items-center gap-1 text-right"
-                        >
-                          <Plus className="w-4 h-4" />
-                          <span>إضافة توصية جديدة +</span>
-                        </button>
-                        <button
                           onClick={() => setSelectedEventIdForCards(null)}
-                          className="px-4 py-2.5 bg-white text-slate-800 hover:bg-slate-100 font-black text-xs rounded-xl transition duration-200 shadow-sm cursor-pointer flex items-center gap-1.5 border border-gray-300/80"
+                          className="px-4 py-2.5 bg-white hover:bg-gray-50 text-slate-700 font-black text-xs rounded-xl border border-gray-300 transition duration-200 flex items-center gap-2 cursor-pointer shadow-sm"
                         >
-                          <span>الرجوع لقائمة الاجتماعات ↑</span>
+                          <List className="w-4 h-4" />
+                          <span>الرجوع للاجتماعات ↑</span>
                         </button>
                       </div>
                     </div>
 
-                    {/* Inline Form to Add Recommendation */}
-                    {directAddRecOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-slate-50 border border-blue-200/60 rounded-3xl p-6 shadow-md"
-                      >
-                        <form onSubmit={handleAddRecSubmitDirect} className="space-y-4">
-                          <h4 className="text-sm font-black text-slate-800 border-b border-slate-200/60 pb-2">
-                            نموذج بناء وإضافة توصية جديدة للفعالية
-                          </h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-[11px] font-bold text-gray-600 mb-1">
-                                عنوان التوصية / بند جدول العمل
-                              </label>
-                              <input
-                                type="text"
-                                value={directRecTitle}
-                                onChange={(e) => setDirectRecTitle(e.target.value)}
-                                className="w-full text-xs font-semibold px-3 py-2 bg-white rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 text-right"
-                                required
-                                placeholder="مثال: استضافة وزارة الحج والعمرة"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[11px] font-bold text-gray-600 mb-1">
-                                المسؤول المكلف بالتنفيذ
-                              </label>
-                              <input
-                                type="text"
-                                value={directRecAssignee}
-                                onChange={(e) => setDirectRecAssignee(e.target.value)}
-                                className="w-full text-xs font-semibold px-3 py-2 bg-white rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 text-right"
-                                placeholder="اسم العضو أو الموظف المسؤول"
-                              />
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block text-[11px] font-bold text-gray-600 mb-1">
-                              نص وتفاصيل التوصية بالكامل
-                            </label>
-                            <textarea
-                              rows={3}
-                              value={directRecDesc}
-                              onChange={(e) => setDirectRecDesc(e.target.value)}
-                              className="w-full text-xs font-semibold px-3 py-2 bg-white rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 text-right"
-                              required
-                              placeholder="نص التوصية..."
-                            />
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <div>
-                              <label className="block text-[11px] font-bold text-gray-600 mb-1">
-                                مدة التنفيذ المقترحة
-                              </label>
-                              <input
-                                type="text"
-                                value={directRecDuration}
-                                onChange={(e) => setDirectRecDuration(e.target.value)}
-                                className="w-full text-xs font-semibold px-3 py-2 bg-white rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 text-right"
-                                placeholder="مثال: أسبوعين، شهر"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[11px] font-bold text-gray-600 mb-1">
-                                حالة التوصية البدئية
-                              </label>
-                              <select
-                                value={directRecStatus}
-                                onChange={(e) => setDirectRecStatus(e.target.value)}
-                                className="w-full text-xs font-semibold px-2 py-2 bg-white rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 text-right"
-                              >
-                                <option value="جديدة">جديدة</option>
-                                <option value="جاري العمل عليها">جاري العمل عليها</option>
-                                <option value="توصية متأخرة">توصية متأخرة</option>
-                                <option value="منجزة">منجزة</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-[11px] font-bold text-gray-600 mb-1">
-                                مسار الاعتماد البدئي
-                              </label>
-                              <select
-                                value={directRecStage}
-                                onChange={(e) => setDirectRecStage(e.target.value)}
-                                className="w-full text-xs font-semibold px-2 py-2 bg-white rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 text-right"
-                              >
-                                <option value="أخصائي">أخصائي</option>
-                                <option value="رئيس قسم">رئيس قسم</option>
-                                <option value="مدير إدارة">مدير إدارة</option>
-                                <option value="مكتملة">مكتملة</option>
-                              </select>
-                            </div>
-                          </div>
-
-                          <div className="flex justify-end gap-2 pt-2">
-                            <button
-                              type="submit"
-                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-lg cursor-pointer transition shadow-sm"
-                            >
-                              حفظ التوصية في النظام
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDirectAddRecOpen(false)}
-                              className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg cursor-pointer transition"
-                            >
-                              إلغاء الأمر
-                            </button>
-                          </div>
-                        </form>
-                      </motion.div>
-                    )}
-
-                    {/* Recommendations Cards list */}
                     {combinedRecs.length === 0 ? (
-                      <div className="bg-white border border-slate-150 rounded-3xl p-12 text-center text-gray-500 font-bold text-sm">
-                        لا توجد حتى الآن أية توصيات مسجلة لهذا اللقاء. يمكنك النقر على الزر أعلاه لإضافة أول توصية.
+                      <div className="bg-[#e8e4e4] border-2 border-dashed border-gray-300 rounded-3xl p-12 text-center text-gray-500 font-bold text-sm">
+                        <div className="w-16 h-16 rounded-full bg-white/70 border border-gray-300 flex items-center justify-center mx-auto mb-4 text-slate-400">
+                          <BookOpen className="w-8 h-8" />
+                        </div>
+                        لا توجد توصيات مسجلة لهذا الاجتماع حالياً.
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {combinedRecs.map((rec: any, idx: number) => {
                           const statusStr = rec.status || "جديدة";
                           let badgeBg = "bg-blue-50 text-blue-700 border-blue-200";
-                          let borderAccent = "border-blue-100 shadow-blue-50/5";
                           let statusTextLabel = "توصية جديدة";
 
                           if (statusStr.includes("منجز") || statusStr.includes("مكتمل") || statusStr === "منجزة") {
                             badgeBg = "bg-emerald-50 text-emerald-700 border-emerald-200";
-                            borderAccent = "border-emerald-100 shadow-emerald-50/5";
                             statusTextLabel = "توصية منجزة";
                           } else if (statusStr.includes("متأخر")) {
                             badgeBg = "bg-rose-50 text-rose-700 border-rose-200";
-                            borderAccent = "border-rose-100 shadow-rose-100/5";
                             statusTextLabel = "توصية متأخرة";
                           } else if (statusStr.includes("جاري")) {
                             badgeBg = "bg-amber-50 text-amber-700 border-amber-200";
-                            borderAccent = "border-amber-100 shadow-amber-50/5";
                             statusTextLabel = "جاري العمل عليها";
                           }
 
                           // Tracker Stages
                           const approvalStagesList = ["أخصائي", "رئيس قسم", "مدير الإدارة", "مكتملة"];
                           const currentStageText = rec.approvalStage || "أخصائي";
-                          // Normalize stage word
+                          
                           let mappedIdx = 0;
                           if (currentStageText.includes("أخصائي")) mappedIdx = 0;
                           else if (currentStageText.includes("رئيس")) mappedIdx = 1;
@@ -2046,12 +2079,10 @@ ${formattedItems}
                                     المرحلة الحالية: {currentStageText}
                                   </span>
                                 </div>
-
                                 <div className="flex items-center justify-between relative pt-1" dir="rtl">
                                   {approvalStagesList.map((st, i) => {
                                     const isPassed = i <= mappedIdx;
                                     const isCurrent = i === mappedIdx;
-
                                     return (
                                       <div key={st} className="flex flex-col items-center flex-1 relative z-10">
                                         <div
@@ -2074,41 +2105,17 @@ ${formattedItems}
                                         >
                                           {st}
                                         </span>
-
-                                        {/* Connector line */}
-                                        {i < approvalStagesList.length - 1 && (
-                                          <div
-                                            className={`absolute left-0 right-1/2 top-3 h-0.5 -translate-y-1/2 -z-10 ${
-                                              i < mappedIdx ? "bg-[#dfba6b]" : "bg-gray-300"
-                                            }`}
-                                            style={{ width: "100%" }}
-                                          />
-                                        )}
                                       </div>
                                     );
                                   })}
+                                  {/* Connector line */}
+                                  <div className="absolute top-[11px] right-[10%] left-[10%] h-0.5 bg-gray-200 -z-0 rounded-full" />
+                                  <div
+                                    className="absolute top-[11px] right-[10%] h-0.5 bg-brand -z-0 transition-all duration-500 rounded-full"
+                                    style={{ width: `${(mappedIdx / 3) * 80}%` }}
+                                  />
                                 </div>
-                              </div>
-
-                              {/* Interactive controls */}
-                              <div className="pt-3 border-t border-gray-300/85 space-y-3">
-                                <div className="flex flex-wrap items-center justify-between gap-2.5">
-                                  {/* Update status select */}
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-[10px] text-gray-600 font-bold whitespace-nowrap">تعديل الحالة:</span>
-                                    <select
-                                      value={statusStr}
-                                      onChange={(e) => handleUpdateRecommendationStatus(rec.id, e.target.value)}
-                                      className="text-[11px] font-black bg-white border border-gray-300 rounded-lg px-2 py-1 focus:outline-none cursor-pointer text-slate-800 shadow-sm"
-                                    >
-                                      <option value="جديدة">جديدة</option>
-                                      <option value="جاري العمل عليها">جاري العمل عليها</option>
-                                      <option value="توصية متأخرة">توصية متأخرة</option>
-                                      <option value="منجزة">منجزة</option>
-                                    </select>
-                                  </div>
-
-                                  {/* Advance stage button */}
+                                <div className="flex items-center justify-between mt-4">
                                   {mappedIdx < 3 ? (
                                     <button
                                       onClick={() => {
@@ -2126,7 +2133,6 @@ ${formattedItems}
                                     </span>
                                   )}
                                 </div>
-
                                 {/* Audit logs trigger */}
                                 <div className="pt-2 border-t border-gray-300/85">
                                   <button
@@ -2138,7 +2144,6 @@ ${formattedItems}
                                     <Sliders className="w-3 h-3" />
                                     <span>({rec.auditLogs?.length || 0})</span>
                                   </button>
-
                                   {expandedRecLogsId === rec.id && (
                                     <motion.div
                                       initial={{ opacity: 0, height: 0 }}
@@ -2253,15 +2258,15 @@ ${formattedItems}
 
                         {/* اللجنة */}
                         <td className="px-4 py-3.5 whitespace-nowrap text-xs font-bold text-gray-800 text-right">
-                          <span className="block text-gray-900 font-bold mb-1">{evt.committeeName}</span>
+                          <span className="block text-gray-900 font-bold mb-1">{evt.committeeName || (evt.committeeId ? committees.find(c => String(c.id) === String(evt.committeeId))?.name : "") || "لجنة غير محددة"}</span>
                           <span className="block text-[9.5px] text-gray-500 font-bold">
-                            رئيس اللجنة: {allMembers.find(m => m.committeeId === evt.committeeId && m.role === "رئيس")?.name || "غير محدد"}
+                            المكلف: {evt.recommendationAssignee || (evt.employees && evt.employees[0]) || "غير محدد"}
                           </span>
                         </td>
 
                         {/* تاريخ التوصية */}
                         <td className="px-4 py-3.5 whitespace-nowrap text-center">
-                          <span className="block text-gray-900 font-bold text-[11px] mb-0.5" dir="ltr">{evt.date}</span>
+                          <span className="block text-gray-900 font-bold text-[11px] mb-0.5" dir="ltr">{getDayNameFromDate(evt.date)} {evt.date}</span>
                           <span className="block text-gray-500 font-bold text-[10px]" dir="ltr">{formatTime12h(evt.time || "01:30")}</span>
                         </td>
 
@@ -2298,14 +2303,16 @@ ${formattedItems}
                                 />
                                 
                                 <div className="absolute left-2 top-full mt-1.5 w-48 bg-white rounded-xl shadow-xl border border-gray-200 py-1 z-40 text-right font-sans">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenEdit(evt)}
-                                    className="w-full px-3 py-2 text-xs font-black text-gray-700 hover:bg-blue-50 hover:text-blue-650 flex items-center justify-end gap-2 transition-colors cursor-pointer"
-                                  >
-                                    <span>تعديل التوصية</span>
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  {!!evt.recommendationType && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEdit(evt)}
+                                      className="w-full px-3 py-2 text-xs font-black text-gray-700 hover:bg-blue-50 hover:text-blue-650 flex items-center justify-end gap-2 transition-colors cursor-pointer"
+                                    >
+                                      <span>تعديل التوصية</span>
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -2317,14 +2324,16 @@ ${formattedItems}
                                     <span>تجهيز التوصية والمسودة</span>
                                     <Activity className="w-3.5 h-3.5" />
                                   </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenDelete(evt)}
-                                    className="w-full px-3 py-2 text-xs font-black text-red-600 hover:bg-red-50 flex items-center justify-end gap-2 transition-colors cursor-pointer"
-                                  >
-                                    <span>حذف التوصية</span>
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  {!!evt.recommendationType && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenDelete(evt)}
+                                      className="w-full px-3 py-2 text-xs font-black text-red-600 hover:bg-red-50 flex items-center justify-end gap-2 transition-colors cursor-pointer"
+                                    >
+                                      <span>حذف التوصية</span>
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
                                 </div>
                               </>
                             )}

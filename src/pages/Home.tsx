@@ -313,7 +313,7 @@ export interface Alarm {
 
 import { useFirestoreCollection } from '../lib/firebaseUtils';
 import { formatCommitteeNameArabic } from '../lib/arabicUtils';
-import { doc, updateDoc, addDoc, collection } from 'firebase/firestore';
+import { doc, updateDoc, addDoc, collection, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 const getStepsForEventAlarm = (e: any) => {
@@ -419,6 +419,50 @@ export default function Home() {
   const [activeTimeframes, setActiveTimeframes] = useState<string[]>(["current", "next"]);
   const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table">("cards");
   const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false);
+
+  const allRecommendations = React.useMemo(() => {
+    let recs: any[] = [];
+    if (Array.isArray(dbRecs)) {
+      recs = [...dbRecs];
+    }
+    if (Array.isArray(dbEvents)) {
+      dbEvents.forEach((evt: any) => {
+        if (evt.exportedRecommendationsToPage) {
+           recs.push({
+             id: `exported-rec-${evt.id}`,
+             title: evt.title || "",
+             description: evt.preparationsText || "(بدون مسودة)",
+             assignedTo: evt.employees?.[0] || "غير محدد",
+             duration: evt.duration || "أسبوعين",
+             status: evt.status === "متأخرة" || evt.status === "متأخر 🔴" ? "متأخرة" : (evt.minutesSaved || evt.status === "مكتملة" || evt.status === "منجزة" ? "منجزة" : (evt.preparationsConfirmed ? "جاري العمل عليها" : "جديدة")),
+             committeeName: evt.committeeName,
+             date: evt.date
+           });
+        }
+        if (evt.agenda && Array.isArray(evt.agenda)) {
+          evt.agenda.forEach((g: any, idx: number) => {
+            if (g.recommendation && g.recommendation.trim() !== "") {
+              const isAlreadyInDb = recs.some((dr: any) => dr.title === g.title);
+              if (!isAlreadyInDb) {
+                recs.push({
+                  id: `agenda-rec-${evt.id}-${idx}`,
+                  title: g.title,
+                  description: g.recommendation,
+                  assignedTo: g.assignee || "غير محدد",
+                  duration: g.durationRec || "أسبوعين",
+                  status: "جديدة",
+                  committeeName: evt.committeeName,
+                  date: evt.date
+                });
+              }
+            }
+          });
+        }
+      });
+    }
+    return recs;
+  }, [dbRecs, dbEvents]);
+
   const meetings = React.useMemo(() => {
     const list: Meeting[] = [];
     
@@ -560,8 +604,8 @@ export default function Home() {
       }
 
       // 4. Recommendations
-      const recs = dbRecs;
-      if (Array.isArray(recs) && recs.length > 0) {
+      const recs = allRecommendations;
+      if (recs.length > 0) {
         totalRecommendations = recs.length;
         completedRecommendations = recs.filter((r: any) => r.status === "منجزة" || r.approvalStage === "مكتملة").length;
         activeRecommendations = recs.filter((r: any) => r.status === "جاري العمل عليها").length;
@@ -655,8 +699,8 @@ export default function Home() {
 
     // 1. Core Dynamic Recommendations
     try {
-      const recs = dbRecs;
-      if (Array.isArray(recs)) {
+      const recs = allRecommendations;
+      if (recs.length > 0) {
         // Exclude completed recommendations
         const activeRecs = recs.filter((r: any) => r.status !== "منجزة" && r.status !== "مكتملة");
         activeRecs.forEach((r: any) => {
@@ -1039,8 +1083,8 @@ export default function Home() {
           description: referNotes ? `${matchedTask?.description || ""}\n[تحديث من شاشة المتابعة - ${new Date().toLocaleDateString('ar-EG')}]: ${referNotes}` : (matchedTask?.description || "")
         });
       } else if (selectedAlarm.type === "recommendation") {
-        const recId = String(selectedAlarm.id).replace("rec-", "");
-        const matchedRec = dbRecs.find((r: any) => String(r.id) === recId);
+        const recId = String(selectedAlarm.id).replace(/^rec-/, "");
+        const matchedRec = allRecommendations.find((r: any) => String(r.id) === recId);
         
         let mappedStatus = "جديدة";
         if (targetStatus === "تمت الإحالة") mappedStatus = "منجزة";
@@ -1048,11 +1092,47 @@ export default function Home() {
         else if (targetStatus === "متأخر") mappedStatus = "متأخرة";
         
         const docRef = doc(db, "recommendations", recId);
-        await updateDoc(docRef, {
-          status: mappedStatus,
-          assignedTo: targetStaff,
-          description: referNotes ? `${matchedRec?.description || ""}\n[تحديث من شاشة المتابعة - ${new Date().toLocaleDateString('ar-EG')}]: ${referNotes}` : (matchedRec?.description || "")
-        });
+        if (recId.startsWith("agenda-rec-") && matchedRec) {
+           await setDoc(docRef, {
+             ...matchedRec,
+             status: mappedStatus,
+             assignedTo: targetStaff,
+             description: referNotes ? `${matchedRec?.description || ""}\n[تحديث من شاشة المتابعة - ${new Date().toLocaleDateString('ar-EG')}]: ${referNotes}` : (matchedRec?.description || "")
+           });
+        } else if (recId.startsWith("exported-rec-")) {
+           const actualEventId = recId.replace("exported-rec-", "");
+           const eventDocRef = doc(db, "events", actualEventId);
+           let evtStatus = "مكتملة";
+           let minutesSaved = true;
+           let prepsConfirmed = true;
+           
+           if (mappedStatus === "منجزة") {
+               evtStatus = "مكتملة";
+               minutesSaved = true;
+               prepsConfirmed = true;
+           } else if (mappedStatus === "جاري العمل عليها") {
+               evtStatus = matchedRec.status || "محجوز"; 
+               minutesSaved = false;
+               prepsConfirmed = true;
+           } else if (mappedStatus === "متأخرة") {
+               evtStatus = "متأخرة";
+               minutesSaved = false;
+               prepsConfirmed = false;
+           }
+           
+           await updateDoc(eventDocRef, {
+              status: evtStatus,
+              minutesSaved: minutesSaved,
+              preparationsConfirmed: prepsConfirmed,
+              preparationsText: referNotes ? `${matchedRec?.description || ""}\n[تحديث من شاشة المتابعة - ${new Date().toLocaleDateString('ar-EG')}]: ${referNotes}` : (matchedRec?.description || "")
+           });
+        } else {
+           await updateDoc(docRef, {
+             status: mappedStatus,
+             assignedTo: targetStaff,
+             description: referNotes ? `${matchedRec?.description || ""}\n[تحديث من شاشة المتابعة - ${new Date().toLocaleDateString('ar-EG')}]: ${referNotes}` : (matchedRec?.description || "")
+           });
+        }
       } else if (selectedAlarm.type === "event") {
         const eventId = String(selectedAlarm.id).replace("evt-", "");
         const matchedEvent = dbEvents.find((evt: any) => String(evt.id) === eventId);

@@ -1,0 +1,101 @@
+                    {commEvents.map((evt) => {
+                      // Calculate recommendation count for this meeting/event
+                      const dbRecommendationsCount = allDbRecommendations.filter((rec: any) =>
+                        String(rec.id).startsWith(`custom-rec-${evt.id}-`) ||
+                        (rec.eventName && rec.eventName === evt.title)
+                      ).length;
+
+                      const agendaCount = (evt.agenda || []).filter(
+                        (g: any) => g.recommendation && g.recommendation.trim() !== ""
+                      ).length;
+
+                      const totalRecs = dbRecommendationsCount + agendaCount;
+
+                      // Extract date and day details
+                      const dayName = evt.date ? getDayNameFromDate(evt.date) : "غير محدد";
+                      const dateStr = evt.date || "غير محدد";
+                      const timeStr = evt.time ? formatTime12h(evt.time) : "";
+
+                      return (
+                        <motion.div
+                          key={evt.id}
+                          layoutId={`meet-card-${evt.id}`}
+                          initial={{ opacity: 0, scale: 0.98 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="bg-[#e8e4e4] hover:bg-[#e2dede] border border-gray-200 hover:border-brand/40 hover:shadow-md transition-all duration-300 rounded-3xl p-6 relative flex flex-col justify-between space-y-5"
+                        >
+                          <div className="space-y-4">
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="inline-block px-2.5 py-1 text-[10px] font-black rounded-lg bg-white/90 text-slate-700 border border-gray-305">
+                                {evt.type || "رسمي"}
+                              </span>
+                              <span className="inline-block px-2.5 py-1 text-[10px] font-black rounded-lg bg-brand/20 text-slate-900 border border-brand/25">
+                                {evt.status || "مؤكد"}
+                              </span>
+                            </div>
+
+                            <h4 className="text-sm font-black text-slate-850 leading-snug shrink-0 min-h-[40px]">
+                              {(() => {
+                                if (evt.recommendationClassification === "بالتمرير") return evt.title;
+                                if (evt.recommendationEventId && evt.recommendationEventId !== "unlinked") {
+                                    const linkedEvent = events.find(e => String(e.id) === String(evt.recommendationEventId));
+                                    if (linkedEvent) return linkedEvent.title;
+                                }
+                                return evt.title;
+                              })()}
+                            </h4>
+
+                            <div className="space-y-2 text-xs font-bold text-gray-700 bg-white/75 p-4 rounded-2xl border border-gray-300/60 shadow-sm">
+                              <div className="flex items-center gap-2 text-brand">
+                                <Users className="w-3.5 h-3.5" />
+                                <span>المكلف: {evt.recommendationAssignee || (evt.employees && evt.employees[0]) || "غير محدد"}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Activity className="w-3.5 h-3.5 text-gray-500" />
+                                <span>اللجنة: {evt.committeeName}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-3.5 h-3.5 text-gray-500" />
+                                <span>يوم {dayName} الموافق {dateStr}</span>
+                              </div>
+                              {timeStr && (
+                                <div className="flex items-center gap-2">
+                                  <Clock className="w-3.5 h-3.5 text-gray-500" />
+                                  <span>الساعة {timeStr}</span>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2">
+                                <MapPin className="w-3.5 h-3.5 text-gray-500" />
+                                <span>{evt.location || "القاعة الرئيسية"}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="pt-2 border-t border-gray-300/85 flex items-center justify-between">
+                            <span className="text-xs font-extrabold text-blue-800 bg-blue-50/90 border border-blue-200 px-3 py-1 rounded-lg">
+                              {totalRecs} توصية مسجلة
+                            </span>
+                            <button
+                              onClick={() => {
+                                setSelectedEventIdForCards(evt.id);
+                              }}
+                              className="px-4 py-2 bg-brand text-white hover:bg-[#dfba6b] hover:text-[#1e293b] font-black text-xs rounded-xl transition duration-200 shadow-sm cursor-pointer flex items-center gap-1"
+                            >
+                              <span>تصفح التوصيات</span>
+                              <span>←</span>
+                            </button>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          ) : (
+            /* Screen 3: List of Recommendations inside Selected Event */
+            <div className="space-y-6 text-right" dir="rtl">
+              {(() => {
+                const chosenEvent = events.find((e) => e.id === selectedEventIdForCards);
+                if (!chosenEvent) {
+                  return (
