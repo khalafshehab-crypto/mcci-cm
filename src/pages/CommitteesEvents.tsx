@@ -75,6 +75,15 @@ const isWeekend = (dateStr: string) => {
 };
 const DAYS = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس"];
 const WEEKSMap: Record<string, number> = {"الأول": 0, "الثاني": 1, "الثالث": 2, "الرابع": 3};
+
+const getArabicOrdinalGlobal = (n: number | string): string => {
+  const num = typeof n === "string" ? parseInt(n, 10) : n;
+  if (isNaN(num)) return typeof n === "string" ? n : n.toString();
+  const ordinals = ["الصفر", "الأول", "الثاني", "الثالث", "الرابع", "الخامس", "السادس", "السابع", "الثامن", "التاسع", "العاشر", "الحادي عشر", "الثاني عشر", "الثالث عشر", "الرابع عشر", "الخامس عشر", "السادس عشر", "السابع عشر", "الثامن عشر", "التاسع عشر", "العشرون"];
+  if (num >= 0 && num <= 20) return ordinals[num];
+  return num.toString();
+};
+
 const DAYSMaps: Record<string, number> = {"الأحد": 0, "الإثنين": 1, "الثلاثاء": 2, "الأربعاء": 3, "الخميس": 4};
 
 const exportRecommendationsToLocalStorage = async (evt: EventItem, selectedAgendaItemIds?: string[]) => {
@@ -91,18 +100,23 @@ const exportRecommendationsToLocalStorage = async (evt: EventItem, selectedAgend
     const existingAlarmsRaw = localStorage.getItem("app_custom_recommendations_alarms");
     const existingAlarms = existingAlarmsRaw ? JSON.parse(existingAlarmsRaw) : [];
     
-    const newAlarms = recsToExport.map((rec, index) => ({
+    const newAlarms = recsToExport.map((rec, index) => {
+      const agendaIdx = agenda.findIndex(a => a.id === rec.id);
+      const displayNum = agendaIdx !== -1 ? agendaIdx + 1 : index + 1;
+      return {
       id: `custom-rec-${evt.id}-${rec.id || index}`,
       type: "recommendation" as const,
-      title: `توصية البند: ${rec.title}`,
+      title: `توصية البند ${getArabicOrdinalGlobal(displayNum)} "${rec.title}"`,
       description: rec.recommendation || "",
+        recommendationText: rec.recommendation || "",
+        recommendationDiscussion: rec.discussion || "",
       dept: evt.committeeName,
       isUrgent: true,
       committee: evt.committeeName,
       dateStr: evt.date,
       status: "جديدة",
       responsible: rec.assignee || "غير محدد"
-    }));
+    }});
     
     const existingFiltered = existingAlarms.filter((a: any) => !a.id.startsWith(`custom-rec-${evt.id}-`));
     const mergedAlarms = [...existingFiltered, ...newAlarms];
@@ -117,11 +131,15 @@ const exportRecommendationsToLocalStorage = async (evt: EventItem, selectedAgend
     if (!Array.isArray(existingCustom)) existingCustom = [];
     
     const newCustomRecs = recsToExport.map((rec, index) => {
+      const agendaIdx = agenda.findIndex(a => a.id === rec.id);
+      const displayNum = agendaIdx !== -1 ? agendaIdx + 1 : index + 1;
       const recId = `custom-rec-${evt.id}-${rec.id || index}`;
       return {
         id: recId,
-        title: evt.title,
+        title: `توصية البند ${getArabicOrdinalGlobal(displayNum)} "${rec.title}"`,
         description: rec.recommendation || "",
+        recommendationText: rec.recommendation || "",
+        recommendationDiscussion: rec.discussion || "",
         committeeName: evt.committeeName || "لجنة الإعلام والتسويق",
         eventName: evt.title || "مصدرة من جدول أعمال الفعاليات",
         date: evt.date || "2026-06-11",
@@ -512,7 +530,7 @@ ${formattedItems}
       const formattedCommName = commName ? formatCommitteeNameArabic(commName) : "";
       const prefixToMatch = (singleKind === "اجتماع" ? `${singleKind} ${formattedCommName} ${classifStr}` : `${singleKind} ${formattedCommName}`).trim();
       const count = events.filter(e => e.committeeId === newCommitteeId && e.title.startsWith(prefixToMatch)).length;
-      setSingleEventNumber(getArabicOrdinal(count + 1));
+      setSingleEventNumber(getArabicOrdinalGlobal(count + 1));
     }
   }, [newType, singleKind, newCommitteeId, singleClassification, committees, events, isSeqManuallyEdited]);
 
@@ -523,7 +541,7 @@ ${formattedItems}
     if (commName && !canUserEditCommittee(commName)) { return; }
       const classifStr = singleClassification === "دوري" ? "الدوري" : singleClassification === "استثنائي" ? "الاستثنائي" : singleClassification === "طارئ" ? "الطارئ" : singleClassification === "فريق عمل" ? "فريق العمل" : singleClassification;
       const formattedCommName = commName ? formatCommitteeNameArabic(commName) : "";
-      const numWord = getArabicOrdinal(singleEventNumber);
+      const numWord = getArabicOrdinalGlobal(singleEventNumber);
       let autoTitle = (singleKind === "اجتماع" ? `${singleKind} ${formattedCommName} ${classifStr} ${numWord}` : `${singleKind} ${formattedCommName} ${numWord}`).trim();
       if (singleKind === "اجتماع" && singleClassification === "دوري" && numWord === "الأول") {
         autoTitle += " (التأسيسي)";
@@ -758,7 +776,7 @@ ${formattedItems}
         const occurrence = Math.floor((dateNo - 1) / 7);
         if (occurrence === targetWeek) {
           existingCount++;
-          const numWord = getArabicOrdinal(existingCount);
+          const numWord = getArabicOrdinalGlobal(existingCount);
           let itemTitle = `${prefixToMatch} ${numWord}`.trim();
           if (seriesKind === "اجتماع" && seriesClassification === "دوري" && numWord === "الأول") {
             itemTitle += " (التأسيسي)";
@@ -2596,7 +2614,7 @@ ${formattedItems}
                                                           <option value="">-- كشف المكلفين المتاحين --</option>
                                                           <option value="الأخصائي">أخصائي اللجنة</option>
                                                           {allMembers.filter(m => m.committeeId === evt.committeeId).map(m => (
-                                                            <option key={m.id} value={`${m.title} ${m.name}`}>{m.title} {m.name} ({m.role})</option>
+                                                            <option key={m.id} value={`${m.role} - ${m.title} ${m.name}`}>{m.title} {m.name} ({m.role})</option>
                                                           ))}
                                                           <option value="برنامج التطوير">فريق العمل الفني (موظف أخر)</option>
                                                         </select>
@@ -2812,7 +2830,7 @@ ${formattedItems}
                                                             />
                                                             <div className="flex-1 flex flex-col gap-1.5 leading-snug">
                                                               <div className="flex items-start justify-between gap-4">
-                                                                <span className="font-extrabold text-slate-950">توصية البند {index + 1}: {rec.recommendation}</span>
+                                                                <span className="font-extrabold text-slate-950">توصية البند {getArabicOrdinalGlobal((evt.agenda || []).findIndex(a => a.id === rec.id) !== -1 ? (evt.agenda || []).findIndex(a => a.id === rec.id) + 1 : index + 1)} "{rec.title}"</span>
                                                                 
                                                                 {/* Status badges */}
                                                                 {!isIdExistInDb ? (

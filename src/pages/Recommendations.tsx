@@ -189,7 +189,7 @@ export default function Events() {
   const { data: rawCommittees } = useFirestoreCollection<any>("committees", []);
   const { data: allMembers } = useFirestoreCollection<Member>("members", []);
   const { data: dbEmployees } = useFirestoreCollection<any>("employees", []);
-  const { data: allDbRecommendations, addDocument: addFirebaseRecommendation } = useFirestoreCollection<any>("recommendations", []);
+  const { data: allDbRecommendations, addDocument: addFirebaseRecommendation, deleteDocument: deleteFirebaseRecommendation } = useFirestoreCollection<any>("recommendations", []);
 
   const committees = rawCommittees.map(comm => {
      if (!comm) return comm;
@@ -264,6 +264,7 @@ export default function Events() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
   const [deletingEvent, setDeletingEvent] = useState<EventItem | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
   const [activeGearMenuId, setActiveGearMenuId] = useState<number | null>(null);
   const [detailsEvent, setDetailsEvent] = useState<EventItem | null>(null);
 
@@ -501,10 +502,10 @@ ${formattedItems}
   const [newCommitteeId, setNewCommitteeId] = useState<number | string>(0);
   const availableAssignees = React.useMemo(() => {
     const comm = committees.find(c => c.id === newCommitteeId);
-    const specialist = comm?.specialist || "";
-    const members = allMembers.filter(m => m.committeeId === newCommitteeId).map(m => m.name);
+    const specialist = comm?.specialist ? `أخصائي اللجنة - ${comm.specialist}` : "";
+    const members = allMembers.filter(m => m.committeeId === newCommitteeId).map(m => `${m.role} - ${m.title} ${m.name}`);
     return Array.from(new Set([specialist, ...members].filter(Boolean)));
-  }, [committees, allMembers, newCommitteeId]);
+  }, [allMembers, committees, newCommitteeId]);
   const [newStatus, setNewStatus] = useState<EventItem["status"]>("تجهيز الفعاليات");
   const [newLocation, setNewLocation] = useState<"حضوري" | "عن بعد">("حضوري");
   const [newEmployees, setNewEmployees] = useState<string[]>([]);
@@ -783,6 +784,53 @@ ${formattedItems}
     if (title.includes("الطارئ") || title.includes("طارئ")) return "طارئ";
     return "دوري";
   };
+
+  
+    const tableRecommendations = React.useMemo(() => {
+    const term = filterQuery.trim().toLowerCase();
+    
+    // Get recommendations from DB
+    let mappedDb = [...allDbRecommendations].map((rec: any) => {
+       return {
+          ...rec,
+          id: rec.id,
+          title: rec.title || rec.description || "توصية غير مسماة",
+          committeeName: rec.committeeName || "غير محدد",
+          date: rec.date || "2026-06-11",
+          status: rec.status || "جديدة",
+          recommendationAssignee: rec.assignedTo || "غير محدد",
+          recommendationType: true,
+          isRealEvent: false
+       };
+    });
+
+    // Get standalone recommendations from events (they have recommendationType)
+    let mappedStandalone = events
+       .filter(e => !!e.recommendationType)
+       .map(e => ({
+          ...e,
+          id: e.id,
+          title: e.title || "توصية غير مسماة",
+          committeeName: e.committeeName || "غير محدد",
+          date: e.date || "2026-06-11",
+          status: e.status || "جديدة",
+          recommendationAssignee: e.employees && e.employees.length > 0 ? e.employees[0] : "غير محدد",
+          recommendationType: e.recommendationType || true,
+          isRealEvent: false
+       }));
+
+    let combined = [...mappedDb, ...mappedStandalone];
+
+    if (term) {
+       combined = combined.filter(r => 
+         (r.title && r.title.toLowerCase().includes(term)) ||
+         (r.committeeName && r.committeeName.toLowerCase().includes(term))
+       );
+    }
+    
+    // Sort by date (descending)
+    return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [allDbRecommendations, events, filterQuery]);
 
   const sortedTableEvents = React.useMemo(() => {
     const list = [...filteredEvents];
@@ -1082,8 +1130,22 @@ ${formattedItems}
     setIsAddOpen(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (deletingEvent) {
+      if (allDbRecommendations.some((r: any) => String(r.id) === String(deletingEvent.id))) {
+        if (typeof deleteFirebaseRecommendation === "function") {
+          await deleteFirebaseRecommendation(String(deletingEvent.id));
+        }
+      } else if (deletingEvent.isAgendaSource) {
+        alert("هذه التوصية مستمدة من جدول أعمال فعالية. لا يمكن حذفها من هنا.");
+        setDeletingEvent(null);
+        return;
+      } else {
+        if (typeof deleteFirebaseEvent === "function") {
+          await deleteFirebaseEvent(String(deletingEvent.id));
+        }
+      }
+      
       setEvents(events.filter((e) => e.id !== deletingEvent.id));
       setDeletingEvent(null);
     }
@@ -1105,10 +1167,18 @@ ${formattedItems}
   };
 
   const toggleSelectAllEvents = () => {
-    if (selectedEventIds.length === filteredEvents.length && filteredEvents.length > 0) {
-      setSelectedEventIds([]);
+    if (viewMode === "table") {
+      if (selectedEventIds.length === tableRecommendations.length && tableRecommendations.length > 0) {
+        setSelectedEventIds([]);
+      } else {
+        setSelectedEventIds(tableRecommendations.map((e: any) => e.id));
+      }
     } else {
-      setSelectedEventIds(filteredEvents.map(e => e.id));
+      if (selectedEventIds.length === filteredEvents.length && filteredEvents.length > 0) {
+        setSelectedEventIds([]);
+      } else {
+        setSelectedEventIds(filteredEvents.map(e => e.id));
+      }
     }
   };
 
@@ -1739,13 +1809,13 @@ ${formattedItems}
                             </h4>
 
                             <div className="space-y-2 text-xs font-bold text-gray-700 bg-white/75 p-4 rounded-2xl border border-gray-300/60 shadow-sm">
-                              <div className="flex items-center gap-2 text-brand">
-                                <Users className="w-3.5 h-3.5" />
-                                <span>المكلف: {evt.recommendationAssignee || (evt.employees && evt.employees[0]) || "غير محدد"}</span>
-                              </div>
                               <div className="flex items-center gap-2">
                                 <Activity className="w-3.5 h-3.5 text-gray-500" />
                                 <span>اللجنة: {evt.committeeName}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-brand">
+                                <List className="w-3.5 h-3.5" />
+                                <span>الاجتماع: {evt.eventName || "توصية مباشرة"}</span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <Calendar className="w-3.5 h-3.5 text-gray-500" />
@@ -1804,26 +1874,7 @@ ${formattedItems}
                   (rec.eventName && rec.eventName === chosenEvent.title)
                 );
 
-                const agendaRecs = (chosenEvent.agenda || [])
-                  .filter((g: any) => g.recommendation && g.recommendation.trim() !== "")
-                  .map((g: any, idx: number) => {
-                    const isAlreadyInDb = dbRecommendations.some((dr: any) => dr.title === g.title);
-                    if (isAlreadyInDb) return null;
-                    return {
-                      id: `agenda-rec-${chosenEvent.id}-${idx}`,
-                      title: g.title,
-                      description: g.recommendation,
-                      assignedTo: g.assignee || "غير حدد",
-                      duration: g.durationRec || "أسبوعين",
-                      status: "جديدة",
-                      approvalStage: "أخصائي",
-                      auditLogs: [],
-                      isAgendaSource: true
-                    };
-                  })
-                  .filter(Boolean);
-
-                const combinedRecs = [...dbRecommendations, ...agendaRecs];
+                const combinedRecs = dbRecommendations;
 
                 return (
                   <div className="space-y-6">
@@ -2023,9 +2074,14 @@ ${formattedItems}
                               {/* Card Header & Badges */}
                               <div className="space-y-4">
                                 <div className="flex items-start justify-between gap-2">
-                                  <span className={`inline-flex items-center px-2.5 py-1 text-[11px] font-black rounded-lg border ${badgeBg}`}>
-                                    {statusTextLabel}
-                                  </span>
+                                  <div className="flex flex-col gap-1">
+                                    <span className={`inline-flex items-center justify-center px-2.5 py-1 text-[11px] font-black rounded-lg border ${badgeBg}`}>
+                                      {statusTextLabel}
+                                    </span>
+                                    <span className="text-[10px] text-gray-600 font-bold bg-white/50 px-2 py-0.5 rounded border border-gray-200 text-center">
+                                      المكلف: {rec.assignedTo || rec.recommendationAssignee || (rec.employees && rec.employees[0]) || "غير محدد"}
+                                    </span>
+                                  </div>
                                   {rec.isAgendaSource && (
                                     <span className="text-[10px] text-brand font-bold bg-[#dfba6b]/10 border border-[#dfba6b]/20 px-2 py-0.5 rounded-lg animate-pulse">
                                       من جدول الأعمال
@@ -2199,7 +2255,7 @@ ${formattedItems}
                       <input 
                         type="checkbox" 
                         className="rounded text-brand"
-                        checked={selectedEventIds.length === filteredEvents.length && filteredEvents.length > 0} 
+                        checked={selectedEventIds.length === tableRecommendations.length && tableRecommendations.length > 0} 
                         onChange={toggleSelectAllEvents}
                       />
                       <span>م</span>
@@ -2214,7 +2270,7 @@ ${formattedItems}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-[#e8e4e4]/85">
-                {sortedTableEvents.map((evt, idx) => {
+                {tableRecommendations.map((evt: any, idx) => {
                   const isExpanded = expandedEventId === evt.id;
                   const nextStep = getCalculatedNextStep(evt);
                   return (
@@ -2507,31 +2563,7 @@ ${formattedItems}
                                                       
 const linkedEvent = events.find(e => String(e.id) === String(evt.recommendationEventId));
 const meetingName = linkedEvent ? linkedEvent.title : (evt.eventName && evt.eventName !== "توصية غير محددة" ? evt.eventName : (evt.title.includes("اجتماع") ? evt.title : `اجتماع ${evt.committeeName || "اللجنة"}`));
-const generatedProposal = isPassing 
-                                                        ? `الموضوع: تفعيل التوصية رقم (001) الصادرة بالتمرير لـ ${evt.committeeName || "اللجنة"}
-
-توصية ${rType} صادرة بالتمرير لـ ${evt.committeeName || "اللجنة"}
-تم تمريرها بتاريخ ${dayArabic} ${evt.date || "12/12/2026م"} عبر ${evt.recommendationPassMethod || "البريد الإلكتروني"}
-
-رقم التوصية: 001
-البند الأول: ${evt.title || "موضوع التوصية"}
-المناقشة: ${evt.recommendationDiscussion || "تمت مناقشة التوصية وإبداء الآراء والملاحظات من قبل الأعضاء"}
-التوصية: ${evt.recommendationText || "يتم اعتماد التوصية والبدء بتنفيذها"}
-المكلف: أخصائي اللجنة - ${evt.employees && evt.employees[0] ? evt.employees[0] : "خلف شعبان"}
-مدة التنفيذ: 5 أيام عمل
-المرفقات: ${attachmentsText}` 
-                                                        : `الموضوع: تفعيل التوصية رقم (001) الصادرة عن ${meetingName}
-
-توصية ${rType} صادرة عن ${meetingName}
-المنعقد في تمام الساعة ${formatTime12h(evt.time || "01:30")} من ظهر يوم ${dayArabic} ${evt.date || "12/12/2026م"} بقاعة ${evt.location || "الاجتماعات"}
-
-رقم التوصية: 001
-البند الأول: ${evt.title || "موضوع التوصية"}
-المناقشة: ${evt.recommendationDiscussion || "ناقشت اللجنة إمكانية تفعيل التوصيات"}
-التوصية: ${evt.recommendationText || "يتم مراجعة التوصيات الغير مفعلة لإعادة تفعيلها"}
-المكلف: أخصائي اللجنة - ${evt.employees && evt.employees[0] ? evt.employees[0] : "خلف شعبان"}
-مدة التنفيذ: 5 أيام عمل
-المرفقات: ${attachmentsText}`;
+const generatedProposal = evt.description || evt.recommendationText || evt.notes || "لا يوجد نص للتوصية";
                                                       
                                                       updateEventWorkflow(evt.id, { preparationsText: generatedProposal });
                                                     }}
@@ -2544,7 +2576,7 @@ const generatedProposal = isPassing
                                               </div>
                                               
                                               <textarea
-                                                value={evt.preparationsText || ""}
+                                                value={evt.preparationsText || evt.description || evt.recommendationText || ""}
                                                 onChange={(e) => updateEventWorkflow(evt.id, { preparationsText: e.target.value })}
                                                 placeholder="اكتب هنا النص التفصيلي للتوصية أو الصياغة الصادرة للهيكل التنفيذي..."
                                                 className="w-full h-32 p-3 text-[10px] font-bold text-slate-800 border border-gray-200 rounded-lg focus:ring-1 focus:ring-brand focus:border-brand resize-none bg-slate-50/70 leading-relaxed text-right font-sans"
@@ -3407,7 +3439,8 @@ const generatedProposal = isPassing
                </div>
                <h3 className="text-xl font-black text-gray-900 mb-2">تأكيد الحذف</h3>
                <p className="text-sm font-bold text-gray-500 mb-6">
-                 هل أنت متأكد من حذف الفعالية "{deletingEvent.title}"؟ 
+                 هل أنت متأكد من حذف التوصية "{deletingEvent.title}"؟ 
+                 لن يتم حذف الفعالية الأصلية.
                </p>
                <div className="flex gap-3">
                  <button

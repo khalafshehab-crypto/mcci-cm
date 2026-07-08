@@ -1,80 +1,71 @@
 const fs = require('fs');
 
-function patchFile(filepath) {
+['src/pages/CommitteesRecommendations.tsx', 'src/pages/Recommendations.tsx'].forEach(filepath => {
   let content = fs.readFileSync(filepath, 'utf8');
 
-  // Add state
+  // 1. Add deleteReason state if not exists
+  if (!content.includes('const [deleteReason, setDeleteReason]')) {
+    content = content.replace(
+      'const [deletingEvent, setDeletingEvent] = useState<EventItem | null>(null);',
+      'const [deletingEvent, setDeletingEvent] = useState<EventItem | null>(null);\n  const [deleteReason, setDeleteReason] = useState("");'
+    );
+  }
+
+  // 2. Replace handleDelete
+  const handleDeleteRegex = /const handleDelete = \(\) => \{\s+if \(deletingEvent\) \{\s+setEvents\(events\.filter\(\(e\) => e\.id !== deletingEvent\.id\)\);\s+setDeletingEvent\(null\);\s+\}\s+\};/m;
+  const newHandleDelete = `const handleDelete = async () => {
+    if (deletingEvent) {
+      if (!deleteReason.trim()) {
+        alert("يرجى ذكر سبب الحذف لتأكيد العملية");
+        return;
+      }
+      if (allDbRecommendations.some((r: any) => String(r.id) === String(deletingEvent.id))) {
+        if (typeof deleteFirebaseRecommendation === "function") {
+          await deleteFirebaseRecommendation(String(deletingEvent.id));
+        }
+      } else if (deletingEvent.isAgendaSource) {
+        alert("هذه التوصية مستمدة من جدول أعمال فعالية. لا يمكن حذفها من هنا.");
+        setDeletingEvent(null);
+        setDeleteReason("");
+        return;
+      } else {
+        if (typeof deleteFirebaseEvent === "function") {
+          await deleteFirebaseEvent(String(deletingEvent.id));
+        }
+      }
+      
+      setEvents(events.filter((e) => e.id !== deletingEvent.id));
+      setDeletingEvent(null);
+      setDeleteReason("");
+    }
+  };`;
+  content = content.replace(handleDeleteRegex, newHandleDelete);
+
+  // 3. Update modal
+  const oldModal = /<p className="text-sm font-bold text-gray-500 mb-6">\s*هل أنت متأكد من حذف الفعالية "\{deletingEvent\.title\}"؟\s*<\/p>/m;
+  const newModal = `<p className="text-sm font-bold text-gray-500 mb-4">
+                 هل أنت متأكد من حذف التوصية "{deletingEvent.title}"؟ 
+                 لن يتم حذف الفعالية الأصلية.
+               </p>
+               <div className="mb-6 text-right w-full">
+                 <label className="block text-xs font-bold text-gray-700 mb-2">سبب الحذف (إلزامي):</label>
+                 <textarea
+                   value={deleteReason}
+                   onChange={(e) => setDeleteReason(e.target.value)}
+                   className="w-full border border-gray-300 rounded-lg p-3 text-xs font-bold focus:ring-2 focus:ring-rose-500/50 outline-none resize-none"
+                   rows={3}
+                   placeholder="اكتب سبب حذف هذه التوصية..."
+                   dir="rtl"
+                 ></textarea>
+               </div>`;
+  content = content.replace(oldModal, newModal);
+  
+  // Update cancel button to clear deleteReason
   content = content.replace(
-    'const [isDeletingSelected, setIsDeletingSelected] = useState(false);',
-    'const [isDeletingSelected, setIsDeletingSelected] = useState(false);\n  const [isDeletingSelectedLoading, setIsDeletingSelectedLoading] = useState(false);'
+    /onClick=\{\(\) => setDeletingEvent\(null\)\}/g,
+    'onClick={() => { setDeletingEvent(null); setDeleteReason(""); }}'
   );
 
-  // Update confirmDeleteSelected
-  const oldConfirm = `  const confirmDeleteSelected = () => {
-    const nextMembers = members.filter(m => !selectedMembers.has(m.id));
-    setMembers(nextMembers);
-    setSelectedMembers(new Set());
-    setIsDeletingSelected(false);
-  };`;
-  
-  const newConfirm = `  const confirmDeleteSelected = async () => {
-    setIsDeletingSelectedLoading(true);
-    const itemsToDelete = members.filter(m => selectedMembers.has(m.id));
-    await Promise.all(itemsToDelete.map(m => deleteFirebaseMember(String(m.id))));
-    setSelectedMembers(new Set());
-    setIsDeletingSelectedLoading(false);
-    setIsDeletingSelected(false);
-  };`;
-  
-  content = content.replace(oldConfirm, newConfirm);
-
-  // Update button in modal
-  const oldBtn = `<button
-                    onClick={confirmDeleteSelected}
-                    className="flex-1 bg-rose-600 text-white hover:bg-rose-700 py-3 rounded-xl font-bold"
-                  >
-                    حذف بالتأكيد
-                  </button>`;
-                  
-  const newBtn = `<button
-                    onClick={confirmDeleteSelected}
-                    disabled={isDeletingSelectedLoading}
-                    className="flex-1 bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50 py-3 rounded-xl font-bold flex items-center justify-center"
-                  >
-                    {isDeletingSelectedLoading ? (
-                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                    ) : (
-                      "حذف بالتأكيد"
-                    )}
-                  </button>`;
-
-  content = content.replace(oldBtn, newBtn);
-  
-  // Also fix the main button (add key)
-  const oldMainBtn = `<motion.button
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                type="button"
-                onClick={handleDeleteSelected}
-                className="h-10 px-4 bg-rose-100 text-rose-600 hover:bg-rose-200 border border-rose-200 font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-all duration-200 cursor-pointer"
-              >`;
-              
-  const newMainBtn = `<motion.button
-                key="bulk-delete-btn"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                type="button"
-                onClick={handleDeleteSelected}
-                className="h-10 px-4 bg-rose-100 text-rose-600 hover:bg-rose-200 border border-rose-200 font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-all duration-200 cursor-pointer"
-              >`;
-              
-  content = content.replace(oldMainBtn, newMainBtn);
-
-  fs.writeFileSync(filepath, content);
-}
-
-patchFile('src/pages/CommitteesMembers.tsx');
-patchFile('src/pages/Members.tsx');
-console.log("Patched bulk delete");
+  fs.writeFileSync(filepath, content, 'utf8');
+});
+console.log('Patched delete logic in both files');
