@@ -68,6 +68,11 @@ const EMPLOYEES = [
 const ROOMS = ["G2", "G3", "G4", "المركاز", "رؤساء الغرفة", "سالم بن لادن", "مشعل الزايدي", "مصطفى رضا", "عادل كعكي", "يوسف الأحمدي", "المساندة", "مسرح صالح كامل", "خارج مقر الغرفة", "عن بعد", "مكتب مساعد الأمين العام", "مكتب الأمين"];
 const EVENT_KINDS = ["اجتماع", "لقاء", "زيارة", "استضافة", "ورشة عمل", "ندوة", "حفل", "تدشين", "إطلاق مبادرة", "توقيع اتفاقية", "معرض", "دورة تدريبية", "ملتقى", "منتدى", "محاضرة"];
 const CLASSIFICATIONS = ["دوري", "استثنائي", "فريق عمل", "طارئ"];
+const isWeekend = (dateStr: string) => {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  return d.getDay() === 5 || d.getDay() === 6;
+};
 const DAYS = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس"];
 const WEEKSMap: Record<string, number> = {"الأول": 0, "الثاني": 1, "الثالث": 2, "الرابع": 3};
 const DAYSMaps: Record<string, number> = {"الأحد": 0, "الإثنين": 1, "الثلاثاء": 2, "الأربعاء": 3, "الخميس": 4};
@@ -3159,6 +3164,7 @@ ${formattedItems}
                               onChange={(e) => setNewDate(e.target.value)}
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             />
+                            {isWeekend(newDate) && <p className="text-red-500 text-[10px] font-bold mt-1">تنبيه: هذا التاريخ يوافق إجازة نهاية الأسبوع</p>}
                           </div>
 
                           {/* Row 3 */}
@@ -3304,6 +3310,7 @@ ${formattedItems}
                               onChange={(e) => setSeriesStartDate(e.target.value)}
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             />
+                            {isWeekend(seriesStartDate) && <p className="text-red-500 text-[10px] font-bold mt-1">تنبيه: هذا التاريخ يوافق إجازة نهاية الأسبوع</p>}
                           </div>
                           <div className="space-y-1">
                             <label className="text-[11px] font-black text-gray-500 block">تاريخ النهاية *</label>
@@ -3314,6 +3321,7 @@ ${formattedItems}
                               onChange={(e) => setSeriesEndDate(e.target.value)}
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             />
+                            {isWeekend(seriesEndDate) && <p className="text-red-500 text-[10px] font-bold mt-1">تنبيه: هذا التاريخ يوافق إجازة نهاية الأسبوع</p>}
                           </div>
 
                           <div className="space-y-1">
