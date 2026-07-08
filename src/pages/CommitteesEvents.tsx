@@ -66,7 +66,7 @@ const EMPLOYEES = [
 
 
 const ROOMS = ["G2", "G3", "G4", "المركاز", "رؤساء الغرفة", "سالم بن لادن", "مشعل الزايدي", "مصطفى رضا", "عادل كعكي", "يوسف الأحمدي", "المساندة", "مسرح صالح كامل", "خارج مقر الغرفة", "عن بعد", "مكتب مساعد الأمين العام", "مكتب الأمين"];
-const EVENT_KINDS = ["اجتماع", "لقاء", "زيارة", "استضافة", "ورشة عمل", "ندوة", "حفل", "تدشين", "إطلاق مبادرة", "توقيع اتفاقية", "معرض", "دورة تدريبية"];
+const EVENT_KINDS = ["اجتماع", "لقاء", "زيارة", "استضافة", "ورشة عمل", "ندوة", "حفل", "تدشين", "إطلاق مبادرة", "توقيع اتفاقية", "معرض", "دورة تدريبية", "ملتقى", "منتدى", "محاضرة"];
 const CLASSIFICATIONS = ["دوري", "استثنائي", "فريق عمل", "طارئ"];
 const DAYS = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس"];
 const WEEKSMap: Record<string, number> = {"الأول": 0, "الثاني": 1, "الثالث": 2, "الرابع": 3};
@@ -933,17 +933,24 @@ ${formattedItems}
     return `${hours}:${m} ${ampm}`;
   };
 
-  const getEventKindStr = (title: string) => {
-    if (title.startsWith("اجتماع")) return "اجتماع";
-    if (title.startsWith("لقاء")) return "لقاء";
-    if (title.startsWith("زيارة")) return "زيارة";
-    if (title.startsWith("استضافة")) return "استضافة";
-    if (title.startsWith("ورشة عمل")) return "ورشة عمل";
-    if (title.startsWith("ندوة")) return "ندوة";
-    if (title.startsWith("حفل")) return "حفل";
-    if (title.startsWith("تدشين")) return "تدشين";
-    if (title.startsWith("إطلاق مبادرة")) return "إطلاق مبادرة";
-    if (title.startsWith("توقيع اتفاقية")) return "توقيع اتفاقية";
+  const getEventKindStr = (rawTitle: string) => {
+    if (!rawTitle) return "فعالية";
+    const title = rawTitle.trim();
+    if (title.startsWith("اجتماع") || title.includes("اجتماع")) return "اجتماع";
+    if (title.startsWith("لقاء") || title.includes("لقاء")) return "لقاء";
+    if (title.startsWith("زيارة") || title.includes("زيارة")) return "زيارة";
+    if (title.startsWith("استضافة") || title.includes("استضافة")) return "استضافة";
+    if (title.startsWith("ورشة عمل") || title.includes("ورشة عمل")) return "ورشة عمل";
+    if (title.startsWith("ندوة") || title.includes("ندوة")) return "ندوة";
+    if (title.startsWith("حفل") || title.includes("حفل")) return "حفل";
+    if (title.startsWith("تدشين") || title.includes("تدشين")) return "تدشين";
+    if (title.startsWith("إطلاق مبادرة") || title.includes("إطلاق مبادرة")) return "إطلاق مبادرة";
+    if (title.startsWith("توقيع اتفاقية") || title.includes("توقيع اتفاقية")) return "توقيع اتفاقية";
+    if (title.startsWith("معرض") || title.includes("معرض")) return "معرض";
+    if (title.startsWith("دورة تدريبية") || title.startsWith("دورة") || title.includes("دورة")) return "دورة تدريبية";
+    if (title.startsWith("ملتقى") || title.includes("ملتقى")) return "ملتقى";
+    if (title.startsWith("منتدى") || title.includes("منتدى")) return "منتدى";
+    if (title.startsWith("محاضرة") || title.includes("محاضرة")) return "محاضرة";
     return "فعالية";
   };
 
@@ -1382,7 +1389,7 @@ ${formattedItems}
               })()}
             </div>
           ) : /* Level 3: Classifications inside selected Event Kind & Committee */
-          selectedClassificationForCards === null ? (
+          selectedClassificationForCards === null && selectedEventKindForCards === "اجتماع" ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-black text-gray-800">
@@ -1453,14 +1460,24 @@ ${formattedItems}
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-black text-gray-800">
-                    قائمة الفعاليات الـ (<span className="text-emerald-600">{selectedClassificationForCards}</span>) من نوع (<span className="text-blue-600">{selectedEventKindForCards}</span>) لـ (<span className="text-brand">{rawCommittees.find((c) => c.id === selectedCommIdForCards)?.name}</span>)
+                    {selectedEventKindForCards === "اجتماع" ? (
+                    <>قائمة الفعاليات الـ (<span className="text-emerald-600">{selectedClassificationForCards}</span>) من نوع (<span className="text-blue-600">{selectedEventKindForCards}</span>) لـ (<span className="text-brand">{rawCommittees.find((c) => c.id === selectedCommIdForCards)?.name}</span>)</>
+                  ) : (
+                    <>قائمة فعاليات نوع (<span className="text-blue-600">{selectedEventKindForCards}</span>) لـ (<span className="text-brand">{rawCommittees.find((c) => c.id === selectedCommIdForCards)?.name}</span>)</>
+                  )}
                   </h3>
                 </div>
                 <button
-                  onClick={() => setSelectedClassificationForCards(null)}
+                  onClick={() => {
+                    if (selectedEventKindForCards !== "اجتماع") {
+                      setSelectedEventKindForCards(null);
+                    } else {
+                      setSelectedClassificationForCards(null);
+                    }
+                  }}
                   className="text-xs text-brand font-black hover:underline"
                 >
-                  الرجوع خطوة للأعلى (الفرز والتصنيفات) ↑
+                  {selectedEventKindForCards !== "اجتماع" ? "الرجوع خطوة للأعلى (عناوين أنواع الفعاليات) ↑" : "الرجوع خطوة للأعلى (الفرز والتصنيفات) ↑"}
                 </button>
               </div>
               {(() => {
@@ -1468,7 +1485,7 @@ ${formattedItems}
                   (e) =>
                     e.committeeId === selectedCommIdForCards &&
                     getEventKindStr(e.title) === selectedEventKindForCards &&
-                    getEventClassification(e.title) === selectedClassificationForCards
+                    (selectedEventKindForCards !== "اجتماع" || getEventClassification(e.title) === selectedClassificationForCards)
                 );
 
                 if (finalList.length === 0) {

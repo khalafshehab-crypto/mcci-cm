@@ -317,6 +317,8 @@ export default function CommitteesMembers() {
   const [isDeletingStep, setIsDeletingStep] = useState(false);
   const [isDeletingSelected, setIsDeletingSelected] = useState(false);
   const [isDeletingSelectedLoading, setIsDeletingSelectedLoading] = useState(false);
+  const [sortField, setSortField] = useState<"name" | "committeeName" | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   // Active gear action dropdown state
   const [activeGearMenuId, setActiveGearMenuId] = useState<number | null>(null);
@@ -489,8 +491,8 @@ export default function CommitteesMembers() {
           phone: getColValue("phone"),
           email: getColValue("email"),
           nationalId: getColValue("nationalId"),
-          role: "عضو", // default
-          title: "الأستاذ",
+          role: getColValue("role") || "عضو",
+          title: getColValue("title") || "الأستاذ",
           customTitle: "",
           committeeId: defaultComm?.id || 0,
           committeeName: defaultComm?.name || "",
@@ -499,7 +501,7 @@ export default function CommitteesMembers() {
           entity: "غرفة مكة المكرمة",
           active: true,
           joinedDate: getColValue("joined_date") || new Date().toISOString().split('T')[0],
-          note: "مستورد من ملف",
+          note: getColValue("note") || "مستورد من ملف",
           personalPhoto: "",
           cv: "",
           commercialRegister: "",
@@ -768,18 +770,38 @@ export default function CommitteesMembers() {
   };
 
   // Filter and search logic
-  const filteredMembers = members.filter(m => {
-    const term = filterQuery.trim().toLowerCase();
-    
-    // Search query matches
-    return !term ? true : (
-      m.name.toLowerCase().includes(term) ||
-      m.role.toLowerCase().includes(term) ||
-      m.committeeName.toLowerCase().includes(term) ||
-      (m.entity || "").toLowerCase().includes(term) ||
-      m.email.toLowerCase().includes(term)
-    );
-  });
+  const handleSort = (field: "name" | "committeeName") => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const filteredMembers = React.useMemo(() => {
+    let result = members.filter(m => {
+      const term = filterQuery.trim().toLowerCase();
+      return !term ? true : (
+        m.name.toLowerCase().includes(term) ||
+        m.role.toLowerCase().includes(term) ||
+        m.committeeName.toLowerCase().includes(term) ||
+        (m.entity || "").toLowerCase().includes(term) ||
+        m.email.toLowerCase().includes(term)
+      );
+    });
+
+    if (sortField) {
+      result = [...result].sort((a, b) => {
+        const valA = (a[sortField] || "").toLowerCase();
+        const valB = (b[sortField] || "").toLowerCase();
+        if (valA < valB) return sortDirection === "asc" ? -1 : 1;
+        if (valA > valB) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return result;
+  }, [members, filterQuery, sortField, sortDirection]);
 
   // Calculate stats
   const totalCount = members.length;
@@ -1324,8 +1346,38 @@ export default function CommitteesMembers() {
                     />
                   </th>
                   {visibleColumns.index && <th className="px-2 py-2 font-black text-center text-gray-850 tracking-tight text-xs w-8">م</th>}
-                  {visibleColumns.name && <th className="px-2 py-2 font-black text-right text-gray-850 tracking-tight text-xs w-[220px]">الاسم</th>}
-                  {visibleColumns.committee && <th className="px-2 py-2 font-black text-right text-gray-850 tracking-tight text-xs">اللجنة</th>}
+                  {visibleColumns.name && (
+                    <th 
+                      className="px-2 py-2 font-black text-right text-gray-850 tracking-tight text-xs w-[220px] cursor-pointer hover:bg-gray-200 transition-colors"
+                      onClick={() => handleSort("name")}
+                    >
+                      <div className="flex items-center justify-start gap-1">
+                        الاسم
+                        {sortField === "name" && (
+                          <span className="text-brand">
+                            {sortDirection === "asc" ? "↑" : "↓"}
+                          </span>
+                        )}
+                        {sortField !== "name" && <span className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">↕</span>}
+                      </div>
+                    </th>
+                  )}
+                  {visibleColumns.committee && (
+                    <th 
+                      className="px-2 py-2 font-black text-right text-gray-850 tracking-tight text-xs cursor-pointer hover:bg-gray-200 transition-colors"
+                      onClick={() => handleSort("committeeName")}
+                    >
+                      <div className="flex items-center justify-start gap-1">
+                        اللجنة
+                        {sortField === "committeeName" && (
+                          <span className="text-brand">
+                            {sortDirection === "asc" ? "↑" : "↓"}
+                          </span>
+                        )}
+                        {sortField !== "committeeName" && <span className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">↕</span>}
+                      </div>
+                    </th>
+                  )}
                   {visibleColumns.phone && <th className="px-2 py-2 font-black text-right text-gray-850 tracking-tight text-xs">رقم الجوال</th>}
                   {visibleColumns.email && <th className="px-2 py-2 font-black text-right text-gray-850 tracking-tight text-xs">البريد الإلكتروني</th>}
                   {visibleColumns.nationalId && <th className="px-2 py-2 font-black text-right text-gray-850 tracking-tight text-xs">رقم الهوية</th>}
@@ -1758,13 +1810,16 @@ export default function CommitteesMembers() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {Object.entries({
+                        title: "اللقب",
                         name: "اسم العضو",
                         committee: "اللجنة",
+                        role: "الصفة",
                         phone: "رقم الجوال",
                         email: "البريد الإلكتروني",
                         nationalId: "رقم الهوية",
                         membership_type: "آلية الانضمام",
-                        joined_date: "تاريخ الانضمام"
+                        joined_date: "تاريخ الانضمام",
+                        note: "ملاحظات"
                       }).map(([sysField, sysLabel]) => (
                         <div key={sysField} className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                           <label className="text-xs font-black text-gray-700 block mb-2">{sysLabel}</label>
