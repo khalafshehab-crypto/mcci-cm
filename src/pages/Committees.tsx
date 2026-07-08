@@ -362,11 +362,11 @@ export default function Committees() {
         let hasChanges = false;
         const updated = prev.map(comm => {
           // Count total members belonging to committee
-          const myMbrs = allMembers.filter((m: any) => m && m.committeeId === comm.id);
+          const myMbrs = allMembers.filter((m: any) => m && String(m.committeeId) === String(comm.id));
           const realMembersCount = myMbrs.length;
 
           // Count meetings & events purely from app_events, since this is raw production readiness
-          const myEvts = allEvents.filter((e: any) => e && e.committeeId === comm.id);
+          const myEvts = allEvents.filter((e: any) => e && String(e.committeeId) === String(comm.id));
           const realMeetingsCount = myEvts.filter((e: any) => e && e.title && e.title.includes("اجتماع")).length;
           const realEventsCount = myEvts.filter((e: any) => e && e.title && !e.title.includes("اجتماع")).length;
 
@@ -606,7 +606,7 @@ export default function Committees() {
 
     return committees.map(comm => {
       // Calculate dynamic members count
-      const myMbrs = allMembers.filter((m: any) => m && m.committeeId === comm.id);
+      const myMbrs = allMembers.filter((m: any) => m && String(m.committeeId) === String(comm.id));
       const realMembersCount = myMbrs.length;
 
       // Calculate dynamic president from members
@@ -616,7 +616,7 @@ export default function Committees() {
         : (comm.president || "غير محدد");
 
       // Calculate dynamic meetings and events
-      const myEvts = allEvents.filter((e: any) => e && e.committeeId === comm.id);
+      const myEvts = allEvents.filter((e: any) => e && String(e.committeeId) === String(comm.id));
       const realMeetingsCount = myEvts.filter((e: any) => e && e.title && e.title.includes("اجتماع")).length;
       const realEventsCount = myEvts.filter((e: any) => e && e.title && !e.title.includes("اجتماع")).length;
 

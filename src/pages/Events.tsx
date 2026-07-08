@@ -13,7 +13,7 @@ interface EventItem {
   type: "مفردة" | "متسلسلة";
   date: string; // ISO or Display format
   time?: string; // e.g. "10:00"
-  committeeId: number;
+  committeeId: number | string;
   committeeName: string;
   status: "تجهيز الفعاليات" | "تأكيد الموعد مع رئيس اللجنة" | "إرسال الدعوات" | "تأكيد الحضور" | "محضر الاجتماع" | "التوصيات" | "منتهية" | string;
   location: "حضوري" | "عن بعد";
@@ -236,6 +236,7 @@ export default function Events() {
 
   const [selectedEventIds, setSelectedEventIds] = useState<number[]>([]);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isBulkDeletingLoading, setIsBulkDeletingLoading] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
   const [deletingEvent, setDeletingEvent] = useState<EventItem | null>(null);
@@ -468,7 +469,7 @@ ${formattedItems}
   const [isTitleManuallyEdited, setIsTitleManuallyEdited] = useState(false);
   const [newType, setNewType] = useState<"مفردة" | "متسلسلة">("مفردة");
   const [newDate, setNewDate] = useState("");
-  const [newCommitteeId, setNewCommitteeId] = useState<number>(0);
+  const [newCommitteeId, setNewCommitteeId] = useState<number | string>(0);
   const [newStatus, setNewStatus] = useState<EventItem["status"]>("تجهيز الفعاليات");
   const [newLocation, setNewLocation] = useState<"حضوري" | "عن بعد">("حضوري");
   const [newEmployees, setNewEmployees] = useState<string[]>([]);
@@ -525,12 +526,12 @@ ${formattedItems}
 
   useEffect(() => {
     if (location.state && (location.state as any).selectedEventId) {
-      const targetId = Number((location.state as any).selectedEventId);
+      const targetId = String((location.state as any).selectedEventId);
       if (events && events.length > 0) {
-        const found = events.find(e => Number(e.id) === targetId);
+        const found = events.find(e => String(e.id) === targetId);
         if (found) {
           setViewMode("table");
-          setExpandedEventId(targetId);
+          setExpandedEventId(targetId as any);
           setTimeout(() => {
             const el = document.getElementById(`event-row-${targetId}`) || document.getElementById(`event-card-${targetId}`);
             if (el) {
@@ -889,10 +890,13 @@ ${formattedItems}
     }
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (selectedEventIds.length > 0) {
-      setEvents(events.filter((e) => !selectedEventIds.includes(e.id)));
+      setIsBulkDeletingLoading(true);
+      const itemsToDelete = events.filter((e) => selectedEventIds.includes(e.id));
+      await Promise.all(itemsToDelete.map(e => deleteFirebaseEvent(String(e.id))));
       setSelectedEventIds([]);
+      setIsBulkDeletingLoading(false);
       setIsBulkDeleting(false);
     }
   };
@@ -1252,8 +1256,8 @@ ${formattedItems}
           {selectedCommIdForCards === null ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {committees.map((comm) => {
-                const commEvents = filteredEvents.filter((e) => e.committeeId === comm.id);
-                const president = allMembers.find((m) => m.committeeId === comm.id && m.active !== false && m.role === "رئيس")?.name || comm.president || "غير محدد";
+                const commEvents = filteredEvents.filter((e) => String(e.committeeId) === String(comm.id));
+                const president = allMembers.find((m) => String(m.committeeId) === String(comm.id) && m.active !== false && m.role === "رئيس")?.name || comm.president || "غير محدد";
                 const specialist = comm.specialist || "غير محدد";
 
                 return (
@@ -3074,10 +3078,10 @@ ${formattedItems}
                             <select
                               value={newCommitteeId}
                               onChange={(e) => {
-                                const val = Number(e.target.value);
+                                const val = e.target.value;
                                 setNewCommitteeId(val);
                                 setNewMembers([]);
-                                const matched = committees.find(c => c.id === val);
+                                const matched = committees.find(c => String(c.id) === String(val));
                                 if (matched && matched.specialist) {
                                   setSingleEmployee(matched.specialist);
                                   setSeriesAssignedEmployee(matched.specialist);
@@ -3233,10 +3237,10 @@ ${formattedItems}
                             <select
                               value={newCommitteeId}
                               onChange={(e) => {
-                                const val = Number(e.target.value);
+                                const val = e.target.value;
                                 setNewCommitteeId(val);
                                 setNewMembers([]); // Reset members when committee changes
-                                const matched = committees.find(c => c.id === val);
+                                const matched = committees.find(c => String(c.id) === String(val));
                                 if (matched && matched.specialist) {
                                   setSingleEmployee(matched.specialist);
                                   setSeriesAssignedEmployee(matched.specialist);
@@ -3425,9 +3429,14 @@ ${formattedItems}
                <div className="flex gap-3">
                  <button
                    onClick={handleBulkDelete}
-                   className="flex-1 bg-rose-600 text-white rounded-xl py-3 font-bold text-sm hover:bg-rose-700 transition-colors shadow-lg shadow-rose-200"
+                   disabled={isBulkDeletingLoading}
+                   className="flex-1 bg-rose-600 text-white rounded-xl py-3 font-bold text-sm hover:bg-rose-700 transition-colors shadow-lg shadow-rose-200 flex items-center justify-center"
                  >
-                   نعم، احذف
+                   {isBulkDeletingLoading ? (
+                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                   ) : (
+                      "نعم، احذف"
+                   )}
                  </button>
                  <button
                    onClick={() => setIsBulkDeleting(false)}

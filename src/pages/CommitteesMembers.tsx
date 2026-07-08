@@ -1,8 +1,9 @@
-import React, { useState, useEffect, FormEvent, ChangeEvent, DragEvent } from "react";
+import React, { useState, useEffect, FormEvent, ChangeEvent, DragEvent, useRef } from "react";
+import * as XLSX from "xlsx";
 import { motion, AnimatePresence } from "motion/react";
 
 import { 
-  Users, 
+  Users, UserPlus, 
   Users2, 
   Search, 
   Plus, 
@@ -41,7 +42,7 @@ interface Member {
   customTitle?: string;
   name: string; // الاسم الثلاثي
   role: string; // "رئيس" | "نائب" | "عضو" | "مشارك"
-  committeeId: number;
+  committeeId: number | string;
   committeeName: string;
   joiningMechanism: string; // "مرشح" | "معين" | "مشارك" | "ممثل لجهة حكومية"
   govAgency?: string;
@@ -127,6 +128,7 @@ function AttachmentInput({ label, value, onChange, id }: AttachmentInputProps) {
   const fileInputId = `file-input-${id}`;
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+
     if (e.target.files && e.target.files[0]) {
       onChange(e.target.files[0].name);
     }
@@ -285,7 +287,7 @@ export default function CommitteesMembers() {
   const [customTitle, setCustomTitle] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState(ROLE_CAPACITIES[2]); // Default: عضو
-  const [selectedCommitteeId, setSelectedCommitteeId] = useState<number>(0);
+  const [selectedCommitteeId, setSelectedCommitteeId] = useState<number | string>(0);
   const [joiningMechanism, setJoiningMechanism] = useState("مرشح");
   const [govAgency, setGovAgency] = useState("");
   const [email, setEmail] = useState("");
@@ -313,12 +315,93 @@ export default function CommitteesMembers() {
   const [deletingMember, setDeletingMember] = useState<Member | null>(null);
   const [deleteReason, setDeleteReason] = useState("");
   const [isDeletingStep, setIsDeletingStep] = useState(false);
+  const [isDeletingSelected, setIsDeletingSelected] = useState(false);
+  const [isDeletingSelectedLoading, setIsDeletingSelectedLoading] = useState(false);
 
   // Active gear action dropdown state
   const [activeGearMenuId, setActiveGearMenuId] = useState<number | null>(null);
 
   // Details Modal State
   const [detailsMember, setDetailsMember] = useState<Member | null>(null);
+
+
+  // Import Excel States
+  const [googleSheetUrl, setGoogleSheetUrl] = useState("");
+  const [isFetchingSheet, setIsFetchingSheet] = useState(false);
+
+  const handleFetchGoogleSheet = async () => {
+    if (!googleSheetUrl) {
+      setImportError("يرجى إدخال رابط ملف Google Drive");
+      return;
+    }
+    
+    // Extract ID
+    const match = googleSheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    const sheetId = match ? match[1] : null;
+    if (!sheetId) {
+      setImportError("رابط Google Drive غير صالح. يجب أن يحتوي على معرف الملف (ID).");
+      return;
+    }
+    
+    setIsFetchingSheet(true);
+    setImportError("");
+    try {
+      const exportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx`;
+      const res = await fetch("/api/fetch-public-sheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: exportUrl })
+      });
+      
+      if (!res.ok) {
+        throw new Error("تأكد من أن الملف 'متاح لأي شخص لديه الرابط' (Public)");
+      }
+      
+      const buffer = await res.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: 'array' });
+      const wsname = wb.SheetNames[0];
+      const ws = wb.Sheets[wsname];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      if (data.length < 2) {
+        setImportError("الملف فارغ أو لا يحتوي على صفوف بيانات.");
+        setIsFetchingSheet(false);
+        return;
+      }
+      const columns = data[0] as string[];
+      const rows = data.slice(1).filter((row: any) => row.length > 0 && row.some((c: any) => c !== undefined && c !== ""));
+      setImportColumns(columns);
+      setImportData(rows);
+      
+      const guessedMapping: Record<string, string> = {};
+      columns.forEach(col => {
+        const c = String(col).toLowerCase();
+        if (c.includes("اسم") || c.includes("name")) guessedMapping["name"] = col;
+        else if (c.includes("جوال") || c.includes("رقم") || c.includes("phone")) guessedMapping["phone"] = col;
+        else if (c.includes("بريد") || c.includes("email")) guessedMapping["email"] = col;
+        else if (c.includes("هوية") || c.includes("national")) guessedMapping["nationalId"] = col;
+        else if (c.includes("لجنة") || c.includes("committee") || c.includes("comm")) guessedMapping["committee"] = col;
+      });
+      setColumnMapping(guessedMapping);
+      setImportStep(2);
+    } catch (err: any) {
+      setImportError(err.message || "حدث خطأ أثناء جلب الملف من Google Drive");
+    } finally {
+      setIsFetchingSheet(false);
+    }
+  };
+
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isAddSelectionOpen, setIsAddSelectionOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importData, setImportData] = useState<any[]>([]);
+  const [importColumns, setImportColumns] = useState<string[]>([]);
+  const [importStep, setImportStep] = useState<1 | 2 | 3>(1);
+  const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
+  const [selectedImportRows, setSelectedImportRows] = useState<number[]>([]);
+  const [importCommitteeId, setImportCommitteeId] = useState<number | string>(0);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     localStorage.setItem("app_members", JSON.stringify(members));
@@ -336,7 +419,140 @@ export default function CommitteesMembers() {
     setIsSearchExpanded(false);
   };
 
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportFile(file);
+    setImportError("");
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const bstr = evt.target?.result;
+      const wb = XLSX.read(bstr, { type: 'binary' });
+      const wsname = wb.SheetNames[0];
+      const ws = wb.Sheets[wsname];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      if (data.length < 2) {
+        setImportError("الملف فارغ أو لا يحتوي على صفوف بيانات.");
+        return;
+      }
+      const columns = data[0] as string[];
+      const rows = data.slice(1).filter((row: any) => row.length > 0 && row.some((c: any) => c !== undefined && c !== ""));
+      setImportColumns(columns);
+      setImportData(rows);
+      
+      const guessedMapping: Record<string, string> = {};
+      columns.forEach(col => {
+        const c = String(col).toLowerCase();
+        if (c.includes("اسم") || c.includes("name")) guessedMapping["name"] = col;
+        else if (c.includes("جوال") || c.includes("رقم") || c.includes("phone")) guessedMapping["phone"] = col;
+        else if (c.includes("بريد") || c.includes("email")) guessedMapping["email"] = col;
+        else if (c.includes("هوية") || c.includes("national")) guessedMapping["nationalId"] = col;
+        else if (c.includes("لجنة") || c.includes("committee") || c.includes("comm")) guessedMapping["committee"] = col;
+      });
+      setColumnMapping(guessedMapping);
+      setImportStep(2);
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const executeImport = async () => {
+    if (selectedImportRows.length === 0) {
+      setImportError("يرجى تحديد عضو واحد على الأقل للاستيراد");
+      return;
+    }
+    
+    // Check if committee is mapped, otherwise use the dropdown
+    const mappedCommitteeCol = columnMapping["committee"];
+    if (!mappedCommitteeCol && (!importCommitteeId || importCommitteeId === 0 || importCommitteeId === "")) {
+      setImportError("يرجى اختيار اللجنة لإضافة الأعضاء إليها أو تعيين عامود للجنة من الملف");
+      return;
+    }
+
+    let defaultComm = allCommittees.find(c => String(c.id) === String(importCommitteeId));
+    
+    setIsImporting(true);
+    let successCount = 0;
+    try {
+      for (const rowIndex of selectedImportRows) {
+        const rowData = importData[rowIndex];
+        const getColValue = (field: string) => {
+          const colName = columnMapping[field];
+          if (!colName) return "";
+          const colIdx = importColumns.indexOf(colName);
+          if (colIdx === -1) return "";
+          return String(rowData[colIdx] || "");
+        };
+
+        const newMember: Omit<Member, "id"> = {
+          name: getColValue("name"),
+          phone: getColValue("phone"),
+          email: getColValue("email"),
+          nationalId: getColValue("nationalId"),
+          role: "عضو", // default
+          title: "الأستاذ",
+          customTitle: "",
+          committeeId: defaultComm?.id || 0,
+          committeeName: defaultComm?.name || "",
+          joiningMechanism: getColValue("membership_type") || "مرشح",
+          govAgency: "",
+          entity: "غرفة مكة المكرمة",
+          active: true,
+          joinedDate: getColValue("joined_date") || new Date().toISOString().split('T')[0],
+          note: "مستورد من ملف",
+          personalPhoto: "",
+          cv: "",
+          commercialRegister: "",
+          membershipCertificate: "",
+          authorization: ""
+        };
+
+        const rowCommName = getColValue("committee");
+        if (rowCommName) {
+           const rowComm = allCommittees.find(c => c.name.includes(rowCommName) || rowCommName.includes(c.name));
+           if (rowComm && canUserEditCommittee(rowComm.name)) {
+             newMember.committeeId = rowComm.id;
+             newMember.committeeName = rowComm.name;
+           }
+        }
+        
+        // Final check on committee permission
+        if (newMember.committeeId && newMember.committeeName && canUserEditCommittee(newMember.committeeName)) {
+           if (newMember.name) {
+             await addFirebaseMember(newMember);
+             successCount++;
+           }
+        } else {
+           console.warn("Skipping member due to lack of committee permission or unspecified committee", newMember.name);
+        }
+      }
+      setIsImportOpen(false);
+      setImportStep(1);
+      setImportFile(null);
+      setImportData([]);
+      setSelectedImportRows([]);
+      setImportError("");
+      alert(`تم استيراد ${successCount} عضو بنجاح!`);
+    } catch (error) {
+      setImportError("حدث خطأ أثناء الاستيراد");
+      console.error(error);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const closeImportModal = () => {
+    setIsImportOpen(false);
+    setImportStep(1);
+    setImportFile(null);
+    setImportData([]);
+    setSelectedImportRows([]);
+    setImportError("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const handleOpenAdd = () => {
+
     setTitle("الأستاذ");
     setCustomTitle("");
     setName("");
@@ -435,7 +651,7 @@ export default function CommitteesMembers() {
       setFormError("يرجى تحديد اللقب يدويًا");
       return;
     }
-    if (!selectedCommitteeId || Number(selectedCommitteeId) === 0) {
+    if (!selectedCommitteeId || selectedCommitteeId === 0 || selectedCommitteeId === "") {
       setFormError("يرجى اختيار اللجنة");
       return;
     }
@@ -460,7 +676,7 @@ export default function CommitteesMembers() {
       return;
     }
 
-    const matchedComm = allCommittees.find(c => c.id === Number(selectedCommitteeId)) || { name: "لجنة" };
+    const matchedComm = allCommittees.find(c => String(c.id) === String(selectedCommitteeId)) || { name: "لجنة" };
     if (matchedComm && matchedComm.name !== "لجنة" && !canUserEditCommittee(matchedComm.name)) { alert("غير مصرح لك بإضافة أعضاء لهذه اللجنة"); return; }
 
     if (!canUserEditCommittee(matchedComm.name)) {
@@ -483,7 +699,7 @@ export default function CommitteesMembers() {
             customTitle: title === "غير ذلك" ? customTitle.trim() : "",
             name: name.trim(),
             role: role,
-            committeeId: Number(selectedCommitteeId),
+            committeeId: selectedCommitteeId,
             committeeName: matchedComm.name,
             joiningMechanism: joiningMechanism,
             govAgency: joiningMechanism === "ممثل لجهة حكومية" ? govAgency.trim() : "",
@@ -516,7 +732,7 @@ export default function CommitteesMembers() {
         customTitle: title === "غير ذلك" ? customTitle.trim() : "",
         name: name.trim(),
         role: role,
-        committeeId: Number(selectedCommitteeId),
+        committeeId: selectedCommitteeId,
         committeeName: matchedComm.name,
         joiningMechanism: joiningMechanism,
         govAgency: joiningMechanism === "ممثل لجهة حكومية" ? govAgency.trim() : "",
@@ -582,6 +798,20 @@ export default function CommitteesMembers() {
     }
   };
 
+  const handleDeleteSelected = () => {
+    if (selectedMembers.size === 0) return;
+    setIsDeletingSelected(true);
+  };
+
+  const confirmDeleteSelected = async () => {
+    setIsDeletingSelectedLoading(true);
+    const itemsToDelete = members.filter(m => selectedMembers.has(m.id));
+    await Promise.all(itemsToDelete.map(m => deleteFirebaseMember(String(m.id))));
+    setSelectedMembers(new Set());
+    setIsDeletingSelectedLoading(false);
+    setIsDeletingSelected(false);
+  };
+
   const toggleMemberSelection = (id: number) => {
     setSelectedMembers(prev => {
       const newSet = new Set(prev);
@@ -616,10 +846,10 @@ export default function CommitteesMembers() {
         <div>
           <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
             <Users className="w-7 h-7 text-brand animate-pulse" />
-            <span>سجل وأعضاء اللجان</span>
+            <span>بيانات أعضاء اللجان</span>
           </h2>
           <p className="text-gray-600 text-sm font-medium mt-1 w-[500px] max-w-full">
-            إدارة بيانات أعضاء اللجان وتتبع مشاركتهم بمهنية عالية.
+            إدارة بيانات أعضاء اللجان.
           </p>
         </div>
 
@@ -628,7 +858,9 @@ export default function CommitteesMembers() {
           
           {/* A. Dynamic Search Trigger matching the Committees page */}
           <div className="flex items-center gap-2 relative">
-            <AnimatePresence>
+      
+      <AnimatePresence>
+
               {isSearchExpanded && (
                 <motion.form
                   initial={{ width: 0, opacity: 0 }}
@@ -732,7 +964,9 @@ export default function CommitteesMembers() {
                 <span>فرز</span>
               </button>
 
-              <AnimatePresence>
+        
+      <AnimatePresence>
+
                 {isFilterOpen && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
@@ -845,10 +1079,29 @@ export default function CommitteesMembers() {
             </div>
           </div>
 
+
+                    <AnimatePresence>
+            {selectedMembers.size > 0 && (
+              <motion.button
+                key="bulk-delete-btn"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                type="button"
+                onClick={handleDeleteSelected}
+                className="h-10 px-4 bg-rose-100 text-rose-600 hover:bg-rose-200 border border-rose-200 font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-all duration-200 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4 stroke-[2.5]" />
+                <span>حذف المحدد ({selectedMembers.size})</span>
+              </motion.button>
+            )}
+          </AnimatePresence>
+
           {/* Add member button */}
+
           <button
             type="button"
-            onClick={handleOpenAdd}
+            onClick={() => setIsAddSelectionOpen(true)}
             className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer"
           >
             <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
@@ -1280,8 +1533,382 @@ export default function CommitteesMembers() {
         </div>
       )}
 
-      {/* 3. MODAL: ADD / EDIT MEMBER (إضافة وتعديل بيانات عضو) */}
+
+      
+      {/* BULK DELETE CONFIRMATION MODAL */}
       <AnimatePresence>
+        {isDeletingSelected && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsDeletingSelected(false)}
+              className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+            >
+              <div className="p-6 text-center">
+                <div className="w-16 h-16 rounded-full bg-rose-100 flex items-center justify-center mx-auto mb-4 text-rose-600">
+                  <Trash2 className="w-8 h-8" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">تأكيد الحذف</h3>
+                <p className="text-gray-500 mb-6">
+                  هل أنت متأكد من حذف {selectedMembers.size} عضو محدد؟ لا يمكن التراجع عن هذا الإجراء.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setIsDeletingSelected(false)}
+                    className="flex-1 bg-gray-100 text-gray-700 hover:bg-gray-200 py-3 rounded-xl font-bold"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    onClick={confirmDeleteSelected}
+                    disabled={isDeletingSelectedLoading}
+                    className="flex-1 bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50 py-3 rounded-xl font-bold flex items-center justify-center"
+                  >
+                    {isDeletingSelectedLoading ? (
+                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    ) : (
+                      "حذف بالتأكيد"
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ADD SELECTION MODAL */}
+      <AnimatePresence>
+        {isAddSelectionOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAddSelectionOpen(false)}
+              className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-gray-900 text-base leading-tight">
+                      إضافة أعضاء
+                    </h3>
+                    <p className="text-xs text-gray-500 font-medium">اختر طريقة الإضافة المناسبة</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddSelectionOpen(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-6 flex flex-col sm:flex-row gap-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddSelectionOpen(false);
+                    handleOpenAdd();
+                  }}
+                  className="flex-1 bg-white border-2 border-gray-100 hover:border-blue-500 hover:shadow-md transition-all rounded-2xl p-6 flex flex-col items-center justify-center text-center group cursor-pointer"
+                >
+                  <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <UserPlus className="w-6 h-6" />
+                  </div>
+                  <h4 className="font-bold text-gray-900 mb-1">إضافة مفردة</h4>
+                  <p className="text-xs text-gray-500">إدخال بيانات عضو واحد يدوياً</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddSelectionOpen(false);
+                    setIsImportOpen(true);
+                  }}
+                  className="flex-1 bg-white border-2 border-gray-100 hover:border-emerald-500 hover:shadow-md transition-all rounded-2xl p-6 flex flex-col items-center justify-center text-center group cursor-pointer"
+                >
+                  <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <Upload className="w-6 h-6" />
+                  </div>
+                  <h4 className="font-bold text-gray-900 mb-1">إضافة مجموعة</h4>
+                  <p className="text-xs text-gray-500">استيراد بيانات من ملف Excel</p>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+{/* 2.5 MODAL: IMPORT EXCEL */}
+      <AnimatePresence>
+        {isImportOpen && (
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm"
+              onClick={closeImportModal}
+            ></motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-4xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
+              dir="rtl"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-gray-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                    <Upload className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-gray-900 text-base leading-tight">
+                      استيراد أعضاء من ملف Excel
+                    </h3>
+                    <p className="text-xs text-gray-500 font-medium">استيراد جماعي لبيانات الأعضاء</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeImportModal}
+                  className="p-2 hover:bg-gray-200/50 text-gray-500 rounded-xl transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {importError && (
+                  <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm font-bold flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5" />
+                    {importError}
+                  </div>
+                )}
+
+{importStep === 1 && (
+                  <div className="text-center space-y-4">
+                    <div className="border border-blue-200 bg-blue-50/50 rounded-3xl p-8 flex flex-col items-center justify-center">
+                      <ExternalLink className="w-12 h-12 text-blue-500 mb-4" />
+                      <h4 className="text-lg font-black text-gray-900">استيراد من Google Drive</h4>
+                      <p className="text-sm text-gray-500 font-medium mb-4 text-center max-w-sm">
+                        قم بلصق رابط ملف جدول البيانات (Google Sheets). <br/> يجب أن يكون الملف "متاح لأي شخص لديه الرابط".
+                      </p>
+                      
+                      <div className="flex gap-2 w-full max-w-md">
+                        <input
+                          type="url"
+                          placeholder="https://docs.google.com/spreadsheets/d/..."
+                          value={googleSheetUrl}
+                          onChange={(e) => setGoogleSheetUrl(e.target.value)}
+                          className="flex-1 h-11 px-4 bg-white border border-blue-200 rounded-xl text-sm font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-left"
+                          dir="ltr"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleFetchGoogleSheet}
+                          disabled={isFetchingSheet || !googleSheetUrl}
+                          className="h-11 px-6 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black text-sm rounded-xl transition-colors flex items-center justify-center gap-2"
+                        >
+                          {isFetchingSheet ? (
+                            <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                          ) : (
+                            "جلب الملف"
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {importStep === 2 && (
+                  <div className="space-y-6">
+                    <div className="bg-blue-50 text-blue-800 p-4 rounded-xl text-sm font-bold flex gap-2">
+                      <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                      <div>
+                        تم قراءة الملف بنجاح! وجدنا {importData.length} صفاً و {importColumns.length} عاموداً.
+                        <br />
+                        يرجى مراجعة وتأكيد مطابقة العواميد مع حقول النظام الأساسية.
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {Object.entries({
+                        name: "اسم العضو",
+                        committee: "اللجنة",
+                        phone: "رقم الجوال",
+                        email: "البريد الإلكتروني",
+                        nationalId: "رقم الهوية",
+                        membership_type: "آلية الانضمام",
+                        joined_date: "تاريخ الانضمام"
+                      }).map(([sysField, sysLabel]) => (
+                        <div key={sysField} className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                          <label className="text-xs font-black text-gray-700 block mb-2">{sysLabel}</label>
+                          <select
+                            value={columnMapping[sysField] || ""}
+                            onChange={(e) => setColumnMapping({ ...columnMapping, [sysField]: e.target.value })}
+                            className="w-full h-10 px-3 bg-white border border-gray-300 rounded-lg text-sm font-bold focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                          >
+                            <option value="">-- تجاهل / غير متوفر --</option>
+                            {importColumns.map((col, i) => (
+                              <option key={i} value={col}>{col}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex justify-end gap-3 mt-6">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setImportStep(3);
+                          setSelectedImportRows(importData.map((_, i) => i));
+                        }}
+                        className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-xl transition-colors"
+                      >
+                        التالي: معاينة البيانات
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {importStep === 3 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="flex-1 space-y-1">
+                        <label className="text-xs font-black text-gray-600 block">اللجنة (في حال لم يتم تحديدها من الملف)*</label>
+                        <select
+                          value={importCommitteeId}
+                          onChange={(e) => setImportCommitteeId(e.target.value)}
+                          className="w-full max-w-sm h-10 px-3 bg-gray-50 border border-gray-300 rounded-xl text-sm font-bold"
+                        >
+                          <option value={0}>-- يرجى اختيار اللجنة الافتراضية --</option>
+                          {allCommittees.filter(c => canUserEditCommittee(c.name)).map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden">
+                      <div className="overflow-x-auto max-h-[40vh]">
+                        <table className="w-full text-right text-sm relative">
+                          <thead className="bg-gray-100 border-b border-gray-200 text-gray-700 sticky top-0">
+                            <tr>
+                              <th className="p-3 w-10">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedImportRows.length === importData.length && importData.length > 0}
+                                  onChange={(e) => {
+                                    if (e.target.checked) setSelectedImportRows(importData.map((_, i) => i));
+                                    else setSelectedImportRows([]);
+                                  }}
+                                  className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                                />
+                              </th>
+                              <th className="p-3 font-black">الاسم</th>
+                              <th className="p-3 font-black">الجوال</th>
+                              <th className="p-3 font-black">البريد الإلكتروني</th>
+                              <th className="p-3 font-black">اللجنة</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {importData.map((row, i) => {
+                              const getV = (f) => {
+                                const c = columnMapping[f];
+                                return c ? (row[importColumns.indexOf(c)] || "-") : "-";
+                              };
+                              return (
+                                <tr key={i} className="border-b border-gray-100 last:border-0 hover:bg-white transition-colors">
+                                  <td className="p-3">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedImportRows.includes(i)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) setSelectedImportRows([...selectedImportRows, i]);
+                                        else setSelectedImportRows(selectedImportRows.filter(id => id !== i));
+                                      }}
+                                      className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                                    />
+                                  </td>
+                                  <td className="p-3 font-bold text-gray-900">{getV("name")}</td>
+                                  <td className="p-3 text-gray-600" dir="ltr">{getV("phone")}</td>
+                                  <td className="p-3 text-gray-600">{getV("email")}</td>
+                                  <td className="p-3 text-gray-600">{getV("committee")}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between mt-6">
+                      <div className="text-sm font-bold text-gray-600">
+                        تم تحديد {selectedImportRows.length} من {importData.length} عضو
+                      </div>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setImportStep(2)}
+                          className="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black text-sm rounded-xl transition-colors"
+                          disabled={isImporting}
+                        >
+                          رجوع
+                        </button>
+                        <button
+                          type="button"
+                          onClick={executeImport}
+                          disabled={isImporting || selectedImportRows.length === 0}
+                          className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-xl transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isImporting ? (
+                            <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                          ) : (
+                            <Upload className="w-4 h-4" />
+                          )}
+                          بدء الاستيراد
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 3. MODAL: ADD / EDIT MEMBER (إضافة وتعديل بيانات عضو) */}
+
+
+      <AnimatePresence>
+
         {isAddOpen && (
           <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
             <motion.div
@@ -1418,7 +2045,7 @@ export default function CommitteesMembers() {
                   <label className="text-[11px] font-black text-gray-500 block">اللجنة*</label>
                   <select
                     value={selectedCommitteeId}
-                    onChange={(e) => setSelectedCommitteeId(Number(e.target.value))}
+                    onChange={(e) => setSelectedCommitteeId(e.target.value)}
                     className="w-full h-10 px-2 bg-gray-50 border border-gray-250 rounded-xl text-xs font-extrabold text-right focus:bg-white focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all cursor-pointer"
                   >
                     <option value={0}>يرجى اختيار اللجنة</option>
@@ -1657,7 +2284,9 @@ export default function CommitteesMembers() {
       </AnimatePresence>
 
       {/* 4. MODAL: DELETE CONFIRMATION SYSTEM */}
+
       <AnimatePresence>
+
         {deletingMember && (
           <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
             <motion.div
@@ -1727,7 +2356,9 @@ export default function CommitteesMembers() {
       </AnimatePresence>
 
       {/* 5. MODAL: MEMBER DETAILS PORTAL (عرض السجل) */}
+
       <AnimatePresence>
+
         {detailsMember && (
           <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
             {/* Blurring viewport overlay */}
