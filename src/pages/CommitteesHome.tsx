@@ -430,40 +430,59 @@ export default function CommitteesHome() {
     }
     if (Array.isArray(dbEvents)) {
       dbEvents.forEach((evt: any) => {
-        if (evt.exportedRecommendationsToPage) {
+        // 1. Standalone recommendations
+        if (evt.recommendationType) {
            recs.push({
-             id: `exported-rec-${evt.id}`,
-             title: evt.title || "",
-             description: evt.preparationsText || "(بدون مسودة)",
-             assignedTo: evt.employees?.[0] || "غير محدد",
-             duration: evt.duration || "أسبوعين",
-             status: evt.status === "متأخرة" || evt.status === "متأخر 🔴" ? "متأخرة" : (evt.minutesSaved || evt.status === "مكتملة" || evt.status === "منجزة" ? "منجزة" : (evt.preparationsConfirmed ? "جاري العمل عليها" : "جديدة")),
-             committeeName: evt.committeeName,
-             date: evt.date
+             id: evt.id,
+             title: evt.title || "توصية غير مسماة",
+             description: evt.description || evt.notes || "",
+             assignedTo: evt.recommendationAssignee || (evt.employees && evt.employees.length > 0 ? evt.employees[0] : "غير محدد"),
+             duration: evt.recommendationDuration || "غير محدد",
+             status: evt.status || "جديدة",
+             committeeName: evt.committeeName || "غير محدد",
+             date: evt.date || "2026-06-11"
            });
-        }
-        if (evt.agenda && Array.isArray(evt.agenda)) {
-          evt.agenda.forEach((g: any, idx: number) => {
-            if (g.recommendation && g.recommendation.trim() !== "") {
-              const isAlreadyInDb = recs.some((dr: any) => dr.title === g.title);
-              if (!isAlreadyInDb) {
-                recs.push({
-                  id: `agenda-rec-${evt.id}-${idx}`,
-                  title: g.title,
-                  description: g.recommendation,
-                  assignedTo: g.assignee || "غير محدد",
-                  duration: g.durationRec || "أسبوعين",
-                  status: "جديدة",
-                  committeeName: evt.committeeName,
-                  date: evt.date
-                });
+        } else {
+          // 2. Agenda-based recommendations
+          if (evt.agenda && Array.isArray(evt.agenda)) {
+            evt.agenda.forEach((g: any, idx: number) => {
+              if (g.recommendation && g.recommendation.trim() !== "") {
+                const expectedId = `custom-rec-${evt.id}-${g.id || idx}`;
+                const isAlreadyInDb = recs.some((dr: any) => 
+                  dr.id === expectedId || 
+                  dr.title === g.title || 
+                  (dr.description && dr.description.trim() === g.recommendation.trim())
+                );
+                if (!isAlreadyInDb) {
+                  recs.push({
+                    id: expectedId,
+                    title: g.title,
+                    description: g.recommendation,
+                    assignedTo: g.assignee || "غير محدد",
+                    duration: g.durationRec || "أسبوعين",
+                    status: "جديدة",
+                    committeeName: evt.committeeName,
+                    date: evt.date
+                  });
+                }
               }
-            }
-          });
+            });
+          }
         }
       });
     }
-    return recs;
+    
+    // Final deduplication for home page just in case
+    const finalUniqueRecs: any[] = [];
+    const finalSeen = new Set();
+    for (const r of recs) {
+       const key = r.description?.trim() || r.title?.trim() || r.id;
+       if (!finalSeen.has(key)) {
+         finalSeen.add(key);
+         finalUniqueRecs.push(r);
+       }
+    }
+    return finalUniqueRecs;
   }, [dbRecs, dbEvents]);
 
   const meetings = React.useMemo(() => {
@@ -471,7 +490,7 @@ export default function CommitteesHome() {
     
     if (Array.isArray(dbEvents)) {
       dbEvents.forEach((evt) => {
-        if (evt.recommendationClassification || evt.recommendationEventId) return;
+        if (evt.recommendationType || evt.recommendationClassification || evt.recommendationEventId) return;
         const dateObj = evt.date ? new Date(evt.date) : new Date();
         
         // Dynamic checklists of preparations
@@ -583,7 +602,7 @@ export default function CommitteesHome() {
       // 2. Events & Meetings
       const evts = dbEvents;
       if (Array.isArray(evts)) {
-        const realEvents = evts.filter((e: any) => !e.recommendationClassification);
+        const realEvents = evts.filter((e: any) => !e.recommendationType && !e.recommendationClassification);
         eventsCount = realEvents.length;
         meetingsCount = realEvents.filter((e: any) => e.type === "اجتماع" || e.type === "لقاء" || e.category === "event").length;
       }
@@ -670,7 +689,7 @@ export default function CommitteesHome() {
     ];
 
     return { liveDb: calculatedLiveDb, chartData: calculatedChartData };
-  }, [dbCommittees, dbEvents, dbMembers, dbRecs, dbTasks]);
+  }, [dbCommittees, dbEvents, dbMembers, dbRecs, dbTasks, allRecommendations]);
 
   // Load ignored alerts state from localStorage
   const [ignoredAlarms, setIgnoredAlarms] = useState<Record<string, any>>(() => {
@@ -769,7 +788,7 @@ export default function CommitteesHome() {
           evt.status !== "منتهية" && 
           evt.status !== "مكتملة" && 
           !(evt.minutesSaved && evt.exportedRecommendationsToPage) &&
-          !evt.recommendationClassification &&
+          !evt.recommendationType && !evt.recommendationClassification &&
           !evt.recommendationEventId
         );
         activeEvts.forEach((evt: any) => {
@@ -821,7 +840,7 @@ export default function CommitteesHome() {
     } catch (e) {}
 
     setAlarms(Array.from(new Map(list.map(a => [a.id, a])).values()));
-  }, [dbRecs, dbTasks, dbEvents, manuallyUrgentAlarms]);
+  }, [dbRecs, dbTasks, dbEvents, manuallyUrgentAlarms, allRecommendations]);
 
   // Dynamic Online Staff loaded directly from the database of employees
   const [onlineStaff, setOnlineStaff] = useState<any[]>([]);
@@ -1553,7 +1572,28 @@ export default function CommitteesHome() {
                       } else if (a.type === "task") {
                         navigate("/tasks", { state: { selectedTaskId: a.id } });
                       } else if (a.type === "recommendation") {
-                        navigate("/recommendations", { state: { selectedRecId: a.id } });
+                        // For recommendations, try to extract the event ID to open the event's recommendations
+                        let targetEventId = null;
+                        if (a.id.startsWith("custom-rec-")) {
+                          targetEventId = a.id.split("-")[2];
+                        } else {
+                          // Check if it's a standalone linked rec
+                          const evtRec = dbEvents?.find((e: any) => e.id === a.id);
+                          if (evtRec && evtRec.recommendationEventId) {
+                            targetEventId = evtRec.recommendationEventId;
+                          } else {
+                            // Check if it's in dbRecs
+                            const dbRec = dbRecs?.find((r: any) => r.id === a.id);
+                            if (dbRec && String(dbRec.id).startsWith("custom-rec-")) {
+                              targetEventId = String(dbRec.id).split("-")[2];
+                            }
+                          }
+                        }
+                        if (targetEventId) {
+                          navigate("/recommendations", { state: { selectedEventId: targetEventId } });
+                        } else {
+                          navigate("/recommendations");
+                        }
                       }
                     }}
                     className={`p-3 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-3 transition-colors cursor-pointer duration-350 hover:shadow-md ${

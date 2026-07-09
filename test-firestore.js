@@ -1,12 +1,10 @@
-const { initializeApp } = require("firebase/app");
-const { getFirestore, collection, getDocs } = require("firebase/firestore");
-const config = require("./firebase-applet-config.json");
-const app = initializeApp(config);
-const db = getFirestore(app, config.firestoreDatabaseId || "(default)");
-getDocs(collection(db, "system_logs")).then(() => {
-  console.log("SUCCESS");
-  process.exit(0);
-}).catch(e => {
-  console.error("FAIL", e);
-  process.exit(1);
-});
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
+const app = initializeApp();
+const db = getFirestore(app);
+async function run() {
+  const snapshot = await db.collection('recommendations').get();
+  console.log("Recommendations count:", snapshot.size);
+  snapshot.forEach(doc => console.log(doc.id, doc.data().eventName, doc.data().title));
+}
+run();

@@ -789,20 +789,70 @@ ${formattedItems}
     const tableRecommendations = React.useMemo(() => {
     const term = filterQuery.trim().toLowerCase();
     
-    // Get recommendations from DB
-    let mappedDb = [...allDbRecommendations].map((rec: any) => {
-       return {
-          ...rec,
-          id: rec.id,
-          title: rec.title || rec.description || "توصية غير مسماة",
-          committeeName: rec.committeeName || "غير محدد",
-          date: rec.date || "2026-06-11",
-          status: rec.status || "جديدة",
-          recommendationAssignee: rec.assignedTo || "غير محدد",
+    // 1. Gather all agenda items from all events to act as recommendations
+    let agendaRecs: any[] = [];
+    events.forEach(evt => {
+      if (evt.agenda && Array.isArray(evt.agenda)) {
+        evt.agenda.forEach((item: any, index: number) => {
+          if (item.recommendation && item.recommendation.trim() !== "") {
+            agendaRecs.push({
+              id: `custom-rec-${evt.id}-${item.id || index}`,
+              title: `توصية البند ${getArabicOrdinalGlobal(index + 1)} "${item.title}"`,
+              description: item.recommendation,
+              recommendationText: item.recommendation,
+              committeeName: evt.committeeName || "لجنة غير محددة",
+              eventName: evt.title,
+              date: evt.date || "2026-06-11",
+              status: "جديدة",
+              approvalStage: "أخصائي",
+              assignedTo: item.assignee || "غير محدد",
+              duration: item.durationRec || "أسبوعين",
+              isAgendaSource: true
+            });
+          }
+        });
+      }
+    });
+
+    // 2. Map existing DB recommendations, and merge with agenda items
+    let mappedDbMap = new Map();
+    [...allDbRecommendations].forEach((rec: any) => {
+      mappedDbMap.set(String(rec.id), {
+        ...rec,
+        id: rec.id,
+        title: rec.title || rec.description || "توصية غير مسماة",
+        committeeName: rec.committeeName || "غير محدد",
+        date: rec.date || "2026-06-11",
+        status: rec.status || "جديدة",
+        recommendationAssignee: rec.assignedTo || "غير محدد",
+        recommendationType: true,
+        isRealEvent: false
+      });
+    });
+
+    // Patch DB recs using agenda recs (fix missing titles, assignees) and add unexported ones
+    agendaRecs.forEach(ar => {
+      if (mappedDbMap.has(ar.id)) {
+        let existing = mappedDbMap.get(ar.id);
+        // Patch bad titles
+        if (!existing.title || existing.title.includes("غير مسماة") || existing.title === existing.description) {
+           existing.title = ar.title;
+        }
+        if (!existing.recommendationAssignee || existing.recommendationAssignee === "غير محدد") {
+           existing.recommendationAssignee = ar.assignedTo;
+        }
+      } else {
+        // Not exported to DB yet! Add it to the table view anyway.
+        mappedDbMap.set(ar.id, {
+          ...ar,
+          recommendationAssignee: ar.assignedTo,
           recommendationType: true,
           isRealEvent: false
-       };
+        });
+      }
     });
+
+    let mappedDb = Array.from(mappedDbMap.values());
 
     // Get standalone recommendations from events (they have recommendationType)
     let mappedStandalone = events
@@ -1874,7 +1924,43 @@ ${formattedItems}
                   (rec.eventName && rec.eventName === chosenEvent.title)
                 );
 
-                const combinedRecs = dbRecommendations;
+                const agendaRecsForCards = (chosenEvent.agenda || [])
+                  .filter((item: any) => item.recommendation && item.recommendation.trim() !== "")
+                  .map((item: any, index: number) => {
+                    return {
+                      id: `custom-rec-${chosenEvent.id}-${item.id || index}`,
+                      title: `توصية البند ${getArabicOrdinalGlobal(index + 1)} "${item.title}"`,
+                      description: item.recommendation,
+                      recommendationText: item.recommendation,
+                      committeeName: chosenEvent.committeeName || "لجنة غير محددة",
+                      eventName: chosenEvent.title,
+                      date: chosenEvent.date || "2026-06-11",
+                      status: "جديدة",
+                      approvalStage: "أخصائي",
+                      assignedTo: item.assignee || "غير محدد",
+                      duration: item.durationRec || "أسبوعين",
+                      isAgendaSource: true
+                    };
+                  });
+                
+                const combinedRecsMap = new Map();
+                dbRecommendations.forEach((dr: any) => combinedRecsMap.set(String(dr.id), { ...dr }));
+                
+                agendaRecsForCards.forEach((ar: any) => {
+                  if (!combinedRecsMap.has(String(ar.id))) {
+                    combinedRecsMap.set(String(ar.id), ar);
+                  } else {
+                    let existing = combinedRecsMap.get(String(ar.id));
+                    if (!existing.title || existing.title.includes("غير مسماة") || existing.title === existing.description) {
+                       existing.title = ar.title;
+                    }
+                    if (!existing.assignedTo || existing.assignedTo === "غير محدد") {
+                       existing.assignedTo = ar.assignedTo;
+                    }
+                  }
+                });
+                
+                const combinedRecs = Array.from(combinedRecsMap.values());
 
                 return (
                   <div className="space-y-6">

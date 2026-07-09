@@ -793,20 +793,70 @@ ${formattedItems}
     const tableRecommendations = React.useMemo(() => {
     const term = filterQuery.trim().toLowerCase();
     
-    // Get recommendations from DB
-    let mappedDb = [...allDbRecommendations].map((rec: any) => {
-       return {
-          ...rec,
-          id: rec.id,
-          title: rec.title || rec.description || "توصية غير مسماة",
-          committeeName: rec.committeeName || "غير محدد",
-          date: rec.date || "2026-06-11",
-          status: rec.status || "جديدة",
-          recommendationAssignee: rec.assignedTo || "غير محدد",
+    // 1. Gather all agenda items from all events to act as recommendations
+    let agendaRecs: any[] = [];
+    events.forEach(evt => {
+      if (evt.agenda && Array.isArray(evt.agenda)) {
+        evt.agenda.forEach((item: any, index: number) => {
+          if (item.recommendation && item.recommendation.trim() !== "") {
+            agendaRecs.push({
+              id: `custom-rec-${evt.id}-${item.id || index}`,
+              title: `توصية البند ${getArabicOrdinalGlobal(index + 1)} "${item.title}"`,
+              description: item.recommendation,
+              recommendationText: item.recommendation,
+              committeeName: evt.committeeName || "لجنة غير محددة",
+              eventName: evt.title,
+              date: evt.date || "2026-06-11",
+              status: "جديدة",
+              approvalStage: "أخصائي",
+              assignedTo: item.assignee || "غير محدد",
+              duration: item.durationRec || "أسبوعين",
+              isAgendaSource: true
+            });
+          }
+        });
+      }
+    });
+
+    // 2. Map existing DB recommendations, and merge with agenda items
+    let mappedDbMap = new Map();
+    [...allDbRecommendations].forEach((rec: any) => {
+      mappedDbMap.set(String(rec.id), {
+        ...rec,
+        id: rec.id,
+        title: rec.title || rec.description || "توصية غير مسماة",
+        committeeName: rec.committeeName || "غير محدد",
+        date: rec.date || "2026-06-11",
+        status: rec.status || "جديدة",
+        recommendationAssignee: rec.assignedTo || "غير محدد",
+        recommendationType: true,
+        isRealEvent: false
+      });
+    });
+
+    // Patch DB recs using agenda recs (fix missing titles, assignees) and add unexported ones
+    agendaRecs.forEach(ar => {
+      if (mappedDbMap.has(ar.id)) {
+        let existing = mappedDbMap.get(ar.id);
+        // Patch bad titles
+        if (!existing.title || existing.title.includes("غير مسماة") || existing.title === existing.description) {
+           existing.title = ar.title;
+        }
+        if (!existing.recommendationAssignee || existing.recommendationAssignee === "غير محدد") {
+           existing.recommendationAssignee = ar.assignedTo;
+        }
+      } else {
+        // Not exported to DB yet! Add it to the table view anyway.
+        mappedDbMap.set(ar.id, {
+          ...ar,
+          recommendationAssignee: ar.assignedTo,
           recommendationType: true,
           isRealEvent: false
-       };
+        });
+      }
     });
+
+    let mappedDb = Array.from(mappedDbMap.values());
 
     // Get standalone recommendations from events (they have recommendationType)
     let mappedStandalone = events
@@ -1767,7 +1817,17 @@ ${formattedItems}
               </div>
 
               {(() => {
-                const commEvents = events.filter((e) => e.committeeId === selectedCommIdForCards && (!e.recommendationType && !e.recommendationClassification));
+                let commEvents = events.filter((e) => e.committeeId === selectedCommIdForCards && (!e.recommendationType && !e.recommendationClassification));
+                commEvents = commEvents.sort((a, b) => {
+                  const dateA = new Date(a.date || "").getTime();
+                  const dateB = new Date(b.date || "").getTime();
+                  if (dateA !== dateB) {
+                    return dateA - dateB; // Oldest first
+                  }
+                  const titleA = a.title || "";
+                  const titleB = b.title || "";
+                  return titleA.localeCompare(titleB, 'ar');
+                });
                 const standaloneRecs = events.filter((e) => e.committeeId === selectedCommIdForCards && !!e.recommendationType);
 
                 if (commEvents.length === 0 && standaloneRecs.length === 0) {
@@ -2035,10 +2095,113 @@ ${formattedItems}
                 // Gather recommendations
                 const dbRecommendations = allDbRecommendations.filter((rec: any) =>
                   String(rec.id).startsWith(`custom-rec-${selectedEventIdForCards}-`) ||
-                  (rec.eventName && rec.eventName === chosenEvent.title)
+                  (rec.eventName && rec.eventName === chosenEvent.title && rec.committeeName === chosenEvent.committeeName)
                 );
 
-                const combinedRecs = dbRecommendations;
+                const agendaRecsForCards = (chosenEvent.agenda || [])
+                  .filter((item: any) => item.recommendation && item.recommendation.trim() !== "")
+                  .map((item: any, index: number) => {
+                    return {
+                      id: `custom-rec-${chosenEvent.id}-${item.id || index}`,
+                      title: `توصية البند ${getArabicOrdinalGlobal(index + 1)} "${item.title}"`,
+                      description: item.recommendation,
+                      recommendationText: item.recommendation,
+                      committeeName: chosenEvent.committeeName || "لجنة غير محددة",
+                      eventName: chosenEvent.title,
+                      date: chosenEvent.date || "2026-06-11",
+                      status: "جديدة",
+                      approvalStage: "أخصائي",
+                      assignedTo: item.assignee || "غير محدد",
+                      duration: item.durationRec || "أسبوعين",
+                      isAgendaSource: true
+                    };
+                  });
+                  
+                const standaloneLinkedRecs = events
+                  .filter(e => !!e.recommendationType && String(e.recommendationEventId) === String(chosenEvent.id))
+                  .map(e => ({
+                      ...e,
+                      id: e.id,
+                      title: e.title || "توصية غير مسماة",
+                      description: e.description || e.notes || "",
+                      recommendationText: e.recommendationText || e.description || "",
+                      committeeName: e.committeeName || "غير محدد",
+                      eventName: chosenEvent.title,
+                      date: e.date || "2026-06-11",
+                      status: e.status || "جديدة",
+                      approvalStage: e.approvalStage || "أخصائي",
+                      assignedTo: e.recommendationAssignee || (e.employees && e.employees.length > 0 ? e.employees[0] : "غير محدد"),
+                      duration: e.recommendationDuration || "غير محدد",
+                      isRealEvent: false
+                  }));
+                
+                const combinedRecsMap = new Map();
+                // We'll also deduplicate by title or recommendation text to avoid old ghosts
+                const seenKeys = new Set();
+                
+                dbRecommendations.forEach((dr: any) => {
+                  combinedRecsMap.set(String(dr.id), { ...dr });
+                  if (dr.title) seenKeys.add(dr.title);
+                  if (dr.recommendationText) seenKeys.add(dr.recommendationText);
+                  if (dr.description) seenKeys.add(dr.description);
+                });
+                
+                standaloneLinkedRecs.forEach((sr: any) => {
+                  if (!combinedRecsMap.has(String(sr.id))) {
+                    combinedRecsMap.set(String(sr.id), sr);
+                    if (sr.title) seenKeys.add(sr.title);
+                    if (sr.recommendationText) seenKeys.add(sr.recommendationText);
+                    if (sr.description) seenKeys.add(sr.description);
+                  }
+                });
+                
+                agendaRecsForCards.forEach((ar: any) => {
+                  if (!combinedRecsMap.has(String(ar.id)) && !seenKeys.has(ar.title) && !seenKeys.has(ar.description) && !seenKeys.has(ar.recommendationText)) {
+                    // It's nowhere to be found, add it
+                    combinedRecsMap.set(String(ar.id), ar);
+                    if (ar.title) seenKeys.add(ar.title);
+                    if (ar.recommendationText) seenKeys.add(ar.recommendationText);
+                    if (ar.description) seenKeys.add(ar.description);
+                  } else {
+                    // We found it by ID or by text. If it was by ID, let's update it with better info if it's lacking
+                    if (combinedRecsMap.has(String(ar.id))) {
+                      let existing = combinedRecsMap.get(String(ar.id));
+                      if (!existing.title || existing.title.includes("غير مسماة") || existing.title === existing.description) {
+                         existing.title = ar.title;
+                      }
+                      if (!existing.assignedTo || existing.assignedTo === "غير محدد") {
+                         existing.assignedTo = ar.assignedTo;
+                      }
+                    } else {
+                       // Try to find it by text to enrich it
+                       for (const [key, val] of combinedRecsMap.entries()) {
+                         if (val.title === ar.title || val.description === ar.description || val.recommendationText === ar.recommendationText) {
+                            if (!val.title || val.title.includes("غير مسماة") || val.title === val.description) {
+                              val.title = ar.title;
+                            }
+                            if (!val.assignedTo || val.assignedTo === "غير محدد") {
+                              val.assignedTo = ar.assignedTo;
+                            }
+                            break;
+                         }
+                       }
+                    }
+                  }
+                });
+                
+                let combinedRecs = Array.from(combinedRecsMap.values());
+                
+                // Final aggressive deduplication based on exact description or title matches just in case
+                const finalUniqueRecs = [];
+                const finalSeen = new Set();
+                for (const r of combinedRecs) {
+                   const key = r.description?.trim() || r.recommendationText?.trim() || r.title?.trim() || r.id;
+                   if (!finalSeen.has(key)) {
+                     finalSeen.add(key);
+                     finalUniqueRecs.push(r);
+                   }
+                }
+                combinedRecs = finalUniqueRecs;
 
                 return (
                   <div className="space-y-6">
@@ -2575,7 +2738,86 @@ ${formattedItems}
                                                       
 const linkedEvent = events.find(e => String(e.id) === String(evt.recommendationEventId));
 const meetingName = linkedEvent ? linkedEvent.title : (evt.eventName && evt.eventName !== "توصية غير محددة" ? evt.eventName : (evt.title.includes("اجتماع") ? evt.title : `اجتماع ${evt.committeeName || "اللجنة"}`));
-const generatedProposal = evt.description || evt.recommendationText || evt.notes || "لا يوجد نص للتوصية";
+
+const eventTime = linkedEvent?.time || evt.time || "……";
+const eventLocation = linkedEvent?.location || evt.location || "……";
+const dateStr = linkedEvent?.date || evt.date || "……";
+
+let formattedTime = eventTime;
+if (eventTime && eventTime !== "……") {
+    const [hours, minutes] = eventTime.split(":");
+    if (hours && minutes) {
+      let h = parseInt(hours, 10);
+      const ampm = h >= 12 ? "مساءً" : "صباحاً";
+      h = h % 12;
+      h = h ? h : 12;
+      formattedTime = `${h}:${minutes} ${ampm}`;
+    }
+}
+
+let formattedDate = dateStr;
+if (dateStr && dateStr !== "……") {
+    const months = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+        const dayStr = d.getDate().toString().padStart(2, '0');
+        const monthStr = months[d.getMonth()];
+        const yearStr = d.getFullYear();
+        formattedDate = `${dayStr} ${monthStr} ${yearStr}م`;
+    }
+}
+
+let itemTitle = "……";
+let itemTitleFull = "البند: ……";
+let itemDiscussion = evt.recommendationDiscussion || "……";
+let itemRec = evt.description || evt.recommendationText || evt.notes || "لا يوجد نص للتوصية";
+
+if (linkedEvent && linkedEvent.agenda) {
+    const agendaIdx = linkedEvent.agenda.findIndex((a: any) => evt.title && evt.title.includes(a.title));
+    if (agendaIdx !== -1) {
+        const agendaItem = linkedEvent.agenda[agendaIdx];
+        itemTitle = agendaItem.title;
+        itemTitleFull = `البند ${getArabicOrdinalGlobal(agendaIdx + 1)}: ${itemTitle}`;
+        itemDiscussion = agendaItem.discussion || "……";
+        itemRec = agendaItem.recommendation || itemRec;
+    } else {
+       const match = evt.title?.match(/توصية البند (.*?) "(.*?)"/);
+       if (match) {
+           itemTitle = match[2];
+           itemTitleFull = `البند ${match[1]}: ${match[2]}`;
+       } else {
+           itemTitle = evt.title || "……";
+           itemTitleFull = `البند: ${itemTitle}`;
+       }
+    }
+} else {
+    const match = evt.title?.match(/توصية البند (.*?) "(.*?)"/);
+    if (match) {
+        itemTitle = match[2];
+        itemTitleFull = `البند ${match[1]}: ${match[2]}`;
+    } else {
+        itemTitle = evt.title || "……";
+        itemTitleFull = `البند: ${itemTitle}`;
+    }
+}
+
+const assigneeText = evt.assignedTo || evt.recommendationAssignee || (evt.employees && evt.employees.length > 0 ? evt.employees[0] : "غير محدد");
+
+const generatedProposal = `سعادة الأستاذ/ محمد بن محسن السبيعي                 سلمه الله
+رئيس قسم اللجان
+السلام عليكم ورحمه الله وبركاته .. وبعد
+نهديكم أطيب تحية وتقدير.. ونشكر لسعادتكم تعاونكم الدائم والمستمر لإنجاح سير أعمال إدارة اللجان.
+إشارة إلى ${meetingName} الذي تم عقده في تمام الساعة ${formattedTime} من ظهر يوم ${dayArabic} بتاريخ ${formattedDate} بقاعة/ ${eventLocation}  بمقر غرفة مكة المكرمة، وما ورد به من:
+${itemTitleFull} .
+المناقشة: ${itemDiscussion} .
+التوصية: ${itemRec} .
+المكلف: ${assigneeText} .
+المرفقات: ${attachmentsText} .
+
+آمل من سعادتكم التكرم بالاطلاع والتوجيه حتى يتسنى لنا إكمال اللازم.
+
+شاكرين ومقدرين لسعادتكم حسن تعاونكم..
+وتفضلوا بقبول وافر التحية والتقدير،،،`;
                                                       
                                                       updateEventWorkflow(evt.id, { preparationsText: generatedProposal });
                                                     }}
