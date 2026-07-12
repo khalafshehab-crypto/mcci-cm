@@ -37,6 +37,7 @@ interface EventItem {
     durationRec?: string;
     hasImpact?: boolean;
     workDays?: number;
+    inactiveRecommendation?: boolean;
   }>;
   minutesSaved?: boolean;
   minutesExportChecked?: boolean;
@@ -88,7 +89,7 @@ const DAYSMaps: Record<string, number> = {"الأحد": 0, "الإثنين": 1, 
 
 const exportRecommendationsToLocalStorage = async (evt: EventItem, selectedAgendaItemIds?: string[]) => {
   const agenda = evt.agenda || [];
-  let recsToExport = agenda.filter(item => item.recommendation && item.recommendation.trim() !== "");
+  let recsToExport = agenda.filter(item => item.recommendation && item.recommendation.trim() !== "" && !item.inactiveRecommendation);
   if (selectedAgendaItemIds) {
     recsToExport = recsToExport.filter(item => selectedAgendaItemIds.includes(item.id));
   }
@@ -2593,7 +2594,7 @@ ${formattedItems}
                                                       </div>
 
                                                       <div className="flex flex-col gap-1 w-full">
-                                                        <label className="text-[8.5px] font-extrabold text-[#4ea0b0]">التوصية المنبثقة من البند (الزر الذهبي)</label>
+                                                        <label className="text-[8.5px] font-extrabold text-[#4ea0b0] flex items-center gap-2">التوصية المنبثقة من البند (الزر الذهبي) {item.inactiveRecommendation && <button type="button" onClick={() => handleUpdateAgendaMinutes(item.id, { inactiveRecommendation: false })} className="text-[9px] bg-red-100 text-red-600 hover:bg-emerald-100 hover:text-emerald-700 px-1.5 py-0.5 rounded transition-colors cursor-pointer border border-red-200 hover:border-emerald-200" title="إعادة تفعيل التوصية">غير فعالة (اضغط للتفعيل)</button>}</label>
                                                         <textarea
                                                           value={item.recommendation || ""}
                                                           onChange={(e) => handleUpdateAgendaMinutes(item.id, { recommendation: e.target.value })}
@@ -2607,12 +2608,14 @@ ${formattedItems}
                                                       <div className="md:col-span-5 flex flex-col gap-1">
                                                         <label className="text-[8.5px] font-bold text-gray-750">المكلف برصد ومتابعة تنفيذ التوصية</label>
                                                         <select
-                                                          value={item.assignee || ""}
+                                                          value={(item.assignee === "الأخصائي" && evt.employees?.[0]) ? `${evt.employees[0]} (أخصائي اللجنة)` : (item.assignee === "الأخصائي" ? "أخصائي اللجنة" : (item.assignee || ""))}
                                                           onChange={(e) => handleUpdateAgendaMinutes(item.id, { assignee: e.target.value })}
                                                           className="w-full text-[9.5px] font-bold p-1.5 border border-gray-200 rounded bg-white text-right h-8.5 focus:ring-brand focus:border-brand focus:outline-none"
                                                         >
                                                           <option value="">-- كشف المكلفين المتاحين --</option>
-                                                          <option value="الأخصائي">أخصائي اللجنة</option>
+                                                          <option value={evt.employees?.[0] ? `${evt.employees[0]} (أخصائي اللجنة)` : "أخصائي اللجنة"}>
+                                                            {evt.employees?.[0] ? `${evt.employees[0]} (أخصائي اللجنة)` : "أخصائي اللجنة"}
+                                                          </option>
                                                           {allMembers.filter(m => m.committeeId === evt.committeeId).map(m => (
                                                             <option key={m.id} value={`${m.role} - ${m.title} ${m.name}`}>{m.title} {m.name} ({m.role})</option>
                                                           ))}
@@ -2696,7 +2699,7 @@ ${formattedItems}
                                       
                                       case 6: { // Step 7: Export & Confirm to Recommendations Page
                                         const agenda = evt.agenda || [];
-                                        const recsToExport = agenda.filter(item => item.recommendation && item.recommendation.trim() !== "");
+                                        const recsToExport = agenda.filter(item => item.recommendation && item.recommendation.trim() !== "" && !item.inactiveRecommendation);
                                         const existingMeetingRecs = allDbRecommendations.filter(rec => rec && rec.id && rec.id.startsWith(`custom-rec-${evt.id}-`));
 
                                         // Auto selection checklist initialization

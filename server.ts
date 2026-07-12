@@ -148,6 +148,46 @@ Output ONLY the final Arabic text of the letter, ready to be printed or used. Do
     }
   });
 
+
+  app.post("/api/gemini/smart-recommendation", async (req, res) => {
+    try {
+      const { text } = req.body;
+      if (!text) {
+        return res.status(400).json({ error: "Missing text" });
+      }
+      if (!process.env.GEMINI_API_KEY) {
+        return res.status(500).json({ error: "GEMINI_API_KEY is missing from environment variables." });
+      }
+
+      const ai = new GoogleGenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
+
+      const fullPrompt = `أنت خبير في صياغة التوصيات الإدارية والمحاضر الرسمية باللغة العربية للجان القطاعية.
+قم بإعادة صياغة النص التالي ليكون توصية رسمية احترافية، دقيقة، وواضحة.
+حافظ على المعنى الأصلي، ولكن اجعله بصيغة رسمية معتمدة في القطاع الحكومي والخاص (مثل: "نوصي بـ..."، "العمل على..."، "التأكيد على...").
+أعد النص فقط بدون أي مقدمات أو شروحات إضافية.
+
+النص الأصلي:
+${text}`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: fullPrompt,
+      });
+
+      return res.json({ result: response.text });
+    } catch (err) {
+      console.error("Gemini Smart Recommendation Error:", err);
+      return res.status(500).json({ error: err.message || "Internal Server Error" });
+    }
+  });
+
   // API health check
 
   app.post("/api/fetch-public-sheet", async (req, res) => {

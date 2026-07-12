@@ -1,44 +1,34 @@
 import React, { useState, useEffect, FormEvent, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
-  Users2, 
-  Search, 
-  Plus, 
-  X, 
-  Users, 
-  Calendar, 
-  CheckCircle, 
-  FileText, 
-  Trash2,
-  Check,
-  LayoutGrid,
-  List,
-  Settings,
-  AlertTriangle,
-  Upload,
-  UserCheck,
-  Edit2,
-  FileSpreadsheet,
-  Download
+  Users2, Search, Plus, X, Users, Calendar, CheckCircle, FileText, Trash2,
+  Check, ChevronLeft, Settings2, Edit2, Save, Download, MoreVertical, Activity, AlertCircle,
+  UserCheck, LayoutGrid, List, FileSpreadsheet, Settings, Upload, AlertTriangle
 } from "lucide-react";
+// @ts-ignore
+import { generateDocx } from "../lib/docxGenerator";
+// @ts-ignore
 import { getCachedAccessToken, createAndPopulateSheet } from "../lib/googleApi";
 
-
-
-interface Committee {
-  id: number;
+export interface Committee {
+  id: number | string;
   name: string;
+  description?: string;
   membersCount: number;
   meetingsCount: number;
-  active: boolean;
-  desc: string;
-  specialist?: string;
-  formationLetter?: string;
+  recommendationsCount: number;
+  eventsCount: number;
   president?: string;
-  recommendationsCount?: number;
-  eventsCount?: number;
-  ratingIssues?: string;
+  specialist?: string;
+  status?: "فعالة" | "غير فعالة" | string;
+  active?: boolean;
+  libraryLink?: string;
+  objectives?: string;
+  attachments?: any[];
   strategicPlan?: string;
+  desc?: string;
+  formationLetter?: string;
+  ratingIssues?: string;
 }
 
 const EMPLOYEES = [
@@ -47,6 +37,315 @@ const EMPLOYEES = [
 
 import { useFirestoreCollection } from '../lib/firebaseUtils';
 import { cascadeCommitteeRename, cascadeCommitteeDelete } from '../lib/cascadeUpdates';
+
+const advancedMatch = (commName: string, targetName: string) => {
+  if (!commName || !targetName) return false;
+  const clean = (s: string) => s.replace(/لجنة/g, "").replace(/الـ/g, "").replace(/ال/g, "").replace(/\s+/g, " ").trim();
+  const c1 = clean(commName);
+  const c2 = clean(targetName);
+  if (c1.includes(c2) || c2.includes(c1)) return true;
+  const w1 = c1.split(" ").filter(w => w.length >= 3);
+  const w2 = c2.split(" ").filter(w => w.length >= 3);
+  return w1.some(word => w2.some(other => other.includes(word) || word.includes(other)));
+};
+
+function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenEdit, handleOpenDelete, dbMembers, dbEvents, dbRecs }: any) {
+  const getStatusColor = (status: string) => {
+    if (!status) return "bg-blue-50 text-blue-700 border-blue-200 border-l-4 border-l-blue-700";
+    if (status.includes("مكتمل") || status.includes("منجز") || status.includes("مؤكد") || status.includes("تم التنفيذ")) {
+       return "bg-emerald-50 text-emerald-700 border-emerald-200 border-l-4 border-l-emerald-700";
+    }
+    if (status.includes("جاري") || status.includes("محجوز") || status.includes("قيد")) {
+       return "bg-amber-50 text-amber-700 border-amber-200 border-l-4 border-l-amber-700";
+    }
+    if (status.includes("متأخر") || status.includes("غير منجز") || status.includes("ملغي")) {
+       return "bg-red-50 text-red-700 border-red-200 border-l-4 border-l-red-700";
+    }
+    return "bg-blue-50 text-blue-700 border-blue-200 border-l-4 border-l-blue-700";
+  };
+  const [showAllMembers, setShowAllMembers] = React.useState(false);
+
+  const commMembers = (dbMembers || []).filter((m: any) => String(m.committeeId) === String(detailsComm.id) || advancedMatch(m.committeeName, detailsComm.name));
+  const commEvents = (dbEvents || []).filter((e: any) => (String(e.committeeId) === String(detailsComm.id) || advancedMatch(e.committeeName, detailsComm.name)) && !e.recommendationClassification);
+  const realMeetingsCount = commEvents.filter((e: any) => e.title && e.title.includes("اجتماع")).length;
+  const realEventsCount = commEvents.filter((e: any) => e.title && !e.title.includes("اجتماع")).length;
+
+  let allRecsModal = dbRecs ? [...dbRecs] : [];
+  const agendaRecsModal: any[] = [];
+  (dbEvents || []).forEach((evt: any) => {
+    if (evt && evt.agenda && Array.isArray(evt.agenda)) {
+      evt.agenda.forEach((item: any, index: number) => {
+        if (item.recommendation && item.recommendation.trim() !== "" && !item.inactiveRecommendation) {
+          agendaRecsModal.push({
+            id: `custom-rec-${evt.id}-${item.id || index}`,
+            eventId: evt.id,
+            committeeId: evt.committeeId,
+            title: item.recommendation,
+            committeeName: evt.committeeName || "لجنة غير محددة",
+            eventName: evt.title,
+            status: "جديدة"
+          });
+        }
+      });
+    }
+  });
+
+  const mappedDbMapModal = new Map();
+  allRecsModal.forEach((r: any) => mappedDbMapModal.set(String(r.id), r));
+  
+  agendaRecsModal.forEach((ar: any) => {
+    if (!mappedDbMapModal.has(ar.id)) {
+       allRecsModal.push(ar);
+    } else {
+       const existing = mappedDbMapModal.get(ar.id);
+       existing.eventId = existing.eventId || ar.eventId;
+       existing.committeeId = existing.committeeId || ar.committeeId;
+       existing.committeeName = existing.committeeName || ar.committeeName;
+       existing.eventName = existing.eventName || ar.eventName;
+    }
+  });
+
+  // Also include standalone recommendations from dbEvents
+  const standaloneRecsModal = (dbEvents || []).filter((e: any) => !!e.recommendationType).map((e: any) => ({
+    ...e,
+    id: e.id,
+    eventId: e.id,
+    committeeId: e.committeeId,
+    title: e.title || "توصية غير مسماة",
+    committeeName: e.committeeName || "لجنة غير محددة",
+    eventName: "توصية مستقلة",
+    status: e.status || "جديدة",
+  }));
+  
+  allRecsModal = [...allRecsModal, ...standaloneRecsModal];
+
+  const commRecs = allRecsModal.filter((r: any) => {
+     if (!r) return false;
+     const belongsByName = advancedMatch(r.committeeName || r.dept, detailsComm.name);
+     const belongsById = String(r.committeeId) === String(detailsComm.id);
+     const ev = (dbEvents || []).find((e: any) => String(e.id) === String(r.eventId) || (r.eventName && e.title === r.eventName));
+     const belongsViaEvent = ev && (String(ev.committeeId) === String(detailsComm.id) || advancedMatch(ev.committeeName, detailsComm.name));
+     return belongsByName || belongsById || belongsViaEvent;
+  });
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <motion.div
+        initial={{ scale: 0.9, y: 15, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        exit={{ scale: 0.9, y: 15, opacity: 0 }}
+        transition={{ type: "spring", damping: 22, stiffness: 280 }}
+        className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl border border-gray-150 relative overflow-hidden z-10 text-right font-sans max-h-[90vh] flex flex-col"
+      >
+        <div className="bg-[#e8e4e4] p-6 border-b border-gray-200 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
+              <Users2 className="w-6 h-6 text-brand" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-extrabold text-gray-900 text-lg leading-tight">
+                  {detailsComm.name}
+                </h3>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+                  detailsComm.active ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${detailsComm.active ? "bg-emerald-500" : "bg-rose-500"}`}></span>
+                  {detailsComm.active ? "نشطة" : "غير نشطة"}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 font-medium mt-1">تاريخ التشكيل: يتم اعتماده من اللجنة التنفيذية (المرجع الشامل للجنة)</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setDetailsComm(null)}
+            className="p-2 hover:bg-white/60 rounded-xl transition-colors"
+          >
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+          <div className="space-y-2 text-right">
+            <h4 className="text-xs font-black text-gray-400 tracking-wider">وصف اللجنة ومسؤولياتها الرئيسية</h4>
+            <div className="bg-[#fcfbfb] border border-[#d2cece] rounded-2xl p-4 text-sm font-medium text-gray-800 leading-relaxed shadow-inner">
+              {detailsComm.desc || "لم يتم إدخال وصف تفصيلي للجنة بعد."}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-4">
+              <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-2xl p-4 space-y-3 relative">
+                <h5 className="text-xs font-black text-gray-500 border-b border-gray-200/60 pb-1.5 flex justify-between items-center">
+                  <span>هيكل اللجنة</span>
+                  <button 
+                    onClick={() => setShowAllMembers(!showAllMembers)}
+                    className="text-brand hover:text-brand-dark transition-colors font-extrabold cursor-pointer"
+                  >
+                    عرض الجميع
+                  </button>
+                </h5>
+                
+                {showAllMembers ? (
+                  <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-2 pr-1">
+                    {commMembers.length > 0 ? commMembers.map((m: any) => (
+                      <div key={m.id} className="flex items-center gap-3 bg-white p-2 rounded-xl border border-gray-100">
+                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
+                           {m.personalPhoto ? <img src={m.personalPhoto} className="w-full h-full object-cover" /> : <UserCheck className="w-4 h-4 text-gray-400" />}
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-brand font-black block">{m.role}</span>
+                          <span className="text-xs font-extrabold text-gray-800">{m.title} {m.name}</span>
+                        </div>
+                      </div>
+                    )) : (
+                      <div className="text-xs text-gray-500 text-center py-4">لا يوجد أعضاء مسجلين</div>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                        <UserCheck className="w-5 h-5" />
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-gray-400 font-black block">رئيس اللجنة</span>
+                        <span className="text-xs font-extrabold text-blue-900">{detailsComm.president || "-"}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-50 text-purple-600 rounded-xl">
+                        <UserCheck className="w-5 h-5" />
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-gray-400 font-black block">نائب رئيس اللجنة</span>
+                        <span className="text-xs font-extrabold text-purple-900">{detailsComm.vicePresident || "-"}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-slate-100 text-gray-650 rounded-xl">
+                        <UserCheck className="w-5 h-5" />
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-gray-400 font-black block">الموظف الأخصائي المسؤول</span>
+                        <span className="text-xs font-extrabold text-gray-800">{detailsComm.specialist || "غير محدد"}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-2xl p-4 flex flex-col justify-between text-right">
+                  <div>
+                    <Users className="w-5 h-5 text-blue-600 mb-2" />
+                    <span className="text-[10px] text-gray-400 font-black block leading-tight">أعضاء اللجنة</span>
+                  </div>
+                  <span className="text-xl font-black text-gray-900 font-mono mt-2">{commMembers.length}</span>
+                </div>
+
+                <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-2xl p-4 flex flex-col justify-between text-right">
+                  <div>
+                    <FileText className="w-5 h-5 text-purple-600 mb-2" />
+                    <span className="text-[10px] text-gray-400 font-black block leading-tight">الفعاليات</span>
+                  </div>
+                  <span className="text-xl font-black text-purple-700 font-mono mt-2">{commEvents.length}</span>
+                </div>
+
+                <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-2xl p-4 flex flex-col justify-between text-right">
+                  <div>
+                    <CheckCircle className="w-5 h-5 text-emerald-600 mb-2" />
+                    <span className="text-[10px] text-gray-400 font-black block leading-tight">التوصيات</span>
+                  </div>
+                  <span className="text-xl font-black text-emerald-700 font-mono mt-2">{commRecs.length}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sijil Kamel (Comprehensive Record) */}
+          <div className="space-y-3 pt-2">
+            <h4 className="text-xs font-black text-gray-400 tracking-wider">سجل أعمال اللجنة (السجل الشامل)</h4>
+            <div className="border border-gray-150 rounded-2xl p-4 bg-orange-50/20 text-right space-y-4">
+              <div className="flex items-center gap-2 text-xs font-black text-amber-800">
+                <Calendar className="w-4 h-4 text-amber-600" />
+                <span>أحدث الفعاليات المنجزة</span>
+              </div>
+              <div className="space-y-2">
+                {commEvents.slice(0, 5).map((e: any) => (
+                   <div key={e.id} className={`bg-white p-3 rounded-xl border flex flex-col gap-2 ${getStatusColor(e.status)}`}>
+                     <div className="flex items-center justify-between">
+                       <span className="text-[11px] font-bold text-gray-800">{e.title}</span>
+                       <span className={`text-[9px] font-black px-2 py-0.5 rounded border ${getStatusColor(e.status)}`}>{e.status || "مجدول"}</span>
+                     </div>
+                     <span className="text-[10px] font-mono text-gray-500">{e.date}</span>
+                   </div>
+                ))}
+                {commEvents.length === 0 && <div className="text-xs text-gray-500 text-center py-2">لا يوجد فعاليات مسجلة</div>}
+              </div>
+
+              <div className="flex items-center gap-2 text-xs font-black text-emerald-800 pt-3 border-t border-gray-200/50">
+                <CheckCircle className="w-4 h-4 text-emerald-600" />
+                <span>أحدث التوصيات الصادرة</span>
+              </div>
+              <div className="space-y-2">
+                {commRecs.slice(0, 5).map((r: any) => (
+                   <div key={r.id} className={`bg-white p-3 rounded-xl border flex flex-col gap-2 ${getStatusColor(r.status)}`}>
+                     <div className="flex items-center justify-between">
+                       <span className="text-[11px] font-bold text-gray-800 line-clamp-1">{r.title || r.description}</span>
+                       <span className={`text-[9px] font-black px-2 py-0.5 rounded border ${getStatusColor(r.status)}`}>{r.status || "جديدة"}</span>
+                     </div>
+                     <span className="text-[10px] font-mono text-gray-500">{r.date || "غير محدد"}</span>
+                   </div>
+                ))}
+                {commRecs.length === 0 && <div className="text-xs text-gray-500 text-center py-2">لا يوجد توصيات مسجلة</div>}
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div className="bg-gray-50 px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3 shrink-0">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                handleOpenEdit(detailsComm);
+                setDetailsComm(null);
+              }}
+              className="h-10 px-4 bg-blue-50 text-blue-600 hover:bg-blue-100 font-black text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+              <span>تعديل التفاصيل</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                handleOpenDelete(detailsComm);
+                setDetailsComm(null);
+              }}
+              className="h-10 px-4 bg-red-50 text-red-650 hover:bg-red-100 font-black text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>حذف اللجنة</span>
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDetailsComm(null)}
+            className="px-5 h-10 bg-gray-200 hover:bg-gray-300 text-gray-750 font-extrabold text-xs rounded-xl transition-all cursor-pointer"
+          >
+            إغلاق النافذة
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
 
 export default function CommitteesFormation() {
   const { data: dbCommittees, updateDocument: updateFirebaseComm, deleteDocument: deleteFirebaseComm } = useFirestoreCollection<Committee>("committees", []);
@@ -344,34 +643,67 @@ export default function CommitteesFormation() {
 
       // 3. Get exact recommendations
       let allRecs = dbRecs ? [...dbRecs] : [];
+      // Add agenda recommendations
+      const agendaRecs = [];
+      (dbEvents || []).forEach((evt) => {
+        if (evt && evt.agenda && Array.isArray(evt.agenda)) {
+          evt.agenda.forEach((item, index) => {
+            if (item.recommendation && item.recommendation.trim() !== "" && !item.inactiveRecommendation) {
+              const recId = `custom-rec-${evt.id}-${item.id || index}`;
+              agendaRecs.push({
+                id: recId,
+                eventId: evt.id,
+                committeeId: evt.committeeId,
+                title: item.recommendation,
+                committeeName: evt.committeeName || "لجنة غير محددة",
+                eventName: evt.title,
+                status: "جديدة"
+              });
+            }
+          });
+        }
+      });
+      
+      // Merge allRecs and agendaRecs to prevent duplicates
+      const mappedDbMap = new Map();
+      allRecs.forEach(r => mappedDbMap.set(String(r.id), r));
+      
+      agendaRecs.forEach(ar => {
+        if (!mappedDbMap.has(ar.id)) {
+           allRecs.push(ar);
+        } else {
+           const existing = mappedDbMap.get(ar.id);
+           existing.eventId = existing.eventId || ar.eventId;
+           existing.committeeId = existing.committeeId || ar.committeeId;
+           existing.committeeName = existing.committeeName || ar.committeeName;
+           existing.eventName = existing.eventName || ar.eventName;
+        }
+      });
+
 
       // Advanced Arabic term containment algorithm for names matching
-      const advancedMatch = (commName: string, targetName: string) => {
-        if (!commName || !targetName) return false;
-        const clean = (s: string) => s.replace(/لجنة/g, "").replace(/الـ/g, "").replace(/ال/g, "").replace(/\s+/g, " ").trim();
-        const c1 = clean(commName);
-        const c2 = clean(targetName);
-        if (c1.includes(c2) || c2.includes(c1)) return true;
-        
-        const w1 = c1.split(" ").filter(w => w.length >= 3);
-        const w2 = c2.split(" ").filter(w => w.length >= 3);
-        return w1.some(word => w2.some(other => other.includes(word) || word.includes(other)));
-      };
-
+    
       setCommittees(prev => {
         let hasChanges = false;
         const updated = prev.map(comm => {
           // Count total members belonging to committee
-          const myMbrs = allMembers.filter((m: any) => m && String(m.committeeId) === String(comm.id));
+          const myMbrs = allMembers.filter((m: any) => m && (String(m.committeeId) === String(comm.id) || advancedMatch(m.committeeName, comm.name)));
           const realMembersCount = myMbrs.length;
 
           // Count meetings & events purely from app_events, since this is raw production readiness
-          const myEvts = allEvents.filter((e: any) => e && String(e.committeeId) === String(comm.id));
+          const myEvts = allEvents.filter((e: any) => e && (String(e.committeeId) === String(comm.id) || advancedMatch(e.committeeName, comm.name)));
           const realMeetingsCount = myEvts.filter((e: any) => e && e.title && e.title.includes("اجتماع")).length;
           const realEventsCount = myEvts.filter((e: any) => e && e.title && !e.title.includes("اجتماع")).length;
 
           // Count recommendations purely from recommendations database
-          const myRecs = allRecs.filter((r: any) => r && advancedMatch(r.committeeName || r.dept, comm.name));
+          const myRecs = allRecs.filter((r: any) => {
+            if (!r) return false;
+            const belongsByName = advancedMatch(r.committeeName || r.dept, comm.name);
+            const belongsById = String(r.committeeId) === String(comm.id);
+            const ev = allEvents.find((e: any) => String(e.id) === String(r.eventId) || (r.eventName && e.title === r.eventName));
+            const belongsViaEvent = ev && (String(ev.committeeId) === String(comm.id) || advancedMatch(ev.committeeName, comm.name));
+            return belongsByName || belongsById || belongsViaEvent;
+          });
           const realRecommendationsCount = myRecs.length;
 
           if (
@@ -591,19 +923,39 @@ export default function CommitteesFormation() {
 
     // 3. Get exact recommendations
     let allRecs = dbRecs ? [...dbRecs] : [];
-
-    const advancedMatch = (commName: string, targetName: string) => {
-      if (!commName || !targetName) return false;
-      const clean = (s: string) => s.replace(/لجنة/g, "").replace(/الـ/g, "").replace(/ال/g, "").replace(/\s+/g, " ").trim();
-      const c1 = clean(commName);
-      const c2 = clean(targetName);
-      if (c1.includes(c2) || c2.includes(c1)) return true;
+      // Add agenda recommendations
+      const agendaRecs = [];
+      (dbEvents || []).forEach((evt) => {
+        if (evt && evt.agenda && Array.isArray(evt.agenda)) {
+          evt.agenda.forEach((item, index) => {
+            if (item.recommendation && item.recommendation.trim() !== "" && !item.inactiveRecommendation) {
+              const recId = `custom-rec-${evt.id}-${item.id || index}`;
+              agendaRecs.push({
+                id: recId,
+                eventId: evt.id,
+                committeeId: evt.committeeId,
+                title: item.recommendation,
+                committeeName: evt.committeeName || "لجنة غير محددة",
+                eventName: evt.title,
+                status: "جديدة"
+              });
+            }
+          });
+        }
+      });
       
-      const w1 = c1.split(" ").filter(w => w.length >= 3);
-      const w2 = c2.split(" ").filter(w => w.length >= 3);
-      return w1.some(word => w2.some(other => other.includes(word) || word.includes(other)));
-    };
+      // Merge allRecs and agendaRecs to prevent duplicates
+      const mappedDbMap = new Map();
+      allRecs.forEach(r => mappedDbMap.set(String(r.id), r));
+      
+      agendaRecs.forEach(ar => {
+        if (!mappedDbMap.has(ar.id)) {
+           allRecs.push(ar);
+        }
+      });
 
+
+  
     return committees.map(comm => {
       // Calculate dynamic members count
       const myMbrs = allMembers.filter((m: any) => m && String(m.committeeId) === String(comm.id));
@@ -621,7 +973,14 @@ export default function CommitteesFormation() {
       const realEventsCount = myEvts.filter((e: any) => e && e.title && !e.title.includes("اجتماع")).length;
 
       // Calculate dynamic recommendations
-      const myRecs = allRecs.filter((r: any) => r && advancedMatch(r.committeeName || r.dept, comm.name));
+      const myRecs = allRecs.filter((r: any) => {
+        if (!r) return false;
+        const belongsByName = advancedMatch(r.committeeName || r.dept, comm.name);
+        const belongsById = String(r.committeeId) === String(comm.id);
+        const ev = allEvents.find((e: any) => String(e.id) === String(r.eventId) || (r.eventName && e.title === r.eventName));
+        const belongsViaEvent = ev && (String(ev.committeeId) === String(comm.id) || advancedMatch(ev.committeeName, comm.name));
+        return belongsByName || belongsById || belongsViaEvent;
+      });
       const realRecommendationsCount = myRecs.length;
 
       return {
@@ -1494,200 +1853,15 @@ export default function CommitteesFormation() {
       {/* POPUP BACKDROP & DETAILS MODAL */}
       <AnimatePresence>
         {detailsComm && (
-          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-            {/* Dark glass backdrop with fade overlay */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setDetailsComm(null)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-            />
-
-            {/* Modal Body Card with Zoom bounce */}
-            <motion.div
-              initial={{ scale: 0.9, y: 15, opacity: 0 }}
-              animate={{ scale: 1, y: 0, opacity: 1 }}
-              exit={{ scale: 0.9, y: 15, opacity: 0 }}
-              transition={{ type: "spring", damping: 22, stiffness: 280 }}
-              className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-150 relative overflow-hidden z-10 text-right font-sans"
-            >
-              {/* Header block */}
-              <div className="bg-[#e8e4e4] p-6 border-b border-gray-200 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
-                    <Users2 className="w-6 h-6 text-brand" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-extrabold text-gray-900 text-lg leading-tight">
-                        {detailsComm.name}
-                      </h3>
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black ${
-                        detailsComm.active ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
-                      }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${detailsComm.active ? "bg-emerald-500" : "bg-rose-500"}`}></span>
-                        {detailsComm.active ? "نشطة" : "غير نشطة"}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 font-medium mt-1">عرض جميع السجلات والمستندات والمسؤولين المرتبطين باللجنة</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setDetailsComm(null)}
-                  className="p-1.5 hover:bg-gray-200/50 text-gray-500 rounded-lg transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Details Content */}
-              <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-                
-                {/* 1. Description Box */}
-                <div className="space-y-2 text-right">
-                  <h4 className="text-xs font-black text-gray-400 tracking-wider">وصف اللجنة ومسؤولياتها الرئيسية</h4>
-                  <div className="bg-[#fcfbfb] border border-[#d2cece] rounded-2xl p-4 text-sm font-medium text-gray-800 leading-relaxed shadow-inner">
-                    {detailsComm.desc || "لم يتم إدخال وصف تفصيلي للجنة بعد."}
-                  </div>
-                </div>
-
-                {/* 2. Structured Information Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  
-                  {/* Left Column: Management / Specialist / President */}
-                  <div className="space-y-4">
-                    <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-2xl p-4 space-y-3">
-                      <h5 className="text-xs font-black text-gray-500 border-b border-gray-200/60 pb-1.5">هيكل اللجنة</h5>
-                      
-                      {detailsComm.president && (
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-                            <UserCheck className="w-5 h-5" />
-                          </div>
-                          <div className="text-right">
-                            <span className="text-[10px] text-gray-400 font-black block">رئيس اللجنة</span>
-                            <span className="text-xs font-extrabold text-blue-900">{detailsComm.president}</span>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-slate-100 text-gray-650 rounded-xl">
-                          <UserCheck className="w-5 h-5" />
-                        </div>
-                        <div className="text-right">
-                          <span className="text-[10px] text-gray-400 font-black block">الموظف الأخصائي المسؤول</span>
-                          <span className="text-xs font-extrabold text-gray-800">{detailsComm.specialist || "غير محدد"}</span>
-                        </div>
-                      </div>
-
-                      {detailsComm.strategicPlan && (
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-emerald-50 text-emerald-700 rounded-xl">
-                            <CheckCircle className="w-5 h-5 text-emerald-600" />
-                          </div>
-                          <div className="text-right">
-                            <span className="text-[10px] text-gray-400 font-black block">الخطة الاستراتيجية للجنة</span>
-                            <span className="text-xs font-extrabold text-emerald-800">{detailsComm.strategicPlan}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Right Column: Statistics Grid of 4 elements */}
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      
-                      <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-2xl p-4 flex flex-col justify-between text-right">
-                        <div>
-                          <Users className="w-5 h-5 text-blue-600 mb-2" />
-                          <span className="text-[10px] text-gray-400 font-black block leading-tight">أعضاء اللجنة</span>
-                        </div>
-                        <span className="text-xl font-black text-gray-900 font-mono mt-2">{detailsComm.membersCount}</span>
-                      </div>
-
-                      <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-2xl p-4 flex flex-col justify-between text-right">
-                        <div>
-                          <Calendar className="w-5 h-5 text-amber-600 mb-2" />
-                          <span className="text-[10px] text-gray-400 font-black block leading-tight">الاجتماعات المنجزة</span>
-                        </div>
-                        <span className="text-xl font-black text-gray-900 font-mono mt-2">{detailsComm.meetingsCount}</span>
-                      </div>
-
-                      <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-2xl p-4 flex flex-col justify-between text-right">
-                        <div>
-                          <CheckCircle className="w-5 h-5 text-emerald-600 mb-2" />
-                          <span className="text-[10px] text-gray-400 font-black block leading-tight">التوصيات الصادرة</span>
-                        </div>
-                        <span className="text-xl font-black text-emerald-700 font-mono mt-2">{detailsComm.recommendationsCount || 0}</span>
-                      </div>
-
-                      <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-2xl p-4 flex flex-col justify-between text-right">
-                        <div>
-                          <FileText className="w-5 h-5 text-purple-600 mb-2" />
-                          <span className="text-[10px] text-gray-400 font-black block leading-tight">الفعاليات المنجزة</span>
-                        </div>
-                        <span className="text-xl font-black text-purple-700 font-mono mt-2">{detailsComm.eventsCount || 0}</span>
-                      </div>
-
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* 3. Additional Details Box */}
-                <div className="border border-gray-150 rounded-2xl p-4 bg-orange-50/20 text-right space-y-2">
-                  <div className="flex items-center gap-2 text-xs font-black text-amber-800">
-                    <CheckCircle className="w-4 h-4 text-emerald-600" />
-                    <span>مقر ومستوى الحوكمة للجنة</span>
-                  </div>
-                  <p className="text-xs text-gray-600 leading-relaxed font-semibold">
-                    تعقد اللجنة اجتماعاتها الدورية بشكل منتظم وفق لائحة اللجان الوطنية والقطاعية الصادرة من اتحاد الغرف التجارية السعودية.
-                  </p>
-                </div>
-
-              </div>
-
-              {/* Footer Block */}
-              <div className="bg-gray-50 px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3">
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleOpenEdit(detailsComm);
-                      setDetailsComm(null);
-                    }}
-                    className="h-10 px-4 bg-blue-50 text-blue-600 hover:bg-blue-100 font-black text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                    <span>تعديل التفاصيل</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleOpenDelete(detailsComm);
-                      setDetailsComm(null);
-                    }}
-                    className="h-10 px-4 bg-red-50 text-red-650 hover:bg-red-100 font-black text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>حذف اللجنة</span>
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setDetailsComm(null)}
-                  className="px-5 h-10 bg-gray-200 hover:bg-gray-300 text-gray-750 font-extrabold text-xs rounded-xl transition-all cursor-pointer"
-                >
-                  إغلاق النافذة
-                </button>
-              </div>
-            </motion.div>
-          </div>
+          <CommitteeDetailsModalContent 
+             detailsComm={detailsComm}
+             setDetailsComm={setDetailsComm}
+             handleOpenEdit={handleOpenEdit}
+             handleOpenDelete={handleOpenDelete}
+             dbMembers={dbMembers}
+             dbEvents={dbEvents}
+             dbRecs={dbRecs}
+          />
         )}
       </AnimatePresence>
 

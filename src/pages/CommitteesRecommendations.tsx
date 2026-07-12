@@ -181,7 +181,7 @@ export default function Events() {
   const { data: rawCommittees } = useFirestoreCollection<any>("committees", []);
   const { data: allMembers } = useFirestoreCollection<Member>("members", []);
   const { data: dbEmployees } = useFirestoreCollection<any>("employees", []);
-  const { data: allDbRecommendations, addDocument: addFirebaseRecommendation, deleteDocument: deleteFirebaseRecommendation } = useFirestoreCollection<any>("recommendations", []);
+  const { data: allDbRecommendations, addDocument: addFirebaseRecommendation, updateDocument: updateFirebaseRecommendation, deleteDocument: deleteFirebaseRecommendation } = useFirestoreCollection<any>("recommendations", []);
 
   const committees = rawCommittees.map(comm => {
      if (!comm) return comm;
@@ -227,6 +227,33 @@ export default function Events() {
   };
 
   const [searchQuery, setSearchQuery] = useState("");
+
+const [promptState, setPromptState] = useState<{ isOpen: boolean; message: string; defaultValue: string; onConfirm: (val: string) => void; onCancel: () => void; }>({ isOpen: false, message: '', defaultValue: '', onConfirm: () => {}, onCancel: () => {} });
+const [alertState, setAlertState] = useState<{ isOpen: boolean; message: string; onClose: () => void; }>({ isOpen: false, message: '', onClose: () => {} });
+const [linkPromptState, setLinkPromptState] = useState<{ isOpen: boolean; eventId: number | null; }>({ isOpen: false, eventId: null });
+
+const [newRecLinkPromptState, setNewRecLinkPromptState] = useState<{isOpen: boolean}>({isOpen: false});
+
+const [linkName, setLinkName] = useState('');
+const [linkUrl, setLinkUrl] = useState('https://');
+
+const handleGlobalLinkPrompt = (eventId: number) => {
+    setLinkName('');
+    setLinkUrl('https://');
+    setLinkPromptState({ isOpen: true, eventId });
+};
+
+const confirmAddLinkAttachment = () => {
+    if (linkName && linkUrl && linkPromptState.eventId) {
+        const evt = events.find(e => String(e.id) === String(linkPromptState.eventId));
+        if (evt) {
+            const existing = evt.attachments || [];
+            updateEventWorkflow(evt.id, { attachments: [...existing, { name: linkName, size: "رابط خارجي", date: new Date().toLocaleDateString('ar-SA') }] });
+        }
+    }
+    setLinkPromptState({ isOpen: false, eventId: null });
+};
+
   const [filterQuery, setFilterQuery] = useState("");
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
@@ -251,7 +278,7 @@ export default function Events() {
     }
   };
 
-  const [selectedEventIds, setSelectedEventIds] = useState<number[]>([]);
+  const [selectedEventIds, setSelectedEventIds] = useState<any[]>([]);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isBulkDeletingLoading, setIsBulkDeletingLoading] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -367,10 +394,18 @@ export default function Events() {
   };
 
   // Helper to update specific event workflow fields and commit to parent and localStorage
-  const updateEventWorkflow = (eventId: number, updates: Partial<EventItem>) => {
+  const updateEventWorkflow = (eventId: any, updates: Partial<any>) => {
+    if (String(eventId).startsWith("custom-rec-")) {
+      const dbRec = allDbRecommendations.find(r => String(r.id) === String(eventId));
+      if (dbRec) {
+        updateFirebaseRecommendation(String(eventId), { ...dbRec, ...updates });
+      }
+      return;
+    }
+    
     const targetEvent = events.find(e => String(e.id) === String(eventId));
     if (targetEvent && !canUserEditCommittee(targetEvent.committeeName)) {
-      alert("عذراً، لا تملك الصلاحية لتعديل فعاليات هذه اللجنة. يمكنك فقط إدارة فعاليات اللجان المكلف بها.");
+      setAlertState({ isOpen: true, message: "عذراً، لا تملك الصلاحية لتعديل فعاليات هذه اللجنة. يمكنك فقط إدارة فعاليات اللجان المكلف بها.", onClose: () => {} });
       return;
     }
     setEvents(prev => prev.map(evt => {
@@ -495,9 +530,13 @@ ${formattedItems}
   const [newCommitteeId, setNewCommitteeId] = useState<number | string>(0);
   const availableAssignees = React.useMemo(() => {
     const comm = committees.find(c => c.id === newCommitteeId);
-    const specialist = comm?.specialist ? `أخصائي اللجنة - ${comm.specialist}` : "";
-    const members = allMembers.filter(m => m.committeeId === newCommitteeId).map(m => `${m.role} - ${m.title} ${m.name}`);
-    return Array.from(new Set([specialist, ...members].filter(Boolean)));
+    const specialistValue = comm?.specialist ? `${comm.specialist} (أخصائي اللجنة)` : "أخصائي اللجنة";
+    const options = [];
+    options.push({ value: specialistValue, label: specialistValue });
+    allMembers.filter(m => m.committeeId === newCommitteeId).forEach(m => {
+      options.push({ value: `${m.role} - ${m.title} ${m.name}`, label: `${m.title} ${m.name} (${m.role})` });
+    });
+    return options;
   }, [allMembers, committees, newCommitteeId]);
   const [newStatus, setNewStatus] = useState<EventItem["status"]>("تجهيز الفعاليات");
   const [newLocation, setNewLocation] = useState<"حضوري" | "عن بعد">("حضوري");
@@ -589,6 +628,40 @@ ${formattedItems}
   // Series generation state
   const [generatedSchedules, setGeneratedSchedules] = useState<{id: number, date: string, title: string, time: string}[]>([]);
   const [selectedSchedules, setSelectedSchedules] = useState<number[]>([]);
+  const [isGeneratingSmartText, setIsGeneratingSmartText] = useState(false);
+
+  const handleGenerateSmartText = async () => {
+    if (!newRecText) {
+      setAlertState({ isOpen: true, message: "الرجاء إدخال نص التوصية الأصلي أولاً لتوليد النص الذكي.", onClose: () => {} });
+      return;
+    }
+    
+    setIsGeneratingSmartText(true);
+    try {
+      const response = await fetch('/api/gemini/smart-recommendation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: newRecText }),
+      });
+      
+      if (!response.ok) {
+        throw new Error("فشل توليد النص");
+      }
+      
+      const data = await response.json();
+      if (data.result) {
+        setNewRecText(data.result);
+      }
+    } catch (err) {
+      console.error(err);
+      setAlertState({ isOpen: true, message: "حدث خطأ أثناء الاتصال بالذكاء الاصطناعي.", onClose: () => {} });
+    } finally {
+      setIsGeneratingSmartText(false);
+    }
+  };
+
   const [isConfirmingSeries, setIsConfirmingSeries] = useState(false);
   const [showSuccessMsg, setShowSuccessMsg] = useState(false);
 
@@ -618,7 +691,7 @@ ${formattedItems}
     committeeEvents.forEach(evt => {
       if (evt.agenda && Array.isArray(evt.agenda)) {
         evt.agenda.forEach((item, index) => {
-          if (item.recommendation && item.recommendation.trim() !== "") {
+          if (item.recommendation && item.recommendation.trim() !== "" && !item.inactiveRecommendation) {
             const isAdded = events.some(e => e.exportedRecommendationsToPage && e.title === item.title && e.committeeId === importCommitteeId);
             results.push({
               eventId: evt.id,
@@ -654,7 +727,7 @@ ${formattedItems}
     if (selectedRecs.length === 0) return;
     
     const commName = committees.find(c => c.id === importCommitteeId)?.name || "";
-    if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات أو مهام لهذه اللجنة"); return; }
+    if (commName && !canUserEditCommittee(commName)) { setAlertState({ isOpen: true, message: "غير مصرح لك بجدولة فعاليات أو مهام لهذه اللجنة", onClose: () => {} }); return; }
     
     for (const rec of selectedRecs) {
       if (rec.isAdded) continue; // Skip if already added
@@ -724,14 +797,19 @@ ${formattedItems}
   };
 
   const handleAddLinkAttachment = () => {
-    const linkName = prompt("أدخل اسم المرفق:");
-    const linkUrl = prompt("أدخل رابط المرفق:", "https://...");
+    setLinkName('');
+    setLinkUrl('https://');
+    setNewRecLinkPromptState({isOpen: true});
+  };
+
+  const confirmAddNewRecLinkAttachment = () => {
     if (linkName && linkUrl) {
       setNewRecAttachments([
         ...newRecAttachments,
         { name: linkName, url: linkUrl }
       ]);
     }
+    setNewRecLinkPromptState({isOpen: false});
   };
 
   const handleSearchCommit = (e: FormEvent) => {
@@ -798,7 +876,7 @@ ${formattedItems}
     events.forEach(evt => {
       if (evt.agenda && Array.isArray(evt.agenda)) {
         evt.agenda.forEach((item: any, index: number) => {
-          if (item.recommendation && item.recommendation.trim() !== "") {
+          if (item.recommendation && item.recommendation.trim() !== "" && !item.inactiveRecommendation) {
             agendaRecs.push({
               id: `custom-rec-${evt.id}-${item.id || index}`,
               title: `توصية البند ${getArabicOrdinalGlobal(index + 1)} "${item.title}"`,
@@ -820,8 +898,24 @@ ${formattedItems}
 
     // 2. Map existing DB recommendations, and merge with agenda items
     let mappedDbMap = new Map();
-    [...allDbRecommendations].forEach((rec: any) => {
+        [...allDbRecommendations].forEach((rec: any) => {
+      if (String(rec.id).startsWith("custom-rec-")) {
+        const parts = String(rec.id).split('-');
+        if (parts.length >= 4) {
+          const evtId = parts[2];
+          const itemId = parts.slice(3).join('-');
+          const ev = events.find((e: any) => String(e.id) === String(evtId));
+          if (ev && ev.agenda) {
+            const agItem = ev.agenda.find((a: any, idx: number) => (a.id === itemId) || (String(idx) === itemId));
+            if (agItem && agItem.inactiveRecommendation) {
+              return; // Skip inactive
+            }
+          }
+        }
+      }
+
       mappedDbMap.set(String(rec.id), {
+        isAgendaSource: String(rec.id).startsWith("custom-rec-"),
         ...rec,
         id: rec.id,
         title: rec.title || rec.description || "توصية غير مسماة",
@@ -951,7 +1045,7 @@ ${formattedItems}
 
   const handleOpenEdit = (evt: any) => {
     if (evt.committeeName && !canUserEditCommittee(evt.committeeName)) {
-      alert("عذراً، لا تملك الصلاحية لتعديل هذه الفعالية. يمكنك فقط تعديل فعاليات اللجان المكلف بها.");
+      setAlertState({ isOpen: true, message: "عذراً، لا تملك الصلاحية لتعديل هذه الفعالية. يمكنك فقط تعديل فعاليات اللجان المكلف بها.", onClose: () => {} });
       return;
     }
     setEditingEvent(evt);
@@ -967,16 +1061,43 @@ ${formattedItems}
     setNewNotes(evt.notes || "");
     
     // Set Recommendation specific fields
+    const isAgendaSource = evt.isAgendaSource || String(evt.id).startsWith("custom-rec-");
+    let derivedEventId = evt.recommendationEventId || "";
+    if (isAgendaSource && !derivedEventId) {
+      const parts = String(evt.id).split("-");
+      if (parts.length >= 3) {
+        derivedEventId = parts[2];
+      }
+    }
+    
+    // Find committeeId from committeeName if missing (often missing in exported recommendations)
+    let derivedCommitteeId = evt.committeeId || 0;
+    if (!derivedCommitteeId && evt.committeeName) {
+      const comm = committees.find(c => c.name === evt.committeeName);
+      if (comm) {
+        derivedCommitteeId = comm.id;
+        setNewCommitteeId(comm.id);
+      }
+    }
+
     setNewRecTitle(evt.title || "");
-    setNewRecType(evt.recommendationType || "");
-    setNewRecClassification(evt.recommendationClassification || "");
-    setNewRecEventId(evt.recommendationEventId || "");
+    setNewRecType(evt.recommendationType || (isAgendaSource ? "عادية" : ""));
+    setNewRecClassification(evt.recommendationClassification || (isAgendaSource ? "عادية" : ""));
+    setNewRecEventId(derivedEventId);
     setNewRecPassMethod(evt.recommendationPassMethod || "عبر البريد الإلكتروني");
-    setNewRecDiscussion(evt.recommendationDiscussion || "");
-    setNewRecText(evt.recommendationText || evt.notes || "");
-    setNewRecAssignee(evt.recommendationAssignee || (evt.employees && evt.employees[0]) || "");
-    setNewRecDuration(evt.recommendationDuration || "");
-    setNewRecAttachments(evt.recommendationAttachments || []);
+    setNewRecDiscussion(evt.recommendationDiscussion || evt.discussion || "");
+    setNewRecText(evt.recommendationText || evt.description || evt.notes || "");
+    
+    // Try to get assignee properly
+    let assigned = evt.recommendationAssignee || evt.assignedTo || (evt.employees && evt.employees[0]) || "";
+    if (assigned === "غير محدد") assigned = "";
+    setNewRecAssignee(assigned);
+    
+    let duration = evt.recommendationDuration || evt.duration || "";
+    if (duration === "غير محدد") duration = "";
+    setNewRecDuration(duration);
+    
+    setNewRecAttachments(evt.recommendationAttachments || evt.attachments || "");
 
     if (evt.type === "مفردة") {
       setSingleTime(evt.time || "");
@@ -993,7 +1114,7 @@ ${formattedItems}
 
   const handleOpenDelete = (evt: EventItem) => {
     if (!canUserEditCommittee(evt.committeeName)) {
-      alert("عذراً، لا تملك الصلاحية لحذف هذه الفعالية. يمكنك فقط تعديل فعاليات اللجان المكلف بها.");
+      setAlertState({ isOpen: true, message: "عذراً، لا تملك الصلاحية لحذف هذه الفعالية. يمكنك فقط تعديل فعاليات اللجان المكلف بها.", onClose: () => {} });
       return;
     }
     setDeletingEvent(evt);
@@ -1015,9 +1136,9 @@ ${formattedItems}
     const targetWeek = WEEKSMap[seriesWeekOfMonth];
     
     const results: {id: number, date: string, title: string, time: string}[] = [];
-    if (!newCommitteeId || newCommitteeId === 0) { alert("يرجى اختيار اللجنة أولاً"); return; }
+    if (!newCommitteeId || newCommitteeId === 0) { setAlertState({ isOpen: true, message: "يرجى اختيار اللجنة أولاً", onClose: () => {} }); return; }
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
-    if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات أو مهام لهذه اللجنة"); return; }
+    if (commName && !canUserEditCommittee(commName)) { setAlertState({ isOpen: true, message: "غير مصرح لك بجدولة فعاليات أو مهام لهذه اللجنة", onClose: () => {} }); return; }
     const classifStr = seriesClassification === "دوري" ? "الدوري" : seriesClassification === "استثنائي" ? "الاستثنائي" : seriesClassification === "طارئ" ? "الطارئ" : seriesClassification === "فريق عمل" ? "فريق العمل" : seriesClassification;
     const formattedCommName = commName ? formatCommitteeNameArabic(commName) : "";
     const prefixToMatch = `${seriesKind} ${formattedCommName} ${classifStr}`.trim();
@@ -1074,9 +1195,9 @@ ${formattedItems}
   };
 
   const handleInsertSeries = () => {
-    if (!newCommitteeId || newCommitteeId === 0) { alert("يرجى اختيار اللجنة أولاً"); return; }
+    if (!newCommitteeId || newCommitteeId === 0) { setAlertState({ isOpen: true, message: "يرجى اختيار اللجنة أولاً", onClose: () => {} }); return; }
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
-    if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات أو مهام لهذه اللجنة"); return; }
+    if (commName && !canUserEditCommittee(commName)) { setAlertState({ isOpen: true, message: "غير مصرح لك بجدولة فعاليات أو مهام لهذه اللجنة", onClose: () => {} }); return; }
     const selectedGen = generatedSchedules.filter(s => selectedSchedules.includes(s.id));
     
     // Check conflicts
@@ -1125,9 +1246,9 @@ ${formattedItems}
 
     if (!newRecTitle.trim() || !newCommitteeId) return;
 
-    if (!newCommitteeId || newCommitteeId === 0) { alert("يرجى اختيار اللجنة أولاً"); return; }
+    if (!newCommitteeId || newCommitteeId === 0) { setAlertState({ isOpen: true, message: "يرجى اختيار اللجنة أولاً", onClose: () => {} }); return; }
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
-    if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات أو مهام لهذه اللجنة"); return; }
+    if (commName && !canUserEditCommittee(commName)) { setAlertState({ isOpen: true, message: "غير مصرح لك بجدولة فعاليات أو مهام لهذه اللجنة", onClose: () => {} }); return; }
     const eventName = events.find(ev => ev.id === Number(newRecEventId))?.title || "توصية بالتمرير";
 
     if (editingEvent) {
@@ -1152,7 +1273,14 @@ ${formattedItems}
         preparationsText: newRecText,
         preparationsAttachments: newRecAttachments ? [{ id: '1', name: newRecAttachments, url: '#' }] : (editingEvent.preparationsAttachments || [])
       };
-      setEvents(events.map(ev => ev.id === editingEvent.id ? updatedRec : ev));
+      
+      if (editingEvent.isAgendaSource || String(editingEvent.id).startsWith("custom-rec-")) {
+        // Save to Firebase for agenda exported recommendations
+        updateFirebaseRecommendation(editingEvent.id, updatedRec);
+      } else {
+        // Save to local context for standalone recommendations
+        setEvents(events.map(ev => ev.id === editingEvent.id ? updatedRec : ev));
+      }
     } else {
       const recEventId = Date.now();
       const newRec: any = {
@@ -1202,39 +1330,96 @@ ${formattedItems}
     setIsAddOpen(false);
   };
 
-  const handleDelete = async () => {
+    const handleDelete = async () => {
     if (deletingEvent) {
       if (allDbRecommendations.some((r: any) => String(r.id) === String(deletingEvent.id))) {
         if (typeof deleteFirebaseRecommendation === "function") {
           await deleteFirebaseRecommendation(String(deletingEvent.id));
         }
-      } else if (deletingEvent.isAgendaSource) {
-        alert("هذه التوصية مستمدة من جدول أعمال فعالية. لا يمكن حذفها من هنا.");
-        setDeletingEvent(null);
-        return;
-      } else {
+      }
+      
+      // Regardless if it was in DB or not, if it came from agenda, mark it as inactive!
+      if (String(deletingEvent.id).startsWith("custom-rec-")) {
+        const parts = String(deletingEvent.id).split('-');
+        if (parts.length >= 4) {
+          const evtId = parts[2];
+          const itemId = parts.slice(3).join('-');
+          const evtToUpdate = events.find(e => String(e.id) === String(evtId));
+          if (evtToUpdate && evtToUpdate.agenda) {
+             const newAgenda = [...evtToUpdate.agenda];
+             const itemIndex = isNaN(Number(itemId)) ? newAgenda.findIndex((x: any) => String(x.id) === itemId) : Number(itemId);
+             if (itemIndex >= 0 && itemIndex < newAgenda.length) {
+                newAgenda[itemIndex] = { ...newAgenda[itemIndex], inactiveRecommendation: true };
+                if (typeof updateFirebaseEvent === "function") {
+                   await updateFirebaseEvent(String(evtId), { agenda: newAgenda });
+                }
+             }
+          }
+        }
+      } else if (!allDbRecommendations.some((r: any) => String(r.id) === String(deletingEvent.id))) {
         if (typeof deleteFirebaseEvent === "function") {
           await deleteFirebaseEvent(String(deletingEvent.id));
         }
       }
-      
-      setEvents(events.filter((e) => e.id !== deletingEvent.id));
       setDeletingEvent(null);
     }
   };
 
-  const handleBulkDelete = async () => {
+    const handleBulkDelete = async () => {
     if (selectedEventIds.length > 0) {
       setIsBulkDeletingLoading(true);
-      const itemsToDelete = events.filter((e) => selectedEventIds.includes(e.id));
-      await Promise.all(itemsToDelete.map(e => deleteFirebaseEvent(String(e.id))));
+      
+      const dbRecIdsToDelete = selectedEventIds.filter(id => allDbRecommendations.some((r: any) => String(r.id) === String(id)));
+      const eventIdsToDelete = selectedEventIds.filter(id => events.some((e: any) => String(e.id) === String(id) && !!e.recommendationType));
+      const agendaRecsIds = selectedEventIds.filter(id => String(id).startsWith("custom-rec-")); // Include all agenda-based recs!
+
+      const agendaPromises: Promise<any>[] = [];
+      if (agendaRecsIds.length > 0) {
+         const agendaUpdatesByEvent = new Map<string, string[]>();
+         agendaRecsIds.forEach(id => {
+            const parts = String(id).split("-");
+            if (parts.length >= 4) {
+              const evtId = parts[2];
+              const itemId = parts.slice(3).join("-");
+              if (!agendaUpdatesByEvent.has(evtId)) {
+                agendaUpdatesByEvent.set(evtId, []);
+              }
+              agendaUpdatesByEvent.get(evtId)!.push(itemId);
+            }
+         });
+         
+         for (const [evtId, itemIds] of agendaUpdatesByEvent.entries()) {
+            const evtToUpdate = events.find(e => String(e.id) === String(evtId));
+            if (evtToUpdate && evtToUpdate.agenda) {
+               const newAgenda = [...evtToUpdate.agenda];
+               let modified = false;
+               for (const itemId of itemIds) {
+                 const itemIndex = isNaN(Number(itemId)) ? newAgenda.findIndex((x: any) => String(x.id) === itemId) : Number(itemId);
+                 if (itemIndex >= 0 && itemIndex < newAgenda.length) {
+                    newAgenda[itemIndex] = { ...newAgenda[itemIndex], inactiveRecommendation: true };
+                    modified = true;
+                 }
+               }
+               if (modified && typeof updateFirebaseEvent === "function") {
+                  agendaPromises.push(updateFirebaseEvent(String(evtId), { agenda: newAgenda }));
+               }
+            }
+         }
+      }
+
+      await Promise.all([
+        ...(typeof deleteFirebaseRecommendation === "function" ? dbRecIdsToDelete.map(id => deleteFirebaseRecommendation(String(id))) : []),
+        ...(typeof deleteFirebaseEvent === "function" ? eventIdsToDelete.map(id => deleteFirebaseEvent(String(id))) : []),
+        ...agendaPromises
+      ]);
+
       setSelectedEventIds([]);
       setIsBulkDeletingLoading(false);
       setIsBulkDeleting(false);
     }
   };
 
-  const toggleSelectEvent = (id: number) => {
+  const toggleSelectEvent = (id: any) => {
     setSelectedEventIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
@@ -1464,6 +1649,34 @@ ${formattedItems}
     }
   };
 
+
+  const handleCustomLinkAttachment = (evtId: number, currentAttachments: any[]) => {
+    setPromptState({
+      isOpen: true,
+      message: "الرجاء إدخال رابط جوجل درايف (Google Drive Link):",
+      defaultValue: "https://drive.google.com/...",
+      onConfirm: (val) => {
+        if (!val || val.trim() === "" || val === "https://drive.google.com/...") return;
+        setPromptState({
+           isOpen: true,
+           message: "تأكيد مسار الحفظ (اختياري):",
+           defaultValue: "/Google Drive/Links",
+           onConfirm: (pathVal) => {
+              const newAtt = {
+                 name: "رابط خارجي (جوجل درايف)",
+                 size: "Link",
+                 date: new Date().toLocaleDateString('ar-SA'),
+                 link: val
+              };
+              updateEventWorkflow(evtId, { attachments: [...(currentAttachments || []), newAtt] });
+              setAlertState({ isOpen: true, message: "تم إضافة الرابط بنجاح.", onClose: () => {} });
+           },
+           onCancel: () => {}
+        });
+      },
+      onCancel: () => {}
+    });
+  };
   return (
     <div className="space-y-6 pb-16 text-right" dir="rtl">
       {/* Dynamic Header Toolbar */}
@@ -1837,9 +2050,54 @@ ${formattedItems}
                         <Calendar className="w-8 h-8" />
                       </div>
                       لا توجد أية اجتماعات مسجلة لهذه اللجنة حالياً.
-                    </div>
-                  );
-                }
+                
+      {newRecLinkPromptState.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" dir="rtl">
+          <div className="bg-white p-6 rounded-2xl shadow-xl w-[400px] max-w-[90vw] font-sans border border-gray-100">
+            <h3 className="text-sm font-black text-slate-800 mb-4">إضافة رابط مرفق</h3>
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">اسم المرفق</label>
+                <input 
+                  type="text" 
+                  value={linkName}
+                  onChange={(e) => setLinkName(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-brand focus:border-brand outline-none transition-all font-bold"
+                  placeholder="مثال: المستند الفني"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">الرابط</label>
+                <input 
+                  type="url" 
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-brand focus:border-brand outline-none transition-all font-bold text-left bg-slate-50"
+                  dir="ltr"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button 
+                onClick={() => setNewRecLinkPromptState({isOpen: false})}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-slate-700 text-xs font-bold rounded-lg transition-colors"
+              >
+                إلغاء
+              </button>
+              <button 
+                onClick={confirmAddNewRecLinkAttachment}
+                className="px-4 py-2 bg-brand hover:bg-brand/90 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
+              >
+                إضافة
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
 
                 return (
                   <>
@@ -1851,7 +2109,7 @@ ${formattedItems}
                         (rec.eventName && rec.eventName === evt.title)
                       ).length;
                       const agendaCount = (evt.agenda || []).filter(
-                        (g: any) => g.recommendation && g.recommendation.trim() !== ""
+                        (g: any) => g.recommendation && g.recommendation.trim() !== "" && !g.inactiveRecommendation
                       ).length;
                       const totalRecs = dbRecommendationsCount + agendaCount;
 
@@ -2099,7 +2357,7 @@ ${formattedItems}
                 );
 
                 const agendaRecsForCards = (chosenEvent.agenda || [])
-                  .filter((item: any) => item.recommendation && item.recommendation.trim() !== "")
+                  .filter((item: any) => item.recommendation && item.recommendation.trim() !== "" && !item.inactiveRecommendation)
                   .map((item: any, index: number) => {
                     return {
                       id: `custom-rec-${chosenEvent.id}-${item.id || index}`,
@@ -2708,7 +2966,7 @@ ${formattedItems}
                                                         type="button"
                                                         onClick={() => {
                                                           navigator.clipboard.writeText(evt.preparationsText || "");
-                                                          alert("تم نسخ الصياغة الفنية الذكية للتوصية للمحافظة بنجاح!");
+                                                          setAlertState({ isOpen: true, message: "تم نسخ الصياغة الفنية الذكية للتوصية للمحافظة بنجاح!", onClose: () => {} });
                                                         }}
                                                         className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[8.5px] font-black rounded-lg cursor-pointer flex items-center gap-1 transition-all border border-gray-200 font-sans"
                                                       >
@@ -2718,7 +2976,19 @@ ${formattedItems}
                                                       <button
                                                         type="button"
                                                         onClick={() => {
-                                                          window.location.href = `mailto:?subject=${encodeURIComponent("تفعيل توصية قطاعية دائرية")}&body=${encodeURIComponent(evt.preparationsText || "")}`;
+                                                          
+const textBody = evt.preparationsText || "";
+let mailSubject = "تفعيل توصية قطاعية دائرية";
+let mailBody = textBody;
+
+if (textBody.startsWith("الموضوع: ")) {
+  const firstLineEnd = textBody.indexOf("\n");
+  if (firstLineEnd !== -1) {
+    mailSubject = textBody.substring("الموضوع: ".length, firstLineEnd).trim();
+    mailBody = textBody.substring(firstLineEnd + 1).trim();
+  }
+}
+window.location.href = `mailto:?subject=${encodeURIComponent(mailSubject)}&body=${encodeURIComponent(mailBody)}`;
                                                         }}
                                                         className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[8.5px] font-black rounded-lg cursor-pointer flex items-center gap-1 transition-all border border-gray-200 font-sans"
                                                       >
@@ -2802,8 +3072,17 @@ if (linkedEvent && linkedEvent.agenda) {
 }
 
 const assigneeText = evt.assignedTo || evt.recommendationAssignee || (evt.employees && evt.employees.length > 0 ? evt.employees[0] : "غير محدد");
+let attachmentsLabel = attachmentsText;
+if (attachmentsList && attachmentsList.length > 0) {
+    attachmentsLabel = attachmentsList.map((a: any) => a.name).join("، ");
+} else {
+    attachmentsLabel = "لا يوجد مرفقات";
+}
 
-const generatedProposal = `سعادة الأستاذ/ محمد بن محسن السبيعي                 سلمه الله
+const subjectText = `تفعيل توصية ${itemTitleFull} ل${meetingName}`;
+
+const generatedProposal = `الموضوع: ${subjectText}
+سعادة الأستاذ/ محمد بن محسن السبيعي                 سلمه الله
 رئيس قسم اللجان
 السلام عليكم ورحمه الله وبركاته .. وبعد
 نهديكم أطيب تحية وتقدير.. ونشكر لسعادتكم تعاونكم الدائم والمستمر لإنجاح سير أعمال إدارة اللجان.
@@ -2812,7 +3091,7 @@ ${itemTitleFull} .
 المناقشة: ${itemDiscussion} .
 التوصية: ${itemRec} .
 المكلف: ${assigneeText} .
-المرفقات: ${attachmentsText} .
+المرفقات: ${attachmentsLabel} .
 
 آمل من سعادتكم التكرم بالاطلاع والتوجيه حتى يتسنى لنا إكمال اللازم.
 
@@ -2839,9 +3118,89 @@ ${itemTitleFull} .
                                               
                                               {/* Digital Library Drag & Drop Simulator */}
                                               <div className="border-2 border-dashed border-slate-200 rounded-xl p-3 bg-slate-50/20 text-center relative hover:border-brand/45 transition-colors font-sans">
-                                                <p className="text-[9.5px] text-slate-600 font-extrabold font-sans">المكتبة الرقمية: اسحب وأفلت المرفق هنا أو اضغط لربطه بجوجل درايف</p>
+                                                <div 
+                                                  className="relative p-2 cursor-pointer group"
+                                                  onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-brand', 'bg-brand/5'); }}
+                                                  onDragLeave={(e) => { e.preventDefault(); e.currentTarget.classList.remove('border-brand', 'bg-brand/5'); }}
+                                                  onDrop={(e) => {
+                                                    e.preventDefault();
+                                                    e.currentTarget.classList.remove('border-brand', 'bg-brand/5');
+                                                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                                                      const files = Array.from(e.dataTransfer.files) as File[];
+                                                      const newAtts = files.map(f => ({
+                                                        name: f.name,
+                                                        size: (f.size / (1024 * 1024)).toFixed(2) + " MB",
+                                                        date: new Date().toLocaleDateString('ar-SA')
+                                                      }));
+                                                      const existing = attachmentsList || [];
+                                                      
+                                                      setPromptState({
+    isOpen: true,
+    message: "الرجاء تأكيد مسار الحفظ والأرشفة في جوجل درايف:",
+    defaultValue: "/Google Drive/Committees/" + (evt.committeeName || "General"),
+    onConfirm: (drivePath) => {
+        if (!drivePath) {
+            setAlertState({ isOpen: true, message: "تم إلغاء الحفظ.", onClose: () => {} });
+            return;
+        }
+        setAlertState({ 
+            isOpen: true, 
+            message: "تم حفظ الملفات بنجاح في المسار: " + drivePath, 
+            onClose: () => {
+                updateEventWorkflow(evt.id, { attachments: [...existing, ...newAtts] });
+            }
+        });
+    },
+    onCancel: () => {
+        setAlertState({ isOpen: true, message: "تم إلغاء الحفظ.", onClose: () => {} });
+    }
+});
+                                                    }
+                                                  }}
+                                                >
+                                                  <input 
+                                                    type="file" 
+                                                    multiple
+                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                                    onChange={(e) => {
+                                                      if (e.target.files && e.target.files.length > 0) {
+                                                        const files = Array.from(e.target.files) as File[];
+                                                        const newAtts = files.map(f => ({
+                                                          name: f.name,
+                                                          size: (f.size / (1024 * 1024)).toFixed(2) + " MB",
+                                                          date: new Date().toLocaleDateString('ar-SA')
+                                                        }));
+                                                        const existing = attachmentsList || [];
+                                                        
+                                                        setPromptState({
+    isOpen: true,
+    message: "الرجاء تأكيد مسار الحفظ والأرشفة في جوجل درايف:",
+    defaultValue: "/Google Drive/Committees/" + (evt.committeeName || "General"),
+    onConfirm: (drivePath) => {
+        if (!drivePath) {
+            setAlertState({ isOpen: true, message: "تم إلغاء الحفظ.", onClose: () => {} });
+            return;
+        }
+        setAlertState({ 
+            isOpen: true, 
+            message: "تم حفظ الملفات بنجاح في المسار: " + drivePath, 
+            onClose: () => {
+                updateEventWorkflow(evt.id, { attachments: [...existing, ...newAtts] });
+            }
+        });
+    },
+    onCancel: () => {
+        setAlertState({ isOpen: true, message: "تم إلغاء الحفظ.", onClose: () => {} });
+    }
+});
+                                                      }
+                                                      e.target.value = '';
+                                                    }}
+                                                  />
+                                                  <p className="text-[9.5px] text-slate-600 font-extrabold font-sans group-hover:text-brand transition-colors">المكتبة الرقمية: اسحب وأفلت المرفق هنا أو اضغط لربطه بجوجل درايف</p>
+                                                </div>
                                                 
-                                                <div className="mt-2.5 flex flex-wrap justify-center gap-1.5 font-sans">
+                                                <div className="mt-2.5 flex flex-wrap justify-center gap-1.5 font-sans relative z-20">
                                                   {sampleFiles.map((fn, idx) => (
                                                     <button
                                                       key={idx}
@@ -3439,7 +3798,7 @@ ${itemTitleFull} .
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value="">اختر المكلف</option>
-                              {availableAssignees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
+                              {availableAssignees.map((opt: any) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                             </select>
                           </div>
 
@@ -3454,12 +3813,31 @@ ${itemTitleFull} .
                             ></textarea>
                           </div>
 
-                          <div className="md:col-span-2 space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">نص التوصية</label>
+                          <div className="md:col-span-2 space-y-1 relative">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[11px] font-black text-gray-500 block">نص التوصية</label>
+                              <button
+                                type="button"
+                                onClick={handleGenerateSmartText}
+                                disabled={isGeneratingSmartText}
+                                className="text-[10px] bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-2 py-1 rounded-md font-bold flex items-center gap-1 border border-indigo-200 transition-colors disabled:opacity-50"
+                              >
+                                {isGeneratingSmartText ? (
+                                  <>
+                                    <div className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                                    جاري التوليد...
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>✨ توليد النص الذكي</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
                             <textarea
                               value={newRecText}
                               onChange={(e) => setNewRecText(e.target.value)}
-                              rows={2}
+                              rows={3}
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand resize-none"
                               placeholder="نص التوصية هنا..."
                             ></textarea>
@@ -3491,7 +3869,7 @@ ${itemTitleFull} .
                               <p className="text-[10px] font-bold text-gray-500">مرفقات تكميلية بالملفات أو رابط Google Drive</p>
                               <button
                                 type="button"
-                                onClick={handleAddLinkAttachment}
+                                onClick={handleCustomLinkAttachment}
                                 className="mt-2.5 px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-[9px] font-black"
                               >
                                 أو الصق رابط جوجل درايف يدوياً
@@ -3714,6 +4092,106 @@ ${itemTitleFull} .
            </div>
         )}
       </AnimatePresence>
+
+      {/* Modals for replacing prompt/alert */}
+      {promptState.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" dir="rtl">
+          <div className="bg-white p-6 rounded-2xl shadow-xl w-[400px] max-w-[90vw] font-sans border border-gray-100">
+            <h3 className="text-sm font-black text-slate-800 mb-3">{promptState.message}</h3>
+            <input 
+              type="text" 
+              defaultValue={promptState.defaultValue}
+              className="w-full border border-gray-200 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-brand focus:border-brand outline-none transition-all font-bold text-left bg-slate-50 mb-5"
+              dir="ltr"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  promptState.onConfirm(e.currentTarget.value);
+                  setPromptState({ ...promptState, isOpen: false });
+                }
+              }}
+              autoFocus
+              id="prompt-input"
+            />
+            <div className="flex gap-2 justify-end">
+              <button 
+                onClick={() => { promptState.onCancel(); setPromptState({ ...promptState, isOpen: false }); }}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-slate-700 text-xs font-bold rounded-lg transition-colors"
+              >
+                إلغاء
+              </button>
+              <button 
+                onClick={() => { 
+                  const val = (document.getElementById('prompt-input') as HTMLInputElement).value;
+                  promptState.onConfirm(val); 
+                  setPromptState({ ...promptState, isOpen: false }); 
+                }}
+                className="px-4 py-2 bg-brand hover:bg-brand/90 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
+              >
+                تأكيد
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {alertState.isOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm" dir="rtl">
+          <div className="bg-white p-6 rounded-2xl shadow-xl w-[350px] max-w-[90vw] font-sans border border-gray-100 text-center">
+            <p className="text-sm font-black text-slate-800 mb-6">{alertState.message}</p>
+            <button 
+              onClick={() => { alertState.onClose(); setAlertState({ ...alertState, isOpen: false }); }}
+              className="px-6 py-2 bg-brand hover:bg-brand/90 text-white text-xs font-bold rounded-lg transition-colors shadow-sm w-full"
+            >
+              حسناً
+            </button>
+          </div>
+        </div>
+      )}
+
+      {linkPromptState.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" dir="rtl">
+          <div className="bg-white p-6 rounded-2xl shadow-xl w-[400px] max-w-[90vw] font-sans border border-gray-100">
+            <h3 className="text-sm font-black text-slate-800 mb-4">إضافة رابط مرفق</h3>
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">اسم المرفق</label>
+                <input 
+                  type="text" 
+                  value={linkName}
+                  onChange={(e) => setLinkName(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-brand focus:border-brand outline-none transition-all font-bold"
+                  placeholder="مثال: المستند الفني"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">الرابط</label>
+                <input 
+                  type="url" 
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-brand focus:border-brand outline-none transition-all font-bold text-left bg-slate-50"
+                  dir="ltr"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button 
+                onClick={() => setLinkPromptState({ isOpen: false, eventId: null })}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-slate-700 text-xs font-bold rounded-lg transition-colors"
+              >
+                إلغاء
+              </button>
+              <button 
+                onClick={confirmAddLinkAttachment}
+                className="px-4 py-2 bg-brand hover:bg-brand/90 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
+              >
+                إضافة
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

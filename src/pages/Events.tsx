@@ -2594,12 +2594,14 @@ ${formattedItems}
                                                       <div className="md:col-span-5 flex flex-col gap-1">
                                                         <label className="text-[8.5px] font-bold text-gray-750">المكلف برصد ومتابعة تنفيذ التوصية</label>
                                                         <select
-                                                          value={item.assignee || ""}
+                                                          value={(item.assignee === "الأخصائي" && evt.employees?.[0]) ? `${evt.employees[0]} (أخصائي اللجنة)` : (item.assignee === "الأخصائي" ? "أخصائي اللجنة" : (item.assignee || ""))}
                                                           onChange={(e) => handleUpdateAgendaMinutes(item.id, { assignee: e.target.value })}
                                                           className="w-full text-[9.5px] font-bold p-1.5 border border-gray-200 rounded bg-white text-right h-8.5 focus:ring-brand focus:border-brand focus:outline-none"
                                                         >
                                                           <option value="">-- كشف المكلفين المتاحين --</option>
-                                                          <option value="الأخصائي">أخصائي اللجنة</option>
+                                                          <option value={evt.employees?.[0] ? `${evt.employees[0]} (أخصائي اللجنة)` : "أخصائي اللجنة"}>
+                                                            {evt.employees?.[0] ? `${evt.employees[0]} (أخصائي اللجنة)` : "أخصائي اللجنة"}
+                                                          </option>
                                                           {allMembers.filter(m => m.committeeId === evt.committeeId).map(m => (
                                                             <option key={m.id} value={`${m.title} ${m.name}`}>{m.title} {m.name} ({m.role})</option>
                                                           ))}
