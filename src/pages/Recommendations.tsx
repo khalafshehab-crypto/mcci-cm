@@ -2193,7 +2193,7 @@ ${formattedItems}
                                 </div>
 
                                 {/* Assigned & Duration */}
-                                <div className="grid grid-cols-2 gap-3 pt-1 text-xs">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 text-xs">
                                   <div className="flex items-center gap-1.5 font-extrabold text-gray-700 bg-white/75 px-2.5 py-1.5 rounded-lg border border-gray-300/50 shadow-sm">
                                     <Users className="w-3.5 h-3.5 text-brand shrink-0" />
                                     <span className="truncate">المسؤول: {rec.assignedTo}</span>
@@ -2344,7 +2344,7 @@ ${formattedItems}
             <table className="w-full text-xs font-semibold text-gray-700 select-none border-collapse text-right">
               <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
                 <tr className="divide-x divide-x-reverse divide-gray-300">
-                  <th className="px-4 py-3 font-black text-xs text-right w-16">
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-right w-16">
                     <div className="flex items-center gap-2">
                       <input 
                         type="checkbox" 
@@ -2355,12 +2355,12 @@ ${formattedItems}
                       <span>م</span>
                     </div>
                   </th>
-                  <th className="px-4 py-3 font-black text-xs text-center w-36">رقم التوصية</th>
-                  <th className="px-4 py-3 font-black text-xs text-right">عنوان التوصية</th>
-                  <th className="px-4 py-3 font-black text-xs text-right">اللجنة</th>
-                  <th className="px-4 py-3 font-black text-xs text-center w-40">تاريخ التوصية</th>
-                  <th className="px-4 py-3 font-black text-xs text-center w-36">الحالة</th>
-                  <th className="px-4 py-3 font-black text-xs text-center w-36">الإجراءات</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-center w-36">رقم التوصية</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-right">عنوان التوصية</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-right">اللجنة</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-center w-40">تاريخ التوصية</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-center w-36">الحالة</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-center w-36">الإجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-[#e8e4e4]/85">
@@ -2374,7 +2374,7 @@ ${formattedItems}
                         onClick={() => setExpandedEventId(isExpanded ? null : evt.id)}
                         className={`hover:bg-slate-100/80 transition-colors text-right divide-x divide-x-reverse divide-gray-200 text-[11px] font-bold text-gray-700 cursor-pointer ${isExpanded ? "bg-slate-50/90 border-r-2 border-r-brand shadow-inner" : ""}`}
                       >
-                        <td className="px-4 py-3.5 whitespace-nowrap text-right text-gray-900 font-mono font-black" onClick={(e) => e.stopPropagation()}>
+                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-right text-gray-900 font-mono font-black" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-2">
                             <input 
                               type="checkbox" 
@@ -2387,14 +2387,14 @@ ${formattedItems}
                         </td>
                         
                         {/* رقم التوصية */}
-                        <td className="px-4 py-3.5 whitespace-nowrap text-center text-gray-900 font-mono font-black">
+                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-center text-gray-900 font-mono font-black">
                           <span className="inline-block px-2 py-1 select-all font-mono font-black text-brand bg-brand/5 border border-brand/10 rounded text-[10.5px]">
                             REC-{String(evt.id || "").substring(0, 5).toUpperCase()}
                           </span>
                         </td>
 
                         {/* عنوان التوصية */}
-                        <td className="px-4 py-3.5 whitespace-nowrap font-black text-gray-900 group/row" title="انقر لتشغيل منصة التحضير">
+                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap font-black text-gray-900 group/row" title="انقر لتشغيل منصة التحضير">
                           <div className="flex flex-col text-right truncate">
                             <span className="text-[11.5px] font-bold text-gray-900 leading-tight transition-colors group-hover/row:text-brand underline decoration-dotted decoration-brand/45 underline-offset-4 truncate mb-1">
                               {(() => {
@@ -2419,7 +2419,7 @@ ${formattedItems}
                         </td>
 
                         {/* اللجنة */}
-                        <td className="px-4 py-3.5 whitespace-nowrap text-xs font-bold text-gray-800 text-right">
+                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-xs font-bold text-gray-800 text-right">
                           <span className="block text-gray-900 font-bold mb-1">{evt.committeeName || (evt.committeeId ? committees.find(c => String(c.id) === String(evt.committeeId))?.name : "") || "لجنة غير محددة"}</span>
                           <span className="block text-[9.5px] text-gray-500 font-bold">
                             المكلف: {evt.recommendationAssignee || (evt.employees && evt.employees[0]) || "غير محدد"}
@@ -2427,13 +2427,13 @@ ${formattedItems}
                         </td>
 
                         {/* تاريخ التوصية */}
-                        <td className="px-4 py-3.5 whitespace-nowrap text-center">
+                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-center">
                           <span className="block text-gray-900 font-bold text-[11px] mb-0.5" dir="ltr">{getDayNameFromDate(evt.date)} {evt.date}</span>
                           <span className="block text-gray-500 font-bold text-[10px]" dir="ltr">{formatTime12h(evt.time || "01:30")}</span>
                         </td>
 
                         {/* الحالة */}
-                        <td className="px-4 py-3.5 whitespace-nowrap text-center">
+                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-center">
                           {(() => {
                             const rStat = getRecommendationStatus(evt);
                             return (
@@ -2445,7 +2445,7 @@ ${formattedItems}
                         </td>
 
                         {/* الإجراءات */}
-                        <td className="px-4 py-3.5 text-center relative whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <td className="whitespace-nowrap px-4 py-3.5 text-center relative whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-1.5 relative dropdown-container">
                             <button
                               type="button"
@@ -3102,7 +3102,7 @@ const generatedProposal = evt.description || evt.recommendationText || evt.notes
                         <table className="w-full text-xs font-semibold text-gray-700 text-right">
                           <thead className="bg-[#dfdada] border-b border-gray-300">
                             <tr>
-                              <th className="px-4 py-2 text-center w-12">
+                              <th className="whitespace-nowrap px-4 py-2 text-center w-12">
                                 <input
                                   type="checkbox"
                                   checked={selectedSchedules.length === generatedSchedules.length}
@@ -3116,15 +3116,15 @@ const generatedProposal = evt.description || evt.recommendationText || evt.notes
                                   className="rounded text-brand"
                                 />
                               </th>
-                              <th className="px-4 py-2 font-black">التاريخ</th>
-                              <th className="px-4 py-2 font-black">الوقت</th>
-                              <th className="px-4 py-2 font-black">عنوان السجل</th>
+                              <th className="whitespace-nowrap px-4 py-2 font-black">التاريخ</th>
+                              <th className="whitespace-nowrap px-4 py-2 font-black">الوقت</th>
+                              <th className="whitespace-nowrap px-4 py-2 font-black">عنوان السجل</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200 bg-white">
                             {generatedSchedules.map((gen) => (
                               <tr key={gen.id} className="hover:bg-blue-50/50 transition-colors">
-                                <td className="px-4 py-2 text-center">
+                                <td className="whitespace-nowrap px-4 py-2 text-center">
                                   <input
                                     type="checkbox"
                                     checked={selectedSchedules.includes(gen.id)}
@@ -3135,9 +3135,9 @@ const generatedProposal = evt.description || evt.recommendationText || evt.notes
                                     className="rounded text-brand"
                                   />
                                 </td>
-                                <td className="px-4 py-2 font-mono" dir="ltr">{gen.date}</td>
-                                <td className="px-4 py-2">{gen.time || "-"}</td>
-                                <td className="px-4 py-2">{gen.title}</td>
+                                <td className="whitespace-nowrap px-4 py-2 font-mono" dir="ltr">{gen.date}</td>
+                                <td className="whitespace-nowrap px-4 py-2">{gen.time || "-"}</td>
+                                <td className="whitespace-nowrap px-4 py-2">{gen.title}</td>
                               </tr>
                             ))}
                           </tbody>

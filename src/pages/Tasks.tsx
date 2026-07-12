@@ -825,7 +825,7 @@ export default function Tasks() {
 
                   {/* Assignees metadata */}
                   <div className="border-t border-gray-300/60 pt-3 space-y-2 mb-3 text-[11px] font-semibold text-gray-500">
-                    <div className="grid grid-cols-2 gap-2 text-right">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-right">
                       <div>
                         المُكلَف: <strong className="text-gray-900 block truncate">{t.assignedTo}</strong>
                       </div>
@@ -927,30 +927,30 @@ export default function Tasks() {
             <table className="w-full text-right border-collapse">
               <thead>
                 <tr className="bg-[#dfdada] border-b border-gray-300 text-gray-900 text-xs font-black">
-                  <th className="px-4 py-3.5 text-right">المهمة</th>
-                  <th className="px-4 py-3.5 text-right">الموظف المكلف</th>
-                  <th className="px-4 py-3.5 text-right">موعد التسليم</th>
-                  <th className="px-4 py-3.5 text-right">الأولوية</th>
-                  <th className="px-4 py-3.5 text-right">الحالة والتصعيد</th>
-                  <th className="px-4 py-3.5 text-right">المرفقات</th>
-                  <th className="px-4 py-3.5 print:hidden text-center">إجراءات</th>
+                  <th className="whitespace-nowrap px-4 py-3.5 text-right">المهمة</th>
+                  <th className="whitespace-nowrap px-4 py-3.5 text-right">الموظف المكلف</th>
+                  <th className="whitespace-nowrap px-4 py-3.5 text-right">موعد التسليم</th>
+                  <th className="whitespace-nowrap px-4 py-3.5 text-right">الأولوية</th>
+                  <th className="whitespace-nowrap px-4 py-3.5 text-right">الحالة والتصعيد</th>
+                  <th className="whitespace-nowrap px-4 py-3.5 text-right">المرفقات</th>
+                  <th className="whitespace-nowrap px-4 py-3.5 print:hidden text-center">إجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 text-xs font-bold text-gray-750">
                 {filteredTasks.map((t) => (
                   <tr key={t.id} className="hover:bg-[#e2dede] transition-colors bg-[#e8e4e4]/85">
-                    <td className="px-4 py-3.5 max-w-sm text-right">
+                    <td className="whitespace-nowrap px-4 py-3.5 max-w-sm text-right">
                       <p className="font-extrabold text-[#246fff] text-xs">{t.title}</p>
                       <p className="text-gray-500 text-[10px] font-bold line-clamp-1 mt-0.5">{t.description}</p>
                     </td>
-                    <td className="px-4 py-3.5 whitespace-nowrap text-gray-900 font-extrabold text-right">{t.assignedTo}</td>
-                    <td className="px-4 py-3.5 whitespace-nowrap font-mono text-gray-900 text-right">{t.dueDate}</td>
-                    <td className="px-4 py-3.5 whitespace-nowrap text-right">
+                    <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-gray-900 font-extrabold text-right">{t.assignedTo}</td>
+                    <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap font-mono text-gray-900 text-right">{t.dueDate}</td>
+                    <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-right">
                       <span className={`px-2 py-0.5 rounded text-[9px] font-black ${t.priority === "عاجلة" ? "bg-red-100 text-red-800 border border-red-200" : "bg-gray-100 text-gray-800 border border-gray-250"}`}>
                         {t.priority}
                       </span>
                     </td>
-                    <td className="px-4 py-3.5 whitespace-nowrap text-right">
+                    <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-right">
                       <div className="flex flex-col gap-0.5">
                         <span className={`px-2 py-0.5 rounded text-[9px] font-black inline-block text-center w-24 ${
                           t.status === "جديدة" ? "bg-blue-100 text-blue-800 border border-blue-200" :
@@ -967,10 +967,10 @@ export default function Tasks() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3.5 whitespace-nowrap text-gray-800 text-right">
+                    <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-gray-800 text-right">
                       <span className="text-gray-700 text-[10px] font-mono">{(t.attachments || []).length} مرفقات</span>
                     </td>
-                    <td className="px-4 py-3.5 whitespace-nowrap print:hidden text-center">
+                    <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap print:hidden text-center">
                       <div className="flex items-center justify-center gap-1.5">
                         <button
                           type="button"

@@ -1635,7 +1635,7 @@ ${formattedItems}
             <table className="w-full text-xs font-semibold text-gray-700 select-none border-collapse text-right">
               <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
                 <tr className="divide-x divide-x-reverse divide-gray-300">
-                  <th className="px-4 py-3 font-black text-xs text-right w-16">
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-right w-16">
                     <div className="flex items-center gap-2">
                       <input 
                         type="checkbox" 
@@ -1646,13 +1646,13 @@ ${formattedItems}
                       <span>م</span>
                     </div>
                   </th>
-                  <th className="px-4 py-3 font-black text-xs text-center">النوع</th>
-                  <th className="px-4 py-3 font-black text-xs text-right">عنوان الفعالية</th>
-                  <th className="px-4 py-3 font-black text-xs text-right">اللجنة</th>
-                  <th className="px-4 py-3 font-black text-xs text-center">الوقت والتاريخ</th>
-                  <th className="px-4 py-3 font-black text-xs text-center">المقر</th>
-                  <th className="px-4 py-3 font-black text-xs text-center">الحالة</th>
-                  <th className="px-4 py-3 font-black text-xs text-center">الإجراءات</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-center">النوع</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-right">عنوان الفعالية</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-right">اللجنة</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-center">الوقت والتاريخ</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-center">المقر</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-center">الحالة</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-center">الإجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-[#e8e4e4]/85">
@@ -1666,7 +1666,7 @@ ${formattedItems}
                         onClick={() => setExpandedEventId(isExpanded ? null : evt.id)}
                         className={`hover:bg-slate-100/80 transition-colors text-right divide-x divide-x-reverse divide-gray-200 text-[11px] font-bold text-gray-700 cursor-pointer ${isExpanded ? "bg-slate-50/90 border-r-2 border-r-brand shadow-inner" : ""}`}
                       >
-                        <td className="px-4 py-3.5 whitespace-nowrap text-right text-gray-900 font-mono font-black" onClick={(e) => e.stopPropagation()}>
+                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-right text-gray-900 font-mono font-black" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-2">
                             <input 
                               type="checkbox" 
@@ -1677,7 +1677,7 @@ ${formattedItems}
                             <span>{idx + 1}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3.5 whitespace-nowrap text-center">
+                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-center">
                            <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-black border tracking-wide mb-1 ${getEventKindStyle(evt.title)}`}>
                              {getEventKindStr(evt.title)}
                            </span>
@@ -1689,7 +1689,7 @@ ${formattedItems}
                              آلية الإضافة: {evt.type === "متسلسلة" ? "متسلسلة 🔁" : "مفردة 🎯"}
                            </span>
                         </td>
-                        <td className="px-4 py-3.5 whitespace-nowrap font-black text-gray-900 group/row" title="انقر لتشغيل منصة التحضير">
+                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap font-black text-gray-900 group/row" title="انقر لتشغيل منصة التحضير">
                           <div className="flex flex-col text-right truncate">
                             <span className="text-[11px] font-bold text-gray-900 leading-tight transition-colors group-hover/row:text-brand underline decoration-dotted decoration-brand/45 underline-offset-4 truncate mb-1">
                               {evt.title}
@@ -1699,23 +1699,23 @@ ${formattedItems}
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3.5 whitespace-nowrap text-xs font-bold text-gray-800 text-right">
+                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-xs font-bold text-gray-800 text-right">
                            <span className="block text-gray-900 font-bold mb-1">{evt.committeeName}</span>
                            <span className="block text-[9.5px] text-gray-500 font-bold">
                              حاضرون: {evt.confirmedAttendees?.length || 0} من {allMembers.filter(m => m.committeeId === evt.committeeId && m.active !== false).length}
                            </span>
                         </td>
-                        <td className="px-4 py-3.5 whitespace-nowrap text-center">
+                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-center">
                            <span className="block text-gray-900 font-bold text-[11px] mb-0.5" dir="ltr">{formatTime12h(evt.time)}</span>
                            <span className="block text-gray-500 font-bold text-[10px]" dir="ltr">{evt.date}</span>
                         </td>
-                        <td className="px-4 py-3.5 whitespace-nowrap font-bold text-gray-800 text-center">
+                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap font-bold text-gray-800 text-center">
                            <span className="block text-gray-900 font-bold text-[11px] mb-0.5">{evt.location}</span>
                            <span className="block text-gray-500 font-bold text-[9.5px]">
                              {evt.location === "عن بعد" ? "افتراضي" : (evt.location === "خارج مقر الغرفة" ? "خارج الغرفة" : "مقر غرفة مكة المكرمة")}
                            </span>
                         </td>
-                        <td className="px-4 py-3.5 whitespace-nowrap text-center">
+                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-center">
                           {(() => {
                             const stepValues = [
                               !!evt.committeeConfirmed,
@@ -1803,7 +1803,7 @@ ${formattedItems}
                             );
                           })()}
                         </td>
-                        <td className="px-4 py-3.5 text-center relative whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <td className="whitespace-nowrap px-4 py-3.5 text-center relative whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-1.5 relative dropdown-container">
                             <button
                               onClick={() => setActiveGearMenuId(activeGearMenuId === evt.id ? null : evt.id)}
@@ -2473,25 +2473,25 @@ ${formattedItems}
 															لا يوجد بنود أعمال حالية في الفعالية. يرجى استخدام النموذج أعلاه لإدراج الأجندة وفتح المحضر.
 														</div>
 													) : (
-														<div className="border rounded-lg overflow-hidden bg-white shadow-sm">
+														<div className="border rounded-lg overflow-x-auto bg-white shadow-sm">
 															<table className="w-full text-right font-sans text-[10.5px]">
 																<thead>
 																	<tr className="bg-slate-50 border-b border-gray-200 text-gray-700 font-bold text-[10px]">
-																		<th className="px-3 py-2 text-center w-12">م</th>
-																		<th className="px-3 py-2">البند / الموضوع الرئيسي</th>
-																		<th className="px-3 py-2 text-center w-28">المدة المحددة</th>
-																		<th className="px-3 py-2">المسؤول عن العرض/المناقشة</th>
-																		<th className="px-3 py-2 text-center w-16">مسح</th>
+																		<th className="whitespace-nowrap px-3 py-2 text-center w-12">م</th>
+																		<th className="whitespace-nowrap px-3 py-2">البند / الموضوع الرئيسي</th>
+																		<th className="whitespace-nowrap px-3 py-2 text-center w-28">المدة المحددة</th>
+																		<th className="whitespace-nowrap px-3 py-2">المسؤول عن العرض/المناقشة</th>
+																		<th className="whitespace-nowrap px-3 py-2 text-center w-16">مسح</th>
 																	</tr>
 																</thead>
 																<tbody className="divide-y text-gray-850 font-bold">
 																	{agenda.map((item, index) => (
 																		<tr key={item.id} className="hover:bg-slate-50/50">
-																			<td className="px-3 py-2 text-center font-bold text-gray-400">{index + 1}</td>
-																			<td className="px-3 py-2 font-black text-slate-900">{item.title}</td>
-																			<td className="px-3 py-2 text-center text-brand font-black">{item.duration} دقيقة</td>
-																			<td className="px-3 py-2 text-gray-800 font-black">{item.specialist}</td>
-																			<td className="px-3 py-2 text-center">
+																			<td className="whitespace-nowrap px-3 py-2 text-center font-bold text-gray-400">{index + 1}</td>
+																			<td className="whitespace-nowrap px-3 py-2 font-black text-slate-900">{item.title}</td>
+																			<td className="whitespace-nowrap px-3 py-2 text-center text-brand font-black">{item.duration} دقيقة</td>
+																			<td className="whitespace-nowrap px-3 py-2 text-gray-800 font-black">{item.specialist}</td>
+																			<td className="whitespace-nowrap px-3 py-2 text-center">
 																				<button
 																					type="button"
 																					onClick={() => handleRemoveAgendaItem(item.id)}
@@ -2765,7 +2765,7 @@ ${formattedItems}
                                                   </div>
                                                 )}
 
-                                                <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                                                <div className="border border-gray-200 rounded-lg overflow-x-auto bg-white shadow-sm">
                                                   <div className="p-2.5 bg-slate-100 border-b border-gray-200 flex items-center justify-between font-bold text-[10px]">
                                                     <span className="text-slate-800 font-black">سجل التوصيات النشطة للفعالية (تحديد ومزامنة)</span>
                                                     <span className="bg-slate-900 text-white font-black px-1.5 py-0.5 rounded text-[8.5px]">
@@ -2994,7 +2994,7 @@ ${formattedItems}
                         <table className="w-full text-xs font-semibold text-gray-700 text-right">
                           <thead className="bg-[#dfdada] border-b border-gray-300">
                             <tr>
-                              <th className="px-4 py-2 text-center w-12">
+                              <th className="whitespace-nowrap px-4 py-2 text-center w-12">
                                 <input
                                   type="checkbox"
                                   checked={selectedSchedules.length === generatedSchedules.length}
@@ -3008,15 +3008,15 @@ ${formattedItems}
                                   className="rounded text-brand"
                                 />
                               </th>
-                              <th className="px-4 py-2 font-black">التاريخ</th>
-                              <th className="px-4 py-2 font-black">الوقت</th>
-                              <th className="px-4 py-2 font-black">عنوان السجل</th>
+                              <th className="whitespace-nowrap px-4 py-2 font-black">التاريخ</th>
+                              <th className="whitespace-nowrap px-4 py-2 font-black">الوقت</th>
+                              <th className="whitespace-nowrap px-4 py-2 font-black">عنوان السجل</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200 bg-white">
                             {generatedSchedules.map((gen) => (
                               <tr key={gen.id} className="hover:bg-blue-50/50 transition-colors">
-                                <td className="px-4 py-2 text-center">
+                                <td className="whitespace-nowrap px-4 py-2 text-center">
                                   <input
                                     type="checkbox"
                                     checked={selectedSchedules.includes(gen.id)}
@@ -3027,9 +3027,9 @@ ${formattedItems}
                                     className="rounded text-brand"
                                   />
                                 </td>
-                                <td className="px-4 py-2 font-mono" dir="ltr">{gen.date}</td>
-                                <td className="px-4 py-2">{gen.time || "-"}</td>
-                                <td className="px-4 py-2">{gen.title}</td>
+                                <td className="whitespace-nowrap px-4 py-2 font-mono" dir="ltr">{gen.date}</td>
+                                <td className="whitespace-nowrap px-4 py-2">{gen.time || "-"}</td>
+                                <td className="whitespace-nowrap px-4 py-2">{gen.title}</td>
                               </tr>
                             ))}
                           </tbody>

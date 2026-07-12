@@ -175,7 +175,7 @@ import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc, setDo
 import { db } from '../lib/firebase';
 import { useFirestoreCollection } from '../lib/firebaseUtils';
 
-export default function Events() {
+export default function CommitteesRecommendations() {
   const location = useLocation();
   const { data: events, addDocument: addFirebaseEvent, updateDocument: updateFirebaseEvent, deleteDocument: deleteFirebaseEvent } = useFirestoreCollection<EventItem>("events", []);
   const { data: rawCommittees } = useFirestoreCollection<any>("committees", []);
@@ -528,16 +528,21 @@ ${formattedItems}
   const [dragActive, setDragActive] = useState(false);
   const [newDate, setNewDate] = useState("");
   const [newCommitteeId, setNewCommitteeId] = useState<number | string>(0);
-  const availableAssignees = React.useMemo(() => {
-    const comm = committees.find(c => c.id === newCommitteeId);
+    const availableAssignees = React.useMemo(() => {
+    const comm = committees.find(c => String(c.id) === String(newCommitteeId));
     const specialistValue = comm?.specialist ? `${comm.specialist} (أخصائي اللجنة)` : "أخصائي اللجنة";
     const options = [];
     options.push({ value: specialistValue, label: specialistValue });
-    allMembers.filter(m => m.committeeId === newCommitteeId).forEach(m => {
+    allMembers.filter(m => String(m.committeeId) === String(newCommitteeId)).forEach(m => {
       options.push({ value: `${m.role} - ${m.title} ${m.name}`, label: `${m.title} ${m.name} (${m.role})` });
     });
+    
+    if (newRecAssignee && !options.find(o => o.value === newRecAssignee)) {
+      options.push({ value: newRecAssignee, label: newRecAssignee });
+    }
+    
     return options;
-  }, [allMembers, committees, newCommitteeId]);
+  }, [allMembers, committees, newCommitteeId, newRecAssignee]);
   const [newStatus, setNewStatus] = useState<EventItem["status"]>("تجهيز الفعاليات");
   const [newLocation, setNewLocation] = useState<"حضوري" | "عن بعد">("حضوري");
   const [newEmployees, setNewEmployees] = useState<string[]>([]);
@@ -628,43 +633,8 @@ ${formattedItems}
   // Series generation state
   const [generatedSchedules, setGeneratedSchedules] = useState<{id: number, date: string, title: string, time: string}[]>([]);
   const [selectedSchedules, setSelectedSchedules] = useState<number[]>([]);
-  const [isGeneratingSmartText, setIsGeneratingSmartText] = useState(false);
-
-  const handleGenerateSmartText = async () => {
-    if (!newRecText) {
-      setAlertState({ isOpen: true, message: "الرجاء إدخال نص التوصية الأصلي أولاً لتوليد النص الذكي.", onClose: () => {} });
-      return;
-    }
-    
-    setIsGeneratingSmartText(true);
-    try {
-      const response = await fetch('/api/gemini/smart-recommendation', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ text: newRecText }),
-      });
-      
-      if (!response.ok) {
-        throw new Error("فشل توليد النص");
-      }
-      
-      const data = await response.json();
-      if (data.result) {
-        setNewRecText(data.result);
-      }
-    } catch (err) {
-      console.error(err);
-      setAlertState({ isOpen: true, message: "حدث خطأ أثناء الاتصال بالذكاء الاصطناعي.", onClose: () => {} });
-    } finally {
-      setIsGeneratingSmartText(false);
-    }
-  };
-
   const [isConfirmingSeries, setIsConfirmingSeries] = useState(false);
   const [showSuccessMsg, setShowSuccessMsg] = useState(false);
-
   // Import recommendations states
   const [importCommitteeId, setImportCommitteeId] = useState<number | string>(0);
   const [importSearchResults, setImportSearchResults] = useState<any[]>([]);
@@ -876,6 +846,13 @@ ${formattedItems}
     events.forEach(evt => {
       if (evt.agenda && Array.isArray(evt.agenda)) {
         evt.agenda.forEach((item: any, index: number) => {
+          let resolvedAssignee = item.assignee || "غير محدد";
+          if (resolvedAssignee === "الأخصائي" || resolvedAssignee === "أخصائي اللجنة") {
+              const comm = committees.find(c => c.name === evt.committeeName || String(c.id) === String(evt.committeeId));
+              if (comm && comm.specialist) {
+                  resolvedAssignee = `أخصائي اللجنة: ${comm.specialist}`;
+              }
+          }
           if (item.recommendation && item.recommendation.trim() !== "" && !item.inactiveRecommendation) {
             agendaRecs.push({
               id: `custom-rec-${evt.id}-${item.id || index}`,
@@ -885,9 +862,12 @@ ${formattedItems}
               committeeName: evt.committeeName || "لجنة غير محددة",
               eventName: evt.title,
               date: evt.date || "2026-06-11",
+              time: evt.time || "",
+              location: evt.location || "",
+              recommendationEventId: evt.id,
               status: "جديدة",
               approvalStage: "أخصائي",
-              assignedTo: item.assignee || "غير محدد",
+              assignedTo: resolvedAssignee,
               duration: item.durationRec || "أسبوعين",
               isAgendaSource: true
             });
@@ -914,15 +894,23 @@ ${formattedItems}
         }
       }
 
+      let resolvedAssignee = rec.recommendationAssignee || rec.assignedTo || "غير محدد";
+      if (resolvedAssignee === "الأخصائي" || resolvedAssignee === "أخصائي اللجنة") {
+          const comm = committees.find(c => c.name === rec.committeeName || String(c.id) === String(rec.committeeId));
+          if (comm && comm.specialist) {
+              resolvedAssignee = `أخصائي اللجنة: ${comm.specialist}`;
+          }
+      }
       mappedDbMap.set(String(rec.id), {
         isAgendaSource: String(rec.id).startsWith("custom-rec-"),
         ...rec,
+        recommendationAssignee: resolvedAssignee,
+        assignedTo: resolvedAssignee,
         id: rec.id,
         title: rec.title || rec.description || "توصية غير مسماة",
         committeeName: rec.committeeName || "غير محدد",
         date: rec.date || "2026-06-11",
         status: rec.status || "جديدة",
-        recommendationAssignee: rec.assignedTo || "غير محدد",
         recommendationType: true,
         isRealEvent: false
       });
@@ -939,6 +927,9 @@ ${formattedItems}
         if (!existing.recommendationAssignee || existing.recommendationAssignee === "غير محدد") {
            existing.recommendationAssignee = ar.assignedTo;
         }
+        if (!existing.time) existing.time = ar.time;
+        if (!existing.location) existing.location = ar.location;
+        if (!existing.recommendationEventId) existing.recommendationEventId = ar.recommendationEventId;
       } else {
         // Not exported to DB yet! Add it to the table view anyway.
         mappedDbMap.set(ar.id, {
@@ -955,17 +946,28 @@ ${formattedItems}
     // Get standalone recommendations from events (they have recommendationType)
     let mappedStandalone = events
        .filter(e => !!e.recommendationType)
-       .map(e => ({
+       .map(e => {
+           let resolvedAssignee = e.employees && e.employees.length > 0 ? e.employees[0] : (e.recommendationAssignee || "غير محدد");
+           if (resolvedAssignee === "الأخصائي" || resolvedAssignee === "أخصائي اللجنة") {
+              const comm = committees.find(c => c.name === e.committeeName || String(c.id) === String(e.committeeId));
+              if (comm && comm.specialist) {
+                  resolvedAssignee = `أخصائي اللجنة: ${comm.specialist}`;
+              }
+           }
+           return {
           ...e,
           id: e.id,
           title: e.title || "توصية غير مسماة",
           committeeName: e.committeeName || "غير محدد",
           date: e.date || "2026-06-11",
           status: e.status || "جديدة",
-          recommendationAssignee: e.employees && e.employees.length > 0 ? e.employees[0] : "غير محدد",
+          recommendationAssignee: resolvedAssignee,
+          recommendationEventId: e.id,
+          time: e.time || "",
+          location: e.location || "",
           recommendationType: e.recommendationType || true,
           isRealEvent: false
-       }));
+       }; });
 
     let combined = [...mappedDb, ...mappedStandalone];
 
@@ -1091,6 +1093,13 @@ ${formattedItems}
     // Try to get assignee properly
     let assigned = evt.recommendationAssignee || evt.assignedTo || (evt.employees && evt.employees[0]) || "";
     if (assigned === "غير محدد") assigned = "";
+    
+    const commForAssignee = committees.find(c => String(c.id) === String(derivedCommitteeId));
+    if (commForAssignee && commForAssignee.specialist) {
+        if (assigned === "الأخصائي" || assigned === "أخصائي اللجنة" || (assigned.includes(commForAssignee.specialist) && assigned.includes("أخصائي"))) {
+            assigned = `${commForAssignee.specialist} (أخصائي اللجنة)`;
+        }
+    }
     setNewRecAssignee(assigned);
     
     let duration = evt.recommendationDuration || evt.duration || "";
@@ -2256,7 +2265,7 @@ ${formattedItems}
                                     {rec.notes || rec.recommendationText || "لا يوجد وصف"}
                                   </p>
                                 </div>
-                                <div className="grid grid-cols-2 gap-3 pt-1 text-xs">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 text-xs">
                                   <div className="flex items-center gap-1.5 font-extrabold text-gray-700 bg-white/75 px-2.5 py-1.5 rounded-lg border border-gray-300/50 shadow-sm">
                                     <Users className="w-3.5 h-3.5 text-brand shrink-0" />
                                     <span className="truncate">المسؤول: {rec.recommendationAssignee || (rec.employees && rec.employees[0]) || "غير محدد"}</span>
@@ -2559,7 +2568,7 @@ ${formattedItems}
                                 </div>
 
                                 {/* Assigned & Duration */}
-                                <div className="grid grid-cols-2 gap-3 pt-1 text-xs">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 text-xs">
                                   <div className="flex items-center gap-1.5 font-extrabold text-gray-700 bg-white/75 px-2.5 py-1.5 rounded-lg border border-gray-300/50 shadow-sm">
                                     <Users className="w-3.5 h-3.5 text-brand shrink-0" />
                                     <span className="truncate">المسؤول: {rec.assignedTo}</span>
@@ -2682,7 +2691,7 @@ ${formattedItems}
             <table className="w-full text-xs font-semibold text-gray-700 select-none border-collapse text-right">
               <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
                 <tr className="divide-x divide-x-reverse divide-gray-300">
-                  <th className="px-4 py-3 font-black text-xs text-right w-16">
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-right w-16">
                     <div className="flex items-center gap-2">
                       <input 
                         type="checkbox" 
@@ -2693,12 +2702,12 @@ ${formattedItems}
                       <span>م</span>
                     </div>
                   </th>
-                  <th className="px-4 py-3 font-black text-xs text-center w-36">رقم التوصية</th>
-                  <th className="px-4 py-3 font-black text-xs text-right">عنوان التوصية</th>
-                  <th className="px-4 py-3 font-black text-xs text-right">اللجنة</th>
-                  <th className="px-4 py-3 font-black text-xs text-center w-40">تاريخ التوصية</th>
-                  <th className="px-4 py-3 font-black text-xs text-center w-36">الحالة</th>
-                  <th className="px-4 py-3 font-black text-xs text-center w-36">الإجراءات</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-center w-36">رقم التوصية</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-right">عنوان التوصية</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-right">اللجنة</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-center w-40">تاريخ التوصية</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-center w-36">الحالة</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-center w-36">الإجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-[#e8e4e4]/85">
@@ -2712,7 +2721,7 @@ ${formattedItems}
                         onClick={() => setExpandedEventId(isExpanded ? null : evt.id)}
                         className={`hover:bg-slate-100/80 transition-colors text-right divide-x divide-x-reverse divide-gray-200 text-[11px] font-bold text-gray-700 cursor-pointer ${isExpanded ? "bg-slate-50/90 border-r-2 border-r-brand shadow-inner" : ""}`}
                       >
-                        <td className="px-4 py-3.5 whitespace-nowrap text-right text-gray-900 font-mono font-black" onClick={(e) => e.stopPropagation()}>
+                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-right text-gray-900 font-mono font-black" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-2">
                             <input 
                               type="checkbox" 
@@ -2725,14 +2734,14 @@ ${formattedItems}
                         </td>
                         
                         {/* رقم التوصية */}
-                        <td className="px-4 py-3.5 whitespace-nowrap text-center text-gray-900 font-mono font-black">
+                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-center text-gray-900 font-mono font-black">
                           <span className="inline-block px-2 py-1 select-all font-mono font-black text-brand bg-brand/5 border border-brand/10 rounded text-[10.5px]">
                             REC-{String(evt.id || "").substring(0, 5).toUpperCase()}
                           </span>
                         </td>
 
                         {/* عنوان التوصية */}
-                        <td className="px-4 py-3.5 whitespace-nowrap font-black text-gray-900 group/row" title="انقر لتشغيل منصة التحضير">
+                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap font-black text-gray-900 group/row" title="انقر لتشغيل منصة التحضير">
                           <div className="flex flex-col text-right truncate">
                             <span className="text-[11.5px] font-bold text-gray-900 leading-tight transition-colors group-hover/row:text-brand underline decoration-dotted decoration-brand/45 underline-offset-4 truncate mb-1">
                               {(() => {
@@ -2757,7 +2766,7 @@ ${formattedItems}
                         </td>
 
                         {/* اللجنة */}
-                        <td className="px-4 py-3.5 whitespace-nowrap text-xs font-bold text-gray-800 text-right">
+                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-xs font-bold text-gray-800 text-right">
                           <span className="block text-gray-900 font-bold mb-1">{evt.committeeName || (evt.committeeId ? committees.find(c => String(c.id) === String(evt.committeeId))?.name : "") || "لجنة غير محددة"}</span>
                           <span className="block text-[9.5px] text-gray-500 font-bold">
                             المكلف: {evt.recommendationAssignee || (evt.employees && evt.employees[0]) || "غير محدد"}
@@ -2765,13 +2774,13 @@ ${formattedItems}
                         </td>
 
                         {/* تاريخ التوصية */}
-                        <td className="px-4 py-3.5 whitespace-nowrap text-center">
+                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-center">
                           <span className="block text-gray-900 font-bold text-[11px] mb-0.5" dir="ltr">{getDayNameFromDate(evt.date)} {evt.date}</span>
                           <span className="block text-gray-500 font-bold text-[10px]" dir="ltr">{formatTime12h(evt.time || "01:30")}</span>
                         </td>
 
                         {/* الحالة */}
-                        <td className="px-4 py-3.5 whitespace-nowrap text-center">
+                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-center">
                           {(() => {
                             const rStat = getRecommendationStatus(evt);
                             return (
@@ -2783,7 +2792,7 @@ ${formattedItems}
                         </td>
 
                         {/* الإجراءات */}
-                        <td className="px-4 py-3.5 text-center relative whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <td className="whitespace-nowrap px-4 py-3.5 text-center relative whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-1.5 relative dropdown-container">
                             <button
                               type="button"
@@ -2876,9 +2885,9 @@ ${formattedItems}
                                     ];
 
                                     const stepList = [
-                                      { title: "تجهيز التوصية والمسودة", desc: "المولد الذكي للمحتوى وإرفاق المرفقات الرسمية", done: !!evt.preparationsConfirmed },
+                                      { title: "تجهيز التوصية والمسودة", desc: "المولد الذكي للمحتوى التوصية", done: !!evt.preparationsConfirmed },
                                       { title: "إحالة التوصية واعتماداتها", desc: "إضافة الشروحات وصياغة قرار تفعيل التوصية", done: !!evt.agendaTransferred },
-                                      { title: "مراجعة الاعتمادات والقرار الهيكلي", desc: "تسجيل الملاحظات وحفظ التوصية غير مفعلة أو تفعيلها كلياً", done: !!evt.minutesSaved },
+                                      { title: "مراجعة الاعتمادات", desc: "تسجيل الملاحظات وحفظ التوصية غير مفعلة أو تفعيلها كلياً", done: !!evt.minutesSaved },
                                     ];
 
                                     return stepList.map((step, idx) => {
@@ -2939,7 +2948,7 @@ ${formattedItems}
                                     const currentTab = activeStepTab[evt.id] ?? getStepIndex(nextStep);
                                     switch (currentTab) {
                                       case 0: { // Step 0: Prep Recommendation
-                                        const sampleFiles = ["موافقة_اللجنة_الفنية.pdf", "دراسة_الجدوى_المبدئية.pdf", "سجل_الاجتماع_التحضيري.pdf", "أدلة_القطاع_الداعم.jpg"];
+                                        const sampleFiles = ["مرفق 1.pdf", "مرفق 2.pdf", "مرفق 3.pdf"];
                                         const attachmentsList = evt.attachments || [];
                                         
                                         return (
@@ -2947,18 +2956,18 @@ ${formattedItems}
                                             <div className="flex items-center justify-between pb-2 border-b border-gray-100 font-sans">
                                               <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5 font-sans">
                                                 <Sparkles className="w-4 h-4 text-brand animate-bounce" />
-                                                تجهيز التوصية وصياغتها الفنية مع المرفقات
+                                                تجهيز التوصية وصياغتها مع المرفقات
                                               </h3>
                                               <span className="text-[9px] text-[#4ea0b0] font-extrabold px-2 py-0.5 rounded bg-[#4ea0b0]/5 font-sans">مرحلة 1 من 3</span>
                                             </div>
                                             
                                             <p className="text-[10px] text-gray-550 leading-relaxed font-bold font-sans text-right">
-                                              صغ المسودة الفنية للتوصية في الصندوق أدناه، أو استخدم خيار التوليد الذكي المقرّن بمحتوى التوصية للتصحيح الهيكلي الموحد، ثم أرفق الوثائق الرسمية لدعم الموثوقية والأرشفة.
+                                              صغ مسودة التوصية في المربع أدناه أو استخدم خيار التوليد الذكي، مع أرفق الوثائق المطلوبة.
                                             </p>
                                             
                                             <div className="space-y-3 font-sans">
                                               <div className="flex justify-between items-center">
-                                                <label className="text-[9.5px] text-slate-900 font-extrabold font-sans">الصياغة الفنية المقترحة للتوصية:</label>
+                                                <label className="text-[9.5px] text-slate-900 font-extrabold font-sans">الصياغة المقترحة للتوصية:</label>
                                                 <div className="flex gap-1">
                                                   {evt.preparationsText && (
                                                     <>
@@ -2966,12 +2975,12 @@ ${formattedItems}
                                                         type="button"
                                                         onClick={() => {
                                                           navigator.clipboard.writeText(evt.preparationsText || "");
-                                                          setAlertState({ isOpen: true, message: "تم نسخ الصياغة الفنية الذكية للتوصية للمحافظة بنجاح!", onClose: () => {} });
+                                                          setAlertState({ isOpen: true, message: "تم نسخ الصياغة المقترحة بنجاح!", onClose: () => {} });
                                                         }}
                                                         className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[8.5px] font-black rounded-lg cursor-pointer flex items-center gap-1 transition-all border border-gray-200 font-sans"
                                                       >
                                                         <Copy className="w-3.5 h-3.5" />
-                                                        نسخ القرار
+                                                        نسخ نص التوصية
                                                       </button>
                                                       <button
                                                         type="button"
@@ -3071,7 +3080,14 @@ if (linkedEvent && linkedEvent.agenda) {
     }
 }
 
-const assigneeText = evt.assignedTo || evt.recommendationAssignee || (evt.employees && evt.employees.length > 0 ? evt.employees[0] : "غير محدد");
+let assigneeText = evt.assignedTo || evt.recommendationAssignee || (evt.employees && evt.employees.length > 0 ? evt.employees[0] : "غير محدد");
+if (assigneeText === "الأخصائي" || assigneeText === "أخصائي اللجنة") {
+    const committeeIdMatch = evt.committeeId || (events.find(e => String(e.id) === String(evt.recommendationEventId))?.committeeId);
+    const comm = committees.find(c => c.name === evt.committeeName || (committeeIdMatch && String(c.id) === String(committeeIdMatch)));
+    if (comm && comm.specialist) {
+        assigneeText = `أخصائي اللجنة: ${comm.specialist}`;
+    }
+}
 let attachmentsLabel = attachmentsText;
 if (attachmentsList && attachmentsList.length > 0) {
     attachmentsLabel = attachmentsList.map((a: any) => a.name).join("، ");
@@ -3103,7 +3119,7 @@ ${itemTitleFull} .
                                                     className="px-2.5 py-1.5 bg-slate-900 border-transparent hover:bg-slate-800 text-brand text-[8.5px] font-black rounded-lg cursor-pointer flex items-center gap-1 shadow transition-all duration-200 animate-pulse font-sans"
                                                   >
                                                     <Sparkles className="w-3.5 h-3.5" />
-                                                    توليد الصياغة الفنية الذكية
+                                                    توليد النص المقترح
                                                   </button>
                                                 </div>
                                               </div>
@@ -3111,7 +3127,7 @@ ${itemTitleFull} .
                                               <textarea
                                                 value={evt.preparationsText || evt.description || evt.recommendationText || ""}
                                                 onChange={(e) => updateEventWorkflow(evt.id, { preparationsText: e.target.value })}
-                                                placeholder="اكتب هنا النص التفصيلي للتوصية أو الصياغة الصادرة للهيكل التنفيذي..."
+                                                placeholder="اكتب هنا نص التوصية..."
                                                 className="w-full h-32 p-3 text-[10px] font-bold text-slate-800 border border-gray-200 rounded-lg focus:ring-1 focus:ring-brand focus:border-brand resize-none bg-slate-50/70 leading-relaxed text-right font-sans"
                                                 dir="rtl"
                                               />
@@ -3257,7 +3273,7 @@ ${itemTitleFull} .
                                                   className="w-4.5 h-4.5 rounded border-gray-350 text-brand focus:ring-brand cursor-pointer focus:outline-none"
                                                 />
                                                 <span className="text-[10px] text-slate-900 font-extrabold select-none font-sans">
-                                                  تم الانتهاء من صياغة مسودة التوصية الفنية وإرفاق المستندات المرجعية والداعمة كلياً
+                                                  تم الانتهاء من صياغة مسودة التوصية وإرفاق المستندات المرجعية
                                                 </span>
                                               </label>
                                               
@@ -3284,19 +3300,19 @@ ${itemTitleFull} .
                                             </div>
                                             
                                             <p className="text-[10px] text-gray-550 leading-relaxed font-bold font-sans text-right">
-                                              وثق هنا الشروحات والتوجيهات المكتوبة لكل جهة بالهيكل الإداري لغرفة مكة؛ لدعم وتأطير قرار تفعيل التوصية رسمياً، ومزامنة مخرجات العمل:
+                                              توصيق شرح التوصية:
                                             </p>
                                             
                                             <div className="space-y-3 font-sans overflow-y-auto max-h-[220px] pr-1">
                                               {/* Specialist Comment Box */}
                                               <div className="p-2.5 bg-slate-50 rounded-lg border border-gray-150 text-right">
                                                 <div className="flex items-center justify-between mb-1">
-                                                  <span className="text-[9px] text-slate-800 font-black">1. أخصائي اللجنة المسؤول (توثيق المبررات الفنية)</span>
+                                                  <span className="text-[9px] text-slate-800 font-black">1. أخصائي اللجنة المسؤول</span>
                                                   <span className="text-[7.5px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-bold">الأخصائي</span>
                                                 </div>
                                                 <textarea 
                                                   value={evt.specialistExplanation || ""}
-                                                  placeholder="يرجى كتابة شرح الأخصائي حول جدوى وصحة التوصية..."
+                                                  placeholder="يرجى كتابة الشرح..."
                                                   onChange={(e) => updateEventWorkflow(evt.id, { specialistExplanation: e.target.value })}
                                                   className="w-full text-[9px] p-2 border border-gray-200 rounded text-right focus:ring-1 focus:ring-brand bg-white font-bold leading-normal resize-none h-10"
                                                 />
@@ -3310,7 +3326,7 @@ ${itemTitleFull} .
                                                 </div>
                                                 <textarea 
                                                   value={evt.presidentExplanation || ""}
-                                                  placeholder="يرجى كتابة مرئيات رئيس القسم تمهيداً للإرسال لمدير الإدارة..."
+                                                  placeholder="شرح رئيس القسم لمدير الإدارة..."
                                                   onChange={(e) => updateEventWorkflow(evt.id, { presidentExplanation: e.target.value })}
                                                   className="w-full text-[9px] p-2 border border-gray-200 rounded text-right focus:ring-1 focus:ring-brand bg-white font-bold leading-normal resize-none h-10"
                                                 />
@@ -3319,12 +3335,12 @@ ${itemTitleFull} .
                                               {/* Director Comment Box */}
                                               <div className="p-2.5 bg-slate-50 rounded-lg border border-gray-150 text-right">
                                                 <div className="flex items-center justify-between mb-1">
-                                                  <span className="text-[9px] text-slate-800 font-black">3. مدير إدارة اللجان والوفود</span>
+                                                  <span className="text-[9px] text-slate-800 font-black">3. مدير إدارة اللجان</span>
                                                   <span className="text-[7.5px] bg-[#4ea0b0]/20 text-[#3d8391] px-1 py-0.5 rounded font-black">مدير الإدارة</span>
                                                 </div>
                                                 <textarea 
                                                   value={evt.directorExplanation || ""}
-                                                  placeholder="يرجى تدوين توجيهات مدير الإدارة والأثر المتوقع لتسهيل الأرشفة..."
+                                                  placeholder="شرح مدير الإدارة..."
                                                   onChange={(e) => updateEventWorkflow(evt.id, { directorExplanation: e.target.value })}
                                                   className="w-full text-[9px] p-2 border border-gray-200 rounded text-right focus:ring-1 focus:ring-brand bg-white font-bold leading-normal resize-none h-10"
                                                 />
@@ -3338,7 +3354,7 @@ ${itemTitleFull} .
                                                 </div>
                                                 <textarea 
                                                   value={evt.assistantExplanation || ""}
-                                                  placeholder="تدوين توجيه أو شرح وتصديق مساعد الأمين العام للغرفة..."
+                                                  placeholder="توجيه مساعد الأمين العام..."
                                                   onChange={(e) => updateEventWorkflow(evt.id, { assistantExplanation: e.target.value })}
                                                   className="w-full text-[9px] p-2 border border-gray-200 rounded text-right focus:ring-1 focus:ring-brand bg-white font-bold leading-normal resize-none h-10"
                                                 />
@@ -3347,12 +3363,12 @@ ${itemTitleFull} .
                                               {/* Executive Comment Box */}
                                               <div className="p-2.5 bg-slate-50 rounded-lg border border-gray-150 text-right">
                                                 <div className="flex items-center justify-between mb-1">
-                                                  <span className="text-[9px] text-slate-800 font-black">5. المكتب التنفيذي المتكامل (صاحب القرار الفاصل)</span>
+                                                  <span className="text-[9px] text-slate-800 font-black">5. توجيه المكتب التنفيذي</span>
                                                   <span className="text-[7.5px] bg-indigo-50 text-indigo-600 px-1 py-0.5 rounded font-bold">المكتب التنفيذي</span>
                                                 </div>
                                                 <textarea 
                                                   value={evt.executiveExplanation || ""}
-                                                  placeholder="قرار المكتب التنفيذي النهائي المعني..."
+                                                  placeholder="قرار التوصية..."
                                                   onChange={(e) => updateEventWorkflow(evt.id, { executiveExplanation: e.target.value })}
                                                   className="w-full text-[9px] p-2 border border-gray-200 rounded text-right focus:ring-1 focus:ring-indigo-500 bg-white font-bold leading-normal resize-none h-10"
                                                 />
@@ -3398,7 +3414,7 @@ ${itemTitleFull} .
                                                   className="w-4.5 h-4.5 rounded border-gray-150 text-brand focus:ring-brand cursor-pointer focus:outline-none shrink-0"
                                                 />
                                                 <span className="text-[10px] text-slate-900 font-extrabold select-none">
-                                                  اعتماد الشروحات وصياغة قرار تفعيل التوصية وإحالتها للمستوى الإداري النهائي
+                                                  اعتماد الشروحات وصياغة قرار تفعيل التوصية وإحالتها
                                                 </span>
                                               </label>
                                               {evt.agendaTransferred ? (
@@ -3418,27 +3434,27 @@ ${itemTitleFull} .
                                             <div className="flex items-center justify-between pb-2 border-b border-gray-100">
                                               <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5 font-sans">
                                                 <Presentation className="w-4 h-4 text-brand" />
-                                                مراجعة الاعتمادات وإصدار الإفادة والهيكل التنظيمي المكتمل
+                                                مراجعة الاعتمادات
                                               </h3>
                                               <span className="text-[9px] text-[#4ea0b0] font-extrabold px-2 py-0.5 rounded bg-[#4ea0b0]/5">مرحلة 3 من 3</span>
                                             </div>
                                             
                                             <p className="text-[10px] text-gray-550 leading-relaxed font-bold font-sans">
-                                              استعرض هنا حالة وحيثيات الاعتماد الإدارية الصادرة، حيث يتم تثبيت القرار بالتفعيل أو الحفظ والإلغاء تلبية للأعراف المنصوص بها في الغرفة:
+                                             استعراض حالة التوصية:
                                             </p>
 
                                             {/* Final Status Display Block */}
                                             <div className="rounded-xl p-3 border font-sans space-y-1.5 shadow-sm text-right bg-white">
-                                              <span className="text-[8px] text-brand font-black block">إفادتنا الإدارية النهائية:</span>
+                                              <span className="text-[8px] text-brand font-black block">الإفادة:</span>
                                               
                                               {evt.activationApproved === 'approved' ? (
                                                 <div className="bg-emerald-50 border border-emerald-250 p-3 rounded-xl">
                                                   <div className="flex items-center gap-1.5 font-black text-[10px] text-emerald-700">
                                                     <CheckCircle className="w-4 h-4 text-emerald-600" />
-                                                    <span>موافق عليها قطاعياً وتم اعتماد التفعيل بنجاح!</span>
+                                                    <span>موافق عليها وتم اعتماد التفعيل بنجاح!</span>
                                                   </div>
                                                   <p className="text-[9px] font-bold text-emerald-600 mt-1.5 leading-relaxed">
-                                                    بناءً على اعتمادات الهيكل الإداري والمكتب التنفيذي، تقرر تفعيل التوصية رقم <span className="underline font-black">REC-{String(evt.id || "").substring(0, 5).toUpperCase()}</span> رسمياً وتكليف اللجان بمتابعة الأداء مع تسكين مؤشرات الرصد المطلوبة وتحديث لوحة المؤشرات الذكية.
+                                                    بناءً على الاعتمادات، تقرر تفعيل التوصية رقم <span className="underline font-black">REC-{String(evt.id || "").substring(0, 5).toUpperCase()}</span> وتكليف أخصائي اللجان بالمتابعة.
                                                   </p>
                                                 </div>
                                               ) : evt.activationApproved === 'rejected' ? (
@@ -3448,7 +3464,7 @@ ${itemTitleFull} .
                                                     <span>تقرر حفظ المعاملة غير مفعلة وإهمال تذكيراتها كلياً في مركز عمليات اللوحة كمسألة خاملة.</span>
                                                   </div>
                                                   <p className="text-[9px] font-bold text-amber-600 mt-1.5 leading-relaxed font-sans">
-                                                    تقرر حفظ المعاملة غير مفعلة بنظام اللجان؛ نتيجة لانتفاء جدواها الفنية بالمحيط التنفيذي الحالي أو للتكرارية مع عينات قطاعية موازية.
+                                                    تقرر حفظ المعاملة غير مفعلة بنظام اللجان؛ نتيجة لانتفاء جدواها.
                                                   </p>
                                                 </div>
                                               ) : (
@@ -3468,7 +3484,7 @@ ${itemTitleFull} .
                                                 value={evt.finalExecutiveDecision || ''}
                                                 onChange={(e) => updateEventWorkflow(evt.id, { finalExecutiveDecision: e.target.value })}
                                                 rows={4}
-                                                placeholder="اكتب هنا التوجيه الرسمي النهائي للتوثيق..."
+                                                placeholder="كتابة التوجيه النهائي..."
                                                 className="w-full text-[9.5px] p-2.5 border border-gray-200 rounded-lg text-right font-sans bg-slate-50/70 text-slate-800 focus:ring-1 focus:ring-brand leading-relaxed resize-none font-bold"
                                                 dir="rtl"
                                               />
@@ -3491,13 +3507,13 @@ ${itemTitleFull} .
                                                   className="w-4.5 h-4.5 rounded border-gray-350 text-brand focus:ring-brand cursor-pointer focus:outline-none shrink-0"
                                                 />
                                                 <span className="text-[10px] text-slate-900 font-extrabold select-none">
-                                                  تثبيت وإقفال وإصدار الإفادة الرسمية وإدراج التوصية بنظام الغرفة بشكل نهائي
+                                                  تثبيت الإفادة
                                                 </span>
                                               </label>
                                               {evt.minutesSaved ? (
                                                 <span className="text-[9px] text-emerald-600 font-extrabold flex items-center gap-1 shrink-0"><Check className="w-3.5 h-3.5" /> جاهز</span>
                                               ) : (
-                                                <span className="text-[9.5px] text-amber-600 font-extrabold shrink-0">بانتظار تثبيت القرار</span>
+                                                <span className="text-[9.5px] text-amber-600 font-extrabold shrink-0">بانتظار تثبيت الإفادة</span>
                                               )}
                                             </div>
                                           </div>
@@ -3550,7 +3566,7 @@ ${itemTitleFull} .
                     <h3 className="font-extrabold text-gray-900 text-base leading-tight">
                       {editingEvent ? `تعديل توصية: ${editingEvent.title}` : "إضافة توصية جديدة"}
                     </h3>
-                    <p className="text-xs text-gray-500 font-medium">سجل بيانات التوصية بدقة لربط وتحديث مؤشرات الأداء والمهام</p>
+                    <p className="text-xs text-gray-500 font-medium">يرجى مراعاة تسجيل البيانات بدقة ووضح لضمان ظهورها في مؤشر الأداء</p>
                   </div>
                 </div>
                 <button
@@ -3609,7 +3625,7 @@ ${itemTitleFull} .
                 {isConfirmingSeries ? (
                   <div className="space-y-4 text-right" dir="rtl">
                     <h4 className="text-sm font-black text-gray-800 border-b border-gray-200 pb-2">
-                      استعراض وإقرار جدول الفعاليات المتسلسلة ({generatedSchedules.length})
+                      استعراض جدول الفعاليات المتسلسلة ({generatedSchedules.length})
                     </h4>
                     
                     {generatedSchedules.length === 0 ? (
@@ -3621,7 +3637,7 @@ ${itemTitleFull} .
                         <table className="w-full text-xs font-semibold text-gray-700 text-right">
                           <thead className="bg-[#dfdada] border-b border-gray-300">
                             <tr>
-                              <th className="px-4 py-2 text-center w-12">
+                              <th className="whitespace-nowrap px-4 py-2 text-center w-12">
                                 <input
                                   type="checkbox"
                                   checked={selectedSchedules.length === generatedSchedules.length}
@@ -3635,15 +3651,15 @@ ${itemTitleFull} .
                                   className="rounded text-brand"
                                 />
                               </th>
-                              <th className="px-4 py-2 font-black">التاريخ</th>
-                              <th className="px-4 py-2 font-black">الوقت</th>
-                              <th className="px-4 py-2 font-black">عنوان السجل</th>
+                              <th className="whitespace-nowrap px-4 py-2 font-black">التاريخ</th>
+                              <th className="whitespace-nowrap px-4 py-2 font-black">الوقت</th>
+                              <th className="whitespace-nowrap px-4 py-2 font-black">عنوان السجل</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200 bg-white">
                             {generatedSchedules.map((gen) => (
                               <tr key={gen.id} className="hover:bg-blue-50/50 transition-colors">
-                                <td className="px-4 py-2 text-center">
+                                <td className="whitespace-nowrap px-4 py-2 text-center">
                                   <input
                                     type="checkbox"
                                     checked={selectedSchedules.includes(gen.id)}
@@ -3654,9 +3670,9 @@ ${itemTitleFull} .
                                     className="rounded text-brand"
                                   />
                                 </td>
-                                <td className="px-4 py-2 font-mono" dir="ltr">{gen.date}</td>
-                                <td className="px-4 py-2">{gen.time || "-"}</td>
-                                <td className="px-4 py-2">{gen.title}</td>
+                                <td className="whitespace-nowrap px-4 py-2 font-mono" dir="ltr">{gen.date}</td>
+                                <td className="whitespace-nowrap px-4 py-2">{gen.time || "-"}</td>
+                                <td className="whitespace-nowrap px-4 py-2">{gen.title}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -3816,23 +3832,6 @@ ${itemTitleFull} .
                           <div className="md:col-span-2 space-y-1 relative">
                             <div className="flex items-center justify-between">
                               <label className="text-[11px] font-black text-gray-500 block">نص التوصية</label>
-                              <button
-                                type="button"
-                                onClick={handleGenerateSmartText}
-                                disabled={isGeneratingSmartText}
-                                className="text-[10px] bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-2 py-1 rounded-md font-bold flex items-center gap-1 border border-indigo-200 transition-colors disabled:opacity-50"
-                              >
-                                {isGeneratingSmartText ? (
-                                  <>
-                                    <div className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                                    جاري التوليد...
-                                  </>
-                                ) : (
-                                  <>
-                                    <span>✨ توليد النص الذكي</span>
-                                  </>
-                                )}
-                              </button>
                             </div>
                             <textarea
                               value={newRecText}
@@ -3866,13 +3865,13 @@ ${itemTitleFull} .
                               }`}
                             >
                               <Paperclip className="w-5 h-5 text-blue-600 mb-1 animate-bounce" />
-                              <p className="text-[10px] font-bold text-gray-500">مرفقات تكميلية بالملفات أو رابط Google Drive</p>
+                              <p className="text-[10px] font-bold text-gray-500">رابط المرفقات Google Drive</p>
                               <button
                                 type="button"
                                 onClick={handleCustomLinkAttachment}
                                 className="mt-2.5 px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-[9px] font-black"
                               >
-                                أو الصق رابط جوجل درايف يدوياً
+                                لصق أو كتابة رابط المرفق
                               </button>
                             </div>
                             {newRecAttachments.length > 0 && (
@@ -4160,7 +4159,7 @@ ${itemTitleFull} .
                   value={linkName}
                   onChange={(e) => setLinkName(e.target.value)}
                   className="w-full border border-gray-200 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-brand focus:border-brand outline-none transition-all font-bold"
-                  placeholder="مثال: المستند الفني"
+                  placeholder="مثال: المستند المرفق"
                 />
               </div>
               <div>

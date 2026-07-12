@@ -93,7 +93,7 @@ export default function AffiliatesEvents() {
               <form onSubmit={handleAdd} className="p-6 space-y-4">
                 <div><label className="text-xs font-bold block mb-1">القطاع المستهدف</label><input required className="w-full border p-2 rounded-xl text-sm" value={newSector} onChange={e => setNewSector(e.target.value)} placeholder="مثال: قطاع التجزئة" /></div>
                 <div><label className="text-xs font-bold block mb-1">اسم الفعالية</label><input required className="w-full border p-2 rounded-xl text-sm" value={newTitle} onChange={e => setNewTitle(e.target.value)} /></div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div><label className="text-xs font-bold block mb-1">التاريخ</label><input type="date" required className="w-full border p-2 rounded-xl text-sm" value={newDate} onChange={e => setNewDate(e.target.value)} /></div>
                   <div><label className="text-xs font-bold block mb-1">الوقت</label><input type="time" required className="w-full border p-2 rounded-xl text-sm" value={newTime} onChange={e => setNewTime(e.target.value)} /></div>
                 </div>

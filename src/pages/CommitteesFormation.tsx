@@ -239,7 +239,7 @@ function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenE
             </div>
 
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-2xl p-4 flex flex-col justify-between text-right">
                   <div>
                     <Users className="w-5 h-5 text-blue-600 mb-2" />
@@ -1257,7 +1257,7 @@ export default function CommitteesFormation() {
                   </div>
 
                   {/* Stats Cards Row inside Committee Card */}
-                  <div className="grid grid-cols-2 gap-2 text-right">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-right">
                     <div className="bg-white/60 rounded-xl p-2 border border-gray-100 flex items-center gap-2">
                       <div className="p-1.5 bg-blue-100 text-blue-800 rounded-lg">
                         <Users className="w-4 h-4" />
@@ -1322,16 +1322,16 @@ export default function CommitteesFormation() {
             <table className="w-full text-xs font-semibold text-gray-700 select-none border-collapse text-right">
               <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
                 <tr className="divide-x divide-x-reverse divide-gray-300">
-                  <th className="px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">اسم اللجنة</th>
-                  <th className="px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">رئيس اللجنة</th>
-                  <th className="px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">الأخصائي</th>
-                  <th className="px-3 py-3 font-black text-center text-gray-800 tracking-tight text-xs w-20">الأعضاء</th>
-                  <th className="px-3 py-3 font-black text-center text-gray-800 tracking-tight text-xs w-20">الاجتماعات</th>
-                  <th className="px-3 py-3 font-black text-center text-gray-800 tracking-tight text-xs w-20">التوصيات</th>
-                  <th className="px-3 py-3 font-black text-center text-gray-800 tracking-tight text-xs w-20">الفعاليات</th>
-                  <th className="px-3 py-3 font-black text-center text-gray-850 tracking-tight text-xs w-32">الخطة الاستراتيجية</th>
-                  <th className="px-3 py-3 font-black text-center text-gray-850 tracking-tight text-xs w-24">الحالة</th>
-                  <th className="px-3 py-3 font-black text-center text-gray-850 tracking-tight text-xs w-20">إجراءات</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">اسم اللجنة</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">رئيس اللجنة</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">الأخصائي</th>
+                  <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-800 tracking-tight text-xs w-20">الأعضاء</th>
+                  <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-800 tracking-tight text-xs w-20">الاجتماعات</th>
+                  <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-800 tracking-tight text-xs w-20">التوصيات</th>
+                  <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-800 tracking-tight text-xs w-20">الفعاليات</th>
+                  <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-850 tracking-tight text-xs w-32">الخطة الاستراتيجية</th>
+                  <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-850 tracking-tight text-xs w-24">الحالة</th>
+                  <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-850 tracking-tight text-xs w-20">إجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-[#e8e4e4]/85">
@@ -1354,37 +1354,37 @@ export default function CommitteesFormation() {
                     </td>
                     
                     {/* President */}
-                    <td className="px-4 py-3.5 whitespace-nowrap text-gray-800">
+                    <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-gray-800">
                       {comm.president || "-"}
                     </td>
 
                     {/* Specialist */}
-                    <td className="px-4 py-3.5 whitespace-nowrap text-gray-800">
+                    <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-gray-800">
                       {comm.specialist || "-"}
                     </td>
 
                     {/* Member Count */}
-                    <td className="px-4 py-3.5 text-center text-gray-900 font-mono whitespace-nowrap">
+                    <td className="whitespace-nowrap px-4 py-3.5 text-center text-gray-900 font-mono whitespace-nowrap">
                       {comm.membersCount}
                     </td>
 
                     {/* Meetings Count */}
-                    <td className="px-4 py-3.5 text-center text-gray-950 font-mono whitespace-nowrap">
+                    <td className="whitespace-nowrap px-4 py-3.5 text-center text-gray-950 font-mono whitespace-nowrap">
                       {comm.meetingsCount}
                     </td>
 
                     {/* Recommendations */}
-                    <td className="px-4 py-3.5 text-center text-emerald-700 font-mono whitespace-nowrap">
+                    <td className="whitespace-nowrap px-4 py-3.5 text-center text-emerald-700 font-mono whitespace-nowrap">
                       {comm.recommendationsCount || 0}
                     </td>
 
                     {/* Events */}
-                    <td className="px-4 py-3.5 text-center text-purple-700 font-mono whitespace-nowrap">
+                    <td className="whitespace-nowrap px-4 py-3.5 text-center text-purple-700 font-mono whitespace-nowrap">
                       {comm.eventsCount || 0}
                     </td>
 
                     {/* Strategic Plan */}
-                    <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                    <td className="whitespace-nowrap px-4 py-3.5 text-center whitespace-nowrap">
                       {comm.strategicPlan ? (
                         <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-150">
                           {comm.strategicPlan}
@@ -1395,7 +1395,7 @@ export default function CommitteesFormation() {
                     </td>
 
                     {/* Status badge representing Active vs Inactive */}
-                    <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                    <td className="whitespace-nowrap px-4 py-3.5 text-center whitespace-nowrap">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black ${
                         comm.active ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
                       }`}>
@@ -1405,7 +1405,7 @@ export default function CommitteesFormation() {
                     </td>
 
                     {/* Action controls - ⚙️ Custom settings gear button with menu */}
-                    <td className="px-4 py-3.5 text-center relative whitespace-nowrap">
+                    <td className="whitespace-nowrap px-4 py-3.5 text-center relative whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1.5 relative dropdown-container">
                         <button
                           onClick={() => setActiveGearMenuId(activeGearMenuId === comm.id ? null : comm.id)}
@@ -1546,7 +1546,7 @@ export default function CommitteesFormation() {
                 </div>
 
                 {/* President & Strategic Plan Row */}
-                <div className={editingComm ? "grid grid-cols-2 gap-4" : "w-full"}>
+                <div className={editingComm ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "w-full"}>
                   {editingComm && (
                     <div className="space-y-1.5">
                       <label className="block text-xs font-black text-gray-700">رئيس اللجنة</label>
@@ -1590,7 +1590,7 @@ export default function CommitteesFormation() {
 
                 {/* Numeric Statistics Row */}
                 {editingComm && (
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="space-y-1.5">
                       <label className="block text-[10px] font-black text-gray-700">عدد الاجتماعات</label>
                       <input
@@ -1627,7 +1627,7 @@ export default function CommitteesFormation() {
                 {/* Status Toggle Block (Active: Green, Inactive: Red) */}
                 <div className="space-y-1.5">
                   <label className="block text-xs font-black text-gray-700">حالة اللجنة</label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <button
                       type="button"
                       onClick={() => setIsActive(true)}
@@ -1915,7 +1915,7 @@ export default function CommitteesFormation() {
 
                 <div className="space-y-2">
                   <span className="block text-xs font-black text-gray-700">تحديد الحقول المراد تصديرها للتقرير:</span>
-                  <div className="grid grid-cols-2 gap-3 max-h-[220px] overflow-y-auto p-1 border border-gray-100 rounded-xl bg-gray-50/50">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[220px] overflow-y-auto p-1 border border-gray-100 rounded-xl bg-gray-50/50">
                     {EXPORT_FIELDS_META.map(f => (
                       <label 
                         key={f.key} 

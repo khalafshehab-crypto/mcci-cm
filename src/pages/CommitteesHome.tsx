@@ -1632,7 +1632,7 @@ export default function CommitteesHome() {
                         {evtObj ? (
                           <div className="pt-2 space-y-1.5" onClick={(e) => e.stopPropagation()}>
                             <div className="text-[9px] font-black text-gray-400 mb-1">الإجراءات التفاعلية للفعالية (انقر للانتقال مباشرة):</div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                            <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-3 gap-1.5">
                               {getStepsForEventAlarm(evtObj).map((step) => {
                                 const statusColor = step.isDone
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm"
@@ -2053,14 +2053,14 @@ export default function CommitteesHome() {
                       <table className="w-full text-xs font-semibold text-gray-700 select-none border-collapse text-right">
                         <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
                           <tr className="divide-x divide-x-reverse divide-gray-300">
-                            <th className="px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">اليوم والتاريخ</th>
-                            <th className="px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">الوقت</th>
-                            <th className="px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">اللجنة / الجهة القطاعية</th>
-                            <th className="px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs max-w-sm">الموضوع / الفعالية</th>
-                            <th className="px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">المسؤول</th>
-                            <th className="px-4 py-3 font-black text-center text-gray-800 tracking-tight text-xs">الموقع والقاعة</th>
-                            <th className="px-4 py-3 font-black text-center text-gray-850 tracking-tight text-xs">الحالة</th>
-                            <th className="px-4 py-3 font-black text-center text-gray-850 tracking-tight text-xs">تجهيزات الاجتماع</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">اليوم والتاريخ</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">الوقت</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">اللجنة / الجهة القطاعية</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs max-w-sm">الموضوع / الفعالية</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">المسؤول</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-center text-gray-800 tracking-tight text-xs">الموقع والقاعة</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-center text-gray-850 tracking-tight text-xs">الحالة</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-center text-gray-850 tracking-tight text-xs">تجهيزات الاجتماع</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200 bg-[#e8e4e4]/85">
@@ -2068,16 +2068,16 @@ export default function CommitteesHome() {
                             <tr key={i} className="hover:bg-[#e2dede] transition-colors text-right divide-x divide-x-reverse divide-gray-200 text-[11px] font-bold text-gray-700">
                               
                               {/* 2. اليوم والتاريخ */}
-                              <td className="px-4 py-3.5 whitespace-nowrap">
+                              <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap">
                                 <span className="font-black text-gray-900 block">{mtg.day}</span>
                                 <span className="text-[10px] text-gray-500 font-mono block mt-0.5">{mtg.date}</span>
                               </td>
 
                               {/* 3. الوقت */}
-                              <td className="px-4 py-3.5 font-mono text-gray-800 whitespace-nowrap">{mtg.time}</td>
+                              <td className="whitespace-nowrap px-4 py-3.5 font-mono text-gray-800 whitespace-nowrap">{mtg.time}</td>
                               
                               {/* 4. اللجنة / الجهة */}
-                              <td className="px-4 py-3.5">
+                              <td className="whitespace-nowrap px-4 py-3.5">
                                 <span className="font-black text-brand bg-brand/10 px-2 py-0.5 rounded text-[10px] block w-fit">
                                   {mtg.section}
                                 </span>
@@ -2085,7 +2085,7 @@ export default function CommitteesHome() {
                               </td>
 
                               {/* 5. الموضوع / الفعالية */}
-                              <td className="px-4 py-3.5 text-gray-900 font-semibold text-xs max-w-sm leading-relaxed">
+                              <td className="whitespace-nowrap px-4 py-3.5 text-gray-900 font-semibold text-xs max-w-sm leading-relaxed">
                                 {mtg.category === "event" && mtg.id ? (
                                   <span 
                                     onClick={() => {
@@ -2104,20 +2104,20 @@ export default function CommitteesHome() {
                               </td>
 
                               {/* 6. المسؤول */}
-                              <td className="px-4 py-3.5 text-gray-800 font-bold whitespace-nowrap">{mtg.responsible}</td>
+                              <td className="whitespace-nowrap px-4 py-3.5 text-gray-800 font-bold whitespace-nowrap">{mtg.responsible}</td>
                               
                               {/* 7. الموقع والقاعة */}
-                              <td className="px-4 py-3.5 text-red-700 font-black text-center whitespace-nowrap">{mtg.room}</td>
+                              <td className="whitespace-nowrap px-4 py-3.5 text-red-700 font-black text-center whitespace-nowrap">{mtg.room}</td>
                               
                               {/* 8. الحالة */}
-                              <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                              <td className="whitespace-nowrap px-4 py-3.5 text-center whitespace-nowrap">
                                 <span className={`px-2 py-0.5 rounded text-[9px] font-black border ${mtg.status === 'مؤكد' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'}`}>
                                   {mtg.status}
                                 </span>
                               </td>
 
                               {/* 9. تجهيزات الاجتماع */}
-                              <td className="px-4 py-3.5 text-center">
+                              <td className="whitespace-nowrap px-4 py-3.5 text-center">
                                 <div className="flex flex-col items-center gap-1.5 justify-center w-full min-w-[100px]">
                                   <span className="text-[10px] text-gray-600 font-extrabold whitespace-nowrap">
                                     {mtg.checklist.filter(c => c.completed).length} من {mtg.checklist.length} جهزت
@@ -2330,7 +2330,7 @@ export default function CommitteesHome() {
               className="border-t border-gray-100 bg-[#e8e4e4]"
             >
               <div className="p-4 bg-[#e8e4e4]">
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
                   {[...chartData].reverse().map((stat, i) => {
                     const originalIndex = chartData.length - 1 - i;
                     const isActive = activeIndex === originalIndex;

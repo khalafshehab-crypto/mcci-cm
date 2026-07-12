@@ -817,7 +817,7 @@ ${t.description}
                     صانع القالب: {t.creator}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-200/60">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2 border-t border-gray-200/60">
                     <a
                       href={t.cloudUrl}
                       target="_blank"
@@ -865,13 +865,13 @@ ${t.description}
               <table className="w-full text-right border-collapse">
                 <thead className="bg-[#dfdada] text-gray-700 font-extrabold text-sm border-b border-gray-300">
                   <tr>
-                    <th className="py-4 px-5 whitespace-nowrap w-12">النوع</th>
-                    <th className="py-4 px-5 whitespace-nowrap">
+                    <th className="whitespace-nowrap py-4 px-5 whitespace-nowrap w-12">النوع</th>
+                    <th className="whitespace-nowrap py-4 px-5 whitespace-nowrap">
                       اسم القالب المرجعي
                     </th>
-                    <th className="py-4 px-5 whitespace-nowrap">الوصف</th>
-                    <th className="py-4 px-5 whitespace-nowrap">المنشئ</th>
-                    <th className="py-4 px-5 text-center whitespace-nowrap">
+                    <th className="whitespace-nowrap py-4 px-5 whitespace-nowrap">الوصف</th>
+                    <th className="whitespace-nowrap py-4 px-5 whitespace-nowrap">المنشئ</th>
+                    <th className="whitespace-nowrap py-4 px-5 text-center whitespace-nowrap">
                       إجراءات
                     </th>
                   </tr>
@@ -882,18 +882,18 @@ ${t.description}
                       key={t.id}
                       className="hover:bg-white/40 transition-colors text-sm font-semibold text-gray-800"
                     >
-                      <td className="py-4 px-5 font-bold">
+                      <td className="whitespace-nowrap py-4 px-5 font-bold">
                         <div className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-100 inline-flex items-center justify-center">
                           {getIconForType(t.type)}
                         </div>
                       </td>
-                      <td className="py-4 px-5 font-bold text-gray-900">
+                      <td className="whitespace-nowrap py-4 px-5 font-bold text-gray-900">
                         {t.title}
                       </td>
-                      <td className="py-4 px-5 text-gray-500 text-xs w-1/3 leading-relaxed">
+                      <td className="whitespace-nowrap py-4 px-5 text-gray-500 text-xs w-1/3 leading-relaxed">
                         <span className="line-clamp-1">{t.description}</span>
                       </td>
-                      <td className="py-4 px-5 font-black text-gray-500">
+                      <td className="whitespace-nowrap py-4 px-5 font-black text-gray-500">
                         <div className="flex items-center gap-2">
                           <span className="w-6 h-6 rounded bg-gray-200 flex items-center justify-center text-gray-600 text-[10px] uppercase font-black tracking-wider">
                             {t.creator.substring(0, 2)}
@@ -901,7 +901,7 @@ ${t.description}
                           {t.creator}
                         </div>
                       </td>
-                      <td className="py-4 px-5">
+                      <td className="whitespace-nowrap py-4 px-5">
                         <div className="flex items-center justify-center gap-2">
                           <a
                             href={t.cloudUrl}
@@ -1250,7 +1250,7 @@ ${t.description}
                   </div>
 
                   <div
-                    className="grid grid-cols-2 gap-3 pt-1 text-right font-sans"
+                    className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 text-right font-sans"
                     dir="rtl"
                   >
                     <button

@@ -259,7 +259,7 @@ export default function Layout({ children }: LayoutProps) {
     <div dir="rtl" className="min-h-screen bg-[#cccccc] p-4 md:p-6 text-gray-800 font-sans">
       
       {/* Header Bar */}
-      <header className="bg-[#e8e4e4] rounded-2xl shadow-sm border border-gray-200 p-2 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4">
+      <header className="bg-[#e8e4e4] rounded-2xl shadow-sm border border-gray-200 p-2 flex flex-col lg:flex-row items-stretch xl:items-center justify-between gap-4">
         
         {/* RIGHT: Logo & Main Navigation */}
         <div className="flex items-center gap-4 flex-shrink-0">

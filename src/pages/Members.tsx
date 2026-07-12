@@ -1337,7 +1337,7 @@ export default function CommitteesMembers() {
             <table className="w-full text-xs font-semibold text-gray-700 select-none border-collapse text-right">
               <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
                 <tr className="divide-x divide-x-reverse divide-gray-300">
-                  <th className="px-2 py-2 font-black text-center text-gray-850 tracking-tight text-xs w-8">
+                  <th className="whitespace-nowrap px-2 py-2 font-black text-center text-gray-850 tracking-tight text-xs w-8">
                     <input 
                       type="checkbox" 
                       className="w-3.5 h-3.5 rounded border-gray-300 text-brand focus:ring-brand cursor-pointer"
@@ -1345,7 +1345,7 @@ export default function CommitteesMembers() {
                       onChange={handleSelectAll}
                     />
                   </th>
-                  {visibleColumns.index && <th className="px-2 py-2 font-black text-center text-gray-850 tracking-tight text-xs w-8">م</th>}
+                  {visibleColumns.index && <th className="whitespace-nowrap px-2 py-2 font-black text-center text-gray-850 tracking-tight text-xs w-8">م</th>}
                   {visibleColumns.name && (
                     <th 
                       className="px-2 py-2 font-black text-right text-gray-850 tracking-tight text-xs w-[220px] cursor-pointer hover:bg-gray-200 transition-colors"
@@ -1378,14 +1378,14 @@ export default function CommitteesMembers() {
                       </div>
                     </th>
                   )}
-                  {visibleColumns.phone && <th className="px-2 py-2 font-black text-right text-gray-850 tracking-tight text-xs">رقم الجوال</th>}
-                  {visibleColumns.email && <th className="px-2 py-2 font-black text-right text-gray-850 tracking-tight text-xs">البريد الإلكتروني</th>}
-                  {visibleColumns.nationalId && <th className="px-2 py-2 font-black text-right text-gray-850 tracking-tight text-xs">رقم الهوية</th>}
-                  {visibleColumns.membership_type && <th className="px-2 py-2 font-black text-center text-gray-800 tracking-tight text-xs">آلية الانضمام</th>}
-                  {visibleColumns.joined_date && <th className="px-2 py-2 font-black text-center text-gray-800 tracking-tight text-xs">تاريخ الانضمام</th>}
-                  {visibleColumns.status && <th className="px-2 py-2 font-black text-center text-gray-800 tracking-tight text-xs">الحالة</th>}
-                  {visibleColumns.attachments && <th className="px-2 py-2 font-black text-center text-gray-800 tracking-tight text-xs">المرفقات</th>}
-                  <th className="px-2 py-2 font-black text-center text-gray-800 tracking-tight text-xs">الإجراءات</th>
+                  {visibleColumns.phone && <th className="whitespace-nowrap px-2 py-2 font-black text-right text-gray-850 tracking-tight text-xs">رقم الجوال</th>}
+                  {visibleColumns.email && <th className="whitespace-nowrap px-2 py-2 font-black text-right text-gray-850 tracking-tight text-xs">البريد الإلكتروني</th>}
+                  {visibleColumns.nationalId && <th className="whitespace-nowrap px-2 py-2 font-black text-right text-gray-850 tracking-tight text-xs">رقم الهوية</th>}
+                  {visibleColumns.membership_type && <th className="whitespace-nowrap px-2 py-2 font-black text-center text-gray-800 tracking-tight text-xs">آلية الانضمام</th>}
+                  {visibleColumns.joined_date && <th className="whitespace-nowrap px-2 py-2 font-black text-center text-gray-800 tracking-tight text-xs">تاريخ الانضمام</th>}
+                  {visibleColumns.status && <th className="whitespace-nowrap px-2 py-2 font-black text-center text-gray-800 tracking-tight text-xs">الحالة</th>}
+                  {visibleColumns.attachments && <th className="whitespace-nowrap px-2 py-2 font-black text-center text-gray-800 tracking-tight text-xs">المرفقات</th>}
+                  <th className="whitespace-nowrap px-2 py-2 font-black text-center text-gray-800 tracking-tight text-xs">الإجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-[#e8e4e4]/85">
@@ -1400,7 +1400,7 @@ export default function CommitteesMembers() {
 
                   return (
                   <tr key={m.id} className="hover:bg-[#e2dede] transition-colors text-right divide-x divide-x-reverse divide-gray-200 text-[11px] font-bold text-gray-700">
-                    <td className="px-2 py-2 whitespace-nowrap text-center border-none">
+                    <td className="whitespace-nowrap px-2 py-2 whitespace-nowrap text-center border-none">
                       <input 
                         type="checkbox" 
                         className="w-3.5 h-3.5 rounded border-gray-300 text-brand focus:ring-brand cursor-pointer"
@@ -1409,7 +1409,7 @@ export default function CommitteesMembers() {
                       />
                     </td>
                     {visibleColumns.index && (
-                      <td className="px-2 py-2 whitespace-nowrap text-center text-gray-900 font-mono font-black border-none group/row">
+                      <td className="whitespace-nowrap px-2 py-2 whitespace-nowrap text-center text-gray-900 font-mono font-black border-none group/row">
                         {idx + 1}
                       </td>
                     )}
@@ -1433,7 +1433,7 @@ export default function CommitteesMembers() {
 
                     {/* اللجنة */}
                     {visibleColumns.committee && (
-                      <td className="px-2 py-2 whitespace-nowrap text-xs font-bold text-gray-700">
+                      <td className="whitespace-nowrap px-2 py-2 whitespace-nowrap text-xs font-bold text-gray-700">
                         <div className="flex flex-col">
                           <span className="text-[#4ea0b0] font-black flex items-center gap-1">
                             <Briefcase className="w-3.5 h-3.5 text-[#4ea0b0]" />
@@ -1448,7 +1448,7 @@ export default function CommitteesMembers() {
 
                     {/* رقم الجوال */}
                     {visibleColumns.phone && (
-                      <td className="px-2 py-2 whitespace-nowrap text-right">
+                      <td className="whitespace-nowrap px-2 py-2 whitespace-nowrap text-right">
                         <span className="flex items-center gap-1 font-semibold font-mono text-xs text-gray-500">
                           <Phone className="w-3.5 h-3.5 text-gray-400 text-right" />
                           <span>{formatPhoneNumber(m.phone)}</span>
@@ -1458,7 +1458,7 @@ export default function CommitteesMembers() {
 
                     {/* البريد الإلكتروني */}
                     {visibleColumns.email && (
-                      <td className="px-2 py-2 whitespace-nowrap text-right">
+                      <td className="whitespace-nowrap px-2 py-2 whitespace-nowrap text-right">
                         <span className="flex items-center gap-1 font-semibold font-mono text-xs text-gray-500 max-w-[150px] truncate" title={m.email}>
                           <Mail className="w-3.5 h-3.5 text-gray-400 text-right" />
                           <span className="truncate">{m.email}</span>
@@ -1468,14 +1468,14 @@ export default function CommitteesMembers() {
 
                     {/* رقم الهوية */}
                     {visibleColumns.nationalId && (
-                      <td className="px-2 py-2 whitespace-nowrap text-right font-mono text-xs text-gray-600 font-bold">
+                      <td className="whitespace-nowrap px-2 py-2 whitespace-nowrap text-right font-mono text-xs text-gray-600 font-bold">
                         {m.nationalId || "-"}
                       </td>
                     )}
 
                     {/* آلية الانضمام */}
                     {visibleColumns.membership_type && (
-                      <td className="px-2 py-2 whitespace-nowrap text-center">
+                      <td className="whitespace-nowrap px-2 py-2 whitespace-nowrap text-center">
                         <span className={`inline-flex items-center justify-center font-mono text-xs font-black px-2 py-0.5 rounded-lg ${
                           m.joiningMechanism === "معين"
                             ? "bg-blue-100 text-blue-800 border border-blue-200"
@@ -1492,14 +1492,14 @@ export default function CommitteesMembers() {
 
                     {/* تاريخ الانضمام */}
                     {visibleColumns.joined_date && (
-                      <td className="px-2 py-2 whitespace-nowrap text-center font-bold text-gray-600 text-xs font-mono">
+                      <td className="whitespace-nowrap px-2 py-2 whitespace-nowrap text-center font-bold text-gray-600 text-xs font-mono">
                         {m.joinedDate}
                       </td>
                     )}
 
                     {/* الحالة */}
                     {visibleColumns.status && (
-                      <td className="px-2 py-2 whitespace-nowrap text-center">
+                      <td className="whitespace-nowrap px-2 py-2 whitespace-nowrap text-center">
                         <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-black ${
                           m.active ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
                         }`}>
@@ -1511,7 +1511,7 @@ export default function CommitteesMembers() {
 
                     {/* المرفقات */}
                     {visibleColumns.attachments && (
-                      <td className="px-2 py-2 whitespace-nowrap text-center">
+                      <td className="whitespace-nowrap px-2 py-2 whitespace-nowrap text-center">
                         {missingDocs === 0 ? (
                            <span className="inline-flex items-center justify-center font-mono text-[10px] font-black px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200">
                              مكتملة
@@ -1525,7 +1525,7 @@ export default function CommitteesMembers() {
                     )}
 
                     {/* الإجراءات */}
-                    <td className="px-2 py-2 text-center relative whitespace-nowrap">
+                    <td className="whitespace-nowrap px-2 py-2 text-center relative whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1.5 relative dropdown-container">
                         <button
                           onClick={() => setActiveGearMenuId(activeGearMenuId === m.id ? null : m.id)}
@@ -1875,7 +1875,7 @@ export default function CommitteesMembers() {
                         <table className="w-full text-right text-sm relative">
                           <thead className="bg-gray-100 border-b border-gray-200 text-gray-700 sticky top-0">
                             <tr>
-                              <th className="p-3 w-10">
+                              <th className="whitespace-nowrap p-3 w-10">
                                 <input
                                   type="checkbox"
                                   checked={selectedImportRows.length === importData.length && importData.length > 0}
@@ -1886,10 +1886,10 @@ export default function CommitteesMembers() {
                                   className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
                                 />
                               </th>
-                              <th className="p-3 font-black">الاسم</th>
-                              <th className="p-3 font-black">الجوال</th>
-                              <th className="p-3 font-black">البريد الإلكتروني</th>
-                              <th className="p-3 font-black">اللجنة</th>
+                              <th className="whitespace-nowrap p-3 font-black">الاسم</th>
+                              <th className="whitespace-nowrap p-3 font-black">الجوال</th>
+                              <th className="whitespace-nowrap p-3 font-black">البريد الإلكتروني</th>
+                              <th className="whitespace-nowrap p-3 font-black">اللجنة</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1900,7 +1900,7 @@ export default function CommitteesMembers() {
                               };
                               return (
                                 <tr key={i} className="border-b border-gray-100 last:border-0 hover:bg-white transition-colors">
-                                  <td className="p-3">
+                                  <td className="whitespace-nowrap p-3">
                                     <input
                                       type="checkbox"
                                       checked={selectedImportRows.includes(i)}
@@ -1911,10 +1911,10 @@ export default function CommitteesMembers() {
                                       className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
                                     />
                                   </td>
-                                  <td className="p-3 font-bold text-gray-900">{getV("name")}</td>
-                                  <td className="p-3 text-gray-600" dir="ltr">{getV("phone")}</td>
-                                  <td className="p-3 text-gray-600">{getV("email")}</td>
-                                  <td className="p-3 text-gray-600">{getV("committee")}</td>
+                                  <td className="whitespace-nowrap p-3 font-bold text-gray-900">{getV("name")}</td>
+                                  <td className="whitespace-nowrap p-3 text-gray-600" dir="ltr">{getV("phone")}</td>
+                                  <td className="whitespace-nowrap p-3 text-gray-600">{getV("email")}</td>
+                                  <td className="whitespace-nowrap p-3 text-gray-600">{getV("committee")}</td>
                                 </tr>
                               );
                             })}
@@ -2111,7 +2111,7 @@ export default function CommitteesMembers() {
                 </div>
 
                 {/* Role (Capacity) selection */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[11px] font-black text-gray-500 block">الصفة*</label>
                     <select
@@ -2212,7 +2212,7 @@ export default function CommitteesMembers() {
                 {/* Membership Status (نشط - غير نشط) */}
                 <div className="space-y-1.5 p-3.5 bg-gray-50 rounded-2xl border border-gray-200">
                   <span className="text-[11px] font-black text-gray-500 block">حالة العضوية</span>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <button
                       type="button"
                       onClick={() => setIsActive(true)}
@@ -2487,7 +2487,7 @@ export default function CommitteesMembers() {
                 </div>
 
                 {/* Grid info stats parameters */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-gray-50 border border-gray-150 rounded-2xl p-3 flex items-start gap-2">
                     <Building2 className="w-4 h-4 text-gray-400 mt-0.5" />
                     <div className="text-right">
@@ -2509,7 +2509,7 @@ export default function CommitteesMembers() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-gray-50 border border-gray-150 rounded-2xl p-3 flex items-start gap-2">
                     <Shield className="w-4 h-4 text-gray-400 mt-0.5" />
                     <div className="text-right">

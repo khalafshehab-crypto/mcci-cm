@@ -1638,13 +1638,13 @@ export default function OrgChart() {
                   <table className="w-full text-right text-xs">
                     <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
                       <tr>
-                        <th className="p-4">الرقم</th>
-                        <th className="p-4">الموظف</th>
-                        <th className="p-4">الارتباط التنظيمي</th>
-                        <th className="p-4">البريد الإلكتروني</th>
-                        <th className="p-4">الجوال</th>
-                        <th className="p-4">حالة الحساب</th>
-                        <th className="p-4 text-left">التحكم</th>
+                        <th className="whitespace-nowrap p-4">الرقم</th>
+                        <th className="whitespace-nowrap p-4">الموظف</th>
+                        <th className="whitespace-nowrap p-4">الارتباط التنظيمي</th>
+                        <th className="whitespace-nowrap p-4">البريد الإلكتروني</th>
+                        <th className="whitespace-nowrap p-4">الجوال</th>
+                        <th className="whitespace-nowrap p-4">حالة الحساب</th>
+                        <th className="whitespace-nowrap p-4 text-left">التحكم</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
@@ -1653,8 +1653,8 @@ export default function OrgChart() {
                         const path = getHierarchyPath(emp);
                         return (
                           <tr key={emp.id} className={isSelf ? "bg-brand/5" : "hover:bg-gray-50/50"}>
-                            <td className="p-4 font-mono font-black text-gray-900">{emp.id}</td>
-                            <td className="p-4">
+                            <td className="whitespace-nowrap p-4 font-mono font-black text-gray-900">{emp.id}</td>
+                            <td className="whitespace-nowrap p-4">
                               <div className="flex items-center gap-2">
                                 <img src={emp.photo || PRESET_AVATARS[0]} alt={emp.name} className="w-8 h-8 rounded-lg object-cover bg-gray-50" />
                                 <div>
@@ -1663,17 +1663,17 @@ export default function OrgChart() {
                                 </div>
                               </div>
                             </td>
-                            <td className="p-4">
+                            <td className="whitespace-nowrap p-4">
                               <span className="text-[9px] text-gray-500 mt-1 block">
                                 {path.parts.length > 0 ? path.parts.join(" ← ") : "غير مسكن"}
                               </span>
                             </td>
-                            <td className="p-4 font-mono text-gray-600">{emp.email}</td>
-                            <td className="p-4 font-mono text-gray-600">{emp.phone}</td>
-                            <td className="p-4">
+                            <td className="whitespace-nowrap p-4 font-mono text-gray-600">{emp.email}</td>
+                            <td className="whitespace-nowrap p-4 font-mono text-gray-600">{emp.phone}</td>
+                            <td className="whitespace-nowrap p-4">
                               {emp.active !== false ? <span className="text-emerald-600 text-[10px] font-black">● فعال</span> : <span className="text-red-500 text-[10px] font-black">● معطل</span>}
                             </td>
-                            <td className="p-4 text-left">
+                            <td className="whitespace-nowrap p-4 text-left">
                               <div className="flex items-center justify-end gap-1.5">
                                 <button onClick={() => openEditModal(emp)} className="p-1 px-2.5 bg-gray-100 text-gray-600 rounded-md border text-[10px] font-bold">تعديل</button>
                                 {currentUserRole === "SYS_ADMIN" && !isSelf && emp.id !== "01" && (
@@ -2051,30 +2051,30 @@ export default function OrgChart() {
                   <table className="w-full text-right text-xs">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
-                        <th className="px-4 py-3 font-extrabold text-gray-500">التاريخ</th>
-                        <th className="px-4 py-3 font-extrabold text-gray-500">النوع</th>
-                        <th className="px-4 py-3 font-extrabold text-gray-500">المصدر</th>
-                        <th className="px-4 py-3 font-extrabold text-gray-500">المستهدف</th>
-                        <th className="px-4 py-3 font-extrabold text-gray-500">التفاصيل</th>
-                        <th className="px-4 py-3 font-extrabold text-gray-500">الحالة</th>
-                        <th className="px-4 py-3 font-extrabold text-gray-500">إجراء</th>
+                        <th className="whitespace-nowrap px-4 py-3 font-extrabold text-gray-500">التاريخ</th>
+                        <th className="whitespace-nowrap px-4 py-3 font-extrabold text-gray-500">النوع</th>
+                        <th className="whitespace-nowrap px-4 py-3 font-extrabold text-gray-500">المصدر</th>
+                        <th className="whitespace-nowrap px-4 py-3 font-extrabold text-gray-500">المستهدف</th>
+                        <th className="whitespace-nowrap px-4 py-3 font-extrabold text-gray-500">التفاصيل</th>
+                        <th className="whitespace-nowrap px-4 py-3 font-extrabold text-gray-500">الحالة</th>
+                        <th className="whitespace-nowrap px-4 py-3 font-extrabold text-gray-500">إجراء</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {dbDelegations.slice().sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).map((del: any) => (
                         <tr key={del.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-gray-600 font-mono" dir="ltr">{new Date(del.timestamp).toLocaleDateString('en-GB')}</td>
-                          <td className="px-4 py-3 font-bold text-gray-900">{del.transferMode === "full" ? "نقل دائم" : "تكليف مؤقت"}</td>
-                          <td className="px-4 py-3 font-bold text-red-700">{del.sourceEmpName}</td>
-                          <td className="px-4 py-3 font-bold text-emerald-700">{del.targetEmpName}</td>
-                          <td className="px-4 py-3 text-gray-500">
+                          <td className="whitespace-nowrap px-4 py-3 text-gray-600 font-mono" dir="ltr">{new Date(del.timestamp).toLocaleDateString('en-GB')}</td>
+                          <td className="whitespace-nowrap px-4 py-3 font-bold text-gray-900">{del.transferMode === "full" ? "نقل دائم" : "تكليف مؤقت"}</td>
+                          <td className="whitespace-nowrap px-4 py-3 font-bold text-red-700">{del.sourceEmpName}</td>
+                          <td className="whitespace-nowrap px-4 py-3 font-bold text-emerald-700">{del.targetEmpName}</td>
+                          <td className="whitespace-nowrap px-4 py-3 text-gray-500">
                             {[
                               del.transferCommittees ? "لجان" : "",
                               del.transferTasks ? "مهام" : "",
                               del.transferEvents ? "فعاليات" : ""
                             ].filter(Boolean).join("، ")}
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="whitespace-nowrap px-4 py-3">
                             {del.transferMode === "full" ? (
                               <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-md text-[10px] font-black">مكتمل</span>
                             ) : del.status === "ended" ? (
@@ -2083,7 +2083,7 @@ export default function OrgChart() {
                               <span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded-md text-[10px] font-black">نشط حتى {del.delegationEndDate}</span>
                             )}
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="whitespace-nowrap px-4 py-3">
                             {del.transferMode === "delegation" && del.status !== "ended" && (
                               <button
                                 type="button"
@@ -2133,7 +2133,7 @@ export default function OrgChart() {
             <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm space-y-5">
               <h2 className="text-sm font-black text-gray-900 flex items-center gap-1.5"><Lock className="w-5 h-5 text-brand" /><span>البريد المسموح (Whitelist)</span></h2>
               <form onSubmit={handleAddWhitelistEmail} className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   <input type="text" placeholder="اسم الموظف" value={whitelistNameStr} onChange={(e) => setWhitelistNameStr(e.target.value)} className="w-full bg-white border border-gray-300 rounded-lg px-2.5 py-2 text-[10px] font-bold text-gray-700" />
                   <input type="email" placeholder="البريد" value={whitelistEmailStr} onChange={(e) => setWhitelistEmailStr(e.target.value)} dir="ltr" className="w-full bg-white border border-gray-300 rounded-lg px-2.5 py-2 text-[10px] font-semibold text-left" />
                 </div>
@@ -2177,27 +2177,27 @@ export default function OrgChart() {
                     <th rowSpan={2} className="p-4 text-center bg-blue-50 border-r border-gray-200 align-middle">إدارة النظام</th>
                   </tr>
                   <tr>
-                    <th className="p-2 text-center border-l border-gray-200 bg-gray-100/50">الكل</th>
-                    <th className="p-2 text-center border-l border-gray-200">الرئيسية</th>
-                    <th className="p-2 text-center border-l border-gray-200">التشكيل</th>
-                    <th className="p-2 text-center border-l border-gray-200">الأعضاء</th>
-                    <th className="p-2 text-center border-l border-gray-200">الفعاليات</th>
-                    <th className="p-2 text-center border-l border-gray-200">التوصيات</th>
-                    <th className="p-2 text-center border-l border-gray-200">المهام</th>
-                    <th className="p-2 text-center border-l border-gray-200">التقارير</th>
-                    <th className="p-2 text-center border-l border-gray-200">المكتبة</th>
-                    <th className="p-2 text-center border-l border-gray-200 bg-gray-100/50">الكل</th>
-                    <th className="p-2 text-center border-l border-gray-200">الرئيسية</th>
-                    <th className="p-2 text-center border-l border-gray-200">الفعاليات</th>
-                    <th className="p-2 text-center border-l border-gray-200">المهام</th>
-                    <th className="p-2 text-center border-l border-gray-200 bg-gray-100/50">الكل</th>
-                    <th className="p-2 text-center border-l border-gray-200">الرئيسية</th>
-                    <th className="p-2 text-center border-l border-gray-200">الفعاليات</th>
-                    <th className="p-2 text-center border-l border-gray-200">المهام</th>
-                    <th className="p-2 text-center border-l border-gray-200 bg-gray-100/50">الكل</th>
-                    <th className="p-2 text-center border-l border-gray-200">الرئيسية</th>
-                    <th className="p-2 text-center border-l border-gray-200">الفعاليات</th>
-                    <th className="p-2 text-center border-gray-200">المهام</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200 bg-gray-100/50">الكل</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200">الرئيسية</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200">التشكيل</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200">الأعضاء</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200">الفعاليات</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200">التوصيات</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200">المهام</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200">التقارير</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200">المكتبة</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200 bg-gray-100/50">الكل</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200">الرئيسية</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200">الفعاليات</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200">المهام</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200 bg-gray-100/50">الكل</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200">الرئيسية</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200">الفعاليات</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200">المهام</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200 bg-gray-100/50">الكل</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200">الرئيسية</th>
+                    <th className="whitespace-nowrap p-2 text-center border-l border-gray-200">الفعاليات</th>
+                    <th className="whitespace-nowrap p-2 text-center border-gray-200">المهام</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-150 font-bold text-gray-600">
@@ -2250,10 +2250,10 @@ export default function OrgChart() {
 
                     return (
                       <tr key={emp.id} className="hover:bg-gray-50/50">
-                        <td className="p-4 text-xs font-extrabold text-gray-900 border-l border-gray-200">{emp.name}</td>
+                        <td className="whitespace-nowrap p-4 text-xs font-extrabold text-gray-900 border-l border-gray-200">{emp.name}</td>
                         
                         {/* Committees */}
-                        <td className="p-2 text-center border-l border-gray-200 bg-gray-50/50">
+                        <td className="whitespace-nowrap p-2 text-center border-l border-gray-200 bg-gray-50/50">
                           <input type="checkbox" checked={hasAllCommittees} onChange={() => handleDeptCheckbox(COMMITTEES_PAGES)} className="w-4 h-4 text-gray-800 rounded border-gray-300" />
                         </td>
                         {COMMITTEES_PAGES.map(path => (
@@ -2263,7 +2263,7 @@ export default function OrgChart() {
                         ))}
                         
                         {/* Assistant Sec Gen */}
-                        <td className="p-2 text-center border-l border-gray-200 bg-gray-50/50">
+                        <td className="whitespace-nowrap p-2 text-center border-l border-gray-200 bg-gray-50/50">
                           <input type="checkbox" checked={hasAllAssistant} onChange={() => handleDeptCheckbox(ASSISTANT_SEC_GEN_PAGES)} className="w-4 h-4 text-gray-800 rounded border-gray-300" />
                         </td>
                         {ASSISTANT_SEC_GEN_PAGES.map(path => (
@@ -2273,7 +2273,7 @@ export default function OrgChart() {
                         ))}
                         
                         {/* Centers */}
-                        <td className="p-2 text-center border-l border-gray-200 bg-gray-50/50">
+                        <td className="whitespace-nowrap p-2 text-center border-l border-gray-200 bg-gray-50/50">
                           <input type="checkbox" checked={hasAllCenters} onChange={() => handleDeptCheckbox(CENTERS_PAGES)} className="w-4 h-4 text-gray-800 rounded border-gray-300" />
                         </td>
                         {CENTERS_PAGES.map(path => (
@@ -2283,7 +2283,7 @@ export default function OrgChart() {
                         ))}
                         
                         {/* Affiliates */}
-                        <td className="p-2 text-center border-l border-gray-200 bg-gray-50/50">
+                        <td className="whitespace-nowrap p-2 text-center border-l border-gray-200 bg-gray-50/50">
                           <input type="checkbox" checked={hasAllAffiliates} onChange={() => handleDeptCheckbox(AFFILIATES_PAGES)} className="w-4 h-4 text-gray-800 rounded border-gray-300" />
                         </td>
                         {AFFILIATES_PAGES.map(path => (
@@ -2293,7 +2293,7 @@ export default function OrgChart() {
                         ))}
                         
                         {/* System Admin */}
-                        <td className="p-4 text-center bg-blue-50/50 border-r border-gray-200">
+                        <td className="whitespace-nowrap p-4 text-center bg-blue-50/50 border-r border-gray-200">
                           <input type="checkbox" checked={emp.adminPermissions || false} onChange={async (e) => await updateFirebaseEmp(emp.id, { adminPermissions: e.target.checked })} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
                         </td>
                       </tr>
@@ -2315,15 +2315,15 @@ export default function OrgChart() {
             <div className="overflow-x-auto custom-scrollbar rounded-xl border border-gray-200">
               <table className="w-full text-right text-xs">
                 <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold text-[10px]">
-                  <tr><th className="p-4">التوقيت</th><th className="p-4">الموظف</th><th className="p-4">العملية</th><th className="p-4">التفاصيل</th></tr>
+                  <tr><th className="whitespace-nowrap p-4">التوقيت</th><th className="whitespace-nowrap p-4">الموظف</th><th className="whitespace-nowrap p-4">العملية</th><th className="whitespace-nowrap p-4">التفاصيل</th></tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 font-medium">
                   {dbSystemLogs.slice().reverse().map((log) => (
                     <tr key={log.id} className="hover:bg-gray-50/55">
-                      <td className="p-4 font-mono text-[10px] text-gray-500">{log.time}</td>
-                      <td className="p-4 font-extrabold text-gray-900">{log.employeeName}</td>
-                      <td className="p-4"><span className="bg-blue-50 text-brand px-2 py-0.5 rounded text-[10px] font-bold">{log.operationType}</span></td>
-                      <td className="p-4 text-gray-550 leading-relaxed font-semibold">{log.details}</td>
+                      <td className="whitespace-nowrap p-4 font-mono text-[10px] text-gray-500">{log.time}</td>
+                      <td className="whitespace-nowrap p-4 font-extrabold text-gray-900">{log.employeeName}</td>
+                      <td className="whitespace-nowrap p-4"><span className="bg-blue-50 text-brand px-2 py-0.5 rounded text-[10px] font-bold">{log.operationType}</span></td>
+                      <td className="whitespace-nowrap p-4 text-gray-550 leading-relaxed font-semibold">{log.details}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -2347,9 +2347,9 @@ export default function OrgChart() {
                   <tbody className="divide-y divide-gray-100">
                     {dbCommittees.map((item) => (
                       <tr key={item.id} className="hover:bg-gray-50/55">
-                        <td className="p-4 font-black">{item.name}</td>
-                        <td className="p-4 text-blue-800">{item.specialist || "غير معين"}</td>
-                        <td className="p-4"><button onClick={() => handleDeleteMasterItem(item.id, "committees")} className="p-1.5 text-red-550"><Trash2 className="w-4 h-4" /></button></td>
+                        <td className="whitespace-nowrap p-4 font-black">{item.name}</td>
+                        <td className="whitespace-nowrap p-4 text-blue-800">{item.specialist || "غير معين"}</td>
+                        <td className="whitespace-nowrap p-4"><button onClick={() => handleDeleteMasterItem(item.id, "committees")} className="p-1.5 text-red-550"><Trash2 className="w-4 h-4" /></button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -2358,9 +2358,9 @@ export default function OrgChart() {
                   <tbody className="divide-y divide-gray-100">
                     {dbMembers.map((item) => (
                       <tr key={item.id} className="hover:bg-gray-50/55">
-                        <td className="p-4 font-black">{item.name}</td>
-                        <td className="p-4 text-blue-800">{item.phone}</td>
-                        <td className="p-4"><button onClick={() => handleDeleteMasterItem(item.id, "members")} className="p-1.5 text-red-550"><Trash2 className="w-4 h-4" /></button></td>
+                        <td className="whitespace-nowrap p-4 font-black">{item.name}</td>
+                        <td className="whitespace-nowrap p-4 text-blue-800">{item.phone}</td>
+                        <td className="whitespace-nowrap p-4"><button onClick={() => handleDeleteMasterItem(item.id, "members")} className="p-1.5 text-red-550"><Trash2 className="w-4 h-4" /></button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -2640,7 +2640,7 @@ export default function OrgChart() {
                     {(formOrgLevel5 === 'أخصائي' || formOrgLevel5 === 'أخصائي اللجان') && [formOrgLevel1, formOrgLevel2, formOrgLevel3, formOrgLevel4].includes('إدارة اللجان') && (
                       <div className="space-y-1.5 lg:col-span-full">
                         <label className="block text-[10px] text-gray-500 font-extrabold">ارتباط اللجان (متعدد)</label>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 bg-gray-50 p-3 rounded-lg border border-gray-200 max-h-48 overflow-y-auto">
+                        <div className="grid grid-cols-1 md:grid-cols-2 md:grid-cols-3 gap-2 bg-gray-50 p-3 rounded-lg border border-gray-200 max-h-48 overflow-y-auto">
                           {dbCommittees.map(comm => (
                             <label key={comm.id} className="flex items-start gap-2 cursor-pointer bg-white p-2 rounded shadow-sm border border-gray-200 hover:border-brand/30 transition-colors">
                               <input 

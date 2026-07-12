@@ -442,7 +442,7 @@ export default function Home() {
         if (evt.agenda && Array.isArray(evt.agenda)) {
           evt.agenda.forEach((g: any, idx: number) => {
             if (g.recommendation && g.recommendation.trim() !== "") {
-              const isAlreadyInDb = recs.some((dr: any) => dr.title === g.title);
+              const isAlreadyInDb = recs.some((dr: any) => String(dr.id) === `custom-rec-${evt.id}-${g.id || idx}` || String(dr.id) === `agenda-rec-${evt.id}-${idx}`);
               if (!isAlreadyInDb) {
                 recs.push({
                   id: `agenda-rec-${evt.id}-${idx}`,
@@ -947,7 +947,7 @@ export default function Home() {
     let itemId: string | null = null;
     
     const idStr = String(selectedAlarm.id);
-    const customMatch = idStr.match(/^(?:custom-rec-|rec-|evt-)?(\d+)(?:-(.+))?$/);
+    const customMatch = idStr.match(/^(?:agenda-rec-|exported-rec-|custom-rec-|rec-|evt-)?(\d+)(?:-(.+))?$/);
     if (customMatch) {
       eventId = Number(customMatch[1]);
       if (customMatch[2]) {
@@ -1013,6 +1013,47 @@ export default function Home() {
       itemTitle = itemTitle.replace("توصية البند:", "").trim();
     }
     
+    // Attempt to find real recommendation in dbRecs to get audit logs and approval stage
+    let approvalStage = "أخصائي";
+    let auditLogs = [];
+    if (selectedAlarm.type === "recommendation") {
+        let matchedRec = null;
+        let baseTitle = selectedAlarm.title || "";
+        
+        if (String(selectedAlarm.id).startsWith("rec-")) {
+            const recIdRaw = String(selectedAlarm.id).replace(/^rec-/, "");
+            matchedRec = dbRecs.find(r => String(r.id) === recIdRaw);
+        } else if (String(selectedAlarm.id).startsWith("agenda-rec-") || String(selectedAlarm.id).startsWith("exported-rec-")) {
+            // Find by title in dbRecs just in case it was exported
+            matchedRec = dbRecs.find(r => selectedAlarm.title.includes(r.title));
+        } else {
+            matchedRec = dbRecs.find(r => String(r.id) === String(selectedAlarm.id));
+        }
+
+        if (matchedRec) {
+            approvalStage = matchedRec.approvalStage || "أخصائي";
+            auditLogs = matchedRec.auditLogs || [];
+            itemDiscussion = matchedRec.recommendationDiscussion || matchedRec.discussion || itemDiscussion;
+            recommendationText = matchedRec.recommendationText || matchedRec.description || matchedRec.notes || recommendationText;
+            baseTitle = matchedRec.title || baseTitle;
+        }
+        
+        if (baseTitle.startsWith("توصية البند:")) {
+          baseTitle = baseTitle.replace("توصية البند:", "").trim();
+        }
+        
+        if (baseTitle.includes('توصية البند')) {
+            baseTitle = baseTitle.replace(/\s*"(.*?)"\s*/g, ": $1 ").trim();
+            let seqStr = meetingSeq;
+            if (seqStr.includes("التأسيسي")) {
+                seqStr = seqStr.replace("الاجتماع التأسيسي (الأول)", "الدوري الأول (التأسيسي)");
+            }
+            itemTitle = `تفعيل ${baseTitle} لاجتماع ${committeeName} ${seqStr}`;
+        } else {
+            itemTitle = baseTitle;
+        }
+    }
+    
     return {
       committeeName,
       meetingSeq,
@@ -1021,9 +1062,11 @@ export default function Home() {
       itemNumber,
       itemTitle,
       itemDiscussion,
-      recommendationText
+      recommendationText,
+      approvalStage,
+      auditLogs
     };
-  }, [selectedAlarm, dbEvents]);
+  }, [selectedAlarm, dbEvents, dbRecs]);
 
   const toggleCard = (id: string) => {
     setOpenCards(prev => ({ ...prev, [id]: !prev[id] }));
@@ -1091,10 +1134,12 @@ export default function Home() {
         else if (targetStatus === "قيد الانتظار") mappedStatus = "جاري العمل عليها";
         else if (targetStatus === "متأخر") mappedStatus = "متأخرة";
         
-        const docRef = doc(db, "recommendations", recId);
         if (recId.startsWith("agenda-rec-") && matchedRec) {
-           await setDoc(docRef, {
+           const promotedId = recId.replace("agenda-rec-", "custom-rec-");
+           const promotedDocRef = doc(db, "recommendations", promotedId);
+           await setDoc(promotedDocRef, {
              ...matchedRec,
+             id: promotedId,
              status: mappedStatus,
              assignedTo: targetStaff,
              description: referNotes ? `${matchedRec?.description || ""}\n[تحديث من شاشة المتابعة - ${new Date().toLocaleDateString('ar-EG')}]: ${referNotes}` : (matchedRec?.description || "")
@@ -1127,6 +1172,7 @@ export default function Home() {
               preparationsText: referNotes ? `${matchedRec?.description || ""}\n[تحديث من شاشة المتابعة - ${new Date().toLocaleDateString('ar-EG')}]: ${referNotes}` : (matchedRec?.description || "")
            });
         } else {
+           const docRef = doc(db, "recommendations", recId);
            await updateDoc(docRef, {
              status: mappedStatus,
              assignedTo: targetStaff,
@@ -1583,7 +1629,7 @@ export default function Home() {
                         {evtObj ? (
                           <div className="pt-2 space-y-1.5" onClick={(e) => e.stopPropagation()}>
                             <div className="text-[9px] font-black text-gray-400 mb-1">الإجراءات التفاعلية للفعالية (انقر للانتقال مباشرة):</div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                            <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-3 gap-1.5">
                               {getStepsForEventAlarm(evtObj).map((step) => {
                                 const statusColor = step.isDone
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm"
@@ -2024,14 +2070,14 @@ export default function Home() {
                       <table className="w-full text-xs font-semibold text-gray-700 select-none border-collapse text-right">
                         <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
                           <tr className="divide-x divide-x-reverse divide-gray-300">
-                            <th className="px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">اليوم والتاريخ</th>
-                            <th className="px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">الوقت</th>
-                            <th className="px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">اللجنة / الجهة القطاعية</th>
-                            <th className="px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs max-w-sm">الموضوع / الفعالية</th>
-                            <th className="px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">المسؤول</th>
-                            <th className="px-4 py-3 font-black text-center text-gray-800 tracking-tight text-xs">الموقع والقاعة</th>
-                            <th className="px-4 py-3 font-black text-center text-gray-850 tracking-tight text-xs">الحالة</th>
-                            <th className="px-4 py-3 font-black text-center text-gray-850 tracking-tight text-xs">تجهيزات الاجتماع</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">اليوم والتاريخ</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">الوقت</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">اللجنة / الجهة القطاعية</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs max-w-sm">الموضوع / الفعالية</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">المسؤول</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-center text-gray-800 tracking-tight text-xs">الموقع والقاعة</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-center text-gray-850 tracking-tight text-xs">الحالة</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-center text-gray-850 tracking-tight text-xs">تجهيزات الاجتماع</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200 bg-[#e8e4e4]/85">
@@ -2039,16 +2085,16 @@ export default function Home() {
                             <tr key={i} className="hover:bg-[#e2dede] transition-colors text-right divide-x divide-x-reverse divide-gray-200 text-[11px] font-bold text-gray-700">
                               
                               {/* 2. اليوم والتاريخ */}
-                              <td className="px-4 py-3.5 whitespace-nowrap">
+                              <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap">
                                 <span className="font-black text-gray-900 block">{mtg.day}</span>
                                 <span className="text-[10px] text-gray-500 font-mono block mt-0.5">{mtg.date}</span>
                               </td>
 
                               {/* 3. الوقت */}
-                              <td className="px-4 py-3.5 font-mono text-gray-800 whitespace-nowrap">{mtg.time}</td>
+                              <td className="whitespace-nowrap px-4 py-3.5 font-mono text-gray-800 whitespace-nowrap">{mtg.time}</td>
                               
                               {/* 4. اللجنة / الجهة */}
-                              <td className="px-4 py-3.5">
+                              <td className="whitespace-nowrap px-4 py-3.5">
                                 <span className="font-black text-brand bg-brand/10 px-2 py-0.5 rounded text-[10px] block w-fit">
                                   {mtg.section}
                                 </span>
@@ -2056,7 +2102,7 @@ export default function Home() {
                               </td>
 
                               {/* 5. الموضوع / الفعالية */}
-                              <td className="px-4 py-3.5 text-gray-900 font-semibold text-xs max-w-sm leading-relaxed">
+                              <td className="whitespace-nowrap px-4 py-3.5 text-gray-900 font-semibold text-xs max-w-sm leading-relaxed">
                                 {mtg.category === "event" && mtg.id ? (
                                   <span 
                                     onClick={() => {
@@ -2075,20 +2121,20 @@ export default function Home() {
                               </td>
 
                               {/* 6. المسؤول */}
-                              <td className="px-4 py-3.5 text-gray-800 font-bold whitespace-nowrap">{mtg.responsible}</td>
+                              <td className="whitespace-nowrap px-4 py-3.5 text-gray-800 font-bold whitespace-nowrap">{mtg.responsible}</td>
                               
                               {/* 7. الموقع والقاعة */}
-                              <td className="px-4 py-3.5 text-red-700 font-black text-center whitespace-nowrap">{mtg.room}</td>
+                              <td className="whitespace-nowrap px-4 py-3.5 text-red-700 font-black text-center whitespace-nowrap">{mtg.room}</td>
                               
                               {/* 8. الحالة */}
-                              <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                              <td className="whitespace-nowrap px-4 py-3.5 text-center whitespace-nowrap">
                                 <span className={`px-2 py-0.5 rounded text-[9px] font-black border ${mtg.status === 'مؤكد' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'}`}>
                                   {mtg.status}
                                 </span>
                               </td>
 
                               {/* 9. تجهيزات الاجتماع */}
-                              <td className="px-4 py-3.5 text-center">
+                              <td className="whitespace-nowrap px-4 py-3.5 text-center">
                                 <div className="flex flex-col items-center gap-1.5 justify-center w-full min-w-[100px]">
                                   <span className="text-[10px] text-gray-600 font-extrabold whitespace-nowrap">
                                     {mtg.checklist.filter(c => c.completed).length} من {mtg.checklist.length} جهزت
@@ -2301,7 +2347,7 @@ export default function Home() {
               className="border-t border-gray-100 bg-[#e8e4e4]"
             >
               <div className="p-4 bg-[#e8e4e4]">
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
                   {[...chartData].reverse().map((stat, i) => {
                     const originalIndex = chartData.length - 1 - i;
                     const isActive = activeIndex === originalIndex;
@@ -2442,8 +2488,8 @@ export default function Home() {
                         <UserCheck className="w-5 h-5 text-indigo-600" />
                       </div>
                       <div className="text-right">
-                        <span className="text-[10px] text-gray-400 font-black block">الأخصائي المسؤول</span>
-                        <span className="text-xs font-bold text-gray-900">{resolvedDetails.staffName}</span>
+                        <span className="text-[10px] text-gray-400 font-black block">مرحلة الاعتماد</span>
+                        <span className="text-xs font-bold text-gray-900">{resolvedDetails.approvalStage}</span>
                       </div>
                     </div>
                   </div>
@@ -2469,19 +2515,37 @@ export default function Home() {
                     </div>
 
                     <div className="border-t border-gray-200/80 pt-3">
-                      <span className="text-[10px] text-[#b59410] font-black block mb-1">نص التوصية المعتمدة:</span>
+                      <span className="text-[10px] text-[#b59410] font-black block mb-1">نص التوصية:</span>
                       <p className="text-xs font-bold text-gray-950 bg-[#fffdf5] p-3 rounded-xl border border-[#e8d284] leading-relaxed">
                         {resolvedDetails.recommendationText}
                       </p>
                     </div>
                   </div>
                 </div>
+                
+                {/* 3. Audit Logs (سجل مسار التوصية) */}
+                {resolvedDetails.auditLogs && resolvedDetails.auditLogs.length > 0 && (
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-black text-gray-400 tracking-wider">سجل مسار التوصية</h4>
+                    <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm space-y-3 max-h-48 overflow-y-auto">
+                      {resolvedDetails.auditLogs.map((log: any, index: number) => (
+                        <div key={index} className="flex gap-3 text-right border-b border-gray-100 last:border-0 pb-3 last:pb-0">
+                          <div className="mt-1 w-2 h-2 rounded-full bg-brand shrink-0"></div>
+                          <div>
+                            <p className="text-xs font-bold text-gray-800">{log.action}</p>
+                            <p className="text-[10px] font-semibold text-gray-500 mt-0.5">{log.timestamp} | {log.user}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-                {/* 3. Operational Update Form (مستجدات التوصية والإفادة) */}
+                {/* 4. Operational Update Form (مستجدات التوصية والإفادة) */}
                 <div className="border-t border-gray-150 pt-4 space-y-4 text-right">
                   <h4 className="text-sm font-black text-slate-800 flex items-center gap-1.5">
                     <Send className="w-4 h-4 text-brand" />
-                    <span>تسجيل مستجدات التوصية وشرح الإفادة ونسبة الإنجاز</span>
+                    <span>المستجدات (تحديث الحالة والشرح)</span>
                   </h4>
 
                   {referToast && (
