@@ -1,34 +1,52 @@
 const fs = require('fs');
 let code = fs.readFileSync('src/pages/CommitteesFormation.tsx', 'utf8');
 
-// Ensure SlidersHorizontal is imported
-if (!code.includes('SlidersHorizontal,')) {
-  code = code.replace(
-    'import {',
-    'import { SlidersHorizontal,'
-  );
-}
+const targetStrStart = '{/* View Mode Switcher (فرز العرض: بطائق أو سجل) */}';
+const targetStrEnd = '          {/* 2. Add Committee Button - Elegant Blue Accent */}';
 
-// Add state if not present
-if (!code.includes('isColumnsOpen')) {
-  code = code.replace(
-    'const [selectedExportFields, setSelectedExportFields] = useState<string[]>(',
-    'const [isColumnsOpen, setIsColumnsOpen] = useState(false);\n  const [selectedExportFields, setSelectedExportFields] = useState<string[]>('
-  );
-}
+const startIndex = code.indexOf(targetStrStart);
+const endIndex = code.indexOf(targetStrEnd);
 
-const targetStr = `              <List className="w-3.5 h-3.5" />\n              <span>سجل</span>\n            </button>\n          </div>`;
-
-const replaceStr = `              <List className="w-3.5 h-3.5" />
+if (startIndex !== -1 && endIndex !== -1 && startIndex < endIndex) {
+  const replaceStr = `{/* View Mode Switcher (فرز العرض: بطائق أو سجل) */}
+          <div className="relative flex bg-white p-1 rounded-xl border border-gray-300 select-none shadow-sm gap-0.5" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode("cards");
+                setIsColumnsOpen(false);
+              }}
+              className={\`px-3 py-1.5 rounded-lg font-black text-xs transition-all flex items-center gap-1 cursor-pointer select-none \${
+                viewMode === "cards" && !isColumnsOpen
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }\`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>بطائق</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode("table");
+                setIsColumnsOpen(false);
+              }}
+              className={\`px-3 py-1.5 rounded-lg font-black text-xs transition-all flex items-center gap-1 cursor-pointer select-none \${
+                viewMode === "table" && !isColumnsOpen
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }\`}
+            >
+              <List className="w-3.5 h-3.5" />
               <span>سجل</span>
             </button>
-            <div className="w-px h-6 bg-gray-200 mx-1 self-center" />
-             
+
+            {/* زر خيار الفرز مع قائمة منبثقة */}
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setIsColumnsOpen(!isColumnsOpen)}
-                className={\`px-3 py-1.5 rounded-lg font-black text-xs transition-all flex items-center gap-1 cursor-pointer \${
+                className={\`px-3 py-1.5 rounded-lg font-black text-xs transition-all flex items-center gap-1 cursor-pointer select-none \${
                   isColumnsOpen
                     ? "bg-indigo-600 text-white shadow-sm"
                     : "text-gray-500 hover:text-gray-700"
@@ -77,8 +95,9 @@ const replaceStr = `              <List className="w-3.5 h-3.5" />
                 )}
               </AnimatePresence>
             </div>
-          </div>`;
+          </div>
 
-code = code.replace(targetStr, replaceStr);
-
-fs.writeFileSync('src/pages/CommitteesFormation.tsx', code);
+`;
+  code = code.substring(0, startIndex) + replaceStr + code.substring(endIndex);
+  fs.writeFileSync('src/pages/CommitteesFormation.tsx', code);
+}

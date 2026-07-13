@@ -1,8 +1,8 @@
 import React, { useState, useEffect, FormEvent, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
-  Users2, Search, Plus, X, Users, Calendar, CheckCircle, FileText, Trash2,
-  Check, ChevronLeft, Settings2, Edit2, Save, Download, MoreVertical, Activity, AlertCircle,
+  Users2, Search, Plus, X, Users, Calendar, CheckCircle, FileText, Trash2, SlidersHorizontal,
+  Check, ChevronLeft, Settings2, Columns, Edit2, Save, Download, MoreVertical, Activity, AlertCircle,
   UserCheck, LayoutGrid, List, FileSpreadsheet, Settings, Upload, AlertTriangle
 } from "lucide-react";
 // @ts-ignore
@@ -348,7 +348,7 @@ function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenE
 }
 
 export default function CommitteesFormation() {
-  const { data: dbCommittees, updateDocument: updateFirebaseComm, deleteDocument: deleteFirebaseComm } = useFirestoreCollection<Committee>("committees", []);
+  const { data: dbCommittees, addDocument: addFirebaseComm, updateDocument: updateFirebaseComm, deleteDocument: deleteFirebaseComm } = useFirestoreCollection<Committee>("committees", []);
   const { data: dbMembers } = useFirestoreCollection<any>("members", []);
   const { data: dbEvents } = useFirestoreCollection<any>("events", []);
   const { data: dbRecs } = useFirestoreCollection<any>("recommendations", []);
@@ -469,8 +469,10 @@ export default function CommitteesFormation() {
 
   // Google Sheets Export States
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false);
+  const [isColumnsOpen, setIsColumnsOpen] = useState(false);
   const [selectedExportFields, setSelectedExportFields] = useState<string[]>([
-    "alphabetical", "president", "membersCount", "specialist", "meetingsCount", "recommendationsCount", "eventsCount", "strategicPlan", "status", "desc"
+    "alphabetical", "name", "president", "membersCount", "specialist", "meetingsCount", "recommendationsCount", "eventsCount", "strategicPlan", "status", "desc"
   ]);
 
   const toggleExportField = (key: string) => {
@@ -481,6 +483,7 @@ export default function CommitteesFormation() {
 
   const EXPORT_FIELDS_META = [
     { key: "alphabetical", label: "مسلسل اللجنة أبجدياً" },
+    { key: "name", label: "اسم اللجنة" },
     { key: "president", label: "رئيس اللجنة" },
     { key: "membersCount", label: "عدد الأعضاء" },
     { key: "specialist", label: "أخصائي اللجنة" },
@@ -494,6 +497,81 @@ export default function CommitteesFormation() {
     { key: "desc", label: "وصف اللجنة" },
   ];
 
+  
+  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string;
+        if (!text) return;
+        
+        // Simple CSV parser (assuming comma separated and no internal commas)
+        const rows = text.split('\n').map(row => row.split(',').map(cell => cell.trim().replace(/^"|"$/g, '')));
+        if (rows.length < 2) {
+          alert('الملف فارغ أو غير صالح.');
+          return;
+        }
+
+        const headers = rows[0];
+        let importedCount = 0;
+
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (row.length !== headers.length) continue;
+          if (!row[0] && !row[1]) continue; // skip empty rows
+
+          const newComm: any = {
+            name: 'لجنة مستوردة',
+            president: 'غير محدد',
+            specialist: 'غير محدد',
+            membersCount: 0,
+            meetingsCount: 0,
+            recommendationsCount: 0,
+            eventsCount: 0,
+            ratingIssues: '',
+            strategicPlan: '',
+            status: 'فعالة',
+            active: true,
+            desc: '',
+            notes: ''
+          };
+
+          headers.forEach((h, idx) => {
+            const val = row[idx];
+            if (!val) return;
+            if (h === "اسم اللجنة") newComm.name = val;
+            if (h === "رئيس اللجنة") newComm.president = val;
+            if (h === "أخصائي اللجنة") newComm.specialist = val;
+            if (h === "عدد الأعضاء") newComm.membersCount = parseInt(val) || 0;
+            if (h === "عدد الاجتماعات") newComm.meetingsCount = parseInt(val) || 0;
+            if (h === "التوصيات") newComm.recommendationsCount = parseInt(val) || 0;
+            if (h === "الفعاليات والأعمال") newComm.eventsCount = parseInt(val) || 0;
+            if (h === "قضايا التقدير") newComm.ratingIssues = val;
+            if (h === "الخطة الاستراتيجية المعتمدة") newComm.strategicPlan = val;
+            if (h === "حالة اللجنة") newComm.active = val.includes("فعالة") || val.includes("نشطة");
+            if (h === "ملاحظات إضافية") newComm.notes = val;
+            if (h === "وصف اللجنة") newComm.desc = val;
+          });
+
+          if (newComm.name && newComm.name !== 'لجنة مستوردة') {
+            await addFirebaseComm(newComm);
+            importedCount++;
+          }
+        }
+        
+        alert(`تم استيراد ${importedCount} لجنة بنجاح.`);
+        setIsExportOpen(false);
+      } catch (err) {
+        console.error(err);
+        alert('حدث خطأ أثناء قراءة أو استيراد الملف.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleExportToGoogleSheets = () => {
     const sorted = [...committees].sort((a, b) => a.name.localeCompare(b.name, "ar"));
     const activeHeaders = EXPORT_FIELDS_META.filter(f => selectedExportFields.includes(f.key));
@@ -504,6 +582,8 @@ export default function CommitteesFormation() {
       let val = "";
       if (hKey === "alphabetical") {
         val = String(index + 1);
+      } else if (hKey === "name") {
+        val = comm.name;
       } else if (hKey === "president") {
         val = comm.president || "غير محدد";
       } else if (hKey === "membersCount") {
@@ -567,6 +647,8 @@ export default function CommitteesFormation() {
         let val = "";
         if (h.key === "alphabetical") {
           val = String(index + 1);
+        } else if (h.key === "name") {
+          val = comm.name;
         } else if (h.key === "president") {
           val = comm.president || "غير محدد";
         } else if (h.key === "membersCount") {
@@ -1078,12 +1160,15 @@ export default function CommitteesFormation() {
           </div>
 
           {/* View Mode Switcher (فرز العرض: بطائق أو سجل) */}
-          <div className="flex bg-white p-1 rounded-xl border border-gray-250 select-none" style={{ borderWidth: '0px' }}>
+          <div className="relative flex bg-white p-1 rounded-xl border border-gray-300 select-none shadow-sm gap-0.5" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
-              onClick={() => setViewMode("cards")}
-              className={`px-3 py-1.5 rounded-lg font-black text-xs transition-all flex items-center gap-1 cursor-pointer ${
-                viewMode === "cards"
+              onClick={() => {
+                setViewMode("cards");
+                setIsColumnsOpen(false);
+              }}
+              className={`px-3 py-1.5 rounded-lg font-black text-xs transition-all flex items-center gap-1 cursor-pointer select-none ${
+                viewMode === "cards" && !isColumnsOpen
                   ? "bg-blue-600 text-white shadow-sm"
                   : "text-gray-500 hover:text-gray-700"
               }`}
@@ -1093,9 +1178,12 @@ export default function CommitteesFormation() {
             </button>
             <button
               type="button"
-              onClick={() => setViewMode("table")}
-              className={`px-3 py-1.5 rounded-lg font-black text-xs transition-all flex items-center gap-1 cursor-pointer ${
-                viewMode === "table"
+              onClick={() => {
+                setViewMode("table");
+                setIsColumnsOpen(false);
+              }}
+              className={`px-3 py-1.5 rounded-lg font-black text-xs transition-all flex items-center gap-1 cursor-pointer select-none ${
+                viewMode === "table" && !isColumnsOpen
                   ? "bg-blue-600 text-white shadow-sm"
                   : "text-gray-500 hover:text-gray-700"
               }`}
@@ -1103,6 +1191,61 @@ export default function CommitteesFormation() {
               <List className="w-3.5 h-3.5" />
               <span>سجل</span>
             </button>
+
+            {/* زر خيار الفرز مع قائمة منبثقة */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsColumnsOpen(!isColumnsOpen)}
+                className={`px-3 py-1.5 rounded-lg font-black text-xs transition-all flex items-center gap-1 cursor-pointer select-none ${
+                  isColumnsOpen
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span>فرز</span>
+              </button>
+
+              <AnimatePresence>
+                {isColumnsOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsColumnsOpen(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      transition={{ duration: 0.12 }}
+                      className="absolute top-full left-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-3.5 space-y-3.5 text-right font-sans"
+                      style={{ transformOrigin: "top left" }}
+                    >
+                      <div className="space-y-2 text-right">
+                        <div className="flex items-center gap-1.5 text-gray-800 justify-start">
+                          <span className="w-1 h-3 bg-indigo-600 rounded-full" />
+                          <span className="text-[11px] font-black">أعمدة العرض:</span>
+                        </div>
+                        <div className="space-y-1">
+                          {EXPORT_FIELDS_META.filter(f => f.key !== "alphabetical" && f.key !== "name" && f.key !== "notes" && f.key !== "desc").map((f) => (
+                            <label
+                              key={f.key}
+                              className="flex items-center gap-2.5 p-1.5 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedExportFields.includes(f.key)}
+                                onChange={() => toggleExportField(f.key)}
+                                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                              />
+                              <span className="text-xs font-bold text-gray-700">{f.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
           {/* 2. Add Committee Button - Elegant Blue Accent */}
@@ -1115,15 +1258,16 @@ export default function CommitteesFormation() {
             <span>إضافة لجنة</span>
           </button>
 
+          
           {/* Google Sheets Export Button */}
           <button
             type="button"
             onClick={() => setIsExportOpen(true)}
             className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer"
-            title="تصدير كافة اللجان الحالية لجداول Google Sheets"
+            title="استيراد أو تصدير اللجان لجداول Google Sheets"
           >
             <FileSpreadsheet className="w-4 h-4" />
-            <span>تصدير لجداول Google Sheets</span>
+            <span>استيراد / تصدير</span>
           </button>
 
           {/* Vertical divider */}
@@ -1323,14 +1467,14 @@ export default function CommitteesFormation() {
               <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
                 <tr className="divide-x divide-x-reverse divide-gray-300">
                   <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">اسم اللجنة</th>
-                  <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">رئيس اللجنة</th>
-                  <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">الأخصائي</th>
-                  <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-800 tracking-tight text-xs w-20">الأعضاء</th>
-                  <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-800 tracking-tight text-xs w-20">الاجتماعات</th>
-                  <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-800 tracking-tight text-xs w-20">التوصيات</th>
-                  <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-800 tracking-tight text-xs w-20">الفعاليات</th>
-                  <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-850 tracking-tight text-xs w-32">الخطة الاستراتيجية</th>
-                  <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-850 tracking-tight text-xs w-24">الحالة</th>
+                  {selectedExportFields.includes("president") && <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">رئيس اللجنة</th>}
+                  {selectedExportFields.includes("specialist") && <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">الأخصائي</th>}
+                  {selectedExportFields.includes("membersCount") && <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-800 tracking-tight text-xs w-20">الأعضاء</th>}
+                  {selectedExportFields.includes("meetingsCount") && <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-800 tracking-tight text-xs w-20">الاجتماعات</th>}
+                  {selectedExportFields.includes("recommendationsCount") && <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-800 tracking-tight text-xs w-20">التوصيات</th>}
+                  {selectedExportFields.includes("eventsCount") && <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-800 tracking-tight text-xs w-20">الفعاليات</th>}
+                  {selectedExportFields.includes("strategicPlan") && <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-850 tracking-tight text-xs w-32">الخطة الاستراتيجية</th>}
+                  {selectedExportFields.includes("status") && <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-850 tracking-tight text-xs w-24">الحالة</th>}
                   <th className="whitespace-nowrap px-3 py-3 font-black text-center text-gray-850 tracking-tight text-xs w-20">إجراءات</th>
                 </tr>
               </thead>
@@ -1354,36 +1498,49 @@ export default function CommitteesFormation() {
                     </td>
                     
                     {/* President */}
+                    {selectedExportFields.includes("president") && (
                     <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-gray-800">
                       {comm.president || "-"}
                     </td>
+                    )}
 
                     {/* Specialist */}
+                    {selectedExportFields.includes("specialist") && (
                     <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-gray-800">
                       {comm.specialist || "-"}
                     </td>
+                    )}
 
                     {/* Member Count */}
+                    {selectedExportFields.includes("membersCount") && (
                     <td className="whitespace-nowrap px-4 py-3.5 text-center text-gray-900 font-mono whitespace-nowrap">
                       {comm.membersCount}
                     </td>
+                    )}
 
                     {/* Meetings Count */}
+                    {selectedExportFields.includes("meetingsCount") && (
                     <td className="whitespace-nowrap px-4 py-3.5 text-center text-gray-950 font-mono whitespace-nowrap">
                       {comm.meetingsCount}
                     </td>
+                    )}
 
                     {/* Recommendations */}
+                    {selectedExportFields.includes("recommendationsCount") && (
                     <td className="whitespace-nowrap px-4 py-3.5 text-center text-emerald-700 font-mono whitespace-nowrap">
                       {comm.recommendationsCount || 0}
                     </td>
+                    )}
 
                     {/* Events */}
+                    {selectedExportFields.includes("eventsCount") && (
                     <td className="whitespace-nowrap px-4 py-3.5 text-center text-purple-700 font-mono whitespace-nowrap">
                       {comm.eventsCount || 0}
                     </td>
+                    )}
 
                     {/* Strategic Plan */}
+                    {selectedExportFields.includes("strategicPlan") && (
                     <td className="whitespace-nowrap px-4 py-3.5 text-center whitespace-nowrap">
                       {comm.strategicPlan ? (
                         <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-150">
@@ -1393,8 +1550,10 @@ export default function CommitteesFormation() {
                         <span className="text-[10px] text-gray-400 font-bold">غير مدرج</span>
                       )}
                     </td>
+                    )}
 
                     {/* Status badge representing Active vs Inactive */}
+                    {selectedExportFields.includes("status") && (
                     <td className="whitespace-nowrap px-4 py-3.5 text-center whitespace-nowrap">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black ${
                         comm.active ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
@@ -1403,6 +1562,7 @@ export default function CommitteesFormation() {
                         {comm.active ? "نشطة" : "غير نشطة"}
                       </span>
                     </td>
+                    )}
 
                     {/* Action controls - ⚙️ Custom settings gear button with menu */}
                     <td className="whitespace-nowrap px-4 py-3.5 text-center relative whitespace-nowrap">
@@ -1812,7 +1972,7 @@ export default function CommitteesFormation() {
                       className="w-full h-10 bg-red-600 hover:bg-red-700 text-white font-black text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm shadow-red-200"
                     >
                       <Trash2 className="w-4 h-4" />
-                      <span>تأكيد الحذف النهائي التام</span>
+                      <span>تأكيد الحذف النهائي</span>
                     </button>
 
                     <button
@@ -1865,6 +2025,8 @@ export default function CommitteesFormation() {
         )}
       </AnimatePresence>
 
+      
+    
       {/* 📊 GOOGLE SHEETS DYNAMIC EXPORT MODAL */}
       <AnimatePresence>
         {isExportOpen && (
@@ -1886,16 +2048,16 @@ export default function CommitteesFormation() {
               className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right text-slate-800"
             >
               {/* Header */}
-              <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between">
+              <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-emerald-600 text-white rounded-xl">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
                     <FileSpreadsheet className="w-5 h-5" />
                   </div>
                   <div>
                     <h3 className="font-extrabold text-gray-900 text-base leading-tight">
-                      تصدير اللجان إلى Google Sheets
+                      استيراد وتصدير اللجان (Google Sheets)
                     </h3>
-                    <p className="text-xs text-gray-500 font-bold mt-0.5">اختر الحقول والبيانات المراد تصديرها بدقة عالية</p>
+                    <p className="text-xs text-gray-500 font-bold mt-0.5">اختر الحقول والبيانات المراد استيرادها أو تصديرها</p>
                   </div>
                 </div>
                 <button
@@ -1910,11 +2072,11 @@ export default function CommitteesFormation() {
               {/* Body */}
               <div className="p-6 space-y-4">
                 <p className="text-xs font-semibold text-gray-650 leading-relaxed bg-emerald-50 text-emerald-800 p-3 rounded-xl border border-emerald-100">
-                  سيتم فرز وتصدير اللجان المحددة أبجدياً مع جلب كافة الإحصائيات الفعالة (الأعضاء، الاجتماعات، التوصيات، والفعاليات) تلقائياً من النظام.
+                  سيتم فرز وتصدير اللجان المحددة أبجدياً مع جلب كافة الإحصائيات الفعالة تلقائياً. للاستيراد، يرجى اختيار ملف CSV مطابق للأعمدة المحددة.
                 </p>
 
                 <div className="space-y-2">
-                  <span className="block text-xs font-black text-gray-700">تحديد الحقول المراد تصديرها للتقرير:</span>
+                  <span className="block text-xs font-black text-gray-700">تحديد الحقول المراد استيرادها/تصديرها:</span>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[220px] overflow-y-auto p-1 border border-gray-100 rounded-xl bg-gray-50/50">
                     {EXPORT_FIELDS_META.map(f => (
                       <label 
@@ -1935,15 +2097,27 @@ export default function CommitteesFormation() {
               </div>
 
               {/* Footer */}
-              <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex gap-3">
+              <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex flex-wrap gap-3">
                 <button
                   type="button"
                   onClick={handleExportToGoogleSheets}
-                  className="flex-1 h-11 bg-emerald-600 hover:bg-emerald-700 hover:shadow-md text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  className="flex-1 min-w-[140px] h-11 bg-emerald-600 hover:bg-emerald-700 hover:shadow-md text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
-                  <span>بدء تنزيل الملف وحفظه</span>
+                  <span>تصدير إلى Sheets</span>
                 </button>
+                
+                <label className="flex-1 min-w-[140px] h-11 bg-blue-600 hover:bg-blue-700 hover:shadow-md text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                  <Upload className="w-4 h-4" />
+                  <span>استيراد ملف CSV</span>
+                  <input 
+                    type="file" 
+                    accept=".csv"
+                    className="hidden" 
+                    onChange={handleImportCSV} 
+                  />
+                </label>
+
                 <button
                   type="button"
                   onClick={() => setIsExportOpen(false)}
@@ -1957,6 +2131,6 @@ export default function CommitteesFormation() {
           </div>
         )}
       </AnimatePresence>
-    </div>
+</div>
   );
 }

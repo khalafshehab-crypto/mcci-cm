@@ -1,58 +1,86 @@
 const fs = require('fs');
+let code = fs.readFileSync('src/pages/CommitteesFormation.tsx', 'utf8');
 
-const filesToPatch = [
-  'src/pages/CommitteesMembers.tsx',
-  'src/pages/Members.tsx'
-];
+// Replace the dummy logic in handleImportCSV with actual adding
+const newImportLogic = `
+  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-for (const file of filesToPatch) {
-  if (!fs.existsSync(file)) continue;
-  let content = fs.readFileSync(file, 'utf8');
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string;
+        if (!text) return;
+        
+        // Simple CSV parser (assuming comma separated and no internal commas)
+        const rows = text.split('\\n').map(row => row.split(',').map(cell => cell.trim().replace(/^"|"$/g, '')));
+        if (rows.length < 2) {
+          alert('الملف فارغ أو غير صالح.');
+          return;
+        }
 
-  // Update importStep === 2 mapping
-  const mappingRegex = /Object\.entries\(\{\s+name: "اسم العضو",\s+committee: "اللجنة",\s+phone: "رقم الجوال",\s+email: "البريد الإلكتروني",\s+nationalId: "رقم الهوية",\s+membership_type: "آلية الانضمام",\s+joined_date: "تاريخ الانضمام"\s+\}\)/;
-  
-  const newMapping = `Object.entries({
-                        title: "اللقب",
-                        name: "اسم العضو",
-                        committee: "اللجنة",
-                        role: "الصفة",
-                        phone: "رقم الجوال",
-                        email: "البريد الإلكتروني",
-                        nationalId: "رقم الهوية",
-                        membership_type: "آلية الانضمام",
-                        joined_date: "تاريخ الانضمام",
-                        note: "ملاحظات"
-                      })`;
-  content = content.replace(mappingRegex, newMapping);
+        const headers = rows[0];
+        let importedCount = 0;
 
-  // Update executeImport newMember
-  const newMemberRegex = /const newMember: Omit<Member, "id"> = \{\s+name: getColValue\("name"\),\s+phone: getColValue\("phone"\),\s+email: getColValue\("email"\),\s+nationalId: getColValue\("nationalId"\),\s+role: "عضو", \/\/ default\s+title: "الأستاذ",\s+customTitle: "",\s+committeeId: defaultComm\?\.id \|\| 0,\s+committeeName: defaultComm\?\.name \|\| "",\s+joiningMechanism: getColValue\("membership_type"\) \|\| "مرشح",\s+govAgency: "",\s+entity: "غرفة مكة المكرمة",\s+active: true,\s+joinedDate: getColValue\("joined_date"\) \|\| new Date\(\)\.toISOString\(\)\.split\('T'\)\[0\],\s+note: "مستورد من ملف",\s+personalPhoto: "",\s+cv: "",\s+commercialRegister: "",\s+membershipCertificate: "",\s+authorization: ""\s+\};/;
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (row.length !== headers.length) continue;
+          if (!row[0] && !row[1]) continue; // skip empty rows
 
-  const newNewMember = `const newMember: Omit<Member, "id"> = {
-          name: getColValue("name"),
-          phone: getColValue("phone"),
-          email: getColValue("email"),
-          nationalId: getColValue("nationalId"),
-          role: getColValue("role") || "عضو",
-          title: getColValue("title") || "الأستاذ",
-          customTitle: "",
-          committeeId: defaultComm?.id || 0,
-          committeeName: defaultComm?.name || "",
-          joiningMechanism: getColValue("membership_type") || "مرشح",
-          govAgency: "",
-          entity: "غرفة مكة المكرمة",
-          active: true,
-          joinedDate: getColValue("joined_date") || new Date().toISOString().split('T')[0],
-          note: getColValue("note") || "مستورد من ملف",
-          personalPhoto: "",
-          cv: "",
-          commercialRegister: "",
-          membershipCertificate: "",
-          authorization: ""
-        };`;
-  content = content.replace(newMemberRegex, newNewMember);
+          const newComm: any = {
+            name: 'لجنة مستوردة',
+            president: 'غير محدد',
+            specialist: 'غير محدد',
+            membersCount: 0,
+            meetingsCount: 0,
+            recommendationsCount: 0,
+            eventsCount: 0,
+            ratingIssues: '',
+            strategicPlan: '',
+            status: 'فعالة',
+            active: true,
+            desc: '',
+            notes: ''
+          };
 
-  fs.writeFileSync(file, content);
-}
-console.log("Patched import logic again successfully");
+          headers.forEach((h, idx) => {
+            const val = row[idx];
+            if (!val) return;
+            if (h === "اسم اللجنة") newComm.name = val;
+            if (h === "رئيس اللجنة") newComm.president = val;
+            if (h === "أخصائي اللجنة") newComm.specialist = val;
+            if (h === "عدد الأعضاء") newComm.membersCount = parseInt(val) || 0;
+            if (h === "عدد الاجتماعات") newComm.meetingsCount = parseInt(val) || 0;
+            if (h === "التوصيات") newComm.recommendationsCount = parseInt(val) || 0;
+            if (h === "الفعاليات والأعمال") newComm.eventsCount = parseInt(val) || 0;
+            if (h === "قضايا التقدير") newComm.ratingIssues = val;
+            if (h === "الخطة الاستراتيجية المعتمدة") newComm.strategicPlan = val;
+            if (h === "حالة اللجنة") newComm.active = val.includes("فعالة") || val.includes("نشطة");
+            if (h === "ملاحظات إضافية") newComm.notes = val;
+            if (h === "وصف اللجنة") newComm.desc = val;
+          });
+
+          if (newComm.name && newComm.name !== 'لجنة مستوردة') {
+            await addFirebaseComm(newComm);
+            importedCount++;
+          }
+        }
+        
+        alert(\`تم استيراد \${importedCount} لجنة بنجاح.\`);
+        setIsExportOpen(false);
+      } catch (err) {
+        console.error(err);
+        alert('حدث خطأ أثناء قراءة أو استيراد الملف.');
+      }
+    };
+    reader.readAsText(file);
+  };
+`;
+
+code = code.replace(
+  /const handleImportCSV = [\s\S]*?reader\.readAsText\(file\);\n  };/,
+  newImportLogic.trim()
+);
+
+fs.writeFileSync('src/pages/CommitteesFormation.tsx', code);
