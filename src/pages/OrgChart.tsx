@@ -211,7 +211,7 @@ export default function OrgChart() {
   const currentUserRole = currentUser?.role || "SPECIALIST";
 
   // Load state and collections from Firestore
-  const { data: dbEmployees, addDocument: addFirebaseEmp, updateDocument: updateFirebaseEmp, deleteDocument: deleteFirebaseEmp } = useFirestoreCollection<Employee>("employees", []);
+  const { data: dbEmployees, addDocument: addFirebaseEmp, updateDocument: updateFirebaseEmp, deleteDocument: deleteFirebaseEmp, loading: employeesLoading } = useFirestoreCollection<Employee>("employees", []);
   const { data: dbJoinRequests, deleteDocument: deleteFirebaseReq } = useFirestoreCollection<JoinRequest>("join_requests", []);
   const { data: dbApprovedEmails, addDocument: addFirebaseAppr, deleteDocument: deleteFirebaseAppr } = useFirestoreCollection<ApprovedEmail>("approved_emails", []);
   const { data: dbSystemLogs, addDocument: addFirebaseLog } = useFirestoreCollection<SystemLog>("system_logs", []);
@@ -648,6 +648,10 @@ export default function OrgChart() {
   };
 
   const handleApproveJoinRequest = async (req: JoinRequest) => {
+    if (employeesLoading) {
+      alert("جاري تحميل البيانات، يرجى المحاولة بعد قليل.");
+      return;
+    }
     try {
       const emailLower = req.email.trim().toLowerCase();
       const emailTaken = dbEmployees.some(emp => emp.email?.trim().toLowerCase() === emailLower);
@@ -702,8 +706,19 @@ export default function OrgChart() {
 
   const handleAddWhitelistEmail = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (employeesLoading) {
+      alert("جاري تحميل البيانات، يرجى المحاولة بعد قليل.");
+      return;
+    }
     if (!whitelistEmailStr.trim() || !whitelistNameStr.trim()) return;
     const cleanEmail = whitelistEmailStr.trim().toLowerCase();
+    
+    // Check if email already exists in employees
+    if (dbEmployees.some(emp => emp.email?.trim().toLowerCase() === cleanEmail)) {
+      alert("عذراً، هذا البريد الإلكتروني مسجل بالفعل لموظف.");
+      return;
+    }
+
     try {
       await addFirebaseAppr({
         email: cleanEmail,
@@ -736,6 +751,10 @@ export default function OrgChart() {
 
   const handleSaveEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (employeesLoading) {
+      alert("جاري تحميل البيانات، يرجى المحاولة بعد قليل.");
+      return;
+    }
     if (!formId.trim() || !formName.trim() || !formEmail.trim() || !formPhone.trim()) {
       alert("يرجى تعبئة كافة الحقول الأساسية لبطاقة الموظف.");
       return;

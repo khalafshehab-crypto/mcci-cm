@@ -40,9 +40,11 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
   const [loading, setLoading] = useState(false);
 
   // Firestore Collections
-  const { data: dbEmployees, setDocument: setFirebaseEmpDoc } = useFirestoreCollection<any>("employees", []);
-  const { data: dbJoinRequests, addDocument: addFirebaseJoinReq } = useFirestoreCollection<any>("join_requests", []);
+  const { data: dbEmployees, setDocument: setFirebaseEmpDoc, loading: employeesLoading } = useFirestoreCollection<any>("employees", []);
+  const { data: dbJoinRequests, addDocument: addFirebaseJoinReq, loading: joinRequestsLoading } = useFirestoreCollection<any>("join_requests", []);
   const { addDocument: addFirebaseLog } = useFirestoreCollection<any>("system_logs", []);
+
+  const isDataLoading = employeesLoading || joinRequestsLoading;
 
   const logSystemAction = async (employeeName: string, details: string, status: "ناجحة" | "مرفوضة") => {
     try {
@@ -393,10 +395,10 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
             <button
               type="button"
               onClick={handleGoogleLogin}
-              disabled={loading}
+              disabled={loading || isDataLoading}
               className="w-full py-3.5 bg-white hover:bg-slate-50 text-slate-800 font-extrabold text-sm rounded-xl transition-all shadow-lg hover:shadow-black/10 flex items-center justify-center gap-3 cursor-pointer text-center disabled:opacity-50 border border-slate-200"
             >
-              {loading ? (
+              {(loading || isDataLoading) ? (
                 <div className="w-5 h-5 border-2 border-slate-400 border-t-slate-800 rounded-full animate-spin"></div>
               ) : (
                 <>
@@ -473,10 +475,10 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
             {/* Submit application */}
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || isDataLoading}
               className="w-full py-3 bg-sky-500 hover:bg-sky-600 text-white text-xs font-black rounded-xl transition-all shadow-lg hover:shadow-sky-500/20 flex items-center justify-center gap-2 cursor-pointer mt-4"
             >
-              {loading ? (
+              {(loading || isDataLoading) ? (
                 <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
               ) : (
                 <>
