@@ -750,9 +750,13 @@ export default function CommitteesMembers() {
         if (commercialRegister && typeof commercialRegister === "object" && "name" in commercialRegister) finalCommercialRegister = await uploadAttachment(commercialRegister, "السجل التجاري");
         if (membershipCertificate && typeof membershipCertificate === "object" && "name" in membershipCertificate) finalMembershipCertificate = await uploadAttachment(membershipCertificate, "شهادة العضوية");
         if (authorization && typeof authorization === "object" && "name" in authorization) finalAuthorization = await uploadAttachment(authorization, "مستند التفويض");
-      } catch (err) {
+      } catch (err: any) {
         console.error("Failed to upload files to Drive:", err);
-        alert("فشل إنشاء أو رفع الملفات في جوجل درايف، يرجى التحقق من تسجيل الدخول (Integration) والمحاولة مرة أخرى.");
+        if (err.message && err.message.includes("انتهت صلاحية")) {
+          alert(err.message);
+        } else {
+          alert("فشل إنشاء أو رفع الملفات في جوجل درايف، يرجى التحقق من تسجيل الدخول والمحاولة مرة أخرى.");
+        }
       }
     } else {
       if (personalPhoto && typeof personalPhoto === "object" && "name" in personalPhoto) finalPersonalPhoto = (personalPhoto as any).name;

@@ -124,7 +124,37 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
 
   if (!response.ok) {
     if (response.status === 401) {
-      setCachedAccessToken(null); // Clear expired token
+      console.warn("Google API 401: Token expired. Attempting silent refresh...");
+      try {
+        const provider = getGoogleProvider();
+        
+        const result = await signInWithPopup(auth, provider);
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        if (credential?.accessToken) {
+          setCachedAccessToken(credential.accessToken);
+          // Retry the request
+          const retryResponse = await fetch("/api/google-proxy", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              token: credential.accessToken,
+              url,
+              method: options.method || "GET",
+              body: options.body,
+              headers: reqHeaders,
+            }),
+          });
+          if (!retryResponse.ok) {
+            throw new Error("Retry failed after token refresh");
+          }
+          if (retryResponse.status === 204) return true;
+          return retryResponse.json();
+        }
+      } catch (refreshErr) {
+        console.error("Refresh failed:", refreshErr);
+        setCachedAccessToken(null);
+        throw new Error("انتهت صلاحية المزامنة. يرجى تسجيل الدخول مرة أخرى لتفعيل المزامنة.");
+      }
     }
     const errText = await response.text();
     let parsedErr;
@@ -201,7 +231,35 @@ export async function uploadFileToDrive(name: string, content: string, mimeType:
   });
 
   if (!response.ok) {
-    if (response.status === 401) setCachedAccessToken(null);
+    if (response.status === 401) {
+      console.warn("Google API 401: Token expired. Attempting silent refresh...");
+      try {
+        const provider = getGoogleProvider();
+        const result = await signInWithPopup(auth, provider);
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        if (credential?.accessToken) {
+          setCachedAccessToken(credential.accessToken);
+          const retryResponse = await fetch("/api/google-proxy", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              token: credential.accessToken,
+              url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+              method: "POST",
+              body: multipartBody,
+              headers: {
+                "Content-Type": `multipart/related; boundary=${boundary}`,
+              },
+            }),
+          });
+          if (!retryResponse.ok) throw new Error("Retry failed");
+          return retryResponse.json();
+        }
+      } catch (refreshErr) {
+        setCachedAccessToken(null);
+        throw new Error("انتهت صلاحية المزامنة. يرجى تسجيل الدخول مرة أخرى لتفعيل المزامنة.");
+      }
+    }
     throw new Error(`File upload failed: ${await response.text()}`);
   }
 
@@ -264,7 +322,36 @@ export async function uploadBinaryFileToDrive(name: string, base64Content: strin
   });
 
   if (!response.ok) {
-    if (response.status === 401) setCachedAccessToken(null);
+    if (response.status === 401) {
+      console.warn("Google API 401: Token expired. Attempting silent refresh...");
+      try {
+        const provider = getGoogleProvider();
+        const result = await signInWithPopup(auth, provider);
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        if (credential?.accessToken) {
+          setCachedAccessToken(credential.accessToken);
+          // Retry
+          const retryResponse = await fetch("/api/google-proxy", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              token: credential.accessToken,
+              url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+              method: "POST",
+              body: multipartBody,
+              headers: {
+                "Content-Type": `multipart/related; boundary=${boundary}`,
+              }
+            }),
+          });
+          if (!retryResponse.ok) throw new Error("Retry failed");
+          return retryResponse.json();
+        }
+      } catch (refreshErr) {
+        setCachedAccessToken(null);
+        throw new Error("انتهت صلاحية المزامنة. يرجى تسجيل الدخول مرة أخرى لتفعيل المزامنة.");
+      }
+    }
     throw new Error(`Failed to upload file to drive: ${await response.text()}`);
   }
   return response.json();
