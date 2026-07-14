@@ -1,3 +1,4 @@
+import { getCachedAccessToken, getOrCreateFolder, uploadBinaryFileToDrive, subscribeToAccessToken } from "../lib/googleApi";
 import React, { useState, useEffect, FormEvent, ChangeEvent, DragEvent, useRef } from "react";
 import * as XLSX from "xlsx";
 import { motion, AnimatePresence } from "motion/react";
@@ -60,6 +61,7 @@ interface Member {
   commercialRegister?: string;
   membershipCertificate?: string;
   authorization?: string;
+  driveFolderId?: string;
 }
 
 interface CommitteeListItem {
@@ -119,8 +121,8 @@ function formatPhoneNumber(phone: string): string {
 
 interface AttachmentInputProps {
   label: string;
-  value: string;
-  onChange: (fileName: string) => void;
+  value: File | string | null;
+  onChange: (val: File | string | null) => void;
   id: string;
 }
 
@@ -128,9 +130,8 @@ function AttachmentInput({ label, value, onChange, id }: AttachmentInputProps) {
   const fileInputId = `file-input-${id}`;
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-
     if (e.target.files && e.target.files[0]) {
-      onChange(e.target.files[0].name);
+      onChange(e.target.files[0]);
     }
   };
 
@@ -141,9 +142,11 @@ function AttachmentInput({ label, value, onChange, id }: AttachmentInputProps) {
   const handleDrop = (e: DragEvent) => {
     e.preventDefault();
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      onChange(e.dataTransfer.files[0].name);
+      onChange(e.dataTransfer.files[0]);
     }
   };
+
+  const displayValue = (value && typeof value === "object" && "name" in value) ? (value as any).name : value;
 
   return (
     <div
@@ -167,7 +170,7 @@ function AttachmentInput({ label, value, onChange, id }: AttachmentInputProps) {
           {value ? (
             <span className="text-[9px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1">
               <Check className="w-2.5 h-2.5 stroke-[3]" />
-              <span>مرفق</span>
+              <span className="max-w-[70px] truncate">{displayValue}</span>
             </span>
           ) : (
             <span className="text-[10px] text-gray-400 font-bold flex items-center gap-1 hover:text-brand">
@@ -177,7 +180,7 @@ function AttachmentInput({ label, value, onChange, id }: AttachmentInputProps) {
           )}
         </div>
         <p className="text-[10px] text-gray-500 font-medium truncate text-right">
-          {value ? value : "اسحب الملف هنا أو انقر للإدراج"}
+          {value ? displayValue : "اسحب الملف هنا أو انقر للإدراج"}
         </p>
       </label>
       {value && (
@@ -224,7 +227,14 @@ export default function CommitteesMembers() {
     });
   };
 
-  const members = dbMembers;
+  const members = dbMembers.map(m => ({
+    ...m,
+    personalPhoto: typeof m.personalPhoto === 'string' ? m.personalPhoto : "",
+    cv: typeof m.cv === 'string' ? m.cv : "",
+    commercialRegister: typeof m.commercialRegister === 'string' ? m.commercialRegister : "",
+    membershipCertificate: typeof m.membershipCertificate === 'string' ? m.membershipCertificate : "",
+    authorization: typeof m.authorization === 'string' ? m.authorization : ""
+  }));
   
   const allCommittees = dbCommittees.length > 0 ? dbCommittees.map(c => ({ id: c.id, name: c.name })) : [
   ];
@@ -301,11 +311,11 @@ export default function CommitteesMembers() {
   const [note, setNote] = useState("");
 
   // Attachments filenames state
-  const [personalPhoto, setPersonalPhoto] = useState("");
-  const [cv, setCv] = useState("");
-  const [commercialRegister, setCommercialRegister] = useState("");
-  const [membershipCertificate, setMembershipCertificate] = useState("");
-  const [authorization, setAuthorization] = useState("");
+  const [personalPhoto, setPersonalPhoto] = useState<File | string | null>("");
+  const [cv, setCv] = useState<File | string | null>("");
+  const [commercialRegister, setCommercialRegister] = useState<File | string | null>("");
+  const [membershipCertificate, setMembershipCertificate] = useState<File | string | null>("");
+  const [authorization, setAuthorization] = useState<File | string | null>("");
 
   // Editing state
   const [editingMember, setEditingMember] = useState<Member | null>(null);
@@ -330,6 +340,12 @@ export default function CommitteesMembers() {
   // Import Excel States
   const [googleSheetUrl, setGoogleSheetUrl] = useState("");
   const [isFetchingSheet, setIsFetchingSheet] = useState(false);
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+  useEffect(() => {
+    return subscribeToAccessToken((token) => {
+      setIsGoogleConnected(!!token);
+    });
+  }, []);
 
   const handleFetchGoogleSheet = async () => {
     if (!googleSheetUrl) {
@@ -643,7 +659,7 @@ export default function CommitteesMembers() {
     setActiveGearMenuId(null);
   };
 
-  const handleFormSubmit = (e: FormEvent) => {
+  const handleFormSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       setFormError("يرجى إدخال الاسم الرباعي");
@@ -691,6 +707,61 @@ export default function CommitteesMembers() {
       ? govAgency.trim() 
       : "غرفة مكة المكرمة";
 
+    let finalPersonalPhoto = typeof personalPhoto === "string" ? personalPhoto : "";
+    let finalCv = typeof cv === "string" ? cv : "";
+    let finalCommercialRegister = typeof commercialRegister === "string" ? commercialRegister : "";
+    let finalMembershipCertificate = typeof membershipCertificate === "string" ? membershipCertificate : "";
+    let finalAuthorization = typeof authorization === "string" ? authorization : "";
+    let memberFolderId = editingMember?.driveFolderId || "";
+
+    if (getCachedAccessToken()) {
+      try {
+        const readFileAsBase64 = (file: File): Promise<string> => {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const result = reader.result as string;
+              resolve(result.split(',')[1] || "");
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        };
+
+        const uploadAttachment = async (file: File | string | null, label: string) => {
+          if (file && typeof file === "object" && "name" in file) {
+            const ext = (file as any).name.split('.').pop();
+            const fileName = `${label} لـ ${name.trim()}.${ext}`;
+            const base64 = await readFileAsBase64(file as any);
+            const res = await uploadBinaryFileToDrive(fileName, base64 as string, (file as any).type || "application/octet-stream", memberFolderId);
+            return res && res.id ? `https://drive.google.com/file/d/${res.id}/view` : fileName;
+          }
+          return typeof file === "string" ? file : "";
+        };
+
+        // Get or Create Folders
+        const rootFolderId = await getOrCreateFolder("تقرير اللجان للدورة الـ 22");
+        const commFolderId = await getOrCreateFolder(matchedComm.name, rootFolderId);
+        memberFolderId = await getOrCreateFolder(name.trim(), commFolderId);
+
+        // Upload files
+        if (personalPhoto && typeof personalPhoto === "object" && "name" in personalPhoto) finalPersonalPhoto = await uploadAttachment(personalPhoto, "الصورة الشخصية");
+        if (cv && typeof cv === "object" && "name" in cv) finalCv = await uploadAttachment(cv, "السيرة الذاتية");
+        if (commercialRegister && typeof commercialRegister === "object" && "name" in commercialRegister) finalCommercialRegister = await uploadAttachment(commercialRegister, "السجل التجاري");
+        if (membershipCertificate && typeof membershipCertificate === "object" && "name" in membershipCertificate) finalMembershipCertificate = await uploadAttachment(membershipCertificate, "شهادة العضوية");
+        if (authorization && typeof authorization === "object" && "name" in authorization) finalAuthorization = await uploadAttachment(authorization, "مستند التفويض");
+      } catch (err) {
+        console.error("Failed to upload files to Drive:", err);
+        alert("فشل إنشاء أو رفع الملفات في جوجل درايف، يرجى التحقق من تسجيل الدخول (Integration) والمحاولة مرة أخرى.");
+      }
+    } else {
+      if (personalPhoto && typeof personalPhoto === "object" && "name" in personalPhoto) finalPersonalPhoto = (personalPhoto as any).name;
+      if (cv && typeof cv === "object" && "name" in cv) finalCv = (cv as any).name;
+      if (commercialRegister && typeof commercialRegister === "object" && "name" in commercialRegister) finalCommercialRegister = (commercialRegister as any).name;
+      if (membershipCertificate && typeof membershipCertificate === "object" && "name" in membershipCertificate) finalMembershipCertificate = (membershipCertificate as any).name;
+      if (authorization && typeof authorization === "object" && "name" in authorization) finalAuthorization = (authorization as any).name;
+    }
+
     if (editingMember) {
       // Edit
       setMembers(prev => prev.map(m => {
@@ -712,11 +783,12 @@ export default function CommitteesMembers() {
             active: isActive,
             joinedDate: joinedDate,
             note: note.trim(),
-            personalPhoto: personalPhoto,
-            cv: cv,
-            commercialRegister: commercialRegister,
-            membershipCertificate: membershipCertificate,
-            authorization: authorization
+            personalPhoto: finalPersonalPhoto,
+            cv: finalCv,
+            commercialRegister: finalCommercialRegister,
+            membershipCertificate: finalMembershipCertificate,
+            authorization: finalAuthorization,
+            driveFolderId: memberFolderId
           };
         }
         return m;
@@ -745,11 +817,12 @@ export default function CommitteesMembers() {
         active: isActive,
         joinedDate: joinedDate,
         note: note.trim(),
-        personalPhoto: personalPhoto,
-        cv: cv,
-        commercialRegister: commercialRegister,
-        membershipCertificate: membershipCertificate,
-        authorization: authorization
+        personalPhoto: finalPersonalPhoto,
+        cv: finalCv,
+        commercialRegister: finalCommercialRegister,
+        membershipCertificate: finalMembershipCertificate,
+        authorization: finalAuthorization,
+        driveFolderId: memberFolderId
       };
       setMembers([newMember, ...members]);
       setShowSuccessPrompt(true);
@@ -2574,8 +2647,14 @@ export default function CommitteesMembers() {
                       <span className="text-[11px] font-bold text-gray-650">الصورة الشخصية</span>
                       {detailsMember.personalPhoto ? (
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">{detailsMember.personalPhoto}</span>
-                          <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">عرض</span>
+                          <span className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full max-w-[120px] truncate" title={detailsMember.personalPhoto}>
+                            {detailsMember.personalPhoto.includes('drive.google.com') || detailsMember.personalPhoto.includes('http') ? 'مرفق (رابط)' : detailsMember.personalPhoto}
+                          </span>
+                          {detailsMember.personalPhoto.includes('http') ? (
+                            <a href={detailsMember.personalPhoto} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#4ea0b0] font-black hover:underline">عرض</a>
+                          ) : (
+                            <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">عرض</span>
+                          )}
                         </div>
                       ) : (
                         <span className="text-[10px] text-rose-800 font-extrabold bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-full">غير مرفق</span>

@@ -8,7 +8,7 @@ import {
 // @ts-ignore
 import { generateDocx } from "../lib/docxGenerator";
 // @ts-ignore
-import { getCachedAccessToken, createAndPopulateSheet } from "../lib/googleApi";
+import { getCachedAccessToken, createAndPopulateSheet, getOrCreateFolder, subscribeToAccessToken } from "../lib/googleApi";
 
 export interface Committee {
   id: number | string;
@@ -22,6 +22,7 @@ export interface Committee {
   specialist?: string;
   status?: "فعالة" | "غير فعالة" | string;
   active?: boolean;
+  driveFolderId?: string;
   libraryLink?: string;
   objectives?: string;
   attachments?: any[];
@@ -911,6 +912,7 @@ export default function CommitteesFormation() {
     setActiveGearMenuId(null);
   };
 
+  
   const handleFormSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
@@ -924,6 +926,19 @@ export default function CommitteesFormation() {
     if (editingComm && !editReason.trim()) {
       setNewMtgError("يرجى توضيح سبب التعديل");
       return;
+    }
+
+    let folderId = editingComm?.driveFolderId || "";
+
+    // Create Drive Folder if auth is available
+    if (getCachedAccessToken()) {
+      try {
+        const rootFolderId = await getOrCreateFolder("تقرير اللجان للدورة الـ 22");
+        folderId = await getOrCreateFolder(name.trim(), rootFolderId);
+      } catch (err) {
+        console.error("Failed to create Drive folder:", err);
+        alert("فشل إنشاء مجلد اللجنة في جوجل درايف، يرجى التأكد من تسجيل الدخول وإعادة المحاولة.");
+      }
     }
 
     if (editingComm) {
@@ -947,15 +962,18 @@ export default function CommitteesFormation() {
             recommendationsCount: Number(recommendationsCount) || 0,
             eventsCount: Number(eventsCount) || 0,
             ratingIssues: ratingIssues.trim(),
-            strategicPlan: strategicPlan.trim()
+            strategicPlan: strategicPlan.trim(),
+            driveFolderId: folderId,
           };
         }
         return c;
       }));
 
+
       if (nameChanged) {
         await cascadeCommitteeRename(oldName, newName);
       }
+    
     } else {
       // Add
       const newComm: Committee = {
@@ -971,10 +989,12 @@ export default function CommitteesFormation() {
         recommendationsCount: Number(recommendationsCount) || 0,
         eventsCount: Number(eventsCount) || 0,
         ratingIssues: ratingIssues.trim(),
-        strategicPlan: strategicPlan.trim()
+        strategicPlan: strategicPlan.trim(),
+        driveFolderId: folderId,
       };
       setCommittees([newComm, ...committees]);
     }
+
 
     // Reset inputs
     setName("");

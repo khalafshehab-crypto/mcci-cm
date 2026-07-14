@@ -135,7 +135,7 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
  * 1. GOOGLE DRIVE SERVICES
  */
 export async function listDriveFiles(q: string = ""): Promise<any[]> {
-  const queryParam = q ? encodeURIComponent(`q=${q}`) : "";
+  const queryParam = q ? `q=${encodeURIComponent(q)}` : "";
   const data = await fetchGoogleAPI(`drive/v3/files?${queryParam}&fields=files(id,name,mimeType,webViewLink,iconLink)`);
   return data.files || [];
 }
@@ -200,6 +200,64 @@ export async function uploadFileToDrive(name: string, content: string, mimeType:
 /**
  * 2. GOOGLE SHEETS SERVICES
  */
+
+// Upload binary file directly into details folder (e.g. images, pdfs)
+
+export async function getOrCreateFolder(name: string, parentId?: string): Promise<string> {
+  let q = `mimeType='application/vnd.google-apps.folder' and name='${name}' and trashed=false`;
+  if (parentId) {
+    q += ` and '${parentId}' in parents`;
+  }
+  const files = await listDriveFiles(q);
+  if (files && files.length > 0) {
+    return files[0].id;
+  }
+  const folder = await createDriveFolder(name, parentId);
+  return folder.id;
+}
+
+export async function uploadBinaryFileToDrive(name: string, base64Content: string, mimeType: string, parentId?: string): Promise<any> {
+  const token = getCachedAccessToken();
+  if (!token) throw new Error("No Google token found");
+
+  const metadata: any = { name };
+  if (parentId) {
+    metadata.parents = [parentId];
+  }
+
+  const boundary = "boundary_workspace_integration_mcci";
+  const multipartBody = 
+    `--${boundary}\r\n` +
+    `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+    `${JSON.stringify(metadata)}\r\n` +
+    `--${boundary}\r\n` +
+    `Content-Type: ${mimeType}\r\n` +
+    `Content-Transfer-Encoding: base64\r\n\r\n` +
+    `${base64Content}\r\n` +
+    `--${boundary}--`;
+
+  const response = await fetch("/api/google-proxy", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      token,
+      url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+      method: "POST",
+      body: multipartBody,
+      headers: {
+        "Content-Type": `multipart/related; boundary=${boundary}`,
+      }
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to upload file to drive: ${await response.text()}`);
+  }
+  return response.json();
+}
+
 export async function createSpreadsheet(title: string): Promise<any> {
   return fetchGoogleAPI("sheets/v4/spreadsheets", {
     method: "POST",

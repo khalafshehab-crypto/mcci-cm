@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { Member } from "../data/initialMembers";
 import { formatCommitteeNameArabic } from "../lib/arabicUtils";
+import { getCachedAccessToken, getOrCreateFolder, uploadBinaryFileToDrive } from "../lib/googleApi";
 
 interface EventItem {
   id: number;
@@ -1280,7 +1281,7 @@ ${formattedItems}
         recommendationAttachments: newRecAttachments,
         
         preparationsText: newRecText,
-        preparationsAttachments: newRecAttachments ? [{ id: '1', name: newRecAttachments, url: '#' }] : (editingEvent.preparationsAttachments || [])
+        preparationsAttachments: newRecAttachments.length > 0 ? newRecAttachments.map((att, index) => ({ id: String(index + 1), name: att.name, url: att.url })) : (editingEvent.preparationsAttachments || [])
       };
       
       if (editingEvent.isAgendaSource || String(editingEvent.id).startsWith("custom-rec-")) {
@@ -1318,7 +1319,7 @@ ${formattedItems}
         recommendationAttachments: newRecAttachments,
         
         preparationsText: newRecText,
-        preparationsAttachments: newRecAttachments ? [{ id: '1', name: newRecAttachments, url: '#' }] : []
+        preparationsAttachments: newRecAttachments.length > 0 ? newRecAttachments.map((att, index) => ({ id: String(index + 1), name: att.name, url: att.url })) : []
       };
 
       setEvents([newRec, ...events]);
@@ -1658,6 +1659,51 @@ ${formattedItems}
     }
   };
 
+
+  
+  const handleFileUploads = async (files, evt, existingAtts) => {
+    setAlertState({ isOpen: true, message: "جاري الرفع والمزامنة مع أرشيف جوجل درايف...", onClose: () => {} });
+    try {
+      const token = getCachedAccessToken();
+      const newAtts = [];
+      
+      if (token) {
+        const rootFolderId = await getOrCreateFolder("أرشيف اللجان - الدورة 22");
+        const committeeFolderId = await getOrCreateFolder(evt.committeeName || "عام", rootFolderId);
+        const recFolderId = await getOrCreateFolder("التوصيات", committeeFolderId);
+        const itemFolderId = await getOrCreateFolder(evt.title || "بدون عنوان", recFolderId);
+
+        for (const file of files) {
+          const base64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve((reader.result as string).split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          const res = await uploadBinaryFileToDrive(file.name, base64 as string, file.type || "application/octet-stream", itemFolderId);
+          newAtts.push({
+            name: file.name,
+            url: res && res.id ? `https://drive.google.com/file/d/${res.id}/view` : "#",
+            size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
+            date: new Date().toLocaleDateString('ar-SA')
+          });
+        }
+      } else {
+        files.forEach(f => newAtts.push({
+          name: f.name,
+          url: "#",
+          size: (f.size / (1024 * 1024)).toFixed(2) + " MB",
+          date: new Date().toLocaleDateString('ar-SA')
+        }));
+      }
+
+      updateEventWorkflow(evt.id, { attachments: [...existingAtts, ...newAtts] });
+      setAlertState({ isOpen: true, message: "تمت المزامنة وحفظ الملفات بنجاح في أرشيف جوجل درايف.", onClose: () => {} });
+    } catch (err) {
+      console.error("Upload error:", err);
+      setAlertState({ isOpen: true, message: "حدث خطأ أثناء رفع الملفات والمزامنة. تأكد من صلاحية الربط بحساب جوجل.", onClose: () => {} });
+    }
+  };
 
   const handleCustomLinkAttachment = (evtId: number, currentAttachments: any[]) => {
     setPromptState({
@@ -3142,35 +3188,7 @@ ${itemTitleFull} .
                                                     e.preventDefault();
                                                     e.currentTarget.classList.remove('border-brand', 'bg-brand/5');
                                                     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                                                      const files = Array.from(e.dataTransfer.files) as File[];
-                                                      const newAtts = files.map(f => ({
-                                                        name: f.name,
-                                                        size: (f.size / (1024 * 1024)).toFixed(2) + " MB",
-                                                        date: new Date().toLocaleDateString('ar-SA')
-                                                      }));
-                                                      const existing = attachmentsList || [];
-                                                      
-                                                      setPromptState({
-    isOpen: true,
-    message: "الرجاء تأكيد مسار الحفظ والأرشفة في جوجل درايف:",
-    defaultValue: "/Google Drive/Committees/" + (evt.committeeName || "General"),
-    onConfirm: (drivePath) => {
-        if (!drivePath) {
-            setAlertState({ isOpen: true, message: "تم إلغاء الحفظ.", onClose: () => {} });
-            return;
-        }
-        setAlertState({ 
-            isOpen: true, 
-            message: "تم حفظ الملفات بنجاح في المسار: " + drivePath, 
-            onClose: () => {
-                updateEventWorkflow(evt.id, { attachments: [...existing, ...newAtts] });
-            }
-        });
-    },
-    onCancel: () => {
-        setAlertState({ isOpen: true, message: "تم إلغاء الحفظ.", onClose: () => {} });
-    }
-});
+                                                      handleFileUploads(Array.from(e.dataTransfer.files), evt, attachmentsList || []);
                                                     }
                                                   }}
                                                 >
@@ -3180,37 +3198,8 @@ ${itemTitleFull} .
                                                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                                     onChange={(e) => {
                                                       if (e.target.files && e.target.files.length > 0) {
-                                                        const files = Array.from(e.target.files) as File[];
-                                                        const newAtts = files.map(f => ({
-                                                          name: f.name,
-                                                          size: (f.size / (1024 * 1024)).toFixed(2) + " MB",
-                                                          date: new Date().toLocaleDateString('ar-SA')
-                                                        }));
-                                                        const existing = attachmentsList || [];
-                                                        
-                                                        setPromptState({
-    isOpen: true,
-    message: "الرجاء تأكيد مسار الحفظ والأرشفة في جوجل درايف:",
-    defaultValue: "/Google Drive/Committees/" + (evt.committeeName || "General"),
-    onConfirm: (drivePath) => {
-        if (!drivePath) {
-            setAlertState({ isOpen: true, message: "تم إلغاء الحفظ.", onClose: () => {} });
-            return;
-        }
-        setAlertState({ 
-            isOpen: true, 
-            message: "تم حفظ الملفات بنجاح في المسار: " + drivePath, 
-            onClose: () => {
-                updateEventWorkflow(evt.id, { attachments: [...existing, ...newAtts] });
-            }
-        });
-    },
-    onCancel: () => {
-        setAlertState({ isOpen: true, message: "تم إلغاء الحفظ.", onClose: () => {} });
-    }
-});
+                                                        handleFileUploads(Array.from(e.target.files), evt, attachmentsList || []);
                                                       }
-                                                      e.target.value = '';
                                                     }}
                                                   />
                                                   <p className="text-[9.5px] text-slate-600 font-extrabold font-sans group-hover:text-brand transition-colors">المكتبة الرقمية: اسحب وأفلت المرفق هنا أو اضغط لربطه بجوجل درايف</p>

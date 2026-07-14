@@ -1136,7 +1136,7 @@ ${formattedItems}
         recommendationAttachments: newRecAttachments,
         
         preparationsText: newRecText,
-        preparationsAttachments: newRecAttachments ? [{ id: '1', name: newRecAttachments, url: '#' }] : (editingEvent.preparationsAttachments || [])
+        preparationsAttachments: newRecAttachments.length > 0 ? newRecAttachments.map((att, index) => ({ id: String(index + 1), name: att.name, url: att.url })) : (editingEvent.preparationsAttachments || [])
       };
       setEvents(events.map(ev => ev.id === editingEvent.id ? updatedRec : ev));
     } else {
@@ -1167,7 +1167,7 @@ ${formattedItems}
         recommendationAttachments: newRecAttachments,
         
         preparationsText: newRecText,
-        preparationsAttachments: newRecAttachments ? [{ id: '1', name: newRecAttachments, url: '#' }] : []
+        preparationsAttachments: newRecAttachments.length > 0 ? newRecAttachments.map((att, index) => ({ id: String(index + 1), name: att.name, url: att.url })) : []
       };
 
       setEvents([newRec, ...events]);
