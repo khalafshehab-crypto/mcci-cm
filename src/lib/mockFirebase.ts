@@ -19,7 +19,8 @@ if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
     localStorage.removeItem("mock_db_join_requests");
     localStorage.removeItem("mock_db_approved_emails");
     localStorage.removeItem("mock_db_templates");
-    localStorage.removeItem("current_user"); 
+    localStorage.removeItem("current_user");
+    localStorage.removeItem("google_access_token"); 
     localStorage.setItem(FORCE_RESET_KEY, "true");
   }
 }

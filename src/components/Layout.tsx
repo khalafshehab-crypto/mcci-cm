@@ -381,6 +381,7 @@ export default function Layout({ children }: LayoutProps) {
                       type="button"
                       onClick={() => {
                         localStorage.removeItem("current_user");
+                        localStorage.removeItem("google_access_token");
                         window.location.href = "/";
                       }}
                       className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white border border-red-100 hover:bg-red-50 hover:border-red-200 rounded-lg transition-all text-red-600 font-bold text-xs cursor-pointer shadow-sm"

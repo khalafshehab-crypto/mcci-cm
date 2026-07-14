@@ -14,6 +14,7 @@ import {
 import { useFirestoreCollection, setFirestoreBlocked } from "../lib/firebaseUtils";
 import { auth } from "../lib/firebase";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { getGoogleProvider, setCachedAccessToken } from "../lib/googleApi";
 
 interface AuthGateProps {
   onLogin: (user: any) => void;
@@ -158,10 +159,14 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
     setLoading(true);
     setMessage(null);
     try {
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: "select_account" });
+      const provider = getGoogleProvider();
       
       const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential?.accessToken) {
+        setCachedAccessToken(credential.accessToken);
+      }
+      
       const user = result.user;
       
       // Reset the global block state after a successful sign-in

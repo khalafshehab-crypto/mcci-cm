@@ -4,6 +4,9 @@ import { auth } from "./firebase";
 
 // In-memory token storage (Mandatory for security to bypass localStorage/sessionStorage)
 let cachedAccessToken: string | null = null;
+try {
+  cachedAccessToken = localStorage.getItem("google_access_token");
+} catch(e) {}
 const tokenListeners = new Set<(token: string | null) => void>();
 
 export function getCachedAccessToken(): string | null {
@@ -12,6 +15,10 @@ export function getCachedAccessToken(): string | null {
 
 export function setCachedAccessToken(token: string | null) {
   cachedAccessToken = token;
+  try {
+    if (token) localStorage.setItem("google_access_token", token);
+    else localStorage.removeItem("google_access_token");
+  } catch(e) {}
   tokenListeners.forEach((listener) => {
     try {
       listener(token);
@@ -116,6 +123,9 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      setCachedAccessToken(null); // Clear expired token
+    }
     const errText = await response.text();
     let parsedErr;
     try {
@@ -191,6 +201,7 @@ export async function uploadFileToDrive(name: string, content: string, mimeType:
   });
 
   if (!response.ok) {
+    if (response.status === 401) setCachedAccessToken(null);
     throw new Error(`File upload failed: ${await response.text()}`);
   }
 
@@ -253,6 +264,7 @@ export async function uploadBinaryFileToDrive(name: string, base64Content: strin
   });
 
   if (!response.ok) {
+    if (response.status === 401) setCachedAccessToken(null);
     throw new Error(`Failed to upload file to drive: ${await response.text()}`);
   }
   return response.json();
