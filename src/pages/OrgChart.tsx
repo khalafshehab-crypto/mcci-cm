@@ -1573,7 +1573,7 @@ export default function OrgChart() {
                           <img
                             src={emp.photo || PRESET_AVATARS[0]}
                             alt={emp.name}
-                            className="w-14 h-14 rounded-2xl object-crop ring-2 ring-gray-100 bg-gray-50"
+                            className="w-14 h-14 rounded-2xl object-cover ring-2 ring-gray-100 bg-gray-50"
                             referrerPolicy="no-referrer"
                           />
                           <div>
