@@ -12,7 +12,8 @@ import {
   UserPlus
 } from "lucide-react";
 import { useFirestoreCollection, setFirestoreBlocked } from "../lib/firebaseUtils";
-import { auth } from "../lib/firebase";
+import { auth, db } from "../lib/firebase";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { getGoogleProvider, setCachedAccessToken } from "../lib/googleApi";
 
@@ -42,10 +43,11 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
 
   // Firestore Collections
   const { data: dbEmployees, setDocument: setFirebaseEmpDoc, loading: employeesLoading } = useFirestoreCollection<any>("employees", []);
+  const { data: dbApprovedEmails, loading: approvedEmailsLoading } = useFirestoreCollection<any>("approved_emails", []);
   const { data: dbJoinRequests, addDocument: addFirebaseJoinReq, loading: joinRequestsLoading } = useFirestoreCollection<any>("join_requests", []);
   const { addDocument: addFirebaseLog } = useFirestoreCollection<any>("system_logs", []);
 
-  const isDataLoading = employeesLoading || joinRequestsLoading;
+  const isDataLoading = employeesLoading || joinRequestsLoading || approvedEmailsLoading;
 
   const logSystemAction = async (employeeName: string, details: string, status: "ناجحة" | "مرفوضة") => {
     try {
@@ -103,9 +105,21 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
     }
 
     // 2. Is this a registered employee?
-    const matchedEmployee = dbEmployees.find(
+    let matchedEmployee = dbEmployees.find(
       (emp: any) => emp.email?.trim().toLowerCase() === emailLower
     );
+    
+    // Fallback: direct query to Firestore if not found in local state (stale state issue)
+    if (!matchedEmployee && db && db.type !== "dummy_firestore") {
+      try {
+        const q = query(collection(db, "employees"));
+        const snapshot = await getDocs(q);
+        const allEmps = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        matchedEmployee = allEmps.find((emp: any) => emp.email?.trim().toLowerCase() === emailLower);
+      } catch (e) {
+        console.warn("Direct Firestore fallback query failed:", e);
+      }
+    }
 
     if (matchedEmployee) {
       if (matchedEmployee.loginEnabled === false) {
@@ -132,7 +146,45 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
       return true;
     }
 
-    // 3. Is there a pending join request?
+    // 3. Check Whitelist (Approved Emails) for auto-provisioning
+    let approvedRecord = null;
+    if (db && db.type !== "dummy_firestore") {
+      try {
+        const qAppr = query(collection(db, "approved_emails"));
+        const snapAppr = await getDocs(qAppr);
+        const allAppr = snapAppr.docs.map(d => ({ id: d.id, ...d.data() }));
+        approvedRecord = allAppr.find((a: any) => a.email?.trim().toLowerCase() === emailLower);
+      } catch(e) {}
+    } else {
+      approvedRecord = dbApprovedEmails.find((a: any) => a.email?.trim().toLowerCase() === emailLower);
+    }
+    
+    if (approvedRecord) {
+      // Auto-provision this user as an employee
+      let parsedId = Math.floor(1000 + Math.random() * 9000).toString();
+      const newEmp = {
+        id: parsedId,
+        name: approvedRecord.name,
+        role: approvedRecord.roleAr === "مدير إدارة" ? "MANAGER" : (approvedRecord.roleAr === "رئيس قسم" ? "HEAD" : "SPECIALIST"),
+        roleAr: approvedRecord.roleAr || "أخصائي اللجان",
+        jobTitle: approvedRecord.roleAr || "أخصائي",
+        orgLevel1: "الأمانة العامة",
+        phone: "-",
+        email: emailLower,
+        photo: PRESET_AVATARS[Math.floor(Math.random() * PRESET_AVATARS.length)],
+        committees: [],
+        active: true,
+        loginEnabled: true,
+        joinDate: new Date().toLocaleDateString('en-GB')
+      };
+      await setFirebaseEmpDoc(parsedId, newEmp);
+      localStorage.setItem("current_user", JSON.stringify(newEmp));
+      await logSystemAction(newEmp.name, `إنشاء تلقائي لموظف معتمد (Whitelist) وتفويض الدخول [${emailLower}]`, "ناجحة");
+      onLogin(newEmp);
+      return true;
+    }
+
+    // 4. Is there a pending join request?
     const pendingReq = dbJoinRequests.find(
       (req: any) => req.email?.trim().toLowerCase() === emailLower
     );
