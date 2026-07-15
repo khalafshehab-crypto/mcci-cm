@@ -9,6 +9,33 @@ try {
 } catch(e) {}
 const tokenListeners = new Set<(token: string | null) => void>();
 
+
+// --- Global Auth Modal Logic ---
+export let authResolve: ((token: string) => void) | null = null;
+export let authReject: ((err: any) => void) | null = null;
+
+export function triggerAuthModal(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    authResolve = resolve;
+    authReject = reject;
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent('show-google-auth-modal'));
+    }
+  });
+}
+
+export function resolveAuthModal(token: string) {
+  if (authResolve) authResolve(token);
+  authResolve = null;
+  authReject = null;
+}
+
+export function rejectAuthModal(err: any) {
+  if (authReject) authReject(err);
+  authResolve = null;
+  authReject = null;
+}
+
 export function getCachedAccessToken(): string | null {
   return cachedAccessToken;
 }
@@ -126,12 +153,10 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
     if (response.status === 401) {
       console.warn("Google API 401: Token expired. Attempting silent refresh...");
       try {
-        const provider = getGoogleProvider();
-        
-        const result = await signInWithPopup(auth, provider);
-        const credential = GoogleAuthProvider.credentialFromResult(result);
-        if (credential?.accessToken) {
-          setCachedAccessToken(credential.accessToken);
+        console.warn("Google API 401: Pausing and requesting user to re-authenticate via UI...");
+        const newAccessToken = await triggerAuthModal();
+        if (newAccessToken) {
+          setCachedAccessToken(newAccessToken);
           // Retry the request
           const retryResponse = await fetch("/api/google-proxy", {
             method: "POST",
@@ -234,11 +259,10 @@ export async function uploadFileToDrive(name: string, content: string, mimeType:
     if (response.status === 401) {
       console.warn("Google API 401: Token expired. Attempting silent refresh...");
       try {
-        const provider = getGoogleProvider();
-        const result = await signInWithPopup(auth, provider);
-        const credential = GoogleAuthProvider.credentialFromResult(result);
-        if (credential?.accessToken) {
-          setCachedAccessToken(credential.accessToken);
+        console.warn("Google API 401: Pausing and requesting user to re-authenticate via UI...");
+        const newAccessToken = await triggerAuthModal();
+        if (newAccessToken) {
+          setCachedAccessToken(newAccessToken);
           const retryResponse = await fetch("/api/google-proxy", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -325,11 +349,10 @@ export async function uploadBinaryFileToDrive(name: string, base64Content: strin
     if (response.status === 401) {
       console.warn("Google API 401: Token expired. Attempting silent refresh...");
       try {
-        const provider = getGoogleProvider();
-        const result = await signInWithPopup(auth, provider);
-        const credential = GoogleAuthProvider.credentialFromResult(result);
-        if (credential?.accessToken) {
-          setCachedAccessToken(credential.accessToken);
+        console.warn("Google API 401: Pausing and requesting user to re-authenticate via UI...");
+        const newAccessToken = await triggerAuthModal();
+        if (newAccessToken) {
+          setCachedAccessToken(newAccessToken);
           // Retry
           const retryResponse = await fetch("/api/google-proxy", {
             method: "POST",
