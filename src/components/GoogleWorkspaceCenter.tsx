@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { 
   connectGoogleWorkspace, 
   disconnectGoogleWorkspace, 
-  subscribeToAccessToken,
+  getSharedAccessToken, subscribeToAccessToken,
   listDriveFiles,
   createDriveFolder,
   createAndPopulateSheet,

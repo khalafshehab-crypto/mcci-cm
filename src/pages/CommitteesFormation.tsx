@@ -8,7 +8,7 @@ import {
 // @ts-ignore
 import { generateDocx } from "../lib/docxGenerator";
 // @ts-ignore
-import { getCachedAccessToken, createAndPopulateSheet, getOrCreateFolder, subscribeToAccessToken } from "../lib/googleApi";
+import { getCachedAccessToken, getSharedAccessToken, createAndPopulateSheet, getOrCreateFolder, subscribeToAccessToken } from "../lib/googleApi";
 
 export interface Committee {
   id: number | string;
@@ -591,10 +591,10 @@ export default function CommitteesFormation() {
     reader.readAsText(file);
   };
 
-  const handleExportToGoogleSheets = () => {
+  const handleExportToGoogleSheets = async () => {
     const sorted = [...committees].sort((a, b) => a.name.localeCompare(b.name, "ar"));
     const activeHeaders = EXPORT_FIELDS_META.filter(f => selectedExportFields.includes(f.key));
-    const token = getCachedAccessToken();
+    const token = await getSharedAccessToken();
 
     // Mapping payload values function
     const getFieldVal = (comm: any, index: number, hKey: string) => {
@@ -949,7 +949,7 @@ export default function CommitteesFormation() {
     let folderId = editingComm?.driveFolderId || "";
 
     // Create Drive Folder if auth is available
-    if (getCachedAccessToken()) {
+    if (await getSharedAccessToken()) {
       try {
         const rootFolderId = await getOrCreateFolder("تقرير اللجان للدورة الـ 22");
         folderId = await getOrCreateFolder(name.trim(), rootFolderId);

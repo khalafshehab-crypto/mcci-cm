@@ -21,7 +21,7 @@ import {
   FileSpreadsheet,
   Download
 } from "lucide-react";
-import { getCachedAccessToken, createAndPopulateSheet } from "../lib/googleApi";
+import { getCachedAccessToken, getSharedAccessToken, createAndPopulateSheet } from "../lib/googleApi";
 
 
 
@@ -195,10 +195,10 @@ export default function Committees() {
     { key: "desc", label: "وصف اللجنة" },
   ];
 
-  const handleExportToGoogleSheets = () => {
+  const handleExportToGoogleSheets = async () => {
     const sorted = [...committees].sort((a, b) => a.name.localeCompare(b.name, "ar"));
     const activeHeaders = EXPORT_FIELDS_META.filter(f => selectedExportFields.includes(f.key));
-    const token = getCachedAccessToken();
+    const token = await getSharedAccessToken();
 
     // Mapping payload values function
     const getFieldVal = (comm: any, index: number, hKey: string) => {

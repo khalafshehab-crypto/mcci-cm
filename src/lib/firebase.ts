@@ -9,7 +9,7 @@ import {
   updateDoc as fbUpdateDoc, 
   deleteDoc as fbDeleteDoc, 
   doc as fbDoc, 
-  setDoc as fbSetDoc 
+  setDoc as fbSetDoc, getDoc as fbGetDoc 
 } from "firebase/firestore";
 import * as mockFb from "./mockFirebase";
 import firebaseAppletConfig from "../../firebase-applet-config.json";
@@ -232,3 +232,18 @@ export function onSnapshot(queryOrColRef: any, onNext: (snap: any) => void, onEr
 
 export { app, db, auth };
 export default app;
+export async function getDoc(docRef: any): Promise<any> {
+  if (isUseMock()) {
+    return mockFb.getDoc ? mockFb.getDoc(docRef) : { exists: () => false, data: () => null };
+  }
+  try {
+    const { result, timedOut } = await withTimeout(fbGetDoc(docRef), 8000);
+    if (timedOut) {
+      return mockFb.getDoc ? mockFb.getDoc(docRef) : { exists: () => false, data: () => null };
+    }
+    return result;
+  } catch (e) {
+    console.warn("getDoc fallback on crash", e);
+    return mockFb.getDoc ? mockFb.getDoc(docRef) : { exists: () => false, data: () => null };
+  }
+}

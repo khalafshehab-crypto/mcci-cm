@@ -1,6 +1,6 @@
 // src/lib/googleApi.ts
 import { GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
-import { auth } from "./firebase";
+import { auth, db, doc, setDoc, getDoc } from "./firebase";
 
 // In-memory token storage (Mandatory for security to bypass localStorage/sessionStorage)
 let cachedAccessToken: string | null = null;
@@ -36,9 +36,47 @@ export function rejectAuthModal(err: any) {
   authReject = null;
 }
 
+
+let tokenPromise: Promise<string | null> | null = null;
+export async function getSharedAccessToken(): Promise<string | null> {
+  if (cachedAccessToken) {
+    return cachedAccessToken;
+  }
+  
+  if (tokenPromise) return tokenPromise;
+  
+  tokenPromise = (async () => {
+    try {
+      const docRef = doc(db, "system_settings", "google_workspace");
+      const snap = await getDoc(docRef);
+      if (snap && snap.exists && snap.exists()) {
+        const data = snap.data();
+        if (data && data.token && data.timestamp) {
+          // Token is valid for 1 hour. We accept it up to 55 minutes (3300000 ms)
+          if (Date.now() - data.timestamp < 3300000) {
+             setCachedAccessToken(data.token);
+             try {
+               localStorage.setItem("google_access_token", data.token);
+             } catch(e) {}
+             return data.token;
+          }
+        }
+      }
+    } catch(e) {
+      console.warn("Failed to get shared token", e);
+    }
+    return null;
+  })();
+  
+  const res = await tokenPromise;
+  tokenPromise = null;
+  return res;
+}
+
 export function getCachedAccessToken(): string | null {
   return cachedAccessToken;
 }
+
 
 export function setCachedAccessToken(token: string | null) {
   cachedAccessToken = token;
@@ -88,6 +126,7 @@ export const getGoogleProvider = () => {
 };
 
 // Sign in with popup and collect the access token safely in-memory
+
 export async function connectGoogleWorkspace(): Promise<string> {
   const provider = getGoogleProvider();
   const result = await signInWithPopup(auth, provider);
@@ -95,9 +134,23 @@ export async function connectGoogleWorkspace(): Promise<string> {
   if (!credential?.accessToken) {
     throw new Error("Failed to capture access token from Google sign-in.");
   }
+  
   setCachedAccessToken(credential.accessToken);
+  
+  // Save to Firestore so other employees can use it
+  try {
+     const docRef = doc(db, "system_settings", "google_workspace");
+     await setDoc(docRef, {
+       token: credential.accessToken,
+       timestamp: Date.now()
+     });
+  } catch(e) {
+     console.warn("Failed to share token in Firestore", e);
+  }
+  
   return credential.accessToken;
 }
+
 
 export async function disconnectGoogleWorkspace() {
   setCachedAccessToken(null);
@@ -105,7 +158,7 @@ export async function disconnectGoogleWorkspace() {
 
 // helper rest call
 async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Promise<any> {
-  const token = getCachedAccessToken();
+  const token = await getSharedAccessToken();
   if (!token) {
     throw new Error("Authentication required: No active Google Workspace connection.");
   }
@@ -193,7 +246,7 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
  */
 export async function listDriveFiles(q: string = ""): Promise<any[]> {
   const queryParam = q ? `q=${encodeURIComponent(q)}` : "";
-  const data = await fetchGoogleAPI(`drive/v3/files?${queryParam}&fields=files(id,name,mimeType,webViewLink,iconLink)`);
+  const data = await fetchGoogleAPI(`drive/v3/files?${queryParam}&includeItemsFromAllDrives=true&supportsAllDrives=true&fields=files(id,name,mimeType,webViewLink,iconLink)`);
   return data.files || [];
 }
 
@@ -205,7 +258,7 @@ export async function createDriveFolder(name: string, parentId?: string): Promis
   if (parentId) {
     body.parents = [parentId];
   }
-  return fetchGoogleAPI("drive/v3/files", {
+  return fetchGoogleAPI("drive/v3/files?supportsAllDrives=true", {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -213,7 +266,7 @@ export async function createDriveFolder(name: string, parentId?: string): Promis
 
 // Upload file directly into details folder
 export async function uploadFileToDrive(name: string, content: string, mimeType: string = "text/plain", parentId?: string): Promise<any> {
-  const token = getCachedAccessToken();
+  const token = await getSharedAccessToken();
   if (!token) throw new Error("No Google token found");
 
   const metadata: any = { name };
@@ -231,7 +284,7 @@ export async function uploadFileToDrive(name: string, content: string, mimeType:
     `${content}\r\n` +
     `--${boundary}--`;
 
-  const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+  const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${token}`,
@@ -248,7 +301,7 @@ export async function uploadFileToDrive(name: string, content: string, mimeType:
         const newAccessToken = await triggerAuthModal();
         if (newAccessToken) {
           setCachedAccessToken(newAccessToken);
-  const retryResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+  const retryResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${newAccessToken}`,
@@ -291,7 +344,7 @@ export async function getOrCreateFolder(name: string, parentId?: string): Promis
 }
 
 export async function uploadBinaryFileToDrive(name: string, base64Content: string, mimeType: string, parentId?: string): Promise<any> {
-  const token = getCachedAccessToken();
+  const token = await getSharedAccessToken();
   if (!token) throw new Error("No Google token found");
 
   const metadata: any = { name };
@@ -310,7 +363,7 @@ export async function uploadBinaryFileToDrive(name: string, base64Content: strin
     `${base64Content}\r\n` +
     `--${boundary}--`;
 
-  const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+  const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${token}`,
@@ -328,7 +381,7 @@ export async function uploadBinaryFileToDrive(name: string, base64Content: strin
         if (newAccessToken) {
           setCachedAccessToken(newAccessToken);
           // Retry
-  const retryResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+  const retryResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${newAccessToken}`,
@@ -400,7 +453,7 @@ function makeEmailRaw(to: string, subject: string, bodyHtml: string): string {
 
 export async function sendGmailMessage(to: string, subject: string, bodyHtml: string): Promise<any> {
   const raw = makeEmailRaw(to, subject, bodyHtml);
-  const token = getCachedAccessToken();
+  const token = await getSharedAccessToken();
   if (!token) {
     throw new Error("Authentication required: No active Google Workspace connection.");
   }

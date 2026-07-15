@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { Member } from "../data/initialMembers";
 import { formatCommitteeNameArabic } from "../lib/arabicUtils";
-import { getCachedAccessToken, getOrCreateFolder, uploadBinaryFileToDrive } from "../lib/googleApi";
+import { getCachedAccessToken, getSharedAccessToken, getOrCreateFolder, uploadBinaryFileToDrive } from "../lib/googleApi";
 
 interface EventItem {
   id: number;
@@ -1664,7 +1664,7 @@ ${formattedItems}
   const handleFileUploads = async (files, evt, existingAtts) => {
     setAlertState({ isOpen: true, message: "جاري الرفع والمزامنة مع أرشيف جوجل درايف...", onClose: () => {} });
     try {
-      const token = getCachedAccessToken();
+      const token = await getSharedAccessToken();
       const newAtts = [];
       
       if (token) {
