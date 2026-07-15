@@ -279,3 +279,9 @@ export function onSnapshot(queryOrColRef: any, onNext: (snap: any) => void, onEr
     listeners[colName] = (listeners[colName] || []).filter(l => l !== onNext);
   };
 }
+export const getDoc = async (docRef: any) => {
+  return {
+    exists: () => false,
+    data: () => null
+  };
+};

@@ -51,15 +51,12 @@ export async function getSharedAccessToken(): Promise<string | null> {
       const snap = await getDoc(docRef);
       if (snap && snap.exists && snap.exists()) {
         const data = snap.data();
-        if (data && data.token && data.timestamp) {
-          // Token is valid for 1 hour. We accept it up to 55 minutes (3300000 ms)
-          if (Date.now() - data.timestamp < 3300000) {
-             setCachedAccessToken(data.token);
-             try {
-               localStorage.setItem("google_access_token", data.token);
-             } catch(e) {}
-             return data.token;
-          }
+        if (data && data.token) {
+           setCachedAccessToken(data.token);
+           try {
+             localStorage.setItem("google_access_token", data.token);
+           } catch(e) {}
+           return data.token;
         }
       }
     } catch(e) {
