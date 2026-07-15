@@ -135,18 +135,13 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
     ...options.headers,
   };
 
-  const response = await fetch("/api/google-proxy", {
-    method: "POST",
+  const response = await fetch(url, {
+    method: options.method || "GET",
     headers: {
-      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+      ...options.headers,
     },
-    body: JSON.stringify({
-      token,
-      url,
-      method: options.method || "GET",
-      body: options.body,
-      headers: reqHeaders,
-    }),
+    body: options.body
   });
 
   if (!response.ok) {
@@ -158,16 +153,13 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
         if (newAccessToken) {
           setCachedAccessToken(newAccessToken);
           // Retry the request
-          const retryResponse = await fetch("/api/google-proxy", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              token: credential.accessToken,
-              url,
-              method: options.method || "GET",
-              body: options.body,
-              headers: reqHeaders,
-            }),
+          const retryResponse = await fetch(url, {
+            method: options.method || "GET",
+            headers: {
+              "Authorization": `Bearer ${newAccessToken}`,
+              ...options.headers,
+            },
+            body: options.body
           });
           if (!retryResponse.ok) {
             throw new Error("Retry failed after token refresh");
@@ -239,20 +231,13 @@ export async function uploadFileToDrive(name: string, content: string, mimeType:
     `${content}\r\n` +
     `--${boundary}--`;
 
-  const response = await fetch("/api/google-proxy", {
+  const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": `multipart/related; boundary=${boundary}`,
     },
-    body: JSON.stringify({
-      token,
-      url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-      method: "POST",
-      body: multipartBody,
-      headers: {
-        "Content-Type": `multipart/related; boundary=${boundary}`,
-      },
-    }),
+    body: multipartBody
   });
 
   if (!response.ok) {
@@ -263,19 +248,14 @@ export async function uploadFileToDrive(name: string, content: string, mimeType:
         const newAccessToken = await triggerAuthModal();
         if (newAccessToken) {
           setCachedAccessToken(newAccessToken);
-          const retryResponse = await fetch("/api/google-proxy", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              token: credential.accessToken,
-              url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-              method: "POST",
-              body: multipartBody,
-              headers: {
-                "Content-Type": `multipart/related; boundary=${boundary}`,
-              },
-            }),
-          });
+  const retryResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${newAccessToken}`,
+      "Content-Type": `multipart/related; boundary=${boundary}`,
+    },
+    body: multipartBody
+  });
           if (!retryResponse.ok) throw new Error("Retry failed");
           return retryResponse.json();
         }
@@ -297,7 +277,8 @@ export async function uploadFileToDrive(name: string, content: string, mimeType:
 // Upload binary file directly into details folder (e.g. images, pdfs)
 
 export async function getOrCreateFolder(name: string, parentId?: string): Promise<string> {
-  let q = `mimeType='application/vnd.google-apps.folder' and name='${name}' and trashed=false`;
+  const safeName = name.replace(/'/g, "\\'");
+  let q = `mimeType='application/vnd.google-apps.folder' and name='${safeName}' and trashed=false`;
   if (parentId) {
     q += ` and '${parentId}' in parents`;
   }
@@ -329,20 +310,13 @@ export async function uploadBinaryFileToDrive(name: string, base64Content: strin
     `${base64Content}\r\n` +
     `--${boundary}--`;
 
-  const response = await fetch("/api/google-proxy", {
+  const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": `multipart/related; boundary=${boundary}`,
     },
-    body: JSON.stringify({
-      token,
-      url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-      method: "POST",
-      body: multipartBody,
-      headers: {
-        "Content-Type": `multipart/related; boundary=${boundary}`,
-      }
-    }),
+    body: multipartBody
   });
 
   if (!response.ok) {
@@ -354,19 +328,14 @@ export async function uploadBinaryFileToDrive(name: string, base64Content: strin
         if (newAccessToken) {
           setCachedAccessToken(newAccessToken);
           // Retry
-          const retryResponse = await fetch("/api/google-proxy", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              token: credential.accessToken,
-              url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-              method: "POST",
-              body: multipartBody,
-              headers: {
-                "Content-Type": `multipart/related; boundary=${boundary}`,
-              }
-            }),
-          });
+  const retryResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${newAccessToken}`,
+      "Content-Type": `multipart/related; boundary=${boundary}`,
+    },
+    body: multipartBody
+  });
           if (!retryResponse.ok) throw new Error("Retry failed");
           return retryResponse.json();
         }

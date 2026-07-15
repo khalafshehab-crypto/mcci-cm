@@ -755,7 +755,7 @@ export default function CommitteesMembers() {
         if (err.message && err.message.includes("انتهت صلاحية")) {
           alert(err.message);
         } else {
-          alert("فشل إنشاء أو رفع الملفات في جوجل درايف، يرجى التحقق من تسجيل الدخول والمحاولة مرة أخرى.");
+          alert("فشل إنشاء أو رفع الملفات في جوجل درايف: " + err.message);
         }
       }
     } else {
