@@ -1347,6 +1347,42 @@ export default function CommitteesMembers() {
                   </div>
                 </div>
 
+                {/* Attachments (Card View) */}
+                {(m.personalPhoto || m.cv || m.commercialRegister || m.membershipCertificate || m.authorization) && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {m.personalPhoto && m.personalPhoto !== "" && (
+                      <span className="flex items-center gap-0.5 text-[8.5px] text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded font-bold" title="يوجد صورة شخصية مرفقة">
+                        <Paperclip className="w-2.5 h-2.5" />
+                        صورة
+                      </span>
+                    )}
+                    {m.cv && m.cv !== "" && (
+                      <span className="flex items-center gap-0.5 text-[8.5px] text-blue-700 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded font-bold" title="يوجد سيرة ذاتية مرفقة">
+                        <Paperclip className="w-2.5 h-2.5" />
+                        سيرة
+                      </span>
+                    )}
+                    {m.commercialRegister && m.commercialRegister !== "" && (
+                      <span className="flex items-center gap-0.5 text-[8.5px] text-purple-700 bg-purple-50 border border-purple-100 px-1.5 py-0.5 rounded font-bold" title="يوجد سجل تجاري مرفق">
+                        <Paperclip className="w-2.5 h-2.5" />
+                        سجل
+                      </span>
+                    )}
+                    {m.membershipCertificate && m.membershipCertificate !== "" && (
+                      <span className="flex items-center gap-0.5 text-[8.5px] text-amber-700 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded font-bold" title="توجد شهادة عضوية مرفقة">
+                        <Paperclip className="w-2.5 h-2.5" />
+                        شهادة
+                      </span>
+                    )}
+                    {m.authorization && m.authorization !== "" && (
+                      <span className="flex items-center gap-0.5 text-[8.5px] text-rose-700 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded font-bold" title="يوجد تفويض مرفق">
+                        <Paperclip className="w-2.5 h-2.5" />
+                        تفويض
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {/* Short note descriptor */}
                 {m.note && (
                   <p className="text-[11px] text-gray-500 font-medium leading-relaxed mt-2 p-2 bg-black/5 rounded-xl block max-h-[48px] overflow-hidden truncate">
@@ -2684,8 +2720,14 @@ export default function CommitteesMembers() {
                       <span className="text-[11px] font-bold text-gray-650">السيرة الذاتية</span>
                       {detailsMember.cv ? (
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">{detailsMember.cv}</span>
-                          <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">تحميل السجل</span>
+                          <span className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full max-w-[120px] truncate" title={detailsMember.cv}>
+                            {detailsMember.cv.includes('http') ? 'مرفق (رابط)' : detailsMember.cv}
+                          </span>
+                          {detailsMember.cv.includes('http') ? (
+                            <a href={detailsMember.cv} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#4ea0b0] font-black hover:underline">تحميل السجل</a>
+                          ) : (
+                            <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">تحميل السجل</span>
+                          )}
                         </div>
                       ) : (
                         <span className="text-[10px] text-rose-800 font-extrabold bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-full">غير مرفق</span>
@@ -2697,8 +2739,14 @@ export default function CommitteesMembers() {
                       <span className="text-[11px] font-bold text-gray-650">السجل التجاري</span>
                       {detailsMember.commercialRegister ? (
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">{detailsMember.commercialRegister}</span>
-                          <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">تحميل السجل</span>
+                          <span className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full max-w-[120px] truncate" title={detailsMember.commercialRegister}>
+                            {detailsMember.commercialRegister.includes('http') ? 'مرفق (رابط)' : detailsMember.commercialRegister}
+                          </span>
+                          {detailsMember.commercialRegister.includes('http') ? (
+                            <a href={detailsMember.commercialRegister} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#4ea0b0] font-black hover:underline">تحميل السجل</a>
+                          ) : (
+                            <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">تحميل السجل</span>
+                          )}
                         </div>
                       ) : (
                         <span className="text-[10px] text-rose-800 font-extrabold bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-full">غير مرفق</span>
@@ -2710,8 +2758,14 @@ export default function CommitteesMembers() {
                       <span className="text-[11px] font-bold text-gray-650">شهادة العضوية</span>
                       {detailsMember.membershipCertificate ? (
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">{detailsMember.membershipCertificate}</span>
-                          <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">عرض المستند</span>
+                          <span className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full max-w-[120px] truncate" title={detailsMember.membershipCertificate}>
+                            {detailsMember.membershipCertificate.includes('http') ? 'مرفق (رابط)' : detailsMember.membershipCertificate}
+                          </span>
+                          {detailsMember.membershipCertificate.includes('http') ? (
+                            <a href={detailsMember.membershipCertificate} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#4ea0b0] font-black hover:underline">عرض المستند</a>
+                          ) : (
+                            <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">عرض المستند</span>
+                          )}
                         </div>
                       ) : (
                         <span className="text-[10px] text-rose-800 font-extrabold bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-full">غير مرفق</span>
@@ -2723,8 +2777,14 @@ export default function CommitteesMembers() {
                       <span className="text-[11px] font-bold text-gray-650">مستند التفويض</span>
                       {detailsMember.authorization ? (
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">{detailsMember.authorization}</span>
-                          <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">عرض المستند</span>
+                          <span className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full max-w-[120px] truncate" title={detailsMember.authorization}>
+                            {detailsMember.authorization.includes('http') ? 'مرفق (رابط)' : detailsMember.authorization}
+                          </span>
+                          {detailsMember.authorization.includes('http') ? (
+                            <a href={detailsMember.authorization} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#4ea0b0] font-black hover:underline">عرض المستند</a>
+                          ) : (
+                            <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">عرض المستند</span>
+                          )}
                         </div>
                       ) : (
                         <span className="text-[10px] text-rose-800 font-extrabold bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-full">غير مرفق</span>
