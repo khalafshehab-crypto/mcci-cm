@@ -960,9 +960,10 @@ export default function CommitteesFormation() {
 
     if (token) {
       try {
-                const rootFolderId = await getOrCreateFolder("تقرير اللجان القطاعية الـ 22");
-        const subRootFolderId = await getOrCreateFolder("اللجان المعتمدة", rootFolderId);
-        folderId = await getOrCreateFolder(name.trim(), subRootFolderId);
+        const rootFolderId = await getOrCreateFolder("تقرير إدارة اللجان للدورة الـ 22");
+        const approvedFolderId = await getOrCreateFolder("اللجان المعتمدة", rootFolderId);
+        const statusFolderId = await getOrCreateFolder(isActive ? "الفعالة" : "غير الفعالة", approvedFolderId);
+        folderId = await getOrCreateFolder(name.trim(), statusFolderId);
       } catch (err) {
         console.error("Failed to create Drive folder:", err);
         alert("فشل إنشاء مجلد اللجنة في جوجل درايف، يرجى التأكد من تسجيل الدخول وإعادة المحاولة.");

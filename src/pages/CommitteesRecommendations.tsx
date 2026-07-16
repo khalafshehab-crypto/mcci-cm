@@ -1676,16 +1676,10 @@ ${formattedItems}
       const newAtts = [];
       
       if (token) {
-                const rootFolderId = await getOrCreateFolder("تقرير اللجان القطاعية الـ 22");
-        const subRootFolderId = await getOrCreateFolder("اللجان المعتمدة", rootFolderId);
-        const committeeFolderId = await getOrCreateFolder(evt.committeeName || "عام", subRootFolderId);
-        const eventsRootFolderId = await getOrCreateFolder("الاجتماعات والفعاليات", committeeFolderId);
-        
-        const isMeeting = evt.title && evt.title.includes("اجتماع");
-        const classificationFolderName = isMeeting ? "اجتماعات اللجنة" : "الفعاليات";
-        
-        const classificationFolderId = await getOrCreateFolder(classificationFolderName, eventsRootFolderId);
-        const itemFolderId = await getOrCreateFolder(evt.title || "بدون عنوان", classificationFolderId);
+        const rootFolderId = await getOrCreateFolder("أرشيف اللجان - الدورة 22");
+        const committeeFolderId = await getOrCreateFolder(evt.committeeName || "عام", rootFolderId);
+        const recFolderId = await getOrCreateFolder("التوصيات", committeeFolderId);
+        const itemFolderId = await getOrCreateFolder(evt.title || "بدون عنوان", recFolderId);
 
         for (const file of files) {
           const base64 = await new Promise((resolve, reject) => {

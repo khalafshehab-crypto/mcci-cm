@@ -751,11 +751,13 @@ export default function CommitteesMembers() {
         };
 
         // Get or Create Folders
-                const rootFolderId = await getOrCreateFolder("تقرير اللجان القطاعية الـ 22");
-        const subRootFolderId = await getOrCreateFolder("اللجان المعتمدة", rootFolderId);
-        const commFolderId = await getOrCreateFolder(matchedComm.name, subRootFolderId);
-        const membersRootFolderId = await getOrCreateFolder("أعضاء اللجنة", commFolderId);
-        memberFolderId = await getOrCreateFolder(name.trim(), membersRootFolderId);
+        const rootFolderId = await getOrCreateFolder("تقرير إدارة اللجان للدورة الـ 22");
+        const approvedFolderId = await getOrCreateFolder("اللجان المعتمدة", rootFolderId);
+        // We use matchedComm.active to check if active
+        const statusFolderId = await getOrCreateFolder(matchedComm.active !== false ? "الفعالة" : "غير الفعالة", approvedFolderId);
+        const commFolderId = await getOrCreateFolder(matchedComm.name, statusFolderId);
+        const membersFolderId = await getOrCreateFolder("أعضاء اللجنة", commFolderId);
+        memberFolderId = await getOrCreateFolder(name.trim(), membersFolderId);
 
         // Upload files
         if (personalPhoto && typeof personalPhoto === "object" && "name" in personalPhoto) finalPersonalPhoto = await uploadAttachment(personalPhoto, "الصورة الشخصية");
