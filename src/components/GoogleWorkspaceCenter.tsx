@@ -16,7 +16,7 @@ import {
   sendChatMessage,
   createGoogleForm,
   uploadFileToDrive
-} from "../lib/googleApi";
+, getOrCreateFolder} from "../lib/googleApi";
 import { 
   Sparkles, 
   HardDrive, 
@@ -412,7 +412,9 @@ ${(targetEmployee.committees || []).length > 0
 ========================================
       `;
 
-      const result = await uploadFileToDrive(fileName, fileContent, "text/plain");
+            const rootFolderId = await getOrCreateFolder("تقرير اللجان للدورة الـ 22");
+      const commFolderId = await getOrCreateFolder(committee.name, rootFolderId);
+      const result = await uploadFileToDrive(fileName, fileContent, "text/plain", commFolderId);
       showFeedback(
         `🎉 تم تصدير القالب [${template.title}] ورسمه وأرشفته تلقائياً في سحابة لجنة ${committee.name} بنجاح!`, 
         "success", 
