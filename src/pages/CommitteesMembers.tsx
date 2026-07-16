@@ -766,6 +766,7 @@ export default function CommitteesMembers() {
         } else {
           alert("فشل إنشاء أو رفع الملفات في جوجل درايف: " + err.message);
         }
+        return; // Stop saving to Firestore if Drive upload fails
       }
     } else {
       if (personalPhoto && typeof personalPhoto === "object" && "name" in personalPhoto) finalPersonalPhoto = (personalPhoto as any).name;

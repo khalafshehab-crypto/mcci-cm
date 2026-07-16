@@ -1707,9 +1707,10 @@ ${formattedItems}
 
       updateEventWorkflow(evt.id, { attachments: [...existingAtts, ...newAtts] });
       setAlertState({ isOpen: true, message: "تمت المزامنة وحفظ الملفات بنجاح في أرشيف جوجل درايف.", onClose: () => {} });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Upload error:", err);
-      setAlertState({ isOpen: true, message: "حدث خطأ أثناء رفع الملفات والمزامنة. تأكد من صلاحية الربط بحساب جوجل.", onClose: () => {} });
+      const msg = err?.message?.includes("عفواً") ? err.message : "حدث خطأ أثناء رفع الملفات والمزامنة. تأكد من صلاحية الربط بحساب جوجل.";
+      setAlertState({ isOpen: true, message: msg, onClose: () => {} });
     }
   };
 

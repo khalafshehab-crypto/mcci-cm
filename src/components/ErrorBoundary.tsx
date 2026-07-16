@@ -16,6 +16,14 @@ export class ErrorBoundary extends React.Component<Props, State> {
   };
 
   public static getDerivedStateFromError(error: Error): State {
+    // Detect Vite chunk loading errors and reload the page automatically to fetch new chunks
+    if (
+      error.message && 
+      (error.message.includes("Failed to fetch dynamically imported module") || 
+       error.message.includes("Importing a module script failed"))
+    ) {
+      window.location.reload();
+    }
     return { hasError: true, error };
   }
 

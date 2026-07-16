@@ -228,7 +228,11 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
     try {
       parsedErr = JSON.parse(errText);
     } catch(e) {}
-    throw new Error(parsedErr?.error?.message || `API error (${response.status}): ${errText}`);
+    let errorMessage = parsedErr?.error?.message || `API error (${response.status}): ${errText}`;
+    if (response.status === 404 || response.status === 403) {
+      errorMessage = "عفواً، لا يملك الموظف الحالي صلاحية الوصول للمجلد في جوجل درايف. للسماح للموظفين بأرشفة الملفات، يجب على مدير النظام مشاركة المجلد الأساسي (تقرير اللجان) مباشرة مع إيميلات الموظفين كـ (محرر)، وليس فقط عبر رابط المشاركة عام. " + errorMessage;
+    }
+    throw new Error(errorMessage);
   }
 
   if (response.status === 204) {
@@ -314,7 +318,11 @@ export async function uploadFileToDrive(name: string, content: string, mimeType:
         throw new Error("انتهت صلاحية المزامنة. يرجى تسجيل الدخول مرة أخرى لتفعيل المزامنة.");
       }
     }
-    throw new Error(`File upload failed: ${await response.text()}`);
+    const errText = await response.text();
+    if (response.status === 404 || response.status === 403) {
+      throw new Error(`عفواً، لا يملك الموظف الحالي صلاحية الوصول للمجلد في جوجل درايف. يرجى مشاركة المجلد مباشرة مع إيميلات الموظفين كـ (محرر) وليس فقط عبر الرابط: ${errText}`);
+    }
+    throw new Error(`File upload failed: ${errText}`);
   }
 
   return response.json();
@@ -426,7 +434,11 @@ export async function uploadBinaryFileToDrive(name: string, base64Content: strin
         throw new Error("انتهت صلاحية المزامنة. يرجى تسجيل الدخول مرة أخرى لتفعيل المزامنة.");
       }
     }
-    throw new Error(`Failed to upload file to drive: ${await response.text()}`);
+    const errText = await response.text();
+    if (response.status === 404 || response.status === 403) {
+      throw new Error(`عفواً، لا يملك الموظف الحالي صلاحية الوصول للمجلد في جوجل درايف. يرجى مشاركة المجلد مباشرة مع إيميلات الموظفين كـ (محرر) وليس فقط عبر الرابط: ${errText}`);
+    }
+    throw new Error(`Failed to upload file to drive: ${errText}`);
   }
   return response.json();
 }
