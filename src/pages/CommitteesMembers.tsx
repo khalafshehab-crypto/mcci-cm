@@ -750,10 +750,12 @@ export default function CommitteesMembers() {
           return typeof file === "string" ? file : "";
         };
 
-        // Get or Create Folders
+        // Get or Create Folders (بناء الهيكل الأرشيفي المتسلسل)
         const rootFolderId = await getOrCreateFolder("تقرير اللجان للدورة الـ 22");
-        const commFolderId = await getOrCreateFolder(matchedComm.name, rootFolderId);
-        memberFolderId = await getOrCreateFolder(name.trim(), commFolderId);
+        const approvedCommitteesFolderId = await getOrCreateFolder("اللجان المعتمدة", rootFolderId);
+        const commFolderId = await getOrCreateFolder(matchedComm.name, approvedCommitteesFolderId);
+        const committeeMembersFolderId = await getOrCreateFolder("أعضاء اللجنة", commFolderId);
+        memberFolderId = await getOrCreateFolder(name.trim(), committeeMembersFolderId);
 
         // Upload files
         if (personalPhoto && typeof personalPhoto === "object" && "name" in personalPhoto) finalPersonalPhoto = await uploadAttachment(personalPhoto, "الصورة الشخصية");
