@@ -58,7 +58,7 @@ function GoogleSyncModal() {
                 <AlertCircle className="w-6 h-6 animate-pulse" />
               </div>
               <div>
-                <h3 className="font-extrabold text-gray-950 text-base leading-tight">تجديد المزامنة مع جوجل</h3>
+                <h3 className="font-extrabold text-gray-950 text-base leading-tight">تجديد الاتصال السحابي مع جوجل</h3>
                 <p className="text-xs font-semibold text-gray-500 mt-1">انتهت صلاحية جلسة جوجل درايف للرفع التلقائي. يرجى تجديد الاتصال لاستكمال الرفع.</p>
               </div>
             </div>
@@ -76,7 +76,7 @@ function GoogleSyncModal() {
                 {isSyncing ? (
                   <><RefreshCw className="w-4 h-4 animate-spin" /> جاري المزامنة...</>
                 ) : (
-                  "تأكيد وتجديد المزامنة"
+                  "تأكيد وتجديد الاتصال"
                 )}
               </button>
               <button
@@ -95,6 +95,7 @@ function GoogleSyncModal() {
 }
 
 import PresenceTracker from "./components/PresenceTracker";
+import GlobalToast from "./components/GlobalToast";
 
 const CommitteesHome = React.lazy(() => import("./pages/CommitteesHome"));
 const CommitteesFormation = React.lazy(() => import("./pages/CommitteesFormation"));
@@ -185,6 +186,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <PresenceTracker />
+      <GlobalToast />
       <Router>
         <GoogleSyncModal />
         <Layout>

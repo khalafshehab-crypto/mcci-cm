@@ -1,4 +1,5 @@
 import { getSharedAccessToken, getCachedAccessToken, getOrCreateFolder, uploadBinaryFileToDrive, subscribeToAccessToken, triggerAuthModal } from "../lib/googleApi";
+import { showGlobalToast, clearGlobalToast } from "../lib/toastUtils";
 import React, { useState, useEffect, FormEvent, ChangeEvent, DragEvent, useRef } from "react";
 import * as XLSX from "xlsx";
 import { motion, AnimatePresence } from "motion/react";
@@ -714,6 +715,7 @@ export default function CommitteesMembers() {
     let finalAuthorization = typeof authorization === "string" ? authorization : "";
     let memberFolderId = editingMember?.driveFolderId || "";
 
+    showGlobalToast("جاري المعالجة والرفع إلى السحابة المركزية...", "loading", 0);
     let token = await getSharedAccessToken();
     if (!token) {
       try {
@@ -762,9 +764,9 @@ export default function CommitteesMembers() {
       } catch (err: any) {
         console.error("Failed to upload files to Drive:", err);
         if (err.message && err.message.includes("انتهت صلاحية")) {
-          alert(err.message);
+          showGlobalToast(err.message, "error");
         } else {
-          alert("فشل إنشاء أو رفع الملفات في جوجل درايف: " + err.message);
+          showGlobalToast("فشل إنشاء أو رفع الملفات في جوجل درايف: " + err.message, "error");
         }
         return; // Stop saving to Firestore if Drive upload fails
       }
@@ -812,6 +814,7 @@ export default function CommitteesMembers() {
       setRole(ROLE_CAPACITIES[2]);
       setFormError("");
       setIsAddOpen(false);
+      showGlobalToast("تم حفظ وتحديث البيانات بنجاح!", "success");
     } else {
       // Add
       const newMember: Member = {
@@ -2116,6 +2119,7 @@ export default function CommitteesMembers() {
                         type="button"
                         onClick={() => {
                           setIsAddOpen(false);
+      showGlobalToast("تم حفظ وتحديث البيانات بنجاح!", "success");
                           setShowSuccessPrompt(false);
                         }}
                         className="w-full h-11 bg-gray-100 hover:bg-gray-200 text-gray-755 font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2"

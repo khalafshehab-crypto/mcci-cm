@@ -688,7 +688,7 @@ ${t.description}
             <span>
               {showWorkspaceCenter
                 ? "إغلاق بوابة Google Workspace"
-                : "ربط ومزامنة Google Workspace 🌐"}
+                : "بوابة التكامل Google Workspace 🌐"}
             </span>
           </button>
 

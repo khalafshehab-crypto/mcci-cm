@@ -1,40 +1,31 @@
 const fs = require('fs');
-let content = fs.readFileSync('src/pages/CommitteesMembers.tsx', 'utf-8');
+let content = fs.readFileSync('src/pages/CommitteesMembers.tsx', 'utf8');
 
-const targetFunc = `        const uploadAttachment = async (file: File | string | null, label: string) => {
-          if (file && typeof file === "object" && "name" in file) {
-            const ext = (file as any).name.split('.').pop();
-            const fileName = \`\${label} لـ \${name.trim()}.\${ext}\`;
-            const base64 = await readFileAsBase64(file as any);
-            await uploadBinaryFileToDrive(fileName, base64, (file as any).type, memberFolderId);
-            return fileName;
-          }
-          return typeof file === "string" ? file : "";
-        };`;
+// Add import for toastUtils
+content = content.replace(
+  'import { getSharedAccessToken, triggerAuthModal, getOrCreateFolder, uploadBinaryFileToDrive } from "../lib/googleApi";',
+  'import { getSharedAccessToken, triggerAuthModal, getOrCreateFolder, uploadBinaryFileToDrive } from "../lib/googleApi";\nimport { showGlobalToast, clearGlobalToast } from "../lib/toastUtils";'
+);
 
-const replacementFunc = `        const uploadAttachment = async (file: File | string | null, label: string) => {
-          if (file && typeof file === "object" && "name" in file) {
-            const ext = (file as any).name.split('.').pop();
-            const fileName = \`\${label} لـ \${name.trim()}.\${ext}\`;
-            const base64 = await readFileAsBase64(file as any);
-            const res = await uploadBinaryFileToDrive(fileName, base64 as string, (file as any).type || "application/octet-stream", memberFolderId);
-            return res && res.id ? \`https://drive.google.com/file/d/\${res.id}/view\` : fileName;
-          }
-          return typeof file === "string" ? file : "";
-        };`;
+// Replace handleSave logic to include global toast
+content = content.replace(
+  /let token = await getSharedAccessToken\(\);/g,
+  `showGlobalToast("جاري المعالجة والرفع إلى السحابة المركزية...", "loading", 0);\n    let token = await getSharedAccessToken();`
+);
 
-content = content.replace(targetFunc, replacementFunc);
+content = content.replace(
+  /alert\("فشل إنشاء أو رفع الملفات في جوجل درايف: " \+ err\.message\);/g,
+  `showGlobalToast("فشل إنشاء أو رفع الملفات في جوجل درايف: " + err.message, "error");`
+);
 
-// Also replace reader.result
-const targetReader = `            reader.onload = () => {
-              const result = reader.result as string;
-              resolve(result.split(',')[1]);
-            };`;
-            
-const replaceReader = `            reader.onload = () => {
-              const result = reader.result as string;
-              resolve(result.split(',')[1] || "");
-            };`;
-content = content.replace(targetReader, replaceReader);
+content = content.replace(
+  /alert\(err\.message\);/g,
+  `showGlobalToast(err.message, "error");`
+);
+
+content = content.replace(
+  /setIsAddOpen\(false\);/g,
+  `setIsAddOpen(false);\n      showGlobalToast("تم حفظ وتحديث البيانات بنجاح!", "success");`
+);
 
 fs.writeFileSync('src/pages/CommitteesMembers.tsx', content);

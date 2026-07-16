@@ -7,7 +7,7 @@ import {
 import { Member } from "../data/initialMembers";
 import { formatCommitteeNameArabic } from "../lib/arabicUtils";
 import { getCachedAccessToken, getSharedAccessToken, getOrCreateFolder, triggerAuthModal, uploadBinaryFileToDrive } from "../lib/googleApi";
-
+import { showGlobalToast, clearGlobalToast } from "../lib/toastUtils";
 interface EventItem {
   id: number;
   title: string;
@@ -1662,7 +1662,7 @@ ${formattedItems}
 
   
   const handleFileUploads = async (files, evt, existingAtts) => {
-    setAlertState({ isOpen: true, message: "جاري الرفع والمزامنة مع أرشيف جوجل درايف...", onClose: () => {} });
+    showGlobalToast("جاري الرفع والمزامنة مع أرشيف جوجل درايف...", "loading", 0);
     try {
       let token = await getSharedAccessToken();
       if (!token) {
@@ -1706,11 +1706,11 @@ ${formattedItems}
       }
 
       updateEventWorkflow(evt.id, { attachments: [...existingAtts, ...newAtts] });
-      setAlertState({ isOpen: true, message: "تمت المزامنة وحفظ الملفات بنجاح في أرشيف جوجل درايف.", onClose: () => {} });
+      showGlobalToast("تمت المزامنة وحفظ الملفات بنجاح في أرشيف جوجل درايف.", "success");
     } catch (err: any) {
       console.error("Upload error:", err);
       const msg = err?.message?.includes("عفواً") ? err.message : "حدث خطأ أثناء رفع الملفات والمزامنة. تأكد من صلاحية الربط بحساب جوجل.";
-      setAlertState({ isOpen: true, message: msg, onClose: () => {} });
+      showGlobalToast(msg, "error");
     }
   };
 
