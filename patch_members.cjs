@@ -1,31 +1,18 @@
 const fs = require('fs');
 let content = fs.readFileSync('src/pages/CommitteesMembers.tsx', 'utf8');
 
-// Add import for toastUtils
-content = content.replace(
-  'import { getSharedAccessToken, triggerAuthModal, getOrCreateFolder, uploadBinaryFileToDrive } from "../lib/googleApi";',
-  'import { getSharedAccessToken, triggerAuthModal, getOrCreateFolder, uploadBinaryFileToDrive } from "../lib/googleApi";\nimport { showGlobalToast, clearGlobalToast } from "../lib/toastUtils";'
-);
+const replacement = `        const rootFolderId = await getOrCreateFolder("تقرير اللجان القطاعية الـ 22");
+        const subRootFolderId = await getOrCreateFolder("اللجان المعتمدة", rootFolderId);
+        const commFolderId = await getOrCreateFolder(matchedComm.name, subRootFolderId);
+        const membersRootFolderId = await getOrCreateFolder("أعضاء اللجنة", commFolderId);
+        memberFolderId = await getOrCreateFolder(name.trim(), membersRootFolderId);`;
 
-// Replace handleSave logic to include global toast
-content = content.replace(
-  /let token = await getSharedAccessToken\(\);/g,
-  `showGlobalToast("جاري المعالجة والرفع إلى السحابة المركزية...", "loading", 0);\n    let token = await getSharedAccessToken();`
-);
+const regex = /const rootFolderId = await getOrCreateFolder\("تقرير اللجان للدورة الـ 22"\);[\s\S]*?memberFolderId = await getOrCreateFolder\(name\.trim\(\), commFolderId\);/;
 
-content = content.replace(
-  /alert\("فشل إنشاء أو رفع الملفات في جوجل درايف: " \+ err\.message\);/g,
-  `showGlobalToast("فشل إنشاء أو رفع الملفات في جوجل درايف: " + err.message, "error");`
-);
-
-content = content.replace(
-  /alert\(err\.message\);/g,
-  `showGlobalToast(err.message, "error");`
-);
-
-content = content.replace(
-  /setIsAddOpen\(false\);/g,
-  `setIsAddOpen(false);\n      showGlobalToast("تم حفظ وتحديث البيانات بنجاح!", "success");`
-);
-
-fs.writeFileSync('src/pages/CommitteesMembers.tsx', content);
+if (content.match(regex)) {
+  content = content.replace(regex, replacement);
+  fs.writeFileSync('src/pages/CommitteesMembers.tsx', content);
+  console.log("Patched CommitteesMembers");
+} else {
+  console.log("Could not find block in CommitteesMembers");
+}

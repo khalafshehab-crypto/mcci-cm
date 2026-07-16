@@ -1,26 +1,23 @@
 const fs = require('fs');
 let content = fs.readFileSync('src/pages/CommitteesRecommendations.tsx', 'utf8');
 
-// Add import
-content = content.replace(
-  'import { getSharedAccessToken, getOrCreateFolder, uploadBinaryFileToDrive, triggerAuthModal } from "../lib/googleApi";',
-  'import { getSharedAccessToken, getOrCreateFolder, uploadBinaryFileToDrive, triggerAuthModal } from "../lib/googleApi";\nimport { showGlobalToast, clearGlobalToast } from "../lib/toastUtils";'
-);
+const replacement = `        const rootFolderId = await getOrCreateFolder("تقرير اللجان القطاعية الـ 22");
+        const subRootFolderId = await getOrCreateFolder("اللجان المعتمدة", rootFolderId);
+        const committeeFolderId = await getOrCreateFolder(evt.committeeName || "عام", subRootFolderId);
+        const eventsRootFolderId = await getOrCreateFolder("الاجتماعات والفعاليات", committeeFolderId);
+        
+        const isMeeting = evt.title && evt.title.includes("اجتماع");
+        const classificationFolderName = isMeeting ? "اجتماعات اللجنة" : "الفعاليات";
+        
+        const classificationFolderId = await getOrCreateFolder(classificationFolderName, eventsRootFolderId);
+        const itemFolderId = await getOrCreateFolder(evt.title || "بدون عنوان", classificationFolderId);`;
 
-// Replace setAlertState with showGlobalToast for uploads
-content = content.replace(
-  /setAlertState\(\{ isOpen: true, message: "جاري الرفع والمزامنة مع أرشيف جوجل درايف\.\.\.", onClose: \(\) => \{\} \}\);/g,
-  `showGlobalToast("جاري الرفع والمزامنة مع أرشيف جوجل درايف...", "loading", 0);`
-);
+const regex = /const rootFolderId = await getOrCreateFolder\("أرشيف اللجان - الدورة 22"\);[\s\S]*?const itemFolderId = await getOrCreateFolder\(evt\.title \|\| "بدون عنوان", recFolderId\);/;
 
-content = content.replace(
-  /setAlertState\(\{ isOpen: true, message: "تمت المزامنة وحفظ الملفات بنجاح في أرشيف جوجل درايف\.", onClose: \(\) => \{\} \}\);/g,
-  `showGlobalToast("تمت المزامنة وحفظ الملفات بنجاح في أرشيف جوجل درايف.", "success");`
-);
-
-content = content.replace(
-  /setAlertState\(\{ isOpen: true, message: msg, onClose: \(\) => \{\} \}\);/g,
-  `showGlobalToast(msg, "error");`
-);
-
-fs.writeFileSync('src/pages/CommitteesRecommendations.tsx', content);
+if (content.match(regex)) {
+  content = content.replace(regex, replacement);
+  fs.writeFileSync('src/pages/CommitteesRecommendations.tsx', content);
+  console.log("Patched CommitteesRecommendations");
+} else {
+  console.log("Could not find block in CommitteesRecommendations");
+}

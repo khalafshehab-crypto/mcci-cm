@@ -412,8 +412,9 @@ ${(targetEmployee.committees || []).length > 0
 ========================================
       `;
 
-            const rootFolderId = await getOrCreateFolder("تقرير اللجان للدورة الـ 22");
-      const commFolderId = await getOrCreateFolder(committee.name, rootFolderId);
+                  const rootFolderId = await getOrCreateFolder("تقرير اللجان القطاعية الـ 22");
+      const subRootFolderId = await getOrCreateFolder("اللجان المعتمدة", rootFolderId);
+      const commFolderId = await getOrCreateFolder(committee.name, subRootFolderId);
       const result = await uploadFileToDrive(fileName, fileContent, "text/plain", commFolderId);
       showFeedback(
         `🎉 تم تصدير القالب [${template.title}] ورسمه وأرشفته تلقائياً في سحابة لجنة ${committee.name} بنجاح!`, 
