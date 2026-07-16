@@ -328,16 +328,48 @@ export async function uploadFileToDrive(name: string, content: string, mimeType:
 
 export async function getOrCreateFolder(name: string, parentId?: string): Promise<string> {
   const safeName = name.replace(/'/g, "\\'");
+  
+  if (!parentId) {
+    try {
+      const folderDocRef = doc(db, "system_settings", `google_folder_${safeName}`);
+      const snap = await getDoc(folderDocRef);
+      if (snap && snap.exists()) {
+        const data = snap.data();
+        if (data && data.folderId) {
+           return data.folderId;
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to read folder ID from Firestore", err);
+    }
+  }
+
   let q = `mimeType='application/vnd.google-apps.folder' and name='${safeName}' and trashed=false`;
   if (parentId) {
     q += ` and '${parentId}' in parents`;
+  } else {
+    q = `(${q}) or (mimeType='application/vnd.google-apps.folder' and name='${safeName}' and trashed=false and sharedWithMe=true)`;
   }
   const files = await listDriveFiles(q);
   if (files && files.length > 0) {
-    return files[0].id;
+    const foundId = files[0].id;
+    if (!parentId) {
+      try {
+        const folderDocRef = doc(db, "system_settings", `google_folder_${safeName}`);
+        await setDoc(folderDocRef, { folderId: foundId, timestamp: Date.now() }, { merge: true });
+      } catch(e) {}
+    }
+    return foundId;
   }
   const folder = await createDriveFolder(name, parentId);
-  return folder.id;
+  const newId = folder.id;
+  if (!parentId) {
+    try {
+      const folderDocRef = doc(db, "system_settings", `google_folder_${safeName}`);
+      await setDoc(folderDocRef, { folderId: newId, timestamp: Date.now() }, { merge: true });
+    } catch(e) {}
+  }
+  return newId;
 }
 
 export async function uploadBinaryFileToDrive(name: string, base64Content: string, mimeType: string, parentId?: string): Promise<any> {
