@@ -1,20 +1,31 @@
 const fs = require('fs');
 let content = fs.readFileSync('src/pages/CommitteesMembers.tsx', 'utf8');
 
-const regex = /\/\/ Get or Create Folders[\s\S]*?const rootFolderId = await getOrCreateFolder\([\s\S]*?memberFolderId = await getOrCreateFolder\(name\.trim\(\), commFolderId\);/;
-const replacement = `// Get or Create Folders
-        const rootFolderId = await getOrCreateFolder("تقرير إدارة اللجان للدورة الـ 22");
-        const approvedFolderId = await getOrCreateFolder("اللجان المعتمدة", rootFolderId);
-        // We use matchedComm.active to check if active
-        const statusFolderId = await getOrCreateFolder(matchedComm.active ? "الفعالة" : "غير الفعالة", approvedFolderId);
-        const commFolderId = await getOrCreateFolder(matchedComm.name, statusFolderId);
-        const membersFolderId = await getOrCreateFolder("أعضاء اللجنة", commFolderId);
-        memberFolderId = await getOrCreateFolder(name.trim(), membersFolderId);`;
+// Add import for toastUtils
+content = content.replace(
+  'import { getSharedAccessToken, triggerAuthModal, getOrCreateFolder, uploadBinaryFileToDrive } from "../lib/googleApi";',
+  'import { getSharedAccessToken, triggerAuthModal, getOrCreateFolder, uploadBinaryFileToDrive } from "../lib/googleApi";\nimport { showGlobalToast, clearGlobalToast } from "../lib/toastUtils";'
+);
 
-if (content.match(regex)) {
-  content = content.replace(regex, replacement);
-  fs.writeFileSync('src/pages/CommitteesMembers.tsx', content);
-  console.log("Patched CommitteesMembers");
-} else {
-  console.log("Regex not found in CommitteesMembers");
-}
+// Replace handleSave logic to include global toast
+content = content.replace(
+  /let token = await getSharedAccessToken\(\);/g,
+  `showGlobalToast("جاري المعالجة والرفع إلى السحابة المركزية...", "loading", 0);\n    let token = await getSharedAccessToken();`
+);
+
+content = content.replace(
+  /alert\("فشل إنشاء أو رفع الملفات في جوجل درايف: " \+ err\.message\);/g,
+  `showGlobalToast("فشل إنشاء أو رفع الملفات في جوجل درايف: " + err.message, "error");`
+);
+
+content = content.replace(
+  /alert\(err\.message\);/g,
+  `showGlobalToast(err.message, "error");`
+);
+
+content = content.replace(
+  /setIsAddOpen\(false\);/g,
+  `setIsAddOpen(false);\n      showGlobalToast("تم حفظ وتحديث البيانات بنجاح!", "success");`
+);
+
+fs.writeFileSync('src/pages/CommitteesMembers.tsx', content);
