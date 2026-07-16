@@ -1,4 +1,4 @@
-import { getSharedAccessToken, getCachedAccessToken, getOrCreateFolder, uploadBinaryFileToDrive, subscribeToAccessToken } from "../lib/googleApi";
+import { getSharedAccessToken, getCachedAccessToken, getOrCreateFolder, uploadBinaryFileToDrive, subscribeToAccessToken, triggerAuthModal } from "../lib/googleApi";
 import React, { useState, useEffect, FormEvent, ChangeEvent, DragEvent, useRef } from "react";
 import * as XLSX from "xlsx";
 import { motion, AnimatePresence } from "motion/react";
@@ -714,7 +714,16 @@ export default function CommitteesMembers() {
     let finalAuthorization = typeof authorization === "string" ? authorization : "";
     let memberFolderId = editingMember?.driveFolderId || "";
 
-    if (await getSharedAccessToken()) {
+    let token = await getSharedAccessToken();
+    if (!token) {
+      try {
+        token = await triggerAuthModal();
+      } catch (err) {
+        console.warn("User cancelled or failed to authenticate", err);
+      }
+    }
+
+    if (token) {
       try {
         const readFileAsBase64 = (file: File): Promise<string> => {
           return new Promise((resolve, reject) => {

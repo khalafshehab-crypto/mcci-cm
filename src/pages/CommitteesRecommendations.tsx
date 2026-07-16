@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { Member } from "../data/initialMembers";
 import { formatCommitteeNameArabic } from "../lib/arabicUtils";
-import { getCachedAccessToken, getSharedAccessToken, getOrCreateFolder, uploadBinaryFileToDrive } from "../lib/googleApi";
+import { getCachedAccessToken, getSharedAccessToken, getOrCreateFolder, triggerAuthModal, uploadBinaryFileToDrive } from "../lib/googleApi";
 
 interface EventItem {
   id: number;
@@ -1664,7 +1664,15 @@ ${formattedItems}
   const handleFileUploads = async (files, evt, existingAtts) => {
     setAlertState({ isOpen: true, message: "جاري الرفع والمزامنة مع أرشيف جوجل درايف...", onClose: () => {} });
     try {
-      const token = await getSharedAccessToken();
+      let token = await getSharedAccessToken();
+      if (!token) {
+        try {
+          token = await triggerAuthModal();
+        } catch (err) {
+          console.warn("User cancelled auth", err);
+        }
+      }
+      
       const newAtts = [];
       
       if (token) {

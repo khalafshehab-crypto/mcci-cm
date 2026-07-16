@@ -8,7 +8,7 @@ import {
 // @ts-ignore
 import { generateDocx } from "../lib/docxGenerator";
 // @ts-ignore
-import { getCachedAccessToken, getSharedAccessToken, createAndPopulateSheet, getOrCreateFolder, subscribeToAccessToken } from "../lib/googleApi";
+import { getCachedAccessToken, getSharedAccessToken, createAndPopulateSheet, getOrCreateFolder, subscribeToAccessToken, triggerAuthModal } from "../lib/googleApi";
 
 export interface Committee {
   id: number | string;
@@ -949,7 +949,16 @@ export default function CommitteesFormation() {
     let folderId = editingComm?.driveFolderId || "";
 
     // Create Drive Folder if auth is available
-    if (await getSharedAccessToken()) {
+    let token = await getSharedAccessToken();
+    if (!token) {
+      try {
+        token = await triggerAuthModal();
+      } catch (err) {
+        console.warn("User cancelled auth", err);
+      }
+    }
+
+    if (token) {
       try {
         const rootFolderId = await getOrCreateFolder("تقرير اللجان للدورة الـ 22");
         folderId = await getOrCreateFolder(name.trim(), rootFolderId);
