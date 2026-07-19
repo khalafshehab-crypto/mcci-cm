@@ -21,9 +21,9 @@ import {
   FileSpreadsheet,
   Download
 } from "lucide-react";
-import { getCachedAccessToken, getSharedAccessToken, createAndPopulateSheet } from "../lib/googleApi";
-
-
+import { getCachedAccessToken, getSharedAccessToken, createAndPopulateSheet, uploadFileToDriveByPath } from "../lib/googleApi";
+import { useFirestoreCollection } from '../lib/firebaseUtils';
+import { cascadeCommitteeRename, cascadeCommitteeDelete } from '../lib/cascadeUpdates';
 
 interface Committee {
   id: number;
@@ -33,20 +33,21 @@ interface Committee {
   active: boolean;
   desc: string;
   specialist?: string;
-  formationLetter?: string;
   president?: string;
   recommendationsCount?: number;
   eventsCount?: number;
   ratingIssues?: string;
   strategicPlan?: string;
+  // الحقول الجديدة لأرشفة جوجل درايف
+  formationLetter?: string;
+  membersApproval?: string;
+  regulations?: string;
+  guides?: string;
 }
 
 const EMPLOYEES = [
   "مدير النظام",
 ];
-
-import { useFirestoreCollection } from '../lib/firebaseUtils';
-import { cascadeCommitteeRename, cascadeCommitteeDelete } from '../lib/cascadeUpdates';
 
 export default function Committees() {
   const { data: dbCommittees, updateDocument: updateFirebaseComm, deleteDocument: deleteFirebaseComm } = useFirestoreCollection<Committee>("committees", []);
@@ -98,12 +99,10 @@ export default function Committees() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newMtgError, setNewMtgError] = useState("");
 
-  // Dynamic employees fetched from Org Chart database
   const [dynamicEmployees, setDynamicEmployees] = useState<string[]>(EMPLOYEES);
 
   useEffect(() => {
     if (dbEmployees && dbEmployees.length > 0) {
-      // Unconditionally hide sys admin and root users from all employee lists, regardless of current user role
       const sourceList = dbEmployees.filter((e: any) => 
         e && 
         e.role !== "SYS_ADMIN" &&
@@ -114,11 +113,8 @@ export default function Committees() {
       );
 
       setDynamicEmployees(sourceList.map((e: any) => e.name).filter(Boolean));
-      
-      // Update local storage so any other legacy pages have it
       localStorage.setItem("app_employees", JSON.stringify(dbEmployees));
 
-      // Sync committees' specialists based on employee assignments
       setCommittees(prev => {
         let changed = false;
         const updated = prev.map(comm => {
@@ -137,38 +133,53 @@ export default function Committees() {
     }
   }, [dbEmployees]);
 
-  // Form Fields for Add / Edit
+  // Form Fields
   const [name, setName] = useState("");
   const [membersCount, setMembersCount] = useState(10);
   const [meetingsCount, setMeetingsCount] = useState(0);
   const [desc, setDesc] = useState("");
   const [specialist, setSpecialist] = useState("غير محدد");
   const [isActive, setIsActive] = useState(true);
-  const [formationLetter, setFormationLetter] = useState("");
-  
-  // New Form Fields for Robust Committee Cards
   const [president, setPresident] = useState("");
   const [recommendationsCount, setRecommendationsCount] = useState(0);
   const [eventsCount, setEventsCount] = useState(0);
   const [ratingIssues, setRatingIssues] = useState("");
   const [strategicPlan, setStrategicPlan] = useState("");
 
-  // Editing state
+  // حالات الأرشفة ورفع الملفات
+  const [formationLetter, setFormationLetter] = useState("");
+  const [membersApproval, setMembersApproval] = useState("");
+  const [regulations, setRegulations] = useState("");
+  const [guides, setGuides] = useState("");
+
+  const [formationFile, setFormationFile] = useState<File | null>(null);
+  const [approvalFile, setApprovalFile] = useState<File | null>(null);
+  const [regulationsFile, setRegulationsFile] = useState<File | null>(null);
+  const [guidesFile, setGuidesFile] = useState<File | null>(null);
+  
+  const [isUploading, setIsUploading] = useState(false);
+
+  // مسارات جوجل درايف (يتم تمرير اسم اللجنة لها لاحقاً)
+  const getArchivePaths = (commName: string) => {
+    const cName = commName.trim();
+    return {
+      formation: `تقرير اللجان للدورة الـ 22/اللجان المعتمدة/${cName}/أعضاء اللجنة/قرار التشكيل`,
+      approval: `تقرير اللجان للدورة الـ 22/اللجان المعتمدة/${cName}/أعضاء اللجنة/قرار اعتماد الأعضاء`,
+      regulations: `تقرير اللجان للدورة الـ 22/اللجان المعتمدة/${cName}/اللوائح والأدلة`,
+      guides: `تقرير اللجان للدورة الـ 22/اللجان المعتمدة/${cName}/اللوائح والأدلة`
+    };
+  };
+
   const [editingComm, setEditingComm] = useState<Committee | null>(null);
   const [editReason, setEditReason] = useState("");
 
-  // Deletion process states
   const [deletingComm, setDeletingComm] = useState<Committee | null>(null);
   const [deleteReason, setDeleteReason] = useState("");
   const [isDeletingStep, setIsDeletingStep] = useState(false);
 
-  // Active Gear action menu state for dropdowns
   const [activeGearMenuId, setActiveGearMenuId] = useState<number | null>(null);
-
-  // Details Modal State
   const [detailsComm, setDetailsComm] = useState<Committee | null>(null);
 
-  // Google Sheets Export States
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [selectedExportFields, setSelectedExportFields] = useState<string[]>([
     "alphabetical", "president", "membersCount", "specialist", "meetingsCount", "recommendationsCount", "eventsCount", "strategicPlan", "status", "desc"
@@ -196,43 +207,29 @@ export default function Committees() {
   ];
 
   const handleExportToGoogleSheets = async () => {
+    // ... [الكود الخاص بالتصدير كما هو في ملفك الأصلي]
     const sorted = [...committees].sort((a, b) => a.name.localeCompare(b.name, "ar"));
     const activeHeaders = EXPORT_FIELDS_META.filter(f => selectedExportFields.includes(f.key));
     const token = await getSharedAccessToken();
 
-    // Mapping payload values function
     const getFieldVal = (comm: any, index: number, hKey: string) => {
       let val = "";
-      if (hKey === "alphabetical") {
-        val = String(index + 1);
-      } else if (hKey === "president") {
-        val = comm.president || "غير محدد";
-      } else if (hKey === "membersCount") {
-        val = String(comm.membersCount);
-      } else if (hKey === "specialist") {
-        val = comm.specialist || "غير محدد";
-      } else if (hKey === "meetingsCount") {
-        val = String(comm.meetingsCount);
-      } else if (hKey === "recommendationsCount") {
-        val = String(comm.recommendationsCount || 0);
-      } else if (hKey === "eventsCount") {
-        val = String(comm.eventsCount || 0);
-      } else if (hKey === "ratingIssues") {
-        val = comm.ratingIssues || "لا يوجد قضايا تقدير";
-      } else if (hKey === "strategicPlan") {
-        val = comm.strategicPlan || "غير مدرجة";
-      } else if (hKey === "status") {
-        val = comm.active ? "فعالة / نشطة" : "غير فعالة";
-      } else if (hKey === "notes") {
-        val = "بيانات لجان قطاعية مستخرجة آلياً";
-      } else if (hKey === "desc") {
-        val = comm.desc || "";
-      }
+      if (hKey === "alphabetical") val = String(index + 1);
+      else if (hKey === "president") val = comm.president || "غير محدد";
+      else if (hKey === "membersCount") val = String(comm.membersCount);
+      else if (hKey === "specialist") val = comm.specialist || "غير محدد";
+      else if (hKey === "meetingsCount") val = String(comm.meetingsCount);
+      else if (hKey === "recommendationsCount") val = String(comm.recommendationsCount || 0);
+      else if (hKey === "eventsCount") val = String(comm.eventsCount || 0);
+      else if (hKey === "ratingIssues") val = comm.ratingIssues || "لا يوجد قضايا تقدير";
+      else if (hKey === "strategicPlan") val = comm.strategicPlan || "غير مدرجة";
+      else if (hKey === "status") val = comm.active ? "فعالة / نشطة" : "غير فعالة";
+      else if (hKey === "notes") val = "بيانات لجان قطاعية مستخرجة آلياً";
+      else if (hKey === "desc") val = comm.desc || "";
       return val;
     };
 
     if (token) {
-      // 🚀 Real Google Sheets API integration path
       const title = `سجل اللجان القطاعية المصدّرة - غرفة مكة - ${new Date().toLocaleDateString("ar-SA")}`;
       const headers = activeHeaders.map(h => h.label);
       const rows = sorted.map((comm, index) => {
@@ -247,7 +244,6 @@ export default function Committees() {
         .catch((err) => {
           console.error("Sheets API error:", err);
           alert(`فشل التصدير التلقائي لـ Google Sheets (${err.message}). جاري التراجع لتنزيل الملف المحلي.`);
-          // Trigger fallback manually
           triggerLocalCsvFallback(sorted, activeHeaders);
         });
       
@@ -256,7 +252,6 @@ export default function Committees() {
       return;
     }
 
-    // Classic CSV fallback
     triggerLocalCsvFallback(sorted, activeHeaders);
     setIsExportOpen(false);
   };
@@ -266,33 +261,19 @@ export default function Committees() {
     const csvRows = sorted.map((comm, index) => {
       return activeHeaders.map(h => {
         let val = "";
-        if (h.key === "alphabetical") {
-          val = String(index + 1);
-        } else if (h.key === "president") {
-          val = comm.president || "غير محدد";
-        } else if (h.key === "membersCount") {
-          val = String(comm.membersCount);
-        } else if (h.key === "specialist") {
-          val = comm.specialist || "غير محدد";
-        } else if (h.key === "meetingsCount") {
-          val = String(comm.meetingsCount);
-        } else if (h.key === "recommendationsCount") {
-          val = String(comm.recommendationsCount || 0);
-        } else if (h.key === "eventsCount") {
-          val = String(comm.eventsCount || 0);
-        } else if (h.key === "ratingIssues") {
-          val = comm.ratingIssues || "لا يوجد قضايا تقدير";
-        } else if (h.key === "strategicPlan") {
-          val = comm.strategicPlan || "غير مدرجة";
-        } else if (h.key === "status") {
-          val = comm.active ? "فعالة / نشطة" : "غير فعالة";
-        } else if (h.key === "notes") {
-          val = "بيانات لجان قطاعية مستخرجة آلياً";
-        } else if (h.key === "desc") {
-          val = comm.desc || "";
-        }
-        const escaped = `"${val.replace(/"/g, '""')}"`;
-        return escaped;
+        if (h.key === "alphabetical") val = String(index + 1);
+        else if (h.key === "president") val = comm.president || "غير محدد";
+        else if (h.key === "membersCount") val = String(comm.membersCount);
+        else if (h.key === "specialist") val = comm.specialist || "غير محدد";
+        else if (h.key === "meetingsCount") val = String(comm.meetingsCount);
+        else if (h.key === "recommendationsCount") val = String(comm.recommendationsCount || 0);
+        else if (h.key === "eventsCount") val = String(comm.eventsCount || 0);
+        else if (h.key === "ratingIssues") val = comm.ratingIssues || "لا يوجد قضايا تقدير";
+        else if (h.key === "strategicPlan") val = comm.strategicPlan || "غير مدرجة";
+        else if (h.key === "status") val = comm.active ? "فعالة / نشطة" : "غير فعالة";
+        else if (h.key === "notes") val = "بيانات لجان قطاعية مستخرجة آلياً";
+        else if (h.key === "desc") val = comm.desc || "";
+        return `"${val.replace(/"/g, '""')}"`;
       }).join(",");
     });
 
@@ -332,20 +313,13 @@ export default function Committees() {
     } catch(e){}
   };
 
-
-  // Live Auto-Synchronization of Committee Statistics from custom pages
+  // Live Auto-Synchronization of Committee Statistics
   useEffect(() => {
     try {
-      // 1. Get exact members
       let allMembers = dbMembers || [];
-      
-      // 2. Get exact events
       let allEvents = (dbEvents || []).filter((e: any) => !e.recommendationClassification);
-
-      // 3. Get exact recommendations
       let allRecs = dbRecs ? [...dbRecs] : [];
 
-      // Advanced Arabic term containment algorithm for names matching
       const advancedMatch = (commName: string, targetName: string) => {
         if (!commName || !targetName) return false;
         const clean = (s: string) => s.replace(/لجنة/g, "").replace(/الـ/g, "").replace(/ال/g, "").replace(/\s+/g, " ").trim();
@@ -361,16 +335,13 @@ export default function Committees() {
       setCommittees(prev => {
         let hasChanges = false;
         const updated = prev.map(comm => {
-          // Count total members belonging to committee
           const myMbrs = allMembers.filter((m: any) => m && String(m.committeeId) === String(comm.id));
           const realMembersCount = myMbrs.length;
 
-          // Count meetings & events purely from app_events, since this is raw production readiness
           const myEvts = allEvents.filter((e: any) => e && String(e.committeeId) === String(comm.id));
           const realMeetingsCount = myEvts.filter((e: any) => e && e.title && e.title.includes("اجتماع")).length;
           const realEventsCount = myEvts.filter((e: any) => e && e.title && !e.title.includes("اجتماع")).length;
 
-          // Count recommendations purely from recommendations database
           const myRecs = allRecs.filter((r: any) => r && advancedMatch(r.committeeName || r.dept, comm.name));
           const realRecommendationsCount = myRecs.length;
 
@@ -406,9 +377,7 @@ export default function Committees() {
   useEffect(() => {
     try {
       localStorage.setItem("app_committees", JSON.stringify(committees));
-    } catch (e) {
-      console.error("Failed to store committees:", e);
-    }
+    } catch (e) {}
 
     try {
       const savedEmps = localStorage.getItem("app_employees");
@@ -417,7 +386,6 @@ export default function Committees() {
         if (Array.isArray(emps)) {
           const synced = emps.map((emp: any) => {
             if (!emp) return emp;
-            // Get all active committees where this employee is designated as the specialist
             const assignedCommNames = committees
               .filter((c: any) => c && c.active !== false && c.specialist === emp.name)
               .map((c: any) => c.name);
@@ -426,9 +394,7 @@ export default function Committees() {
           localStorage.setItem("app_employees", JSON.stringify(synced));
         }
       }
-    } catch (e) {
-      console.error("Error syncing employees with committees:", e);
-    }
+    } catch (e) {}
   }, [committees]);
 
   const handleSearchCommit = (e: FormEvent) => {
@@ -450,12 +416,18 @@ export default function Committees() {
     setDesc("");
     setSpecialist("غير محدد");
     setIsActive(true);
-    setFormationLetter("");
     setPresident("");
     setRecommendationsCount(0);
     setEventsCount(0);
     setRatingIssues("");
     setStrategicPlan("");
+    
+    // تصفير ملفات المرفقات
+    setFormationLetter(""); setFormationFile(null);
+    setMembersApproval(""); setApprovalFile(null);
+    setRegulations(""); setRegulationsFile(null);
+    setGuides(""); setGuidesFile(null);
+
     setEditingComm(null);
     setEditReason("");
     setNewMtgError("");
@@ -474,12 +446,18 @@ export default function Committees() {
     setDesc(comm.desc);
     setSpecialist(comm.specialist || "غير محدد");
     setIsActive(comm.active);
-    setFormationLetter(comm.formationLetter || "");
     setPresident(comm.president || "");
     setRecommendationsCount(comm.recommendationsCount || 0);
     setEventsCount(comm.eventsCount || 0);
     setRatingIssues(comm.ratingIssues || "");
     setStrategicPlan(comm.strategicPlan || "");
+    
+    // استرجاع روابط المرفقات
+    setFormationLetter(comm.formationLetter || ""); setFormationFile(null);
+    setMembersApproval(comm.membersApproval || ""); setApprovalFile(null);
+    setRegulations(comm.regulations || ""); setRegulationsFile(null);
+    setGuides(comm.guides || ""); setGuidesFile(null);
+
     setEditReason("");
     setNewMtgError("");
     setIsAddOpen(true);
@@ -497,6 +475,7 @@ export default function Committees() {
     setActiveGearMenuId(null);
   };
 
+  // المعالجة الشاملة للنموذج مع الرفع لجوجل درايف
   const handleFormSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
@@ -512,84 +491,99 @@ export default function Committees() {
       return;
     }
 
-    if (editingComm) {
-      const oldName = editingComm.name;
-      const newName = name.trim();
-      const nameChanged = oldName !== newName;
+    setIsUploading(true);
+    setNewMtgError("");
 
-      // Modify
-      setCommittees(prev => prev.map(c => {
-        if (c.id === editingComm.id) {
-          return {
-            ...c,
-            name: name.trim(),
-            membersCount: Number(membersCount) || 5,
-            meetingsCount: Number(meetingsCount) || 0,
-            active: isActive,
-            desc: desc.trim(),
-            specialist: specialist,
-            formationLetter: formationLetter || c.formationLetter || "قرار_تشكيل_معدل.pdf",
-            president: president.trim(),
-            recommendationsCount: Number(recommendationsCount) || 0,
-            eventsCount: Number(eventsCount) || 0,
-            ratingIssues: ratingIssues.trim(),
-            strategicPlan: strategicPlan.trim()
-          };
+    try {
+      // الاحتفاظ بالروابط القديمة في حال لم يتم إرفاق ملف جديد
+      let finalFormationLink = formationLetter;
+      let finalApprovalLink = membersApproval;
+      let finalRegulationsLink = regulations;
+      let finalGuidesLink = guides;
+
+      const token = await getSharedAccessToken();
+      const paths = getArchivePaths(name);
+
+      if (token) {
+        if (formationFile) {
+          const ext = formationFile.name.split('.').pop();
+          const newName = `قرار تشكيل ${name.trim()}.${ext}`;
+          finalFormationLink = await uploadFileToDriveByPath(formationFile, paths.formation, newName) || finalFormationLink;
         }
-        return c;
-      }));
-
-      if (nameChanged) {
-        await cascadeCommitteeRename(oldName, newName);
+        if (approvalFile) {
+          const ext = approvalFile.name.split('.').pop();
+          const newName = `قرار اعتماد أعضاء ${name.trim()}.${ext}`;
+          finalApprovalLink = await uploadFileToDriveByPath(approvalFile, paths.approval, newName) || finalApprovalLink;
+        }
+        if (regulationsFile) {
+          const ext = regulationsFile.name.split('.').pop();
+          const newName = `لائحة ${name.trim()}.${ext}`;
+          finalRegulationsLink = await uploadFileToDriveByPath(regulationsFile, paths.regulations, newName) || finalRegulationsLink;
+        }
+        if (guidesFile) {
+          const ext = guidesFile.name.split('.').pop();
+          const newName = `دليل ${name.trim()}.${ext}`;
+          finalGuidesLink = await uploadFileToDriveByPath(guidesFile, paths.guides, newName) || finalGuidesLink;
+        }
+      } else {
+        console.warn("No Google Drive token available. Skipping upload.");
       }
-    } else {
-      // Add
-      const newComm: Committee = {
-        id: Date.now(),
+
+      const committeeData = {
         name: name.trim(),
         membersCount: Number(membersCount) || 5,
         meetingsCount: Number(meetingsCount) || 0,
         active: isActive,
         desc: desc.trim(),
         specialist: specialist,
-        formationLetter: formationLetter || "غير مرفق.pdf",
         president: president.trim(),
         recommendationsCount: Number(recommendationsCount) || 0,
         eventsCount: Number(eventsCount) || 0,
         ratingIssues: ratingIssues.trim(),
-        strategicPlan: strategicPlan.trim()
+        strategicPlan: strategicPlan.trim(),
+        formationLetter: finalFormationLink,
+        membersApproval: finalApprovalLink,
+        regulations: finalRegulationsLink,
+        guides: finalGuidesLink,
       };
-      setCommittees([newComm, ...committees]);
-    }
 
-    // Reset inputs
-    setName("");
-    setMembersCount(10);
-    setMeetingsCount(0);
-    setDesc("");
-    setSpecialist("غير محدد");
-    setIsActive(true);
-    setFormationLetter("");
-    setPresident("");
-    setRecommendationsCount(0);
-    setEventsCount(0);
-    setRatingIssues("");
-    setStrategicPlan("");
-    setEditingComm(null);
-    setEditReason("");
-    setNewMtgError("");
-    setIsAddOpen(false);
+      if (editingComm) {
+        const oldName = editingComm.name;
+        const nameChanged = oldName !== name.trim();
+
+        setCommittees(prev => prev.map(c => {
+          if (c.id === editingComm.id) {
+            return { ...c, ...committeeData };
+          }
+          return c;
+        }));
+
+        if (nameChanged) {
+          await cascadeCommitteeRename(oldName, name.trim());
+        }
+      } else {
+        const newComm: Committee = {
+          id: Date.now(),
+          ...committeeData
+        };
+        setCommittees([newComm, ...committees]);
+      }
+
+      // Reset
+      handleOpenAdd(); 
+      setIsAddOpen(false);
+
+    } catch (error) {
+      console.error("Upload Error:", error);
+      setNewMtgError("حدث خطأ أثناء أرشفة الملفات في درايف. يرجى المحاولة مرة أخرى.");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
-  // We can load and memoize all exact counts so we have 100% accurate dynamic statistics on Committees page too!
   const synchronizedCommittees = useMemo(() => {
-    // 1. Get exact members
     let allMembers = dbMembers || [];
-
-    // 2. Get exact events
     let allEvents = (dbEvents || []).filter((e: any) => !e.recommendationClassification);
-
-    // 3. Get exact recommendations
     let allRecs = dbRecs ? [...dbRecs] : [];
 
     const advancedMatch = (commName: string, targetName: string) => {
@@ -605,22 +599,18 @@ export default function Committees() {
     };
 
     return committees.map(comm => {
-      // Calculate dynamic members count
       const myMbrs = allMembers.filter((m: any) => m && String(m.committeeId) === String(comm.id));
       const realMembersCount = myMbrs.length;
 
-      // Calculate dynamic president from members
       const presMbr = myMbrs.find((m: any) => m.role === "رئيس" || m.role?.includes("رئيس"));
       const dynamicPresidentName = presMbr 
         ? `${presMbr.customTitle || presMbr.title || ''} ${presMbr.name}`.trim().replace(/\s+/g, " ")
         : (comm.president || "غير محدد");
 
-      // Calculate dynamic meetings and events
       const myEvts = allEvents.filter((e: any) => e && String(e.committeeId) === String(comm.id));
       const realMeetingsCount = myEvts.filter((e: any) => e && e.title && e.title.includes("اجتماع")).length;
       const realEventsCount = myEvts.filter((e: any) => e && e.title && !e.title.includes("اجتماع")).length;
 
-      // Calculate dynamic recommendations
       const myRecs = allRecs.filter((r: any) => r && advancedMatch(r.committeeName || r.dept, comm.name));
       const realRecommendationsCount = myRecs.length;
 
@@ -633,7 +623,7 @@ export default function Committees() {
         recommendationsCount: realRecommendationsCount
       };
     });
-  }, [committees]);
+  }, [committees, dbMembers, dbEvents, dbRecs]);
 
   const filteredCommittees = synchronizedCommittees.filter(c => {
     const term = filterQuery.trim().toLowerCase();
@@ -718,7 +708,7 @@ export default function Committees() {
             </button>
           </div>
 
-          {/* View Mode Switcher (فرز العرض: بطائق أو سجل) */}
+          {/* View Mode Switcher */}
           <div className="flex bg-white p-1 rounded-xl border border-gray-250 select-none" style={{ borderWidth: '0px' }}>
             <button
               type="button"
@@ -746,7 +736,7 @@ export default function Committees() {
             </button>
           </div>
 
-          {/* 2. Add Committee Button - Elegant Blue Accent */}
+          {/* 2. Add Committee Button */}
           <button
             type="button"
             onClick={handleOpenAdd}
@@ -787,7 +777,7 @@ export default function Committees() {
         </div>
       </div>
 
-      {/* COMMITTEES DISPLAY GRID OR TABLE (فرز العرض: بطائق أو سجل) */}
+      {/* COMMITTEES DISPLAY GRID OR TABLE */}
       {filteredCommittees.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center space-y-3">
           <div className="w-16 h-16 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mx-auto">
@@ -814,7 +804,7 @@ export default function Committees() {
                 key={comm.id}
                 className={`bg-[#e8e4e4] hover:bg-[#e2dede] transition-colors duration-300 rounded-2xl p-5 border shadow-sm hover:shadow-md relative group flex flex-col justify-between ${!comm.active ? "opacity-50 grayscale-[30%] border-gray-300" : "border-gray-200"}`}
               >
-                {/* ⚙️ Settings Gear Button with Dropdown logic */}
+                {/* ⚙️ Settings Gear Button */}
                 <div className="absolute top-4 left-4 z-20">
                   <button
                     onClick={() => setActiveGearMenuId(activeGearMenuId === comm.id ? null : comm.id)}
@@ -886,7 +876,7 @@ export default function Committees() {
                     {comm.desc}
                   </p>
 
-                  {/* Specialist & Formation letter details */}
+                  {/* Specialist */}
                   <div className="space-y-1.5 py-2 border-y border-gray-200/50 text-[11px] font-bold text-gray-600">
                     {comm.specialist && (
                       <div className="flex items-center justify-between">
@@ -896,7 +886,7 @@ export default function Committees() {
                     )}
                   </div>
 
-                  {/* Stats Cards Row inside Committee Card */}
+                  {/* Stats Cards */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-right">
                     <div className="bg-white/60 rounded-xl p-2 border border-gray-100 flex items-center gap-2">
                       <div className="p-1.5 bg-blue-100 text-blue-800 rounded-lg">
@@ -956,7 +946,7 @@ export default function Committees() {
           </AnimatePresence>
         </div>
       ) : (
-        /* TABLE REGISTER VIEW LAYOUT (سجل اللجان) */
+        /* TABLE REGISTER VIEW LAYOUT */
         <div className="bg-[#e8e4e4] rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-right">
           <div className="overflow-x-auto custom-scrollbar font-sans pb-36">
             <table className="w-full text-xs font-semibold text-gray-700 select-none border-collapse text-right">
@@ -977,7 +967,6 @@ export default function Committees() {
               <tbody className="divide-y divide-gray-200 bg-[#e8e4e4]/85">
                 {filteredCommittees.map((comm) => (
                   <tr key={comm.id} className={`hover:bg-[#e2dede] transition-colors text-right divide-x divide-x-reverse divide-gray-200 text-[11px] font-bold text-gray-700 ${!comm.active ? "opacity-50 grayscale-[30%]" : ""}`}>
-                    {/* Committee name with icon */}
                     <td 
                       onClick={() => setDetailsComm(comm)}
                       className="px-4 py-3.5 whitespace-nowrap font-black text-gray-900 border-none cursor-pointer group/row"
@@ -993,37 +982,30 @@ export default function Committees() {
                       </div>
                     </td>
                     
-                    {/* President */}
                     <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-gray-800">
                       {comm.president || "-"}
                     </td>
 
-                    {/* Specialist */}
                     <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-gray-800">
                       {comm.specialist || "-"}
                     </td>
 
-                    {/* Member Count */}
                     <td className="whitespace-nowrap px-4 py-3.5 text-center text-gray-900 font-mono whitespace-nowrap">
                       {comm.membersCount}
                     </td>
 
-                    {/* Meetings Count */}
                     <td className="whitespace-nowrap px-4 py-3.5 text-center text-gray-950 font-mono whitespace-nowrap">
                       {comm.meetingsCount}
                     </td>
 
-                    {/* Recommendations */}
                     <td className="whitespace-nowrap px-4 py-3.5 text-center text-emerald-700 font-mono whitespace-nowrap">
                       {comm.recommendationsCount || 0}
                     </td>
 
-                    {/* Events */}
                     <td className="whitespace-nowrap px-4 py-3.5 text-center text-purple-700 font-mono whitespace-nowrap">
                       {comm.eventsCount || 0}
                     </td>
 
-                    {/* Strategic Plan */}
                     <td className="whitespace-nowrap px-4 py-3.5 text-center whitespace-nowrap">
                       {comm.strategicPlan ? (
                         <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-150">
@@ -1034,7 +1016,6 @@ export default function Committees() {
                       )}
                     </td>
 
-                    {/* Status badge representing Active vs Inactive */}
                     <td className="whitespace-nowrap px-4 py-3.5 text-center whitespace-nowrap">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black ${
                         comm.active ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
@@ -1044,7 +1025,6 @@ export default function Committees() {
                       </span>
                     </td>
 
-                    {/* Action controls - ⚙️ Custom settings gear button with menu */}
                     <td className="whitespace-nowrap px-4 py-3.5 text-center relative whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1.5 relative dropdown-container">
                         <button
@@ -1106,7 +1086,6 @@ export default function Committees() {
       <AnimatePresence>
         {isAddOpen && (
           <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-            {/* Dark glass backdrop with fade overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1115,16 +1094,14 @@ export default function Committees() {
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
             />
 
-            {/* Modal Body Card with Zoom bounce */}
             <motion.div
               initial={{ scale: 0.9, y: 15, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 15, opacity: 0 }}
               transition={{ type: "spring", damping: 20, stiffness: 280 }}
-              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right"
+              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right max-h-[90vh] flex flex-col"
             >
-              {/* Header block with solid header representation */}
-              <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between">
+              <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-600 text-white rounded-xl">
                     {editingComm ? <Edit2 className="w-5 h-5 stroke-[2.5]" /> : <Plus className="w-5 h-5 stroke-[2.5]" />}
@@ -1133,7 +1110,7 @@ export default function Committees() {
                     <h3 className="font-extrabold text-gray-900 text-base leading-tight">
                       {editingComm ? `تعديل لجنة: ${editingComm.name}` : "تشكيل لجنة جديدة"}
                     </h3>
-                    <p className="text-xs text-gray-500 font-medium">يرجى التأكد من تسجيل البيانات بعناية لربطها بالنظام</p>
+                    <p className="text-xs text-gray-500 font-medium">يرجى التأكد من إرفاق الملفات لأرشفتها في الدرايف</p>
                   </div>
                 </div>
                 <button
@@ -1145,226 +1122,270 @@ export default function Committees() {
                 </button>
               </div>
 
-              {/* Form Content */}
-              <form onSubmit={handleFormSubmit} className="p-6 space-y-4">
-                {newMtgError && (
-                  <div className="bg-red-50 border border-red-100 text-red-700 p-3 rounded-xl text-[11px] font-bold text-right flex items-center gap-2">
-                    <span className="w-2 h-2 shrink-0 rounded-full bg-red-600 animate-pulse"></span>
-                    <span className="flex-1">{newMtgError}</span>
-                  </div>
-                )}
+              <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+                <form onSubmit={handleFormSubmit} className="space-y-4">
+                  {newMtgError && (
+                    <div className="bg-red-50 border border-red-100 text-red-700 p-3 rounded-xl text-[11px] font-bold text-right flex items-center gap-2">
+                      <span className="w-2 h-2 shrink-0 rounded-full bg-red-600 animate-pulse"></span>
+                      <span className="flex-1">{newMtgError}</span>
+                    </div>
+                  )}
 
-                {/* Submitting context reason (ONLY required when editing) */}
-                {editingComm && (
-                  <div className="space-y-1.5 bg-amber-50/60 p-3.5 rounded-2xl border border-amber-200 text-right">
-                    <label className="block text-xs font-black text-amber-800 mb-1">
-                      سبب التعديل <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={editReason}
-                      onChange={(e) => setEditReason(e.target.value)}
-                      placeholder="اكتب هنا سبب تغيير بيانات اللجنة (مثل: استبدال الأخصائي أو زيادة عدد الأعضاء)"
-                      className="w-full h-11 bg-white border border-amber-350 rounded-xl px-4 text-xs font-bold text-right focus:ring-2 focus:ring-brand/20 outline-none transition-all placeholder-amber-600/55 text-amber-900"
-                    />
-                  </div>
-                )}
-
-                {/* Committee Name Field */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-black text-gray-700">اسم اللجنة<span className="text-red-500">*</span></label>
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="مثال: لجنة الاتصالات وتقنية المعلومات"
-                    className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-sm font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-right outline-none transition-all"
-                  />
-                </div>
-
-                {/* President & Strategic Plan Row */}
-                <div className={editingComm ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "w-full"}>
                   {editingComm && (
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-black text-gray-700">رئيس اللجنة</label>
+                    <div className="space-y-1.5 bg-amber-50/60 p-3.5 rounded-2xl border border-amber-200 text-right">
+                      <label className="block text-xs font-black text-amber-800 mb-1">
+                        سبب التعديل <span className="text-red-500">*</span>
+                      </label>
                       <input
                         type="text"
-                        value={president}
-                        onChange={(e) => setPresident(e.target.value)}
-                        placeholder="يترك فارغاً"
-                        className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold focus:ring-2 focus:ring-blue-500/20 outline-none transition-all text-right"
+                        required
+                        value={editReason}
+                        onChange={(e) => setEditReason(e.target.value)}
+                        placeholder="اكتب هنا سبب تغيير بيانات اللجنة..."
+                        className="w-full h-11 bg-white border border-amber-350 rounded-xl px-4 text-xs font-bold text-right focus:ring-2 focus:ring-brand/20 outline-none transition-all placeholder-amber-600/55 text-amber-900"
                       />
                     </div>
                   )}
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-black text-gray-700">الخطة الاستراتيجية</label>
-                    <select
-                      value={strategicPlan}
-                      onChange={(e) => setStrategicPlan(e.target.value)}
-                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-2 text-xs font-black text-right focus:ring-2 focus:ring-blue-500/20 outline-none transition-all cursor-pointer"
-                    >
-                      <option value="">غير مدرجة</option>
-                      <option value="تم الاعتماد">تم الاعتماد</option>
-                      <option value="قيد الدراسة">قيد الدراسة</option>
-                    </select>
-                  </div>
-                </div>
 
-                {/* Quantities Row */}
-                {editingComm && (
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-black text-gray-700">عدد الأعضاء</label>
+                    <label className="block text-xs font-black text-gray-700">اسم اللجنة<span className="text-red-500">*</span></label>
                     <input
-                      type="number"
-                      min={1}
-                      max={80}
-                      value={membersCount}
-                      onChange={(e) => setMembersCount(Number(e.target.value))}
-                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-sm font-black font-mono text-right focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                      type="text"
+                      required
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="مثال: لجنة الاتصالات وتقنية المعلومات"
+                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-sm font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-right outline-none transition-all"
                     />
                   </div>
-                )}
 
-                {/* Numeric Statistics Row */}
-                {editingComm && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className={editingComm ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "w-full"}>
+                    {editingComm && (
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-black text-gray-700">رئيس اللجنة</label>
+                        <input
+                          type="text"
+                          value={president}
+                          onChange={(e) => setPresident(e.target.value)}
+                          placeholder="يترك فارغاً"
+                          className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold focus:ring-2 focus:ring-blue-500/20 outline-none transition-all text-right"
+                        />
+                      </div>
+                    )}
                     <div className="space-y-1.5">
-                      <label className="block text-[10px] font-black text-gray-700">عدد الاجتماعات</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={meetingsCount}
-                        onChange={(e) => setMeetingsCount(Number(e.target.value))}
-                        className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-3 text-xs font-bold font-mono text-center outline-none"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-black text-gray-700">عدد التوصيات</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={recommendationsCount}
-                        onChange={(e) => setRecommendationsCount(Number(e.target.value))}
-                        className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-3 text-xs font-bold font-mono text-center outline-none"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-black text-gray-700">عدد الفعاليات</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={eventsCount}
-                        onChange={(e) => setEventsCount(Number(e.target.value))}
-                        className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-3 text-xs font-bold font-mono text-center outline-none"
-                      />
+                      <label className="block text-xs font-black text-gray-700">الخطة الاستراتيجية</label>
+                      <select
+                        value={strategicPlan}
+                        onChange={(e) => setStrategicPlan(e.target.value)}
+                        className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-2 text-xs font-black text-right focus:ring-2 focus:ring-blue-500/20 outline-none transition-all cursor-pointer"
+                      >
+                        <option value="">غير مدرجة</option>
+                        <option value="تم الاعتماد">تم الاعتماد</option>
+                        <option value="قيد الدراسة">قيد الدراسة</option>
+                      </select>
                     </div>
                   </div>
-                )}
 
-                {/* Status Toggle Block (Active: Green, Inactive: Red) */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-black text-gray-700">حالة اللجنة</label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setIsActive(true)}
-                      className={`h-11 rounded-xl flex items-center justify-center gap-2 border font-black text-xs transition-all cursor-pointer ${
-                        isActive 
-                          ? "bg-emerald-50 border-emerald-250 text-emerald-800 ring-2 ring-emerald-500/10" 
-                          : "bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100"
-                      }`}
-                    >
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                      <span>نشطة</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsActive(false)}
-                      className={`h-11 rounded-xl flex items-center justify-center gap-2 border font-black text-xs transition-all cursor-pointer ${
-                        !isActive 
-                          ? "bg-rose-50 border-rose-250 text-rose-800 ring-2 ring-rose-500/10" 
-                          : "bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100"
-                      }`}
-                    >
-                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-                      <span>غير نشطة</span>
-                    </button>
+                  {editingComm && (
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-black text-gray-700">عدد الأعضاء</label>
+                      <input
+                        type="number"
+                        min={1} max={80}
+                        value={membersCount}
+                        onChange={(e) => setMembersCount(Number(e.target.value))}
+                        className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-sm font-black font-mono text-right focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                      />
+                    </div>
+                  )}
+
+                  {editingComm && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black text-gray-700">عدد الاجتماعات</label>
+                        <input
+                          type="number" min={0} value={meetingsCount}
+                          onChange={(e) => setMeetingsCount(Number(e.target.value))}
+                          className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-3 text-xs font-bold font-mono text-center outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black text-gray-700">عدد التوصيات</label>
+                        <input
+                          type="number" min={0} value={recommendationsCount}
+                          onChange={(e) => setRecommendationsCount(Number(e.target.value))}
+                          className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-3 text-xs font-bold font-mono text-center outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black text-gray-700">عدد الفعاليات</label>
+                        <input
+                          type="number" min={0} value={eventsCount}
+                          onChange={(e) => setEventsCount(Number(e.target.value))}
+                          className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-3 text-xs font-bold font-mono text-center outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-black text-gray-700">حالة اللجنة</label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setIsActive(true)}
+                        className={`h-11 rounded-xl flex items-center justify-center gap-2 border font-black text-xs transition-all cursor-pointer ${
+                          isActive 
+                            ? "bg-emerald-50 border-emerald-250 text-emerald-800 ring-2 ring-emerald-500/10" 
+                            : "bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100"
+                        }`}
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                        <span>نشطة</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsActive(false)}
+                        className={`h-11 rounded-xl flex items-center justify-center gap-2 border font-black text-xs transition-all cursor-pointer ${
+                          !isActive 
+                            ? "bg-rose-50 border-rose-250 text-rose-800 ring-2 ring-rose-500/10" 
+                            : "bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100"
+                        }`}
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                        <span>غير نشطة</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                {/* Formation Letter Link with computer upload emulation */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-black text-gray-700">خطاب التشكيل</label>
-                  <div className="relative">
-                    <input
-                      type="file"
-                      id="formation-file-upload"
-                      accept=".pdf,.doc,.docx,.png,.jpg"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files.length > 0) {
-                          setFormationLetter(e.target.files[0].name);
-                        }
-                      }}
-                      className="hidden"
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-black text-gray-700">وصف اللجنة ومسؤولياتها الرئيسية <span className="text-red-500">*</span></label>
+                    <textarea
+                      rows={2.5}
+                      required
+                      value={desc}
+                      onChange={(e) => setDesc(e.target.value)}
+                      placeholder="اكتب هنا ملخصاً لأهداف اللجنة واختصاصاتها..."
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all resize-none"
                     />
-                    <label
-                      htmlFor="formation-file-upload"
-                      className="w-full h-11 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl px-4 flex items-center justify-between text-xs font-bold text-gray-600 transition-all cursor-pointer"
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <Upload className="w-4 h-4 text-blue-600" />
-                        <span className="text-blue-600 font-extrabold">ارفق خطاب التشكيل...</span>
-                      </span>
-                      <span className="text-gray-400 truncate max-w-[190px]">
-                        {formationLetter ? formationLetter : "قرار_رسمي_متروك.pdf"}
-                      </span>
-                    </label>
                   </div>
-                </div>
 
-                {/* Description Field */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-black text-gray-700">وصف اللجنة ومسؤولياتها الرئيسية <span className="text-red-500">*</span></label>
-                  <textarea
-                    rows={2.5}
-                    required
-                    value={desc}
-                    onChange={(e) => setDesc(e.target.value)}
-                    placeholder="اكتب هنا ملخصاً لأهداف اللجنة واختصاصاتها الرئيسية ومحاور تركيزها..."
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all resize-none"
-                  />
-                </div>
+                  {/* قسم المرفقات والأرشفة السحابية */}
+                  <div className="space-y-3 pt-3 border-t border-gray-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Upload className="w-4 h-4 text-brand" />
+                      <h4 className="text-xs font-black text-gray-800">الأرشفة والمرفقات (جوجل درايف)</h4>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {/* 1. قرار التشكيل */}
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black text-gray-700">قرار التشكيل</label>
+                        <input
+                          type="file" id="formation-upload" accept=".pdf,.doc,.docx,.png,.jpg"
+                          onChange={(e) => { if (e.target.files?.[0]) setFormationFile(e.target.files[0]); }}
+                          className="hidden"
+                        />
+                        <label htmlFor="formation-upload" className="w-full h-10 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl px-3 flex items-center justify-between text-[11px] font-bold text-gray-600 transition-all cursor-pointer">
+                          <span className="text-blue-600 truncate max-w-[120px]">
+                            {formationFile ? formationFile.name : (formationLetter ? "مرفق مسبقاً ✓" : "اختر الملف...")}
+                          </span>
+                          <Upload className="w-3.5 h-3.5 text-blue-600" />
+                        </label>
+                      </div>
 
-                {/* Buttons block */}
-                <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
+                      {/* 2. اعتماد الأعضاء */}
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black text-gray-700">اعتماد الأعضاء</label>
+                        <input
+                          type="file" id="approval-upload" accept=".pdf,.doc,.docx,.png,.jpg"
+                          onChange={(e) => { if (e.target.files?.[0]) setApprovalFile(e.target.files[0]); }}
+                          className="hidden"
+                        />
+                        <label htmlFor="approval-upload" className="w-full h-10 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl px-3 flex items-center justify-between text-[11px] font-bold text-gray-600 transition-all cursor-pointer">
+                          <span className="text-emerald-600 truncate max-w-[120px]">
+                            {approvalFile ? approvalFile.name : (membersApproval ? "مرفق مسبقاً ✓" : "اختر الملف...")}
+                          </span>
+                          <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                        </label>
+                      </div>
+
+                      {/* 3. اللوائح */}
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black text-gray-700">لائحة تشكيل اللجان</label>
+                        <input
+                          type="file" id="regulations-upload" accept=".pdf,.doc,.docx"
+                          onChange={(e) => { if (e.target.files?.[0]) setRegulationsFile(e.target.files[0]); }}
+                          className="hidden"
+                        />
+                        <label htmlFor="regulations-upload" className="w-full h-10 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl px-3 flex items-center justify-between text-[11px] font-bold text-gray-600 transition-all cursor-pointer">
+                          <span className="text-purple-600 truncate max-w-[120px]">
+                            {regulationsFile ? regulationsFile.name : (regulations ? "مرفق مسبقاً ✓" : "اختر الملف...")}
+                          </span>
+                          <Upload className="w-3.5 h-3.5 text-purple-600" />
+                        </label>
+                      </div>
+
+                      {/* 4. الأدلة */}
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black text-gray-700">دليل تشكيل اللجان</label>
+                        <input
+                          type="file" id="guides-upload" accept=".pdf,.doc,.docx"
+                          onChange={(e) => { if (e.target.files?.[0]) setGuidesFile(e.target.files[0]); }}
+                          className="hidden"
+                        />
+                        <label htmlFor="guides-upload" className="w-full h-10 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl px-3 flex items-center justify-between text-[11px] font-bold text-gray-600 transition-all cursor-pointer">
+                          <span className="text-amber-600 truncate max-w-[120px]">
+                            {guidesFile ? guidesFile.name : (guides ? "مرفق مسبقاً ✓" : "اختر الملف...")}
+                          </span>
+                          <Upload className="w-3.5 h-3.5 text-amber-600" />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                </form>
+              </div>
+
+              <div className="p-5 border-t border-gray-100 shrink-0">
+                <div className="flex items-center gap-3">
                   <button
                     type="submit"
-                    className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 hover:shadow-md text-white font-black text-sm rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    onClick={handleFormSubmit}
+                    disabled={isUploading}
+                    className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-black text-sm rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <Check className="w-4 h-4" />
-                    <span>{editingComm ? "حفظ التعديلات الحالية" : "إضافة وتشكيل اللجنة"}</span>
+                    {isUploading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        <span>جاري الرفع والأرشفة...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span>{editingComm ? "حفظ التعديلات الحالية" : "إضافة وتشكيل اللجنة"}</span>
+                      </>
+                    )}
                   </button>
                   <button
                     type="button"
+                    disabled={isUploading}
                     onClick={() => setIsAddOpen(false)}
-                    className="px-6 h-11 bg-gray-100 hover:bg-gray-200 text-gray-750 font-extrabold text-sm rounded-xl transition-all cursor-pointer"
+                    className="px-6 h-11 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-750 font-extrabold text-sm rounded-xl transition-all cursor-pointer"
                   >
                     إلغاء الأمر
                   </button>
                 </div>
-              </form>
+              </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
-      {/* POPUP BACKDROP & DELETION PROCESS safeguarded modal */}
+      {/* POPUP BACKDROP & DELETION PROCESS */}
       <AnimatePresence>
         {deletingComm && (
           <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-            {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1373,7 +1394,6 @@ export default function Committees() {
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
             />
 
-            {/* Modal Box */}
             <motion.div
               initial={{ scale: 0.9, y: 15, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
@@ -1391,7 +1411,6 @@ export default function Committees() {
               </div>
 
               {!isDeletingStep ? (
-                /* STEP 1: Enter deletion reason */
                 <div className="space-y-4">
                   <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-xs font-semibold text-red-800 leading-relaxed">
                     نظام الموارد واللجان يتطلب توثيق سبب وإثبات حذف اللجنة أو سحب التشكيل لمطابقة معايير الحوكمة الاستراتيجية.
@@ -1428,7 +1447,6 @@ export default function Committees() {
                   </div>
                 </div>
               ) : (
-                /* STEP 2: Non-active setting indicator and double confirm deletion */
                 <div className="space-y-4">
                   <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
                     <div className="flex items-center gap-2 text-amber-850 font-black text-xs">
@@ -1493,7 +1511,6 @@ export default function Committees() {
       <AnimatePresence>
         {detailsComm && (
           <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-            {/* Dark glass backdrop with fade overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1502,7 +1519,6 @@ export default function Committees() {
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
             />
 
-            {/* Modal Body Card with Zoom bounce */}
             <motion.div
               initial={{ scale: 0.9, y: 15, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
@@ -1510,7 +1526,6 @@ export default function Committees() {
               transition={{ type: "spring", damping: 22, stiffness: 280 }}
               className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-150 relative overflow-hidden z-10 text-right font-sans"
             >
-              {/* Header block */}
               <div className="bg-[#e8e4e4] p-6 border-b border-gray-200 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
@@ -1540,10 +1555,8 @@ export default function Committees() {
                 </button>
               </div>
 
-              {/* Details Content */}
-              <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+              <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
                 
-                {/* 1. Description Box */}
                 <div className="space-y-2 text-right">
                   <h4 className="text-xs font-black text-gray-400 tracking-wider">وصف اللجنة ومسؤولياتها الرئيسية</h4>
                   <div className="bg-[#fcfbfb] border border-[#d2cece] rounded-2xl p-4 text-sm font-medium text-gray-800 leading-relaxed shadow-inner">
@@ -1551,10 +1564,7 @@ export default function Committees() {
                   </div>
                 </div>
 
-                {/* 2. Structured Information Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  
-                  {/* Left Column: Management / Specialist / President */}
                   <div className="space-y-4">
                     <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-2xl p-4 space-y-3">
                       <h5 className="text-xs font-black text-gray-500 border-b border-gray-200/60 pb-1.5">هيكل اللجنة</h5>
@@ -1595,10 +1605,8 @@ export default function Committees() {
                     </div>
                   </div>
 
-                  {/* Right Column: Statistics Grid of 4 elements */}
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      
                       <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-2xl p-4 flex flex-col justify-between text-right">
                         <div>
                           <Users className="w-5 h-5 text-blue-600 mb-2" />
@@ -1630,13 +1638,10 @@ export default function Committees() {
                         </div>
                         <span className="text-xl font-black text-purple-700 font-mono mt-2">{detailsComm.eventsCount || 0}</span>
                       </div>
-
                     </div>
                   </div>
-
                 </div>
 
-                {/* 3. Additional Details Box */}
                 <div className="border border-gray-150 rounded-2xl p-4 bg-orange-50/20 text-right space-y-2">
                   <div className="flex items-center gap-2 text-xs font-black text-amber-800">
                     <CheckCircle className="w-4 h-4 text-emerald-600" />
@@ -1647,10 +1652,42 @@ export default function Committees() {
                   </p>
                 </div>
 
+                {/* روابط المرفقات المؤرشفة (إن وجدت) */}
+                <div className="border border-gray-200 rounded-2xl p-4 bg-white text-right space-y-3">
+                  <h5 className="text-xs font-black text-gray-500 border-b border-gray-200/60 pb-1.5 flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4 text-brand" />
+                    المستندات المؤرشفة (Drive)
+                  </h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    {detailsComm.formationLetter && (
+                      <a href={detailsComm.formationLetter} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-600 hover:underline p-2 bg-blue-50 rounded-lg">
+                        <FileText className="w-4 h-4" /> قرار التشكيل
+                      </a>
+                    )}
+                    {detailsComm.membersApproval && (
+                      <a href={detailsComm.membersApproval} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-emerald-600 hover:underline p-2 bg-emerald-50 rounded-lg">
+                        <FileText className="w-4 h-4" /> اعتماد الأعضاء
+                      </a>
+                    )}
+                    {detailsComm.regulations && (
+                      <a href={detailsComm.regulations} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-purple-600 hover:underline p-2 bg-purple-50 rounded-lg">
+                        <FileText className="w-4 h-4" /> اللوائح
+                      </a>
+                    )}
+                    {detailsComm.guides && (
+                      <a href={detailsComm.guides} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-amber-600 hover:underline p-2 bg-amber-50 rounded-lg">
+                        <FileText className="w-4 h-4" /> الأدلة
+                      </a>
+                    )}
+                    {!detailsComm.formationLetter && !detailsComm.membersApproval && !detailsComm.regulations && !detailsComm.guides && (
+                      <span className="text-gray-400 font-bold col-span-2">لا توجد ملفات مؤرشفة مسجلة.</span>
+                    )}
+                  </div>
+                </div>
+
               </div>
 
-              {/* Footer Block */}
-              <div className="bg-gray-50 px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3">
+              <div className="bg-gray-50 px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3 shrink-0">
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -1693,7 +1730,6 @@ export default function Committees() {
       <AnimatePresence>
         {isExportOpen && (
           <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1702,14 +1738,12 @@ export default function Committees() {
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
             />
 
-            {/* Modal Body */}
             <motion.div
               initial={{ scale: 0.9, y: 15, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 15, opacity: 0 }}
               className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right text-slate-800"
             >
-              {/* Header */}
               <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-emerald-600 text-white rounded-xl">
@@ -1731,15 +1765,14 @@ export default function Committees() {
                 </button>
               </div>
 
-              {/* Body */}
               <div className="p-6 space-y-4">
                 <p className="text-xs font-semibold text-gray-650 leading-relaxed bg-emerald-50 text-emerald-800 p-3 rounded-xl border border-emerald-100">
-                  سيتم فرز وتصدير اللجان المحددة أبجدياً مع جلب كافة الإحصائيات الفعالة (الأعضاء، الاجتماعات، التوصيات، والفعاليات) تلقائياً من النظام.
+                  سيتم فرز وتصدير اللجان المحددة أبجدياً مع جلب كافة الإحصائيات الفعالة تلقائياً من النظام.
                 </p>
 
                 <div className="space-y-2">
                   <span className="block text-xs font-black text-gray-700">تحديد الحقول المراد تصديرها للتقرير:</span>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[220px] overflow-y-auto p-1 border border-gray-100 rounded-xl bg-gray-50/50">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[220px] overflow-y-auto custom-scrollbar p-1 border border-gray-100 rounded-xl bg-gray-50/50">
                     {EXPORT_FIELDS_META.map(f => (
                       <label 
                         key={f.key} 
@@ -1758,7 +1791,6 @@ export default function Committees() {
                 </div>
               </div>
 
-              {/* Footer */}
               <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex gap-3">
                 <button
                   type="button"

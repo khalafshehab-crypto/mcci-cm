@@ -8,7 +8,94 @@ import {
 // @ts-ignore
 import { generateDocx } from "../lib/docxGenerator";
 // @ts-ignore
-import { getCachedAccessToken, getSharedAccessToken, createAndPopulateSheet, getOrCreateFolder, subscribeToAccessToken, triggerAuthModal } from "../lib/googleApi";
+import { showGlobalToast, clearGlobalToast } from "../lib/toastUtils";
+import { getCachedAccessToken, getSharedAccessToken, createAndPopulateSheet, getOrCreateFolder, subscribeToAccessToken, triggerAuthModal, uploadBinaryFileToDrive } from "../lib/googleApi";
+
+
+
+interface AttachmentInputProps {
+  label: string;
+  value: File | string | null;
+  onChange: (val: File | string | null) => void;
+  id: string;
+}
+
+function AttachmentInput({ label, value, onChange, id }: AttachmentInputProps) {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      onChange(e.target.files[0]);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      onChange(e.dataTransfer.files[0]);
+    }
+  };
+
+  const displayValue = (value && typeof value === "object" && "name" in value) ? (value as any).name : value;
+
+  return (
+    <div
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      className={`border-2 border-dashed rounded-2xl p-3.5 text-center transition-all relative ${
+        value
+          ? "border-emerald-300 bg-emerald-50/40"
+          : "border-gray-200 bg-gray-50/50 hover:bg-gray-100/70"
+      }`}
+    >
+      <input
+        type="file"
+        id={id}
+        className="hidden"
+        onChange={handleFileChange}
+      />
+      {value ? (
+        <div className="flex flex-col items-center gap-1.5">
+          <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
+            <Check className="w-4 h-4 text-emerald-600" />
+          </div>
+          <span className="text-[10px] font-bold text-emerald-800 max-w-full truncate px-2">{displayValue}</span>
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); onChange(null); }}
+            className="text-[9px] text-rose-500 hover:text-rose-600 font-bold underline mt-1"
+          >
+            حذف المرفق
+          </button>
+        </div>
+      ) : (
+        <label htmlFor={id} className="cursor-pointer flex flex-col items-center gap-1.5">
+          <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
+            <Upload className="w-4 h-4 text-blue-500" />
+          </div>
+          <span className="text-[10px] font-bold text-gray-600">
+            {label}
+          </span>
+          <span className="text-[8.5px] text-gray-400">سحب وإفلات أو تصفح</span>
+        </label>
+      )}
+      {!value && (
+        <div className="mt-2 pt-2 border-t border-gray-200/50">
+          <input 
+            type="text" 
+            placeholder="أو ضع رابط جوجل درايف هنا..." 
+            className="w-full text-[9px] p-1.5 rounded-lg border border-gray-200 focus:border-blue-500 outline-none text-right font-mono"
+            onChange={(e) => {
+              if(e.target.value) onChange(e.target.value);
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 export interface Committee {
   id: number | string;
@@ -29,6 +116,9 @@ export interface Committee {
   strategicPlan?: string;
   desc?: string;
   formationLetter?: string;
+  membersApproval?: string;
+  regulations?: string;
+  guides?: string;
   ratingIssues?: string;
 }
 
@@ -462,7 +552,10 @@ export default function CommitteesFormation() {
   const [desc, setDesc] = useState("");
   const [specialist, setSpecialist] = useState("غير محدد");
   const [isActive, setIsActive] = useState(true);
-  const [formationLetter, setFormationLetter] = useState("");
+  const [formationLetter, setFormationLetter] = useState<File | string | null>(null);
+  const [membersApproval, setMembersApproval] = useState<File | string | null>(null);
+  const [regulations, setRegulations] = useState<File | string | null>(null);
+  const [guides, setGuides] = useState<File | string | null>(null);
   
   // New Form Fields for Robust Committee Cards
   const [president, setPresident] = useState("");
@@ -883,7 +976,10 @@ export default function CommitteesFormation() {
     setDesc("");
     setSpecialist("غير محدد");
     setIsActive(true);
-    setFormationLetter("");
+    setFormationLetter(null);
+    setMembersApproval(null);
+    setRegulations(null);
+    setGuides(null);
     setPresident("");
     setRecommendationsCount(0);
     setEventsCount(0);
@@ -907,7 +1003,10 @@ export default function CommitteesFormation() {
     setDesc(comm.desc);
     setSpecialist(comm.specialist || "غير محدد");
     setIsActive(comm.active);
-    setFormationLetter(comm.formationLetter || "");
+    setFormationLetter(comm.formationLetter || null);
+    setMembersApproval(comm.membersApproval || null);
+    setRegulations(comm.regulations || null);
+    setGuides(comm.guides || null);
     setPresident(comm.president || "");
     setRecommendationsCount(comm.recommendationsCount || 0);
     setEventsCount(comm.eventsCount || 0);
@@ -947,26 +1046,88 @@ export default function CommitteesFormation() {
     }
 
     let folderId = editingComm?.driveFolderId || "";
+    let membersFolderId = "";
 
-    // Create Drive Folder if auth is available
+    let finalFormationLetter = typeof formationLetter === "string" ? formationLetter : "";
+    let finalMembersApproval = typeof membersApproval === "string" ? membersApproval : "";
+    let finalRegulations = typeof regulations === "string" ? regulations : "";
+    let finalGuides = typeof guides === "string" ? guides : "";
+
+
     let token = await getSharedAccessToken();
+    showGlobalToast("جاري المعالجة والرفع إلى السحابة المركزية...", "loading", 0);
     if (!token) {
       try {
         token = await triggerAuthModal();
       } catch (err) {
-        console.warn("User cancelled auth", err);
+        console.warn("User cancelled or failed to authenticate", err);
       }
     }
 
     if (token) {
       try {
+        const readFileAsBase64 = (file: File): Promise<string> => {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const result = reader.result as string;
+              resolve(result.split(',')[1] || "");
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        };
+
+        const uploadAttachment = async (file: File | string | null, fileName: string, targetFolderId: string) => {
+          if (file && typeof file === "object" && "name" in file) {
+            const ext = (file as any).name.split('.').pop();
+            const fullFileName = `${fileName}.${ext}`;
+            const base64 = await readFileAsBase64(file as any);
+            const res = await uploadBinaryFileToDrive(fullFileName, base64 as string, (file as any).type || "application/octet-stream", targetFolderId);
+            return res && res.id ? `https://drive.google.com/file/d/${res.id}/view` : fullFileName;
+          }
+          return typeof file === "string" ? file : "";
+        };
+
         const rootFolderId = await getOrCreateFolder("تقرير اللجان للدورة الـ 22");
-        folderId = await getOrCreateFolder(name.trim(), rootFolderId);
-      } catch (err) {
-        console.error("Failed to create Drive folder:", err);
-        alert("فشل إنشاء مجلد اللجنة في جوجل درايف، يرجى التأكد من تسجيل الدخول وإعادة المحاولة.");
+        const approvedCommitteesFolderId = await getOrCreateFolder("اللجان المعتمدة", rootFolderId);
+        folderId = await getOrCreateFolder(name.trim(), approvedCommitteesFolderId);
+        membersFolderId = await getOrCreateFolder("أعضاء اللجنة", folderId);
+        
+        const regulationsAndGuidesFolderId = await getOrCreateFolder("اللوائح والأدلة", folderId);
+        const membersApprovalFolderId = await getOrCreateFolder("قرار اعتماد الأعضاء", membersFolderId);
+        const formationLetterFolderId = await getOrCreateFolder("قرار التشكيل", membersFolderId);
+
+        if (formationLetter && typeof formationLetter === "object" && "name" in formationLetter) {
+          finalFormationLetter = await uploadAttachment(formationLetter, `قرار تشكيل ${name.trim()}`, formationLetterFolderId);
+        }
+        if (membersApproval && typeof membersApproval === "object" && "name" in membersApproval) {
+          finalMembersApproval = await uploadAttachment(membersApproval, `قرار اعتماد أعضاء ${name.trim()}`, membersApprovalFolderId);
+        }
+        if (regulations && typeof regulations === "object" && "name" in regulations) {
+          finalRegulations = await uploadAttachment(regulations, `لائحة ${name.trim()}`, regulationsAndGuidesFolderId);
+        }
+        if (guides && typeof guides === "object" && "name" in guides) {
+          finalGuides = await uploadAttachment(guides, `دليل ${name.trim()}`, regulationsAndGuidesFolderId);
+        }
+
+      } catch (err: any) {
+        console.error("Failed to create Drive folder or upload files:", err);
+        if (err.message && err.message.includes("انتهت صلاحية")) {
+          showGlobalToast(err.message, "error");
+        } else {
+          showGlobalToast("فشل إنشاء مجلد اللجنة في جوجل درايف أو رفع الملفات: " + err.message, "error");
+        }
+        return; // Stop saving if Drive operations fail
       }
+    } else {
+      // Token still falsey (maybe cancelled and had no files to upload, so we just proceed normally)
+      if (formationLetter && typeof formationLetter === "object" && "name" in formationLetter) finalFormationLetter = (formationLetter as any).name;
+      if (membersApproval && typeof membersApproval === "object" && "name" in membersApproval) finalMembersApproval = (membersApproval as any).name;
+      if (regulations && typeof regulations === "object" && "name" in regulations) finalRegulations = (regulations as any).name;
+      if (guides && typeof guides === "object" && "name" in guides) finalGuides = (guides as any).name;
     }
+
 
     if (editingComm) {
       const oldName = editingComm.name;
@@ -984,7 +1145,10 @@ export default function CommitteesFormation() {
             active: isActive,
             desc: desc.trim(),
             specialist: specialist,
-            formationLetter: formationLetter || c.formationLetter || "قرار_تشكيل_معدل.pdf",
+            formationLetter: finalFormationLetter,
+            membersApproval: finalMembersApproval,
+            regulations: finalRegulations,
+            guides: finalGuides,
             president: president.trim(),
             recommendationsCount: Number(recommendationsCount) || 0,
             eventsCount: Number(eventsCount) || 0,
@@ -1011,7 +1175,10 @@ export default function CommitteesFormation() {
         active: isActive,
         desc: desc.trim(),
         specialist: specialist,
-        formationLetter: formationLetter || "غير مرفق.pdf",
+        formationLetter: finalFormationLetter,
+        membersApproval: finalMembersApproval,
+        regulations: finalRegulations,
+        guides: finalGuides,
         president: president.trim(),
         recommendationsCount: Number(recommendationsCount) || 0,
         eventsCount: Number(eventsCount) || 0,
@@ -1030,7 +1197,10 @@ export default function CommitteesFormation() {
     setDesc("");
     setSpecialist("غير محدد");
     setIsActive(true);
-    setFormationLetter("");
+    setFormationLetter(null);
+    setMembersApproval(null);
+    setRegulations(null);
+    setGuides(null);
     setPresident("");
     setRecommendationsCount(0);
     setEventsCount(0);
@@ -1040,6 +1210,7 @@ export default function CommitteesFormation() {
     setEditReason("");
     setNewMtgError("");
     setIsAddOpen(false);
+    showGlobalToast("تم حفظ وتحديث البيانات بنجاح!", "success");
   };
 
   // We can load and memoize all exact counts so we have 100% accurate dynamic statistics on Committees page too!
@@ -1862,35 +2033,38 @@ export default function CommitteesFormation() {
                   </div>
                 </div>
 
-                {/* Formation Letter Link with computer upload emulation */}
+                
+                {/* Documents and Attachments Section */}
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-black text-gray-700">خطاب التشكيل</label>
-                  <div className="relative">
-                    <input
-                      type="file"
-                      id="formation-file-upload"
-                      accept=".pdf,.doc,.docx,.png,.jpg"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files.length > 0) {
-                          setFormationLetter(e.target.files[0].name);
-                        }
-                      }}
-                      className="hidden"
+                  <label className="block text-xs font-black text-gray-700">المستندات والقرارات الرسمية</label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <AttachmentInput
+                      id="formationLetter"
+                      label="قرار التشكيل"
+                      value={formationLetter}
+                      onChange={setFormationLetter}
                     />
-                    <label
-                      htmlFor="formation-file-upload"
-                      className="w-full h-11 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl px-4 flex items-center justify-between text-xs font-bold text-gray-600 transition-all cursor-pointer"
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <Upload className="w-4 h-4 text-blue-600" />
-                        <span className="text-blue-600 font-extrabold">ارفق خطاب التشكيل...</span>
-                      </span>
-                      <span className="text-gray-400 truncate max-w-[190px]">
-                        {formationLetter ? formationLetter : "قرار_رسمي_متروك.pdf"}
-                      </span>
-                    </label>
+                    <AttachmentInput
+                      id="membersApproval"
+                      label="اعتماد الأعضاء"
+                      value={membersApproval}
+                      onChange={setMembersApproval}
+                    />
+                    <AttachmentInput
+                      id="regulations"
+                      label="اللوائح"
+                      value={regulations}
+                      onChange={setRegulations}
+                    />
+                    <AttachmentInput
+                      id="guides"
+                      label="الأدلة"
+                      value={guides}
+                      onChange={setGuides}
+                    />
                   </div>
                 </div>
+
 
                 {/* Description Field */}
                 <div className="space-y-1.5">

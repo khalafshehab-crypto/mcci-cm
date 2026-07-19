@@ -1670,6 +1670,8 @@ ${formattedItems}
           token = await triggerAuthModal();
         } catch (err) {
           console.warn("User cancelled auth", err);
+          showGlobalToast("لا يمكن حفظ التوصية بدون المصادقة. يرجى تسجيل الدخول إلى جوجل درايف أولاً.", "error");
+          return null;
         }
       }
       

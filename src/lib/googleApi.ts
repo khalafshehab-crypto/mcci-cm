@@ -160,7 +160,6 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
     throw new Error("Authentication required: No active Google Workspace connection.");
   }
 
-  // Dynamically route to correct specific API subdomains for reliable CORS and routing behavior
   let url = `https://www.googleapis.com/${endpoint}`;
   if (endpoint.startsWith("sheets/")) {
     url = `https://sheets.googleapis.com/${endpoint.substring(7)}`;
@@ -180,16 +179,16 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
     url = `https://chat.googleapis.com/${endpoint.substring(5)}`;
   }
 
-  const reqHeaders = {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${token}`,
-    ...options.headers,
-  };
-
-  const response = await fetch(url, {
-    method: options.method || "GET",
-    headers: reqHeaders,
-    body: options.body
+  const response = await fetch("/api/google-proxy", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      token,
+      url,
+      method: options.method || "GET",
+      headers: options.headers || {},
+      body: options.body ? (typeof options.body === "string" ? options.body : JSON.stringify(options.body)) : undefined
+    })
   });
 
   if (!response.ok) {
@@ -200,43 +199,30 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
         const newAccessToken = await triggerAuthModal();
         if (newAccessToken) {
           setCachedAccessToken(newAccessToken);
-          // Retry the request
-          const retryResponse = await fetch(url, {
-            method: options.method || "GET",
-            headers: {
-              "Authorization": `Bearer ${newAccessToken}`,
-              ...options.headers,
-            },
-            body: options.body
+          const retryResponse = await fetch("/api/google-proxy", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              token: newAccessToken,
+              url,
+              method: options.method || "GET",
+              headers: options.headers || {},
+              body: options.body ? (typeof options.body === "string" ? options.body : JSON.stringify(options.body)) : undefined
+            })
           });
-          if (!retryResponse.ok) {
-            throw new Error("Retry failed after token refresh");
-          }
-          if (retryResponse.status === 204) return true;
+          if (retryResponse.status === 204) return null;
           return retryResponse.json();
         }
-      } catch (refreshErr) {
-        console.error("Refresh failed:", refreshErr);
-        setCachedAccessToken(null);
-        throw new Error("انتهت صلاحية المزامنة. يرجى تسجيل الدخول مرة أخرى لتفعيل المزامنة.");
+      } catch (e) {
+        console.error("User rejected re-auth", e);
+        throw new Error("Google Workspace Session Expired. Please log in again.");
       }
     }
     const errText = await response.text();
-    let parsedErr;
-    try {
-      parsedErr = JSON.parse(errText);
-    } catch(e) {}
-    let errorMessage = parsedErr?.error?.message || `API error (${response.status}): ${errText}`;
-    if (response.status === 404 || response.status === 403) {
-      errorMessage = "عفواً، لا يملك الموظف الحالي صلاحية الوصول للمجلد في جوجل درايف. للسماح للموظفين بأرشفة الملفات، يجب على مدير النظام مشاركة المجلد الأساسي (تقرير اللجان) مباشرة مع إيميلات الموظفين كـ (محرر)، وليس فقط عبر رابط المشاركة عام. " + errorMessage;
-    }
-    throw new Error(errorMessage);
+    throw new Error(`Google API Error (${response.status}): ${errText}`);
   }
 
-  if (response.status === 204) {
-    return true;
-  }
-
+  if (response.status === 204) return null;
   return response.json();
 }
 
@@ -283,13 +269,18 @@ export async function uploadFileToDrive(name: string, content: string, mimeType:
     `${content}\r\n` +
     `--${boundary}--`;
 
-  const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
+    const response = await fetch("/api/google-proxy", {
     method: "POST",
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": `multipart/related; boundary=${boundary}`,
-    },
-    body: multipartBody
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      token,
+      url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
+      method: "POST",
+      headers: {
+        "Content-Type": `multipart/related; boundary=${boundary}`,
+      },
+      body: multipartBody
+    })
   });
 
   if (!response.ok) {
@@ -300,27 +291,29 @@ export async function uploadFileToDrive(name: string, content: string, mimeType:
         const newAccessToken = await triggerAuthModal();
         if (newAccessToken) {
           setCachedAccessToken(newAccessToken);
-  const retryResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${newAccessToken}`,
-      "Content-Type": `multipart/related; boundary=${boundary}`,
-    },
-    body: multipartBody
-  });
-          if (!retryResponse.ok) throw new Error("Retry failed");
+          // Retry
+          const retryResponse = await fetch("/api/google-proxy", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              token: newAccessToken,
+              url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
+              method: "POST",
+              headers: {
+                "Content-Type": `multipart/related; boundary=${boundary}`,
+              },
+              body: multipartBody
+            })
+          });
           return retryResponse.json();
         }
-      } catch (refreshErr) {
-        setCachedAccessToken(null);
-        throw new Error("انتهت صلاحية المزامنة. يرجى تسجيل الدخول مرة أخرى لتفعيل المزامنة.");
+      } catch (e) {
+        console.error("User rejected re-auth", e);
+        throw new Error("Google Workspace Session Expired. Please log in again.");
       }
     }
     const errText = await response.text();
-    if (response.status === 404 || response.status === 403) {
-      throw new Error(`عفواً، لا يملك الموظف الحالي صلاحية الوصول للمجلد في جوجل درايف. يرجى مشاركة المجلد مباشرة مع إيميلات الموظفين كـ (محرر) وليس فقط عبر الرابط: ${errText}`);
-    }
-    throw new Error(`File upload failed: ${errText}`);
+    throw new Error(`Google API Error (${response.status}): ${errText}`);
   }
 
   return response.json();
@@ -338,8 +331,6 @@ export async function getOrCreateFolder(name: string, parentId?: string): Promis
   let q = `mimeType='application/vnd.google-apps.folder' and name='${safeName}' and trashed=false`;
   if (parentId) {
     q += ` and '${parentId}' in parents`;
-  } else {
-    q = `(${q}) or (mimeType='application/vnd.google-apps.folder' and name='${safeName}' and trashed=false and sharedWithMe=true)`;
   }
   
   const files = await listDriveFiles(q);
@@ -371,13 +362,18 @@ export async function uploadBinaryFileToDrive(name: string, base64Content: strin
     `${base64Content}\r\n` +
     `--${boundary}--`;
 
-  const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
+    const response = await fetch("/api/google-proxy", {
     method: "POST",
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": `multipart/related; boundary=${boundary}`,
-    },
-    body: multipartBody
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      token,
+      url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
+      method: "POST",
+      headers: {
+        "Content-Type": `multipart/related; boundary=${boundary}`,
+      },
+      body: multipartBody
+    })
   });
 
   if (!response.ok) {
@@ -389,28 +385,30 @@ export async function uploadBinaryFileToDrive(name: string, base64Content: strin
         if (newAccessToken) {
           setCachedAccessToken(newAccessToken);
           // Retry
-  const retryResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${newAccessToken}`,
-      "Content-Type": `multipart/related; boundary=${boundary}`,
-    },
-    body: multipartBody
-  });
-          if (!retryResponse.ok) throw new Error("Retry failed");
+          const retryResponse = await fetch("/api/google-proxy", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              token: newAccessToken,
+              url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
+              method: "POST",
+              headers: {
+                "Content-Type": `multipart/related; boundary=${boundary}`,
+              },
+              body: multipartBody
+            })
+          });
           return retryResponse.json();
         }
-      } catch (refreshErr) {
-        setCachedAccessToken(null);
-        throw new Error("انتهت صلاحية المزامنة. يرجى تسجيل الدخول مرة أخرى لتفعيل المزامنة.");
+      } catch (e) {
+        console.error("User rejected re-auth", e);
+        throw new Error("Google Workspace Session Expired. Please log in again.");
       }
     }
     const errText = await response.text();
-    if (response.status === 404 || response.status === 403) {
-      throw new Error(`عفواً، لا يملك الموظف الحالي صلاحية الوصول للمجلد في جوجل درايف. يرجى مشاركة المجلد مباشرة مع إيميلات الموظفين كـ (محرر) وليس فقط عبر الرابط: ${errText}`);
-    }
-    throw new Error(`Failed to upload file to drive: ${errText}`);
+    throw new Error(`Google API Error (${response.status}): ${errText}`);
   }
+
   return response.json();
 }
 
@@ -727,4 +725,33 @@ export async function createGoogleForm(title: string): Promise<{ formId: string;
     formId: form.formId,
     responderUrl: form.responderUrl || `https://docs.google.com/forms/d/${form.formId}/viewform`
   };
+}
+
+// Helper to resolve folder path string to a folder ID
+export async function resolveDrivePath(pathStr: string): Promise<string> {
+  const parts = pathStr.split('/').filter(p => p.trim() !== '');
+  let parentId: string | undefined = undefined;
+  for (const part of parts) {
+    parentId = await getOrCreateFolder(part, parentId);
+  }
+  return parentId || '';
+}
+
+// Uploads a File object to a specific string path in Google Drive
+export async function uploadFileToDriveByPath(file: File, pathStr: string, newName?: string): Promise<string> {
+  const folderId = await resolveDrivePath(pathStr);
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64Data = result.split(',')[1];
+      resolve(base64Data);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+  
+  const finalName = newName || file.name;
+  const uploaded = await uploadBinaryFileToDrive(finalName, base64, file.type, folderId);
+  return uploaded.webViewLink || `https://drive.google.com/file/d/${uploaded.id}/view`;
 }
