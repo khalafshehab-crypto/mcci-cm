@@ -179,16 +179,16 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
     url = `https://chat.googleapis.com/${endpoint.substring(5)}`;
   }
 
-  const response = await fetch("/api/google-proxy", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      token,
-      url,
-      method: options.method || "GET",
-      headers: options.headers || {},
-      body: options.body ? (typeof options.body === "string" ? options.body : JSON.stringify(options.body)) : undefined
-    })
+  const reqHeaders = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${token}`,
+    ...options.headers,
+  };
+
+  const response = await fetch(url, {
+    method: options.method || "GET",
+    headers: reqHeaders,
+    body: options.body
   });
 
   if (!response.ok) {
@@ -199,16 +199,14 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
         const newAccessToken = await triggerAuthModal();
         if (newAccessToken) {
           setCachedAccessToken(newAccessToken);
-          const retryResponse = await fetch("/api/google-proxy", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              token: newAccessToken,
-              url,
-              method: options.method || "GET",
-              headers: options.headers || {},
-              body: options.body ? (typeof options.body === "string" ? options.body : JSON.stringify(options.body)) : undefined
-            })
+          // Retry the request
+          const retryResponse = await fetch(url, {
+            method: options.method || "GET",
+            headers: {
+              "Authorization": `Bearer ${newAccessToken}`,
+              ...options.headers,
+            },
+            body: options.body
           });
           if (retryResponse.status === 204) return null;
           return retryResponse.json();
@@ -269,18 +267,13 @@ export async function uploadFileToDrive(name: string, content: string, mimeType:
     `${content}\r\n` +
     `--${boundary}--`;
 
-    const response = await fetch("/api/google-proxy", {
+    const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      token,
-      url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
-      method: "POST",
-      headers: {
-        "Content-Type": `multipart/related; boundary=${boundary}`,
-      },
-      body: multipartBody
-    })
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": `multipart/related; boundary=${boundary}`,
+    },
+    body: multipartBody
   });
 
   if (!response.ok) {
@@ -292,18 +285,13 @@ export async function uploadFileToDrive(name: string, content: string, mimeType:
         if (newAccessToken) {
           setCachedAccessToken(newAccessToken);
           // Retry
-          const retryResponse = await fetch("/api/google-proxy", {
+          const retryResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              token: newAccessToken,
-              url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
-              method: "POST",
-              headers: {
-                "Content-Type": `multipart/related; boundary=${boundary}`,
-              },
-              body: multipartBody
-            })
+            headers: {
+              "Authorization": `Bearer ${newAccessToken}`,
+              "Content-Type": `multipart/related; boundary=${boundary}`,
+            },
+            body: multipartBody
           });
           return retryResponse.json();
         }
@@ -362,18 +350,13 @@ export async function uploadBinaryFileToDrive(name: string, base64Content: strin
     `${base64Content}\r\n` +
     `--${boundary}--`;
 
-    const response = await fetch("/api/google-proxy", {
+    const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      token,
-      url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
-      method: "POST",
-      headers: {
-        "Content-Type": `multipart/related; boundary=${boundary}`,
-      },
-      body: multipartBody
-    })
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": `multipart/related; boundary=${boundary}`,
+    },
+    body: multipartBody
   });
 
   if (!response.ok) {
@@ -385,18 +368,13 @@ export async function uploadBinaryFileToDrive(name: string, base64Content: strin
         if (newAccessToken) {
           setCachedAccessToken(newAccessToken);
           // Retry
-          const retryResponse = await fetch("/api/google-proxy", {
+          const retryResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              token: newAccessToken,
-              url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
-              method: "POST",
-              headers: {
-                "Content-Type": `multipart/related; boundary=${boundary}`,
-              },
-              body: multipartBody
-            })
+            headers: {
+              "Authorization": `Bearer ${newAccessToken}`,
+              "Content-Type": `multipart/related; boundary=${boundary}`,
+            },
+            body: multipartBody
           });
           return retryResponse.json();
         }
@@ -468,21 +446,41 @@ export async function sendGmailMessage(to: string, subject: string, bodyHtml: st
     throw new Error("Authentication required: No active Google Workspace connection.");
   }
 
-  const response = await fetch("/api/gmail-send", {
+  const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
     method: "POST",
     headers: {
+      "Authorization": `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ token, raw }),
+    body: JSON.stringify({ raw })
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      console.warn("Google API 401: Token expired. Attempting silent refresh...");
+      try {
+        console.warn("Google API 401: Pausing and requesting user to re-authenticate via UI...");
+        const newAccessToken = await triggerAuthModal();
+        if (newAccessToken) {
+          setCachedAccessToken(newAccessToken);
+          // Retry
+          const retryResponse = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${newAccessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ raw })
+          });
+          return retryResponse.json();
+        }
+      } catch (e) {
+        console.error("User rejected re-auth", e);
+        throw new Error("Google Workspace Session Expired. Please log in again.");
+      }
+    }
     const errText = await response.text();
-    let parsedErr;
-    try {
-      parsedErr = JSON.parse(errText);
-    } catch (e) {}
-    throw new Error(parsedErr?.error?.message || `Proxy API error (${response.status}): ${errText}`);
+    throw new Error(`Google API Error (${response.status}): ${errText}`);
   }
 
   return response.json();
