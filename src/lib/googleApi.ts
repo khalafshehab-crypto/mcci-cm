@@ -199,12 +199,11 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
         const newAccessToken = await triggerAuthModal();
         if (newAccessToken) {
           setCachedAccessToken(newAccessToken);
-          // Retry the request
           const retryResponse = await fetch(url, {
             method: options.method || "GET",
             headers: {
+              ...reqHeaders,
               "Authorization": `Bearer ${newAccessToken}`,
-              ...options.headers,
             },
             body: options.body
           });
@@ -414,8 +413,10 @@ export async function createAndPopulateSheet(title: string, headers: string[], r
   const sheetId = sheet.spreadsheetId;
   const webUrl = sheet.spreadsheetUrl || `https://docs.google.com/spreadsheets/d/${sheetId}`;
   
+  const sheetName = sheet.sheets?.[0]?.properties?.title || "Sheet1";
+  
   const values = [headers, ...rows];
-  await populateSpreadsheet(sheetId, "Sheet1!A1", values);
+  await populateSpreadsheet(sheetId, `${sheetName}!A1`, values);
   return { spreadsheetId: sheetId, webUrl };
 }
 

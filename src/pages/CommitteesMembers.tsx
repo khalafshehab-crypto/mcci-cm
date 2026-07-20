@@ -9,7 +9,10 @@ import {
   Users2, 
   Search, 
   Plus, 
-  X, 
+  X,
+  Download,
+  Upload,
+ 
   Calendar, 
   CheckCircle, 
   Mail, 
@@ -29,13 +32,13 @@ import {
   Building2,
   Sparkles,
   ExternalLink,
-  Upload,
   Paperclip,
   Fingerprint,
   FileCheck,
   FileDown,
   Shield,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ChevronDown
 } from "lucide-react";
 
 interface Member {
@@ -205,6 +208,22 @@ function AttachmentInput({ label, value, onChange, id }: AttachmentInputProps) {
 import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc } from '../lib/firebase';
 import { db } from '../lib/firebase';
 import { useFirestoreCollection } from '../lib/firebaseUtils';
+
+
+const EXPORT_FIELDS_META = [
+  { key: "alphabetical", label: "مسلسل العضو أبجدياً" },
+  { key: "title", label: "اللقب" },
+  { key: "name", label: "اسم العضو" },
+  { key: "committeeName", label: "اللجنة" },
+  { key: "role", label: "الصفة" },
+  { key: "phone", label: "رقم الجوال" },
+  { key: "email", label: "البريد الإلكتروني" },
+  { key: "nationalId", label: "رقم الهوية" },
+  { key: "joiningMechanism", label: "آلية الانضمام" },
+  { key: "joinedDate", label: "تاريخ الانضمام" },
+  { key: "active", label: "حالة العضوية" },
+  { key: "note", label: "ملاحظات" },
+];
 
 export default function CommitteesMembers() {
   const { data: dbMembers, addDocument: addFirebaseMember, updateDocument: updateFirebaseMember, deleteDocument: deleteFirebaseMember } = useFirestoreCollection<Member>("members", []);
@@ -410,7 +429,158 @@ export default function CommitteesMembers() {
   };
 
   const [isImportOpen, setIsImportOpen] = useState(false);
-  const [isAddSelectionOpen, setIsAddSelectionOpen] = useState(false);
+
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [exportModalMode, setExportModalMode] = useState<'import' | 'export'>('export');
+  const [selectedExportFields, setSelectedExportFields] = useState<string[]>(
+    EXPORT_FIELDS_META.map(f => f.key)
+  );
+
+  const toggleExportField = (key: string) => {
+    setSelectedExportFields(prev => 
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
+  };
+
+  
+  const [importPreviewOpen, setImportPreviewOpen] = useState(false);
+  const [importedMembers, setImportedMembers] = useState<{member: any, isDuplicate: boolean, selected: boolean}[]>([]);
+
+  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string;
+        if (!text) return;
+        
+        const rows = text.split('\n').map(row => row.split(',').map(cell => cell.trim().replace(/^"|"$/g, '')));
+        if (rows.length < 2) {
+          alert('الملف فارغ أو غير صالح.');
+          return;
+        }
+        
+        const headers = rows[0];
+        let newImportedList: {member: any, isDuplicate: boolean, selected: boolean}[] = [];
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (row.length !== headers.length) continue;
+          if (!row[0] && !row[1]) continue;
+          
+          const newMember: any = {
+            title: "الأستاذ",
+            customTitle: "",
+            name: "",
+            role: "عضو",
+            committeeId: 0,
+            committeeName: "غير محدد",
+            joiningMechanism: "مرشح",
+            govAgency: "",
+            entity: "",
+            email: "",
+            phone: "",
+            nationalId: "",
+            active: true,
+            joinedDate: new Date().toISOString().split('T')[0],
+            note: "مستورد من ملف",
+            personalPhoto: ""
+          };
+          
+          headers.forEach((h, idx) => {
+            const val = row[idx];
+            if (!val) return;
+            if (h === "اللقب") newMember.title = val;
+            if (h === "اسم العضو") newMember.name = val;
+            if (h === "اللجنة") newMember.committeeName = val;
+            if (h === "الصفة") newMember.role = val;
+            if (h === "رقم الجوال") newMember.phone = val;
+            if (h === "البريد الإلكتروني") newMember.email = val;
+            if (h === "رقم الهوية") newMember.nationalId = val;
+            if (h === "آلية الانضمام") newMember.joiningMechanism = val;
+            if (h === "تاريخ الانضمام") newMember.joinedDate = val;
+            if (h === "حالة العضوية") newMember.active = val.includes("نشط") || val === "فعالة";
+            if (h === "ملاحظات") newMember.note = val;
+          });
+          
+          if (newMember.name) {
+            const duplicate = members.find(m => m.name === newMember.name && m.committeeName === newMember.committeeName);
+            newImportedList.push({
+              member: newMember,
+              isDuplicate: !!duplicate,
+              selected: !duplicate
+            });
+          }
+        }
+        
+        if (newImportedList.length > 0) {
+          setImportedMembers(newImportedList);
+          setImportPreviewOpen(true);
+          setIsExportOpen(false);
+        } else {
+          alert('لم يتم العثور على أعضاء صالحين في الملف.');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('حدث خطأ أثناء قراءة الملف.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const confirmCSVImport = async () => {
+    let importedCount = 0;
+    for (const item of importedMembers) {
+      if (item.selected) {
+        // find committee if possible
+        const comm = dbCommittees.find(c => c.name === item.member.committeeName);
+        if (comm) {
+          item.member.committeeId = comm.id;
+        }
+        await addFirebaseMember(item.member);
+        importedCount++;
+      }
+    }
+    setImportPreviewOpen(false);
+    showGlobalToast(`تم استيراد ${importedCount} عضو بنجاح.`);
+  };
+
+  const handleExportToGoogleSheets = async () => {
+    try {
+      const activeHeaders = EXPORT_FIELDS_META.filter(f => selectedExportFields.includes(f.key));
+      const csvHeader = activeHeaders.map(h => h.label).join(",");
+      
+      const filtered = selectedMembers.size > 0 
+        ? members.filter(m => selectedMembers.has(m.id))
+        : members;
+
+      const csvRows = filtered.map((m, index) => {
+        return activeHeaders.map(h => {
+          if (h.key === "alphabetical") return index + 1;
+          if (h.key === "active") return m.active ? "نشط" : "غير نشط";
+          return m[h.key as keyof typeof m] || "";
+        }).join(",");
+      });
+
+      const csvContent = [csvHeader, ...csvRows].join("\n");
+      const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "الأعضاء.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setIsExportOpen(false);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importData, setImportData] = useState<any[]>([]);
   const [importColumns, setImportColumns] = useState<string[]>([]);
@@ -1211,16 +1381,85 @@ export default function CommitteesMembers() {
             )}
           </AnimatePresence>
 
-          {/* Add member button */}
+          {/* Merged Add/Import/Export Dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
+              className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer"
+            >
+              <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
+              <span>إجراءات الأعضاء</span>
+              <ChevronDown className="w-4 h-4 mr-1 opacity-70" />
+            </button>
+            <AnimatePresence>
+              {isAddMenuOpen && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-10"
+                    onClick={() => setIsAddMenuOpen(false)}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, y: 5, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                    className="absolute left-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-2 z-20 flex flex-col gap-1"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddMenuOpen(false);
+                        handleOpenAdd();
+                      }}
+                      className="w-full h-10 px-3 bg-white hover:bg-blue-50 text-gray-800 font-bold text-xs rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-right group"
+                    >
+                      <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100">
+                        <Plus className="w-3.5 h-3.5" />
+                      </div>
+                      <span>إضافة عضو</span>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddMenuOpen(false);
+                        setIsImportOpen(true);
+                        setImportStep(1);
+                        setImportFile(null);
+                        setImportData([]);
+                        setSelectedImportRows([]);
+                        setImportError("");
+                      }}
+                      className="w-full h-10 px-3 bg-white hover:bg-blue-50 text-gray-800 font-bold text-xs rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-right group"
+                    >
+                      <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100">
+                        <Download className="w-3.5 h-3.5" />
+                      </div>
+                      <span>استيراد</span>
+                    </button>
 
-          <button
-            type="button"
-            onClick={() => setIsAddSelectionOpen(true)}
-            className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer"
-          >
-            <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
-            <span>إضافة عضو</span>
-          </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddMenuOpen(false);
+                        setExportModalMode('export');
+                        setIsExportOpen(true);
+                      }}
+                      className="w-full h-10 px-3 bg-white hover:bg-emerald-50 text-gray-800 font-bold text-xs rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-right group"
+                    >
+                      <div className="w-6 h-6 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:bg-emerald-100">
+                        <Upload className="w-3.5 h-3.5" />
+                      </div>
+                      <span>تصدير</span>
+                    </button>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
 
           {/* Vertical divider */}
           <div className="h-8 w-px bg-gray-300 hidden xl:block mx-1"></div>
@@ -1765,327 +2004,9 @@ export default function CommitteesMembers() {
         )}
       </AnimatePresence>
 
-      {/* ADD SELECTION MODAL */}
-      <AnimatePresence>
-        {isAddSelectionOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsAddSelectionOpen(false)}
-              className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center">
-                    <Users className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-gray-900 text-base leading-tight">
-                      إضافة أعضاء
-                    </h3>
-                    <p className="text-xs text-gray-500 font-medium">اختر طريقة الإضافة المناسبة</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsAddSelectionOpen(false)}
-                  className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+      
 
-              {/* Content */}
-              <div className="p-6 flex flex-col sm:flex-row gap-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAddSelectionOpen(false);
-                    handleOpenAdd();
-                  }}
-                  className="flex-1 bg-white border-2 border-gray-100 hover:border-blue-500 hover:shadow-md transition-all rounded-2xl p-6 flex flex-col items-center justify-center text-center group cursor-pointer"
-                >
-                  <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <UserPlus className="w-6 h-6" />
-                  </div>
-                  <h4 className="font-bold text-gray-900 mb-1">إضافة مفردة</h4>
-                  <p className="text-xs text-gray-500">إدخال بيانات عضو واحد يدوياً</p>
-                </button>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAddSelectionOpen(false);
-                    setIsImportOpen(true);
-                  }}
-                  className="flex-1 bg-white border-2 border-gray-100 hover:border-emerald-500 hover:shadow-md transition-all rounded-2xl p-6 flex flex-col items-center justify-center text-center group cursor-pointer"
-                >
-                  <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <Upload className="w-6 h-6" />
-                  </div>
-                  <h4 className="font-bold text-gray-900 mb-1">إضافة مجموعة</h4>
-                  <p className="text-xs text-gray-500">استيراد بيانات من ملف Excel</p>
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-{/* 2.5 MODAL: IMPORT EXCEL */}
-      <AnimatePresence>
-        {isImportOpen && (
-          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm"
-              onClick={closeImportModal}
-            ></motion.div>
-            
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-4xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
-              dir="rtl"
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-gray-50/50">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                    <Upload className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-gray-900 text-base leading-tight">
-                      استيراد أعضاء من ملف Excel
-                    </h3>
-                    <p className="text-xs text-gray-500 font-medium">استيراد جماعي لبيانات الأعضاء</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={closeImportModal}
-                  className="p-2 hover:bg-gray-200/50 text-gray-500 rounded-xl transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {importError && (
-                  <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm font-bold flex items-center gap-2">
-                    <AlertTriangle className="w-5 h-5" />
-                    {importError}
-                  </div>
-                )}
-
-{importStep === 1 && (
-                  <div className="text-center space-y-4">
-                    <div className="border border-blue-200 bg-blue-50/50 rounded-3xl p-8 flex flex-col items-center justify-center">
-                      <ExternalLink className="w-12 h-12 text-blue-500 mb-4" />
-                      <h4 className="text-lg font-black text-gray-900">استيراد من Google Drive</h4>
-                      <p className="text-sm text-gray-500 font-medium mb-4 text-center max-w-sm">
-                        قم بلصق رابط ملف جدول البيانات (Google Sheets). <br/> يجب أن يكون الملف "متاح لأي شخص لديه الرابط".
-                      </p>
-                      
-                      <div className="flex gap-2 w-full max-w-md">
-                        <input
-                          type="url"
-                          placeholder="https://docs.google.com/spreadsheets/d/..."
-                          value={googleSheetUrl}
-                          onChange={(e) => setGoogleSheetUrl(e.target.value)}
-                          className="flex-1 h-11 px-4 bg-white border border-blue-200 rounded-xl text-sm font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-left"
-                          dir="ltr"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleFetchGoogleSheet}
-                          disabled={isFetchingSheet || !googleSheetUrl}
-                          className="h-11 px-6 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black text-sm rounded-xl transition-colors flex items-center justify-center gap-2"
-                        >
-                          {isFetchingSheet ? (
-                            <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                          ) : (
-                            "جلب الملف"
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {importStep === 2 && (
-                  <div className="space-y-6">
-                    <div className="bg-blue-50 text-blue-800 p-4 rounded-xl text-sm font-bold flex gap-2">
-                      <CheckCircle className="w-5 h-5 flex-shrink-0" />
-                      <div>
-                        تم قراءة الملف بنجاح! وجدنا {importData.length} صفاً و {importColumns.length} عاموداً.
-                        <br />
-                        يرجى مراجعة وتأكيد مطابقة العواميد مع حقول النظام الأساسية.
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {Object.entries({
-                        title: "اللقب",
-                        name: "اسم العضو",
-                        committee: "اللجنة",
-                        role: "الصفة",
-                        phone: "رقم الجوال",
-                        email: "البريد الإلكتروني",
-                        nationalId: "رقم الهوية",
-                        membership_type: "آلية الانضمام",
-                        joined_date: "تاريخ الانضمام",
-                        note: "ملاحظات"
-                      }).map(([sysField, sysLabel]) => (
-                        <div key={sysField} className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                          <label className="text-xs font-black text-gray-700 block mb-2">{sysLabel}</label>
-                          <select
-                            value={columnMapping[sysField] || ""}
-                            onChange={(e) => setColumnMapping({ ...columnMapping, [sysField]: e.target.value })}
-                            className="w-full h-10 px-3 bg-white border border-gray-300 rounded-lg text-sm font-bold focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                          >
-                            <option value="">-- تجاهل / غير متوفر --</option>
-                            {importColumns.map((col, i) => (
-                              <option key={i} value={col}>{col}</option>
-                            ))}
-                          </select>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex justify-end gap-3 mt-6">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setImportStep(3);
-                          setSelectedImportRows(importData.map((_, i) => i));
-                        }}
-                        className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-xl transition-colors"
-                      >
-                        التالي: معاينة البيانات
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {importStep === 3 && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-4 mb-4">
-                      <div className="flex-1 space-y-1">
-                        <label className="text-xs font-black text-gray-600 block">اللجنة (في حال لم يتم تحديدها من الملف)*</label>
-                        <select
-                          value={importCommitteeId}
-                          onChange={(e) => setImportCommitteeId(e.target.value)}
-                          className="w-full max-w-sm h-10 px-3 bg-gray-50 border border-gray-300 rounded-xl text-sm font-bold"
-                        >
-                          <option value={0}>-- يرجى اختيار اللجنة الافتراضية --</option>
-                          {allCommittees.filter(c => canUserEditCommittee(c.name)).map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden">
-                      <div className="overflow-x-auto max-h-[40vh]">
-                        <table className="w-full text-right text-sm relative">
-                          <thead className="bg-gray-100 border-b border-gray-200 text-gray-700 sticky top-0">
-                            <tr>
-                              <th className="whitespace-nowrap p-3 w-10">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedImportRows.length === importData.length && importData.length > 0}
-                                  onChange={(e) => {
-                                    if (e.target.checked) setSelectedImportRows(importData.map((_, i) => i));
-                                    else setSelectedImportRows([]);
-                                  }}
-                                  className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
-                                />
-                              </th>
-                              <th className="whitespace-nowrap p-3 font-black">الاسم</th>
-                              <th className="whitespace-nowrap p-3 font-black">الجوال</th>
-                              <th className="whitespace-nowrap p-3 font-black">البريد الإلكتروني</th>
-                              <th className="whitespace-nowrap p-3 font-black">اللجنة</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {importData.map((row, i) => {
-                              const getV = (f) => {
-                                const c = columnMapping[f];
-                                return c ? (row[importColumns.indexOf(c)] || "-") : "-";
-                              };
-                              return (
-                                <tr key={i} className="border-b border-gray-100 last:border-0 hover:bg-white transition-colors">
-                                  <td className="whitespace-nowrap p-3">
-                                    <input
-                                      type="checkbox"
-                                      checked={selectedImportRows.includes(i)}
-                                      onChange={(e) => {
-                                        if (e.target.checked) setSelectedImportRows([...selectedImportRows, i]);
-                                        else setSelectedImportRows(selectedImportRows.filter(id => id !== i));
-                                      }}
-                                      className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
-                                    />
-                                  </td>
-                                  <td className="whitespace-nowrap p-3 font-bold text-gray-900">{getV("name")}</td>
-                                  <td className="whitespace-nowrap p-3 text-gray-600" dir="ltr">{getV("phone")}</td>
-                                  <td className="whitespace-nowrap p-3 text-gray-600">{getV("email")}</td>
-                                  <td className="whitespace-nowrap p-3 text-gray-600">{getV("committee")}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between mt-6">
-                      <div className="text-sm font-bold text-gray-600">
-                        تم تحديد {selectedImportRows.length} من {importData.length} عضو
-                      </div>
-                      <div className="flex gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setImportStep(2)}
-                          className="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black text-sm rounded-xl transition-colors"
-                          disabled={isImporting}
-                        >
-                          رجوع
-                        </button>
-                        <button
-                          type="button"
-                          onClick={executeImport}
-                          disabled={isImporting || selectedImportRows.length === 0}
-                          className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-xl transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isImporting ? (
-                            <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                          ) : (
-                            <Upload className="w-4 h-4" />
-                          )}
-                          بدء الاستيراد
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* 3. MODAL: ADD / EDIT MEMBER (إضافة وتعديل بيانات عضو) */}
 
@@ -2844,6 +2765,352 @@ export default function CommitteesMembers() {
           </div>
         )}
       </AnimatePresence>
+
+      
+      {/* 📥 EXPORT MODAL */}
+      <AnimatePresence>
+        {isExportOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsExportOpen(false)}
+              className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                    <Upload className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-gray-900 text-base leading-tight">تصدير بيانات الأعضاء</h3>
+                    <p className="text-xs text-gray-500 font-bold mt-0.5">اختر الحقول المراد تصديرها</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsExportOpen(false)}
+                  className="p-1.5 hover:bg-gray-200/50 text-gray-500 rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <p className="text-xs font-semibold text-gray-650 leading-relaxed bg-emerald-50 text-emerald-800 p-3 rounded-xl border border-emerald-100">
+                  سيتم فرز وتصدير الأعضاء المحددة أبجدياً.
+                </p>
+                <div className="space-y-2">
+                  <span className="block text-xs font-black text-gray-700">تحديد الحقول المراد تصديرها:</span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[220px] overflow-y-auto p-1 border border-gray-100 rounded-xl bg-gray-50/50">
+                    {EXPORT_FIELDS_META.map(f => (
+                      <label 
+                        key={f.key} 
+                        className="flex items-center gap-2.5 p-2 bg-white rounded-lg border border-gray-150 hover:border-emerald-300 transition-colors cursor-pointer select-none"
+                      >
+                        <input 
+                          type="checkbox"
+                          checked={selectedExportFields.includes(f.key)}
+                          onChange={() => toggleExportField(f.key)}
+                          className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                        />
+                        <span className="text-xs font-extrabold text-gray-800">{f.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={handleExportToGoogleSheets}
+                  className="flex-1 min-w-[140px] h-11 bg-emerald-600 hover:bg-emerald-700 hover:shadow-md text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>تصدير إلى CSV</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsExportOpen(false)}
+                  className="px-5 h-11 bg-gray-200 hover:bg-gray-300 text-gray-750 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 📥 IMPORT MODAL */}
+      <AnimatePresence>
+        {isImportOpen && (
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm"
+              onClick={closeImportModal}
+            />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-gray-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                    <Download className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-gray-900 text-base leading-tight">استيراد الأعضاء من ملف</h3>
+                    <p className="text-xs text-gray-500 font-medium">اختر ملف واستورد البيانات بسهولة</p>
+                  </div>
+                </div>
+                <button
+                  onClick={closeImportModal}
+                  className="p-2 hover:bg-gray-200/50 text-gray-500 rounded-xl transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {importError && (
+                  <div className="bg-red-50 text-red-600 p-3 rounded-xl text-xs font-bold flex gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>{importError}</span>
+                  </div>
+                )}
+                
+                {importStep === 1 && (
+                  <div className="space-y-6">
+                    {/* Google Sheets URL Import */}
+                    <div className="border border-blue-200 bg-blue-50/50 rounded-3xl p-6 sm:p-8 flex flex-col items-center justify-center text-center">
+                      <ExternalLink className="w-10 h-10 text-blue-500 mb-3" />
+                      <h4 className="text-base font-black text-gray-900 mb-1">استيراد من Google Drive</h4>
+                      <p className="text-xs text-gray-500 font-medium mb-4 max-w-sm mx-auto">
+                        قم بلصق رابط ملف جدول البيانات (Google Sheets). <br/> يجب أن يكون الملف "متاح لأي شخص لديه الرابط".
+                      </p>
+                      
+                      <div className="w-full max-w-md flex flex-col sm:flex-row gap-2">
+                        <input 
+                          type="text" 
+                          dir="ltr"
+                          value={googleSheetUrl}
+                          onChange={(e) => setGoogleSheetUrl(e.target.value)}
+                          placeholder="https://docs.google.com/spreadsheets/d/..."
+                          className="flex-1 h-11 px-4 text-xs font-mono border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-gray-700"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleFetchGoogleSheet}
+                          disabled={isFetchingSheet || !googleSheetUrl}
+                          className="h-11 px-5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-black rounded-xl transition-colors whitespace-nowrap flex items-center justify-center"
+                        >
+                          {isFetchingSheet ? "جاري الجلب..." : "جلب البيانات"}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      <div className="h-px bg-gray-200 flex-1"></div>
+                      <span className="text-xs font-black text-gray-400">أو</span>
+                      <div className="h-px bg-gray-200 flex-1"></div>
+                    </div>
+
+                    {/* Local File Import */}
+                    <div className="border-2 border-dashed border-gray-200 rounded-3xl p-6 sm:p-8 flex flex-col items-center justify-center bg-gray-50/50 text-center hover:bg-gray-50 transition-colors">
+                      <FileText className="w-10 h-10 text-gray-400 mb-3" />
+                      <h4 className="text-base font-black text-gray-900 mb-1">رفع ملف من الجهاز</h4>
+                      <p className="text-xs text-gray-500 font-medium mb-4">
+                        اختر ملف بصيغة (Excel, CSV) لاستيراد البيانات منه.
+                      </p>
+                      <label className="h-11 px-6 bg-white border border-gray-200 hover:border-blue-500 hover:text-blue-600 text-gray-700 rounded-xl text-xs font-black cursor-pointer transition-all shadow-sm flex items-center justify-center gap-2">
+                        <Upload className="w-4 h-4" />
+                        <span>استعراض الملفات</span>
+                        <input
+                          type="file"
+                          accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                          className="hidden"
+                          onChange={handleFileChange}
+                          ref={fileInputRef}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {importStep === 2 && (
+                  <div className="space-y-4">
+                    <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3 text-xs text-blue-800 font-bold mb-4">
+                      يرجى مطابقة أعمدة الملف مع بيانات النظام:
+                    </div>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Mapping Fields */}
+                      {[
+                        { key: "name", label: "اسم العضو" },
+                        { key: "committee", label: "اللجنة (اختياري، أو تحديد للكل بالأسفل)" },
+                        { key: "phone", label: "رقم الجوال" },
+                        { key: "email", label: "البريد الإلكتروني" },
+                        { key: "nationalId", label: "رقم الهوية" },
+                        { key: "title", label: "اللقب (مثل أستاذ، مهندس)" },
+                        { key: "role", label: "الصفة (مثل رئيس، عضو)" },
+                        { key: "membership_type", label: "آلية الانضمام (مرشح، إلخ)" }
+                      ].map(field => (
+                        <div key={field.key} className="space-y-1.5">
+                          <label className="text-[11px] font-black text-gray-700">{field.label}</label>
+                          <select
+                            className="w-full text-xs h-10 px-3 bg-white border border-gray-200 rounded-xl focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                            value={columnMapping[field.key] || ""}
+                            onChange={(e) => setColumnMapping({...columnMapping, [field.key]: e.target.value})}
+                          >
+                            <option value="">- تخطي / غير موجود -</option>
+                            {importColumns.map(col => (
+                              <option key={col} value={col}>{col}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+
+                    {!columnMapping["committee"] && (
+                      <div className="pt-4 border-t border-gray-100 space-y-1.5">
+                        <label className="text-[11px] font-black text-gray-700">تعيين جميع الأعضاء إلى لجنة محددة:</label>
+                        <select
+                          className="w-full text-xs h-10 px-3 bg-white border border-gray-200 rounded-xl focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                          value={importCommitteeId}
+                          onChange={(e) => setImportCommitteeId(e.target.value)}
+                        >
+                          <option value={0}>- اختر اللجنة -</option>
+                          {allCommittees.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {importStep === 3 && (
+                  <div className="space-y-4">
+                    <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3 text-xs text-blue-800 font-bold flex justify-between items-center">
+                      <span>البيانات الجاهزة للاستيراد ({importData.length} صف)</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (selectedImportRows.length === importData.length) setSelectedImportRows([]);
+                          else setSelectedImportRows(importData.map((_, i) => i));
+                        }}
+                        className="text-blue-600 underline"
+                      >
+                        {selectedImportRows.length === importData.length ? 'إلغاء تحديد الكل' : 'تحديد الكل'}
+                      </button>
+                    </div>
+                    <div className="border border-gray-200 rounded-xl overflow-hidden max-h-[300px] overflow-y-auto">
+                      <table className="w-full text-sm text-right">
+                        <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                          <tr>
+                            <th className="p-2 w-10 text-center"></th>
+                            {importColumns.slice(0, 4).map(col => (
+                              <th key={col} className="p-2 font-black text-gray-600 whitespace-nowrap">{col}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {importData.map((row, idx) => (
+                            <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/50">
+                              <td className="p-2 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedImportRows.includes(idx)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) setSelectedImportRows([...selectedImportRows, idx]);
+                                    else setSelectedImportRows(selectedImportRows.filter(r => r !== idx));
+                                  }}
+                                  className="rounded text-blue-600 focus:ring-blue-500"
+                                />
+                              </td>
+                              {importColumns.slice(0, 4).map(col => (
+                                <td key={col} className="p-2 text-gray-800 text-xs truncate max-w-[150px]">
+                                  {row[importColumns.indexOf(col)]}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex flex-wrap gap-3">
+                {importStep === 2 && (
+                  <button
+                    onClick={() => {
+                      setImportStep(3);
+                      setSelectedImportRows(importData.map((_, i) => i));
+                    }}
+                    className="flex-1 min-w-[120px] h-10 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl transition-all shadow-sm"
+                  >
+                    التالي (معاينة البيانات)
+                  </button>
+                )}
+                
+                {importStep === 3 && (
+                  <button
+                    onClick={executeImport}
+                    disabled={isImporting}
+                    className="flex-1 min-w-[120px] h-10 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-black text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
+                  >
+                    {isImporting ? (
+                      <span>جاري الاستيراد...</span>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4" />
+                        <span>تأكيد الاستيراد ({selectedImportRows.length})</span>
+                      </>
+                    )}
+                  </button>
+                )}
+
+                <button
+                  onClick={() => {
+                    if (importStep > 1) {
+                      setImportStep((importStep - 1) as 1 | 2);
+                    } else {
+                      closeImportModal();
+                    }
+                  }}
+                  disabled={isImporting}
+                  className="px-6 h-10 bg-gray-200 hover:bg-gray-300 text-gray-750 font-extrabold text-xs rounded-xl transition-all"
+                >
+                  {importStep > 1 ? 'السابق' : 'إلغاء'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+
+
 
     </div>
   );

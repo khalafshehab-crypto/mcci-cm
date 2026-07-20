@@ -2,8 +2,8 @@ import React, { useState, useEffect, FormEvent, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Users2, Search, Plus, X, Users, Calendar, CheckCircle, FileText, Trash2, SlidersHorizontal,
-  Check, ChevronLeft, Settings2, Columns, Edit2, Save, Download, MoreVertical, Activity, AlertCircle,
-  UserCheck, LayoutGrid, List, FileSpreadsheet, Settings, Upload, AlertTriangle
+  Check, ChevronLeft, ChevronDown, Settings2, Columns, Edit2, Save, Download, MoreVertical, Activity, AlertCircle,
+  UserCheck, LayoutGrid, List, FileSpreadsheet, Settings, Upload, AlertTriangle, TriangleAlert
 } from "lucide-react";
 // @ts-ignore
 import { generateDocx } from "../lib/docxGenerator";
@@ -581,6 +581,10 @@ export default function CommitteesFormation() {
 
   // Google Sheets Export States
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [exportModalMode, setExportModalMode] = useState<'import' | 'export'>('export');
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const [importPreviewOpen, setImportPreviewOpen] = useState(false);
+  const [importedCommittees, setImportedCommittees] = useState<{comm: any, isDuplicate: boolean, selected: boolean}[]>([]);
   const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false);
   const [isColumnsOpen, setIsColumnsOpen] = useState(false);
   const [selectedExportFields, setSelectedExportFields] = useState<string[]>([
@@ -628,7 +632,7 @@ export default function CommitteesFormation() {
         }
 
         const headers = rows[0];
-        let importedCount = 0;
+        let newImportedList: {comm: any, isDuplicate: boolean, selected: boolean}[] = [];
 
         for (let i = 1; i < rows.length; i++) {
           const row = rows[i];
@@ -669,19 +673,43 @@ export default function CommitteesFormation() {
           });
 
           if (newComm.name && newComm.name !== 'لجنة مستوردة') {
-            await addFirebaseComm(newComm);
-            importedCount++;
+            const duplicate = committees.find(c => advancedMatch(c.name, newComm.name));
+            newImportedList.push({
+              comm: newComm,
+              isDuplicate: !!duplicate,
+              selected: !duplicate // don't select by default if duplicate
+            });
           }
         }
         
-        alert(`تم استيراد ${importedCount} لجنة بنجاح.`);
-        setIsExportOpen(false);
+        if (newImportedList.length > 0) {
+          setImportedCommittees(newImportedList);
+          setImportPreviewOpen(true);
+          setIsExportOpen(false);
+        } else {
+          alert('لم يتم العثور على لجان صالحة في الملف.');
+        }
+
       } catch (err) {
         console.error(err);
-        alert('حدث خطأ أثناء قراءة أو استيراد الملف.');
+        alert('حدث خطأ أثناء قراءة الملف.');
       }
     };
     reader.readAsText(file);
+    // Reset file input so same file can be selected again
+    e.target.value = '';
+  };
+
+  const confirmImport = async () => {
+    let importedCount = 0;
+    for (const item of importedCommittees) {
+      if (item.selected) {
+        await addFirebaseComm(item.comm);
+        importedCount++;
+      }
+    }
+    setImportPreviewOpen(false);
+    showGlobalToast(`تم استيراد ${importedCount} لجنة بنجاح.`);
   };
 
   const handleExportToGoogleSheets = async () => {
@@ -1036,6 +1064,17 @@ export default function CommitteesFormation() {
       setNewMtgError("يرجى إدخال اسم اللجنة بالكامل");
       return;
     }
+    
+    // Check for duplicate names
+    const duplicate = committees.find(c => {
+      if (editingComm && c.id === editingComm.id) return false;
+      return advancedMatch(c.name, name.trim());
+    });
+    if (duplicate) {
+      setNewMtgError(`يوجد تعارض: اسم اللجنة مشابه لاسم لجنة موجودة مسبقاً (${duplicate.name})`);
+      return;
+    }
+
     if (!desc.trim()) {
       setNewMtgError("يرجى إدخال وصف مبسط لأعمال اللجنة");
       return;
@@ -1258,7 +1297,7 @@ export default function CommitteesFormation() {
   
     return committees.map(comm => {
       // Calculate dynamic members count
-      const myMbrs = allMembers.filter((m: any) => m && String(m.committeeId) === String(comm.id));
+      const myMbrs = allMembers.filter((m: any) => m && (String(m.committeeId) === String(comm.id) || advancedMatch(m.committeeName, comm.name)));
       const realMembersCount = myMbrs.length;
 
       // Calculate dynamic president from members
@@ -1268,7 +1307,7 @@ export default function CommitteesFormation() {
         : (comm.president || "غير محدد");
 
       // Calculate dynamic meetings and events
-      const myEvts = allEvents.filter((e: any) => e && String(e.committeeId) === String(comm.id));
+      const myEvts = allEvents.filter((e: any) => e && (String(e.committeeId) === String(comm.id) || advancedMatch(e.committeeName, comm.name)));
       const realMeetingsCount = myEvts.filter((e: any) => e && e.title && e.title.includes("اجتماع")).length;
       const realEventsCount = myEvts.filter((e: any) => e && e.title && !e.title.includes("اجتماع")).length;
 
@@ -1298,9 +1337,15 @@ export default function CommitteesFormation() {
     const term = filterQuery.trim().toLowerCase();
     if (!term) return true;
     return (
-      c.name.toLowerCase().includes(term) || 
-      c.desc.toLowerCase().includes(term) ||
-      (c.specialist && c.specialist.toLowerCase().includes(term))
+      (c.name && c.name.toLowerCase().includes(term)) || 
+      (c.desc && c.desc.toLowerCase().includes(term)) ||
+      (c.specialist && c.specialist.toLowerCase().includes(term)) ||
+      (c.president && c.president.toLowerCase().includes(term)) ||
+      (c.vicePresident && c.vicePresident.toLowerCase().includes(term)) ||
+      (c.ratingIssues && c.ratingIssues.toLowerCase().includes(term)) ||
+      (c.strategicPlan && c.strategicPlan.toLowerCase().includes(term)) ||
+      (c.notes && c.notes.toLowerCase().includes(term)) ||
+      (c.status && c.status.toLowerCase().includes(term))
     );
   });
 
@@ -1466,27 +1511,80 @@ export default function CommitteesFormation() {
             </div>
           </div>
 
-          {/* 2. Add Committee Button - Elegant Blue Accent */}
-          <button
-            type="button"
-            onClick={handleOpenAdd}
-            className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer"
-          >
-            <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
-            <span>إضافة لجنة</span>
-          </button>
-
-          
-          {/* Google Sheets Export Button */}
-          <button
-            type="button"
-            onClick={() => setIsExportOpen(true)}
-            className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer"
-            title="استيراد أو تصدير اللجان لجداول Google Sheets"
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>استيراد / تصدير</span>
-          </button>
+          {/* Merged Add/Import/Export Dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
+              className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer"
+            >
+              <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
+              <span>إجراءات اللجان</span>
+              <ChevronDown className="w-4 h-4 mr-1 opacity-70" />
+            </button>
+            <AnimatePresence>
+              {isAddMenuOpen && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-10"
+                    onClick={() => setIsAddMenuOpen(false)}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, y: 5, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                    className="absolute left-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-2 z-20 flex flex-col gap-1"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddMenuOpen(false);
+                        handleOpenAdd();
+                      }}
+                      className="w-full h-10 px-3 bg-white hover:bg-blue-50 text-gray-800 font-bold text-xs rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-right group"
+                    >
+                      <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100">
+                        <Plus className="w-3.5 h-3.5" />
+                      </div>
+                      <span>إضافة لجنة</span>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddMenuOpen(false);
+                        setExportModalMode('import');
+                        setIsExportOpen(true);
+                      }}
+                      className="w-full h-10 px-3 bg-white hover:bg-blue-50 text-gray-800 font-bold text-xs rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-right group"
+                    >
+                      <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100">
+                        <Download className="w-3.5 h-3.5" />
+                      </div>
+                      <span>استيراد</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddMenuOpen(false);
+                        setExportModalMode('export');
+                        setIsExportOpen(true);
+                      }}
+                      className="w-full h-10 px-3 bg-white hover:bg-emerald-50 text-gray-800 font-bold text-xs rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-right group"
+                    >
+                      <div className="w-6 h-6 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:bg-emerald-100">
+                        <Upload className="w-3.5 h-3.5" />
+                      </div>
+                      <span>تصدير</span>
+                    </button>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
 
           {/* Vertical divider */}
           <div className="h-8 w-px bg-gray-300 hidden sm:block mx-1"></div>
@@ -1860,10 +1958,10 @@ export default function CommitteesFormation() {
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 15, opacity: 0 }}
               transition={{ type: "spring", damping: 20, stiffness: 280 }}
-              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right"
+              className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right flex flex-col max-h-[85vh]"
             >
               {/* Header block with solid header representation */}
-              <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between">
+              <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-600 text-white rounded-xl">
                     {editingComm ? <Edit2 className="w-5 h-5 stroke-[2.5]" /> : <Plus className="w-5 h-5 stroke-[2.5]" />}
@@ -1885,8 +1983,9 @@ export default function CommitteesFormation() {
               </div>
 
               {/* Form Content */}
-              <form onSubmit={handleFormSubmit} className="p-6 space-y-4">
-                {newMtgError && (
+              <form onSubmit={handleFormSubmit} className="flex flex-col h-full overflow-hidden">
+                <div className="p-6 space-y-4 overflow-y-auto flex-1">
+{newMtgError && (
                   <div className="bg-red-50 border border-red-100 text-red-700 p-3 rounded-xl text-[11px] font-bold text-right flex items-center gap-2">
                     <span className="w-2 h-2 shrink-0 rounded-full bg-red-600 animate-pulse"></span>
                     <span className="flex-1">{newMtgError}</span>
@@ -2078,9 +2177,9 @@ export default function CommitteesFormation() {
                     className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all resize-none"
                   />
                 </div>
-
+                </div>
                 {/* Buttons block */}
-                <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
+                <div className="flex items-center gap-3 p-5 border-t border-gray-100 bg-gray-50 shrink-0">
                   <button
                     type="submit"
                     className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 hover:shadow-md text-white font-black text-sm rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
@@ -2091,7 +2190,7 @@ export default function CommitteesFormation() {
                   <button
                     type="button"
                     onClick={() => setIsAddOpen(false)}
-                    className="px-6 h-11 bg-gray-100 hover:bg-gray-200 text-gray-750 font-extrabold text-sm rounded-xl transition-all cursor-pointer"
+                    className="px-6 h-11 bg-gray-200 hover:bg-gray-300 text-gray-750 font-extrabold text-sm rounded-xl transition-all cursor-pointer"
                   >
                     إلغاء الأمر
                   </button>
@@ -2276,9 +2375,11 @@ export default function CommitteesFormation() {
                   </div>
                   <div>
                     <h3 className="font-extrabold text-gray-900 text-base leading-tight">
-                      استيراد وتصدير اللجان (Google Sheets)
+                      {exportModalMode === 'export' ? 'تصدير اللجان (Google Sheets)' : 'استيراد اللجان (CSV)'}
                     </h3>
-                    <p className="text-xs text-gray-500 font-bold mt-0.5">اختر الحقول والبيانات المراد استيرادها أو تصديرها</p>
+                    <p className="text-xs text-gray-500 font-bold mt-0.5">
+                      {exportModalMode === 'export' ? 'اختر الحقول والبيانات المراد تصديرها' : 'اختر الحقول والبيانات المراد استيرادها'}
+                    </p>
                   </div>
                 </div>
                 <button
@@ -2293,11 +2394,11 @@ export default function CommitteesFormation() {
               {/* Body */}
               <div className="p-6 space-y-4">
                 <p className="text-xs font-semibold text-gray-650 leading-relaxed bg-emerald-50 text-emerald-800 p-3 rounded-xl border border-emerald-100">
-                  سيتم فرز وتصدير اللجان المحددة أبجدياً مع جلب كافة الإحصائيات الفعالة تلقائياً. للاستيراد، يرجى اختيار ملف CSV مطابق للأعمدة المحددة.
+                  {exportModalMode === 'export' ? 'سيتم فرز وتصدير اللجان المحددة أبجدياً مع جلب كافة الإحصائيات الفعالة تلقائياً.' : 'للاستيراد، يرجى اختيار ملف CSV مطابق للأعمدة المحددة.'}
                 </p>
 
                 <div className="space-y-2">
-                  <span className="block text-xs font-black text-gray-700">تحديد الحقول المراد استيرادها/تصديرها:</span>
+                  <span className="block text-xs font-black text-gray-700">{exportModalMode === 'export' ? 'تحديد الحقول المراد تصديرها:' : 'تحديد الحقول المراد استيرادها:'}</span>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[220px] overflow-y-auto p-1 border border-gray-100 rounded-xl bg-gray-50/50">
                     {EXPORT_FIELDS_META.map(f => (
                       <label 
@@ -2319,35 +2420,156 @@ export default function CommitteesFormation() {
 
               {/* Footer */}
               <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={handleExportToGoogleSheets}
-                  className="flex-1 min-w-[140px] h-11 bg-emerald-600 hover:bg-emerald-700 hover:shadow-md text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>تصدير إلى Sheets</span>
-                </button>
-                
-                <label className="flex-1 min-w-[140px] h-11 bg-blue-600 hover:bg-blue-700 hover:shadow-md text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer">
-                  <Upload className="w-4 h-4" />
-                  <span>استيراد ملف CSV</span>
-                  <input 
-                    type="file" 
-                    accept=".csv"
-                    className="hidden" 
-                    onChange={handleImportCSV} 
-                  />
-                </label>
+                {exportModalMode === 'export' ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleExportToGoogleSheets}
+                      className="flex-1 min-w-[140px] h-11 bg-emerald-600 hover:bg-emerald-700 hover:shadow-md text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span>تصدير إلى Sheets</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsExportOpen(false)}
+                      className="px-5 h-11 bg-gray-200 hover:bg-gray-300 text-gray-750 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                    >
+                      إلغاء
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <label className="flex-1 min-w-[140px] h-11 bg-blue-600 hover:bg-blue-700 hover:shadow-md text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                      <Download className="w-4 h-4" />
+                      <span>استيراد ملف CSV</span>
+                      <input 
+                        type="file" 
+                        accept=".csv"
+                        className="hidden" 
+                        onChange={handleImportCSV}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsExportOpen(false)}
+                      className="px-5 h-11 bg-gray-200 hover:bg-gray-300 text-gray-750 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                    >
+                      إلغاء
+                    </button>
+                  </>
+                )}
+              </div>
 
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 📊 GOOGLE SHEETS IMPORT PREVIEW MODAL */}
+      <AnimatePresence>
+        {importPreviewOpen && (
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setImportPreviewOpen(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+
+            {/* Modal Body */}
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right text-slate-800 flex flex-col max-h-[85vh]"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-gray-900 text-base leading-tight">
+                      معاينة لجان الاستيراد
+                    </h3>
+                    <p className="text-[11px] font-bold text-gray-500 mt-1">
+                      الرجاء مراجعة اللجان المستخرجة من الملف قبل تأكيد إضافتها
+                    </p>
+                  </div>
+                </div>
                 <button
                   type="button"
-                  onClick={() => setIsExportOpen(false)}
+                  onClick={() => setImportPreviewOpen(false)}
+                  className="p-1.5 hover:bg-gray-200/50 text-gray-500 rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 overflow-y-auto space-y-4">
+                <div className="bg-amber-50 text-amber-800 p-4 rounded-xl text-xs font-bold border border-amber-200">
+                  <p>اللجان المتعارضة تظهر بلون باهت وغير محددة لتجنب الازدواجية.</p>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
+                  {importedCommittees.map((item, index) => (
+                    <label
+                      key={index}
+                      className={`flex items-start gap-3 p-4 rounded-xl border transition-colors cursor-pointer ${
+                        item.isDuplicate
+                          ? "bg-gray-50 border-gray-200 opacity-60"
+                          : item.selected
+                          ? "bg-blue-50 border-blue-200"
+                          : "bg-white border-gray-200 hover:border-blue-300"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={item.selected}
+                        disabled={item.isDuplicate}
+                        onChange={(e) => {
+                          const newArr = [...importedCommittees];
+                          newArr[index].selected = e.target.checked;
+                          setImportedCommittees(newArr);
+                        }}
+                        className="mt-0.5 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 disabled:opacity-50 cursor-pointer"
+                      />
+                      <div className="flex-1 text-xs">
+                        <p className="font-extrabold text-gray-900 text-sm mb-1">{item.comm.name}</p>
+                        <p className="text-gray-500 font-medium">الرئيس: {item.comm.president} | الأخصائي: {item.comm.specialist}</p>
+                        {item.isDuplicate && (
+                          <p className="text-red-600 mt-2 font-bold flex items-center gap-1">
+                            <TriangleAlert className="w-3.5 h-3.5" /> مسجلة مسبقاً في النظام
+                          </p>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-5 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setImportPreviewOpen(false)}
                   className="px-5 h-11 bg-gray-200 hover:bg-gray-300 text-gray-750 font-bold text-xs rounded-xl transition-all cursor-pointer"
                 >
                   إلغاء
                 </button>
+                <button
+                  onClick={confirmImport}
+                  disabled={!importedCommittees.some(c => c.selected)}
+                  className="px-6 h-11 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-black text-xs rounded-xl transition-all cursor-pointer flex items-center gap-2"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>تأكيد استيراد ({importedCommittees.filter(c => c.selected).length}) لجنة</span>
+                </button>
               </div>
-
             </motion.div>
           </div>
         )}
