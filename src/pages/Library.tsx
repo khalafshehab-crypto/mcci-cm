@@ -160,9 +160,9 @@ export default function Library() {
     if (typeFilter !== "all" && t.type !== typeFilter) return false;
     if (
       searchQuery &&
-      !t.title.includes(searchQuery) &&
-      !t.description.includes(searchQuery) &&
-      !t.creator.includes(searchQuery)
+      !(t.title || "").includes(searchQuery) &&
+      !(t.description || "").includes(searchQuery) &&
+      !(t.creator || "").includes(searchQuery)
     )
       return false;
     return true;

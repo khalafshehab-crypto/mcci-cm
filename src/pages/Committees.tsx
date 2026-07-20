@@ -629,9 +629,9 @@ export default function Committees() {
     const term = filterQuery.trim().toLowerCase();
     if (!term) return true;
     return (
-      c.name.toLowerCase().includes(term) || 
-      c.desc.toLowerCase().includes(term) ||
-      (c.specialist && c.specialist.toLowerCase().includes(term))
+      (c.name || "").toLowerCase().includes(term) || 
+      (c.desc || "").toLowerCase().includes(term) ||
+      (c.specialist && (c.specialist || "").toLowerCase().includes(term))
     );
   });
 

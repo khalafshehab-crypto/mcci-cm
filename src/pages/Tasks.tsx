@@ -468,8 +468,8 @@ export default function Tasks() {
   const filteredTasks = tasks.filter(t => {
     const term = (filterQuery || searchQuery).trim().toLowerCase();
     const matchesSearch = !term ||
-      t.title.toLowerCase().includes(term) ||
-      t.description.toLowerCase().includes(term);
+      (t.title || "").toLowerCase().includes(term) ||
+      (t.description || "").toLowerCase().includes(term);
     
     const matchesStatus = statusFilter === "all" || t.status === statusFilter;
     const matchesPriority = priorityFilter === "all" || t.priority === priorityFilter;

@@ -783,11 +783,11 @@ export default function CommitteesMembers() {
     let result = members.filter(m => {
       const term = filterQuery.trim().toLowerCase();
       return !term ? true : (
-        m.name.toLowerCase().includes(term) ||
-        m.role.toLowerCase().includes(term) ||
-        m.committeeName.toLowerCase().includes(term) ||
+        (m.name || "").toLowerCase().includes(term) ||
+        (m.role || "").toLowerCase().includes(term) ||
+        (m.committeeName || "").toLowerCase().includes(term) ||
         (m.entity || "").toLowerCase().includes(term) ||
-        m.email.toLowerCase().includes(term)
+        (m.email || "").toLowerCase().includes(term)
       );
     });
 

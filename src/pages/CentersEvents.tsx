@@ -37,7 +37,7 @@ export default function CentersEvents() {
     setNewLocation("");
   };
 
-  const filtered = events.filter(e => e.title.includes(searchTerm) || e.centerName?.includes(searchTerm));
+  const filtered = events.filter(e => (e.title || "").includes(searchTerm) || e.centerName?.includes(searchTerm));
 
   return (
     <div className="space-y-6" dir="rtl">

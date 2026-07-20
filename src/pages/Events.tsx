@@ -585,8 +585,8 @@ ${formattedItems}
     const term = filterQuery.trim().toLowerCase();
     if (!term) return true;
     return (
-      e.title.toLowerCase().includes(term) ||
-      e.committeeName.toLowerCase().includes(term)
+      (e.title || "").toLowerCase().includes(term) ||
+      (e.committeeName || "").toLowerCase().includes(term)
     );
   });
 

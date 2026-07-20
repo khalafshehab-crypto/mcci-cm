@@ -757,8 +757,8 @@ ${formattedItems}
     const term = filterQuery.trim().toLowerCase();
     if (!term) return true;
     return (
-      e.title.toLowerCase().includes(term) ||
-      e.committeeName.toLowerCase().includes(term)
+      (e.title || "").toLowerCase().includes(term) ||
+      (e.committeeName || "").toLowerCase().includes(term)
     );
   });
 
@@ -881,8 +881,8 @@ ${formattedItems}
 
     if (term) {
        combined = combined.filter(r => 
-         (r.title && r.title.toLowerCase().includes(term)) ||
-         (r.committeeName && r.committeeName.toLowerCase().includes(term))
+         (r.title && (r.title || "").toLowerCase().includes(term)) ||
+         (r.committeeName && (r.committeeName || "").toLowerCase().includes(term))
        );
     }
     

@@ -1347,15 +1347,15 @@ export default function CommitteesFormation() {
     const term = filterQuery.trim().toLowerCase();
     if (!term) return true;
     return (
-      (c.name && c.name.toLowerCase().includes(term)) || 
-      (c.desc && c.desc.toLowerCase().includes(term)) ||
-      (c.specialist && c.specialist.toLowerCase().includes(term)) ||
-      (c.president && c.president.toLowerCase().includes(term)) ||
-      (c.vicePresident && c.vicePresident.toLowerCase().includes(term)) ||
-      (c.ratingIssues && c.ratingIssues.toLowerCase().includes(term)) ||
-      (c.strategicPlan && c.strategicPlan.toLowerCase().includes(term)) ||
-      (c.notes && c.notes.toLowerCase().includes(term)) ||
-      (c.status && c.status.toLowerCase().includes(term))
+      (c.name && (c.name || "").toLowerCase().includes(term)) || 
+      (c.desc && (c.desc || "").toLowerCase().includes(term)) ||
+      (c.specialist && (c.specialist || "").toLowerCase().includes(term)) ||
+      (c.president && (c.president || "").toLowerCase().includes(term)) ||
+      (c.vicePresident && (c.vicePresident || "").toLowerCase().includes(term)) ||
+      (c.ratingIssues && (c.ratingIssues || "").toLowerCase().includes(term)) ||
+      (c.strategicPlan && (c.strategicPlan || "").toLowerCase().includes(term)) ||
+      (c.notes && (c.notes || "").toLowerCase().includes(term)) ||
+      (c.status && (c.status || "").toLowerCase().includes(term))
     );
   });
 

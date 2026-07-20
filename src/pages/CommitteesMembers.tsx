@@ -1,3 +1,4 @@
+import { mergeDuplicateMembers } from './mergeDuplicates';
 import { getSharedAccessToken, getCachedAccessToken, getOrCreateFolder, uploadBinaryFileToDrive, subscribeToAccessToken, triggerAuthModal } from "../lib/googleApi";
 import { showGlobalToast, clearGlobalToast } from "../lib/toastUtils";
 import React, { useState, useEffect, FormEvent, ChangeEvent, DragEvent, useRef } from "react";
@@ -622,6 +623,13 @@ export default function CommitteesMembers() {
     localStorage.setItem("app_members", JSON.stringify(members));
   }, [members]);
 
+  useEffect(() => {
+    if (members.length > 0 && !(window as any).hasMergedDuplicates) {
+      (window as any).hasMergedDuplicates = true;
+      mergeDuplicateMembers();
+    }
+  }, [members]);
+
   const handleSearchMembers = (e: FormEvent) => {
     e.preventDefault();
     setFilterQuery(searchQuery);
@@ -724,7 +732,7 @@ export default function CommitteesMembers() {
 
         const rowCommName = getColValue("committee");
         if (rowCommName) {
-           const rowComm = allCommittees.find(c => c.name.includes(rowCommName) || rowCommName.includes(c.name));
+           const rowComm = allCommittees.find(c => (c.name || "").includes(rowCommName || "") || (rowCommName || "").includes(c.name || ""));
            if (rowComm && canUserEditCommittee(rowComm.name)) {
              newMember.committeeId = rowComm.id;
              newMember.committeeName = rowComm.name;
@@ -889,17 +897,33 @@ export default function CommitteesMembers() {
       return;
     }
 
-    const isDuplicate = members.some(m => 
+    const duplicate = members.find(m => 
       m.id !== editingMember?.id && (
-        m.name.trim() === name.trim() ||
-        m.email.trim() === email.trim() ||
-        m.phone.trim() === phone.trim() ||
-        m.nationalId.trim() === nationalId.trim()
+        (m.phone && phone && m.phone.trim() === phone.trim()) ||
+        (m.email && email && m.email.trim() === email.trim()) ||
+        (m.nationalId && nationalId && m.nationalId.trim() === nationalId.trim())
       )
     );
-    if (isDuplicate) {
-      setFormError("عذراً، هذا العضو مسجل مسبقاً في النظام. لا يمكن تكرار الاسم، رقم الجوال، البريد الإلكتروني، أو الهوية.");
-      return;
+    if (duplicate) {
+      if (duplicate.committeeId !== Number(selectedCommitteeId) && (!duplicate.secondaryCommitteeId || duplicate.secondaryCommitteeId === 0 || duplicate.secondaryCommitteeId === "")) {
+        const confirmMerge = window.confirm(`هذا العضو مسجل مسبقاً في لجنة "${duplicate.committeeName}". هل تريد إضافته كعضو في هذه اللجنة أيضاً (كلجنة ثانوية)؟`);
+        if (confirmMerge) {
+           await updateFirebaseMember(duplicate.id, {
+             secondaryCommitteeId: Number(selectedCommitteeId),
+             secondaryCommitteeName: selectedComm?.name || ""
+           });
+           setFormError("");
+           setShowSuccessPrompt(true);
+           setIsAddOpen(false);
+           return;
+        } else {
+           setFormError("تم إلغاء الدمج. العضو مسجل مسبقاً.");
+           return;
+        }
+      } else {
+        setFormError("عذراً، هذا العضو مسجل مسبقاً في النظام بهذه اللجنة، أو قد استوفى الحد الأقصى للجان (لجنتين).");
+        return;
+      }
     }
 
     if (editingMember && !editReason.trim()) {
@@ -1101,12 +1125,12 @@ export default function CommitteesMembers() {
     let result = members.filter(m => {
       const term = filterQuery.trim().toLowerCase();
       return !term ? true : (
-        m.name.toLowerCase().includes(term) ||
-        m.role.toLowerCase().includes(term) ||
-        m.committeeName.toLowerCase().includes(term) ||
+        (m.name || "").toLowerCase().includes(term) ||
+        (m.role || "").toLowerCase().includes(term) ||
+        (m.committeeName || "").toLowerCase().includes(term) ||
         (m.secondaryCommitteeName || "").toLowerCase().includes(term) ||
         (m.entity || "").toLowerCase().includes(term) ||
-        m.email.toLowerCase().includes(term)
+        (m.email || "").toLowerCase().includes(term)
       );
     });
 
