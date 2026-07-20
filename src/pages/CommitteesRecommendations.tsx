@@ -415,7 +415,7 @@ const confirmAddLinkAttachment = () => {
         
         // Dynamic Quorum side-effect: automatically check if quorum is met and update status
         if ('confirmedAttendees' in updates) {
-          const commMems = allMembers.filter(m => m.committeeId === updated.committeeId && m.active !== false);
+          const commMems = allMembers.filter(m => (String(m.committeeId) === String(updated.committeeId) || String(m.secondaryCommitteeId) === String(updated.committeeId)) && m.active !== false);
           const presentIds = updates.confirmedAttendees || [];
           const presentMems = commMems.filter(m => presentIds.includes(m.id));
           const ratioMet = commMems.length > 0 ? (presentMems.length >= (commMems.length / 2)) : false;
@@ -470,7 +470,7 @@ const confirmAddLinkAttachment = () => {
     const arabicTime = formatTimeArabicStyle(e.time);
     
     const presentCount = e.confirmedAttendees ? e.confirmedAttendees.length : 0;
-    const commMembersCount = allMembers.filter(m => String(m.committeeId) === String(e.committeeId)).length;
+    const commMembersCount = allMembers.filter(m => String(m.committeeId) === String(e.committeeId) || String(m.secondaryCommitteeId) === String(e.committeeId)).length;
     const totalCount = presentCount || commMembersCount || 1;
     const membersWord = `${totalCount} أعضاء`;
 
@@ -534,7 +534,7 @@ ${formattedItems}
     const specialistValue = comm?.specialist ? `${comm.specialist} (أخصائي اللجنة)` : "أخصائي اللجنة";
     const options = [];
     options.push({ value: specialistValue, label: specialistValue });
-    allMembers.filter(m => String(m.committeeId) === String(newCommitteeId)).forEach(m => {
+    allMembers.filter(m => String(m.committeeId) === String(newCommitteeId) || String(m.secondaryCommitteeId) === String(newCommitteeId)).forEach(m => {
       options.push({ value: `${m.role} - ${m.title} ${m.name}`, label: `${m.title} ${m.name} (${m.role})` });
     });
     

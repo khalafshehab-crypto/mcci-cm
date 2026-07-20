@@ -372,7 +372,7 @@ export default function Events() {
         
         // Dynamic Quorum side-effect: automatically check if quorum is met and update status
         if ('confirmedAttendees' in updates) {
-          const commMems = allMembers.filter(m => m.committeeId === updated.committeeId && m.active !== false);
+          const commMems = allMembers.filter(m => (String(m.committeeId) === String(updated.committeeId) || String(m.secondaryCommitteeId) === String(updated.committeeId)) && m.active !== false);
           const presentIds = updates.confirmedAttendees || [];
           const presentMems = commMems.filter(m => presentIds.includes(m.id));
           const ratioMet = commMems.length > 0 ? (presentMems.length >= (commMems.length / 2)) : false;
@@ -427,7 +427,7 @@ export default function Events() {
     const arabicTime = formatTimeArabicStyle(e.time);
     
     const presentCount = e.confirmedAttendees ? e.confirmedAttendees.length : 0;
-    const commMembersCount = allMembers.filter(m => String(m.committeeId) === String(e.committeeId)).length;
+    const commMembersCount = allMembers.filter(m => String(m.committeeId) === String(e.committeeId) || String(m.secondaryCommitteeId) === String(e.committeeId)).length;
     const totalCount = presentCount || commMembersCount || 1;
     const membersWord = `${totalCount} أعضاء`;
 
@@ -997,7 +997,7 @@ ${formattedItems}
   };
 
   // Filter members by selected committee when picking
-  const committeeMembers = allMembers.filter(m => m.committeeId === newCommitteeId);
+  const committeeMembers = allMembers.filter(m => String(m.committeeId) === String(newCommitteeId) || String(m.secondaryCommitteeId) === String(newCommitteeId));
 
   return (
     <div className="space-y-6 pb-16">
@@ -1702,7 +1702,7 @@ ${formattedItems}
                         <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-xs font-bold text-gray-800 text-right">
                            <span className="block text-gray-900 font-bold mb-1">{evt.committeeName}</span>
                            <span className="block text-[9.5px] text-gray-500 font-bold">
-                             حاضرون: {evt.confirmedAttendees?.length || 0} من {allMembers.filter(m => m.committeeId === evt.committeeId && m.active !== false).length}
+                             حاضرون: {evt.confirmedAttendees?.length || 0} من {allMembers.filter(m => (String(m.committeeId) === String(evt.committeeId) || String(m.secondaryCommitteeId) === String(evt.committeeId)) && m.active !== false).length}
                            </span>
                         </td>
                         <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-center">
@@ -2101,7 +2101,7 @@ ${formattedItems}
                                       }
                                       
                                       case 2: { // Step 3: Attendance Confirmation
-                                        const commMems = allMembers.filter(m => m.committeeId === evt.committeeId && m.active !== false);
+                                        const commMems = allMembers.filter(m => (String(m.committeeId) === String(evt.committeeId) || String(m.secondaryCommitteeId) === String(evt.committeeId)) && m.active !== false);
                                         const totalCount = commMems.length;
                                         const presentIds = evt.confirmedAttendees || [];
                                         const presentMems = commMems.filter(m => presentIds.includes(m.id));
@@ -2362,7 +2362,7 @@ ${formattedItems}
 										const agenda = evt.agenda || [];
 										const eventComm = committees.find(c => String(c.id) === String(evt.committeeId));
 										const commSpecialist = eventComm?.specialist || "أخصائي اللجنة";
-										const commMembers = allMembers.filter(m => String(m.committeeId) === String(evt.committeeId));
+										const commMembers = allMembers.filter(m => String(m.committeeId) === String(evt.committeeId) || String(m.secondaryCommitteeId) === String(evt.committeeId));
 										
 										const handleAddAgendaItem = () => {
 											if (!agendaFormTitle.trim()) return;
@@ -2602,7 +2602,7 @@ ${formattedItems}
                                                           <option value={evt.employees?.[0] ? `${evt.employees[0]} (أخصائي اللجنة)` : "أخصائي اللجنة"}>
                                                             {evt.employees?.[0] ? `${evt.employees[0]} (أخصائي اللجنة)` : "أخصائي اللجنة"}
                                                           </option>
-                                                          {allMembers.filter(m => m.committeeId === evt.committeeId).map(m => (
+                                                          {allMembers.filter(m => String(m.committeeId) === String(evt.committeeId) || String(m.secondaryCommitteeId) === String(evt.committeeId)).map(m => (
                                                             <option key={m.id} value={`${m.title} ${m.name}`}>{m.title} {m.name} ({m.role})</option>
                                                           ))}
                                                           <option value="برنامج التطوير">فريق العمل الفني (موظف أخر)</option>

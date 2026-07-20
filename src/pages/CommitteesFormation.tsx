@@ -150,7 +150,7 @@ function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenE
   
   const [activeTab, setActiveTab] = React.useState<"overview" | "members" | "events" | "recommendations">("overview");
 
-  const commMembers = (dbMembers || []).filter((m: any) => String(m.committeeId) === String(detailsComm.id) || advancedMatch(m.committeeName, detailsComm.name));
+  const commMembers = (dbMembers || []).filter((m: any) => String(m.committeeId) === String(detailsComm.id) || advancedMatch(m.committeeName, detailsComm.name) || String(m.secondaryCommitteeId) === String(detailsComm.id) || (m.secondaryCommitteeName && advancedMatch(m.secondaryCommitteeName, detailsComm.name)));
   
   const actualPresident = commMembers.find((m: any) => m.role === "رئيس" || m.role === "رئيس اللجنة");
   const presidentName = actualPresident ? `${actualPresident.title || ''} ${actualPresident.name}`.trim() : (detailsComm.president || "-");
@@ -909,7 +909,12 @@ export default function CommitteesFormation() {
         let hasChanges = false;
         const updated = prev.map(comm => {
           // Count total members belonging to committee
-          const myMbrs = allMembers.filter((m: any) => m && (String(m.committeeId) === String(comm.id) || advancedMatch(m.committeeName, comm.name)));
+          const myMbrs = allMembers.filter((m: any) => m && (
+            String(m.committeeId) === String(comm.id) || 
+            advancedMatch(m.committeeName, comm.name) ||
+            String(m.secondaryCommitteeId) === String(comm.id) ||
+            (m.secondaryCommitteeName && advancedMatch(m.secondaryCommitteeName, comm.name))
+          ));
           const realMembersCount = myMbrs.length;
 
           // Count meetings & events purely from app_events, since this is raw production readiness
@@ -1297,7 +1302,12 @@ export default function CommitteesFormation() {
   
     return committees.map(comm => {
       // Calculate dynamic members count
-      const myMbrs = allMembers.filter((m: any) => m && (String(m.committeeId) === String(comm.id) || advancedMatch(m.committeeName, comm.name)));
+      const myMbrs = allMembers.filter((m: any) => m && (
+        String(m.committeeId) === String(comm.id) || 
+        advancedMatch(m.committeeName, comm.name) ||
+        String(m.secondaryCommitteeId) === String(comm.id) ||
+        (m.secondaryCommitteeName && advancedMatch(m.secondaryCommitteeName, comm.name))
+      ));
       const realMembersCount = myMbrs.length;
 
       // Calculate dynamic president from members

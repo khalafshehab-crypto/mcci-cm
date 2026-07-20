@@ -394,7 +394,7 @@ export default function Events() {
         
         // Dynamic Quorum side-effect: automatically check if quorum is met and update status
         if ('confirmedAttendees' in updates) {
-          const commMems = allMembers.filter(m => m.committeeId === updated.committeeId && m.active !== false);
+          const commMems = allMembers.filter(m => (String(m.committeeId) === String(updated.committeeId) || String(m.secondaryCommitteeId) === String(updated.committeeId)) && m.active !== false);
           const presentIds = updates.confirmedAttendees || [];
           const presentMems = commMems.filter(m => presentIds.includes(m.id));
           const ratioMet = commMems.length > 0 ? (presentMems.length >= (commMems.length / 2)) : false;
@@ -449,7 +449,7 @@ export default function Events() {
     const arabicTime = formatTimeArabicStyle(e.time);
     
     const presentCount = e.confirmedAttendees ? e.confirmedAttendees.length : 0;
-    const commMembersCount = allMembers.filter(m => String(m.committeeId) === String(e.committeeId)).length;
+    const commMembersCount = allMembers.filter(m => String(m.committeeId) === String(e.committeeId) || String(m.secondaryCommitteeId) === String(e.committeeId)).length;
     const totalCount = presentCount || commMembersCount || 1;
     const membersWord = `${totalCount} أعضاء`;
 
@@ -511,7 +511,7 @@ ${formattedItems}
   const availableAssignees = React.useMemo(() => {
     const comm = committees.find(c => c.id === newCommitteeId);
     const specialist = comm?.specialist ? `أخصائي اللجنة - ${comm.specialist}` : "";
-    const members = allMembers.filter(m => m.committeeId === newCommitteeId).map(m => `${m.role} - ${m.title} ${m.name}`);
+    const members = allMembers.filter(m => String(m.committeeId) === String(newCommitteeId) || String(m.secondaryCommitteeId) === String(newCommitteeId)).map(m => `${m.role} - ${m.title} ${m.name}`);
     return Array.from(new Set([specialist, ...members].filter(Boolean)));
   }, [allMembers, committees, newCommitteeId]);
   const [newStatus, setNewStatus] = useState<EventItem["status"]>("تجهيز الفعاليات");
