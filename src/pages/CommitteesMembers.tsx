@@ -49,6 +49,8 @@ interface Member {
   role: string; // "رئيس" | "نائب" | "عضو" | "مشارك"
   committeeId: number | string;
   committeeName: string;
+  secondaryCommitteeId?: number | string;
+  secondaryCommitteeName?: string;
   joiningMechanism: string; // "مرشح" | "معين" | "مشارك" | "ممثل لجهة حكومية"
   govAgency?: string;
   entity?: string; // جهة التمثيل
@@ -151,6 +153,29 @@ function AttachmentInput({ label, value, onChange, id }: AttachmentInputProps) {
   };
 
   const displayValue = (value && typeof value === "object" && "name" in value) ? (value as any).name : value;
+
+  
+  const checkDuplicateRow = (row: any) => {
+    const getColValue = (field: string) => {
+      const colName = columnMapping[field];
+      if (!colName) return "";
+      const colIdx = importColumns.indexOf(colName);
+      if (colIdx === -1) return "";
+      return String(row[colIdx] || "");
+    };
+
+    const nameVal = getColValue("name").trim();
+    const phoneVal = getColValue("phone").trim();
+    const emailVal = getColValue("email").trim();
+    const nationalIdVal = getColValue("nationalId").trim();
+
+    return members.some(m =>
+      (nameVal && m.name.trim() === nameVal) ||
+      (emailVal && m.email.trim() === emailVal) ||
+      (phoneVal && m.phone.trim() === phoneVal) ||
+      (nationalIdVal && m.nationalId.trim() === nationalIdVal)
+    );
+  };
 
   return (
     <div
@@ -318,6 +343,7 @@ export default function CommitteesMembers() {
   const [name, setName] = useState("");
   const [role, setRole] = useState(ROLE_CAPACITIES[2]); // Default: عضو
   const [selectedCommitteeId, setSelectedCommitteeId] = useState<number | string>(0);
+  const [secondaryCommitteeId, setSecondaryCommitteeId] = useState<number | string>(0);
   const [joiningMechanism, setJoiningMechanism] = useState("مرشح");
   const [govAgency, setGovAgency] = useState("");
   const [email, setEmail] = useState("");
@@ -747,6 +773,7 @@ export default function CommitteesMembers() {
     setName("");
     setRole(ROLE_CAPACITIES[2]); // عضو
     setSelectedCommitteeId(0);
+    setSecondaryCommitteeId(0);
     setJoiningMechanism("مرشح");
     setGovAgency("");
     setEmail("");
@@ -799,6 +826,7 @@ export default function CommitteesMembers() {
     setName(m.name);
     setRole(m.role || ROLE_CAPACITIES[2]);
     setSelectedCommitteeId(m.committeeId);
+    setSecondaryCommitteeId(m.secondaryCommitteeId || 0);
     setJoiningMechanism(m.joiningMechanism || "مرشح");
     setGovAgency(m.govAgency || "");
     setEmail(m.email);
@@ -860,12 +888,36 @@ export default function CommitteesMembers() {
       setFormError("يرجى إدخال رقم الهوية الوطنية أو الإقامة");
       return;
     }
+
+    const isDuplicate = members.some(m => 
+      m.id !== editingMember?.id && (
+        m.name.trim() === name.trim() ||
+        m.email.trim() === email.trim() ||
+        m.phone.trim() === phone.trim() ||
+        m.nationalId.trim() === nationalId.trim()
+      )
+    );
+    if (isDuplicate) {
+      setFormError("عذراً، هذا العضو مسجل مسبقاً في النظام. لا يمكن تكرار الاسم، رقم الجوال، البريد الإلكتروني، أو الهوية.");
+      return;
+    }
+
     if (editingMember && !editReason.trim()) {
       setFormError("يرجى توضيح سبب التعديل");
       return;
     }
 
     const matchedComm = allCommittees.find(c => String(c.id) === String(selectedCommitteeId)) || { name: "لجنة" };
+    const matchedSecondaryComm = allCommittees.find(c => String(c.id) === String(secondaryCommitteeId));
+    if (matchedSecondaryComm && !canUserEditCommittee(matchedSecondaryComm.name)) {
+      setFormError("عذراً، لا تملك الصلاحية لإضافة أو تعديل عضو في اللجنة الإضافية المختارة.");
+      return;
+    }
+    if (String(selectedCommitteeId) === String(secondaryCommitteeId) && String(selectedCommitteeId) !== "0") {
+      setFormError("لا يمكن اختيار نفس اللجنة كلجنة إضافية.");
+      return;
+    }
+
     if (matchedComm && matchedComm.name !== "لجنة" && !canUserEditCommittee(matchedComm.name)) { alert("غير مصرح لك بإضافة أعضاء لهذه اللجنة"); return; }
 
     if (!canUserEditCommittee(matchedComm.name)) {
@@ -962,6 +1014,8 @@ export default function CommitteesMembers() {
             role: role,
             committeeId: selectedCommitteeId,
             committeeName: matchedComm.name,
+            secondaryCommitteeId: secondaryCommitteeId && String(secondaryCommitteeId) !== "0" ? secondaryCommitteeId : undefined,
+            secondaryCommitteeName: matchedSecondaryComm ? matchedSecondaryComm.name : undefined,
             joiningMechanism: joiningMechanism,
             govAgency: joiningMechanism === "ممثل لجهة حكومية" ? govAgency.trim() : "",
             entity: calculatedEntity,
@@ -997,6 +1051,8 @@ export default function CommitteesMembers() {
         role: role,
         committeeId: selectedCommitteeId,
         committeeName: matchedComm.name,
+        secondaryCommitteeId: secondaryCommitteeId && String(secondaryCommitteeId) !== "0" ? secondaryCommitteeId : undefined,
+        secondaryCommitteeName: matchedSecondaryComm ? matchedSecondaryComm.name : undefined,
         joiningMechanism: joiningMechanism,
         govAgency: joiningMechanism === "ممثل لجهة حكومية" ? govAgency.trim() : "",
         entity: calculatedEntity,
@@ -1048,6 +1104,7 @@ export default function CommitteesMembers() {
         m.name.toLowerCase().includes(term) ||
         m.role.toLowerCase().includes(term) ||
         m.committeeName.toLowerCase().includes(term) ||
+        (m.secondaryCommitteeName || "").toLowerCase().includes(term) ||
         (m.entity || "").toLowerCase().includes(term) ||
         m.email.toLowerCase().includes(term)
       );
@@ -1120,6 +1177,29 @@ export default function CommitteesMembers() {
       return (parts[0][0] + (parts[1][0] || "")).toUpperCase();
     }
     return (parts[0][0] || "ع").toUpperCase();
+  };
+
+  
+  const checkDuplicateRow = (row: any) => {
+    const getColValue = (field: string) => {
+      const colName = columnMapping[field];
+      if (!colName) return "";
+      const colIdx = importColumns.indexOf(colName);
+      if (colIdx === -1) return "";
+      return String(row[colIdx] || "");
+    };
+
+    const nameVal = getColValue("name").trim();
+    const phoneVal = getColValue("phone").trim();
+    const emailVal = getColValue("email").trim();
+    const nationalIdVal = getColValue("nationalId").trim();
+
+    return members.some(m =>
+      (nameVal && m.name.trim() === nameVal) ||
+      (emailVal && m.email.trim() === emailVal) ||
+      (phoneVal && m.phone.trim() === phoneVal) ||
+      (nationalIdVal && m.nationalId.trim() === nationalIdVal)
+    );
   };
 
   return (
@@ -1567,6 +1647,12 @@ export default function CommitteesMembers() {
                     <Users2 className="w-3.5 h-3.5 text-brand" />
                     <span>{m.committeeName}</span>
                   </p>
+                  {m.secondaryCommitteeName && (
+                    <p className="text-[11px] font-black text-gray-800 flex items-center gap-1 mt-0.5">
+                      <Users2 className="w-3.5 h-3.5 text-brand" />
+                      <span>{m.secondaryCommitteeName}</span>
+                    </p>
+                  )}
                 </div>
 
                 {/* Corporate Represented Entity */}
@@ -1809,6 +1895,11 @@ export default function CommitteesMembers() {
                           <span className="text-xs text-gray-500 mt-1 block truncate max-w-[150px]" title={m.committeeName}>
                             {m.committeeName}
                           </span>
+                          {m.secondaryCommitteeName && (
+                            <span className="text-xs text-gray-500 mt-0.5 block truncate max-w-[150px]" title={m.secondaryCommitteeName}>
+                              {m.secondaryCommitteeName}
+                            </span>
+                          )}
                         </div>
                       </td>
                     )}
@@ -2146,18 +2237,33 @@ export default function CommitteesMembers() {
                 )}
 
                 {/* Committee selection */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-black text-gray-500 block">اللجنة*</label>
-                  <select
-                    value={selectedCommitteeId}
-                    onChange={(e) => setSelectedCommitteeId(e.target.value)}
-                    className="w-full h-10 px-2 bg-gray-50 border border-gray-250 rounded-xl text-xs font-extrabold text-right focus:bg-white focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all cursor-pointer"
-                  >
-                    <option value={0}>يرجى اختيار اللجنة</option>
-                    {allCommittees.filter(c => canUserEditCommittee(c.name)).map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-black text-gray-500 block">اللجنة الأساسية*</label>
+                    <select
+                      value={selectedCommitteeId}
+                      onChange={(e) => setSelectedCommitteeId(e.target.value)}
+                      className="w-full h-10 px-2 bg-gray-50 border border-gray-250 rounded-xl text-xs font-extrabold text-right focus:bg-white focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all cursor-pointer"
+                    >
+                      <option value={0}>يرجى اختيار اللجنة</option>
+                      {allCommittees.filter(c => canUserEditCommittee(c.name)).map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-black text-gray-500 block">اللجنة الإضافية (اختياري)</label>
+                    <select
+                      value={secondaryCommitteeId}
+                      onChange={(e) => setSecondaryCommitteeId(e.target.value)}
+                      className="w-full h-10 px-2 bg-gray-50 border border-gray-250 rounded-xl text-xs font-extrabold text-right focus:bg-white focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all cursor-pointer"
+                    >
+                      <option value={0}>بدون لجنة إضافية</option>
+                      {allCommittees.filter(c => canUserEditCommittee(c.name)).map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 {/* Role (Capacity) selection */}
@@ -2532,6 +2638,9 @@ export default function CommitteesMembers() {
                     <div className="flex-1 overflow-hidden">
                       <span className="text-[10px] text-gray-400 font-black block leading-none">اللجنة</span>
                       <p className="text-xs font-black text-gray-900 mt-1 truncate">{detailsMember.committeeName}</p>
+                      {detailsMember.secondaryCommitteeName && (
+                        <p className="text-xs font-black text-gray-900 mt-1 truncate">{detailsMember.secondaryCommitteeName}</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2980,8 +3089,8 @@ export default function CommitteesMembers() {
                             onChange={(e) => setColumnMapping({...columnMapping, [field.key]: e.target.value})}
                           >
                             <option value="">- تخطي / غير موجود -</option>
-                            {importColumns.map(col => (
-                              <option key={col} value={col}>{col}</option>
+                            {importColumns.map((col, idx) => (
+                              <option key={idx} value={col}>{col}</option>
                             ))}
                           </select>
                         </div>
@@ -3013,8 +3122,9 @@ export default function CommitteesMembers() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (selectedImportRows.length === importData.length) setSelectedImportRows([]);
-                          else setSelectedImportRows(importData.map((_, i) => i));
+                          const validRows = importData.map((row, i) => checkDuplicateRow(row) ? -1 : i).filter(i => i !== -1);
+                          if (selectedImportRows.length === validRows.length) setSelectedImportRows([]);
+                          else setSelectedImportRows(validRows);
                         }}
                         className="text-blue-600 underline"
                       >
@@ -3026,32 +3136,39 @@ export default function CommitteesMembers() {
                         <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                           <tr>
                             <th className="p-2 w-10 text-center"></th>
-                            {importColumns.slice(0, 4).map(col => (
-                              <th key={col} className="p-2 font-black text-gray-600 whitespace-nowrap">{col}</th>
+                            {importColumns.slice(0, 4).map((col, idx) => (
+                              <th key={idx} className="p-2 font-black text-gray-600 whitespace-nowrap">{col}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
-                          {importData.map((row, idx) => (
-                            <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/50">
+                          {importData.map((row, idx) => {
+                            const isDup = checkDuplicateRow(row);
+                            return (
+                            <tr key={idx} className={`border-b border-gray-100 ${isDup ? 'bg-red-50/50 opacity-60' : 'hover:bg-gray-50/50'}`}>
                               <td className="p-2 text-center">
                                 <input
                                   type="checkbox"
-                                  checked={selectedImportRows.includes(idx)}
+                                  disabled={isDup}
+                                  checked={!isDup && selectedImportRows.includes(idx)}
                                   onChange={(e) => {
                                     if (e.target.checked) setSelectedImportRows([...selectedImportRows, idx]);
                                     else setSelectedImportRows(selectedImportRows.filter(r => r !== idx));
                                   }}
-                                  className="rounded text-blue-600 focus:ring-blue-500"
+                                  className="rounded text-blue-600 focus:ring-blue-500 disabled:opacity-50"
                                 />
                               </td>
-                              {importColumns.slice(0, 4).map(col => (
-                                <td key={col} className="p-2 text-gray-800 text-xs truncate max-w-[150px]">
+                              {importColumns.slice(0, 4).map((col, colIdx) => (
+                                <td key={colIdx} className="p-2 text-gray-800 text-xs truncate max-w-[150px] relative">
                                   {row[importColumns.indexOf(col)]}
+                                  {isDup && importColumns.indexOf(col) === 0 && (
+                                    <span className="absolute -top-1 -right-1 text-[9px] bg-red-100 text-red-600 px-1 rounded font-bold">مكرر</span>
+                                  )}
                                 </td>
                               ))}
                             </tr>
-                          ))}
+                          );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -3065,7 +3182,7 @@ export default function CommitteesMembers() {
                   <button
                     onClick={() => {
                       setImportStep(3);
-                      setSelectedImportRows(importData.map((_, i) => i));
+                      setSelectedImportRows(importData.map((row, i) => checkDuplicateRow(row) ? -1 : i).filter(i => i !== -1));
                     }}
                     className="flex-1 min-w-[120px] h-10 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl transition-all shadow-sm"
                   >
