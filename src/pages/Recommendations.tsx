@@ -758,7 +758,11 @@ ${formattedItems}
     if (!term) return true;
     return (
       (e.title || "").toLowerCase().includes(term) ||
-      (e.committeeName || "").toLowerCase().includes(term)
+      (e.committeeName || "").toLowerCase().includes(term) ||
+      (e.type || "").toLowerCase().includes(term) ||
+      (e.location || "").toLowerCase().includes(term) ||
+      (e.status || "").toLowerCase().includes(term) ||
+      (e.date || "").toLowerCase().includes(term)
     );
   });
 
@@ -881,8 +885,14 @@ ${formattedItems}
 
     if (term) {
        combined = combined.filter(r => 
-         (r.title && (r.title || "").toLowerCase().includes(term)) ||
-         (r.committeeName && (r.committeeName || "").toLowerCase().includes(term))
+         (r.title || "").toLowerCase().includes(term) ||
+         (r.committeeName || "").toLowerCase().includes(term) ||
+         (r.description || "").toLowerCase().includes(term) ||
+         (r.recommendationText || "").toLowerCase().includes(term) ||
+         (r.assignedTo || "").toLowerCase().includes(term) ||
+         (r.recommendationAssignee || "").toLowerCase().includes(term) ||
+         (r.eventName || "").toLowerCase().includes(term) ||
+         (r.status || "").toLowerCase().includes(term)
        );
     }
     

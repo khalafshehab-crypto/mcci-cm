@@ -532,7 +532,12 @@ export default function CommitteesMembers() {
           });
           
           if (newMember.name) {
-            const duplicate = members.find(m => m.name === newMember.name && m.committeeName === newMember.committeeName);
+            const duplicate = members.find(m => 
+              (m.phone && newMember.phone && m.phone.trim() === newMember.phone.trim()) ||
+              (m.email && newMember.email && m.email.trim() === newMember.email.trim()) ||
+              (m.nationalId && newMember.nationalId && m.nationalId.trim() === newMember.nationalId.trim()) ||
+              (m.name && newMember.name && m.name.trim() === newMember.name.trim())
+            );
             newImportedList.push({
               member: newMember,
               isDuplicate: !!duplicate,
@@ -742,8 +747,24 @@ export default function CommitteesMembers() {
         // Final check on committee permission
         if (newMember.committeeId && newMember.committeeName && canUserEditCommittee(newMember.committeeName)) {
            if (newMember.name) {
-             await addFirebaseMember(newMember);
-             successCount++;
+              const duplicate = members.find(m => 
+                (m.phone && newMember.phone && m.phone.trim() === newMember.phone.trim()) ||
+                (m.email && newMember.email && m.email.trim() === newMember.email.trim()) ||
+                (m.nationalId && newMember.nationalId && m.nationalId.trim() === newMember.nationalId.trim()) ||
+                (m.name && newMember.name && m.name.trim() === newMember.name.trim())
+              );
+              if (duplicate) {
+                 if (duplicate.committeeId !== newMember.committeeId && (!duplicate.secondaryCommitteeId || duplicate.secondaryCommitteeId === 0 || duplicate.secondaryCommitteeId === "")) {
+                    await updateFirebaseMember(String(duplicate.id), {
+                       secondaryCommitteeId: newMember.committeeId,
+                       secondaryCommitteeName: newMember.committeeName
+                    });
+                    successCount++;
+                 }
+              } else {
+                 await addFirebaseMember(newMember);
+                 successCount++;
+              }
            }
         } else {
            console.warn("Skipping member due to lack of committee permission or unspecified committee", newMember.name);
@@ -910,7 +931,7 @@ export default function CommitteesMembers() {
         if (confirmMerge) {
            await updateFirebaseMember(duplicate.id, {
              secondaryCommitteeId: Number(selectedCommitteeId),
-             secondaryCommitteeName: selectedComm?.name || ""
+             secondaryCommitteeName: committees.find(c => c.id === selectedCommitteeId)?.name || ""
            });
            setFormError("");
            setShowSuccessPrompt(true);
@@ -1130,7 +1151,15 @@ export default function CommitteesMembers() {
         (m.committeeName || "").toLowerCase().includes(term) ||
         (m.secondaryCommitteeName || "").toLowerCase().includes(term) ||
         (m.entity || "").toLowerCase().includes(term) ||
-        (m.email || "").toLowerCase().includes(term)
+        (m.email || "").toLowerCase().includes(term) ||
+        (m.phone || "").toLowerCase().includes(term) ||
+        (m.nationalId || "").toLowerCase().includes(term) ||
+        (m.title || "").toLowerCase().includes(term) ||
+        (m.customTitle || "").toLowerCase().includes(term) ||
+        (m.govAgency || "").toLowerCase().includes(term) ||
+        (m.joiningMechanism || "").toLowerCase().includes(term) ||
+        (m.joinedDate || "").toLowerCase().includes(term) ||
+        (m.note || "").toLowerCase().includes(term)
       );
     });
 

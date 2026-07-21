@@ -1,16 +1,17 @@
 import { collection, getDocs, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Member } from '../types';
+
 
 export const mergeDuplicateMembers = async () => {
   try {
     const snapshot = await getDocs(collection(db, 'members'));
-    const members = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Member));
+    const members = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as any));
     
-    const dupes: Record<string, Member[]> = {};
+    const dupes: Record<string, any[]> = {};
     members.forEach(m => {
-      let key = m.phone?.trim();
-      if (!key) key = m.email?.trim();
+      let key = m.email?.trim()?.toLowerCase();
+      if (!key) key = m.phone?.trim();
+      if (!key) key = m.nationalId?.trim();
       if (!key) return;
       if (!dupes[key]) dupes[key] = [];
       dupes[key].push(m);

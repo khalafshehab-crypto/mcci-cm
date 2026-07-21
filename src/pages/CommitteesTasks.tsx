@@ -469,7 +469,12 @@ export default function CommitteesTasks() {
     const term = (filterQuery || searchQuery).trim().toLowerCase();
     const matchesSearch = !term ||
       (t.title || "").toLowerCase().includes(term) ||
-      (t.description || "").toLowerCase().includes(term);
+      (t.description || "").toLowerCase().includes(term) ||
+      (t.assignedTo || "").toLowerCase().includes(term) ||
+      (t.assignedBy || "").toLowerCase().includes(term) ||
+      (t.status || "").toLowerCase().includes(term) ||
+      (t.priority || "").toLowerCase().includes(term) ||
+      (t.dueDate || "").toLowerCase().includes(term);
     
     const matchesStatus = statusFilter === "all" || t.status === statusFilter;
     const matchesPriority = priorityFilter === "all" || t.priority === priorityFilter;

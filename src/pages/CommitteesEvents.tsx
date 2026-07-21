@@ -608,7 +608,11 @@ ${formattedItems}
     if (!term) return true;
     return (
       (e.title || "").toLowerCase().includes(term) ||
-      (e.committeeName || "").toLowerCase().includes(term)
+      (e.committeeName || "").toLowerCase().includes(term) ||
+      (e.type || "").toLowerCase().includes(term) ||
+      (e.location || "").toLowerCase().includes(term) ||
+      (e.status || "").toLowerCase().includes(term) ||
+      (e.date || "").toLowerCase().includes(term)
     );
   });
 

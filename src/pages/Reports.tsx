@@ -35,6 +35,8 @@ export interface KpiItem {
 export default function Reports() {
   const [activeTab, setActiveTab] = useState<"reports" | "kpis">("reports");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [kpis, setKpis] = useState<KpiItem[]>([]);
@@ -91,6 +93,29 @@ export default function Reports() {
   const [kpiStartDate, setKpiStartDate] = useState("");
   const [kpiEndDate, setKpiEndDate] = useState("");
   const [kpiNotes, setKpiNotes] = useState("");
+
+  const filteredReports = reports.filter(r => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.trim().toLowerCase();
+    return (r.title || "").toLowerCase().includes(q) ||
+           (r.generatedBy || "").toLowerCase().includes(q) ||
+           (r.periodType || "").toLowerCase().includes(q) ||
+           (r.generationType || "").toLowerCase().includes(q) ||
+           (r.status || "").toLowerCase().includes(q) ||
+           (r.notes || "").toLowerCase().includes(q) ||
+           (r.date || "").toLowerCase().includes(q);
+  });
+
+  const filteredKpis = kpis.filter(k => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.trim().toLowerCase();
+    return (k.indicator || "").toLowerCase().includes(q) ||
+           (k.standard || "").toLowerCase().includes(q) ||
+           (k.targetValue || "").toLowerCase().includes(q) ||
+           (k.achievedValue || "").toLowerCase().includes(q) ||
+           (k.period || "").toLowerCase().includes(q) ||
+           (k.notes || "").toLowerCase().includes(q);
+  });
 
   const resetReportForm = () => {
     setEditingReport(null);
@@ -266,6 +291,47 @@ export default function Reports() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 justify-center md:justify-end shrink-0 w-full md:w-auto">
+          <div className="flex items-center gap-2">
+            <AnimatePresence>
+              {isSearchExpanded && (
+                <motion.div
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 250, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="relative overflow-hidden"
+                >
+                  <input
+                    type="text"
+                    placeholder="ابحث هنا..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full h-10 pr-10 pl-4 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+                  />
+                  <Search className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <button
+              onClick={() => setIsSearchExpanded(!isSearchExpanded)}
+              className={`p-2.5 rounded-xl transition-all duration-200 cursor-pointer border ${
+                isSearchExpanded || searchQuery
+                  ? "bg-blue-50 text-blue-600 border-blue-200 shadow-sm"
+                  : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+              }`}
+              title="البحث"
+            >
+              <Search className="w-5 h-5" />
+            </button>
+          </div>
           <div className="relative flex bg-white p-1 rounded-xl border border-gray-200 select-none shadow-sm gap-1">
             <button
               onClick={() => setActiveTab("reports")}
@@ -325,7 +391,7 @@ export default function Reports() {
         {/* Reports Tab */}
         {activeTab === "reports" && (
           <div className="space-y-6">
-            {reports.length === 0 ? (
+            {filteredReports.length === 0 ? (
               <div className="text-center py-20 flex flex-col items-center justify-center bg-[#e8e4e4] rounded-2xl border border-dashed border-gray-300">
                 <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-gray-200 mb-4 transform -rotate-3">
                   <FileText className="w-8 h-8 text-gray-400" />
@@ -335,7 +401,7 @@ export default function Reports() {
               </div>
             ) : viewMode === "cards" ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {reports.map(report => (
+                {filteredReports.map(report => (
                   <div key={report.id} className="bg-[#e8e4e4] hover:bg-[#e2dede] transition-all duration-300 rounded-2xl p-5 border border-gray-200 shadow-sm hover:shadow-md relative overflow-hidden flex flex-col justify-between">
                     <div className="absolute top-0 right-0 w-1.5 h-full bg-[#0ea5e9]"></div>
                     <div className="flex justify-between items-start mb-3">
@@ -402,7 +468,7 @@ export default function Reports() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200/60">
-                      {reports.map((report) => (
+                      {filteredReports.map((report) => (
                         <tr key={report.id} className="hover:bg-white/40 transition-colors text-sm font-semibold text-gray-800">
                           <td className="whitespace-nowrap py-4 px-5 font-bold flex items-center gap-2">
                              <FileBarChart className="w-4 h-4 text-[#0ea5e9]" />
@@ -450,7 +516,7 @@ export default function Reports() {
         {/* KPIs Tab */}
         {activeTab === "kpis" && (
           <div className="space-y-6">
-            {kpis.length === 0 ? (
+            {filteredKpis.length === 0 ? (
                <div className="text-center py-20 flex flex-col items-center justify-center bg-[#e8e4e4] rounded-2xl border border-dashed border-gray-300">
                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-gray-200 mb-4 transform -rotate-3">
                  <Activity className="w-8 h-8 text-gray-400" />
@@ -474,7 +540,7 @@ export default function Reports() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200/60">
-                      {kpis.map((kpi) => (
+                      {filteredKpis.map((kpi) => (
                         <tr key={kpi.id} className="hover:bg-white/40 transition-colors text-sm font-semibold text-gray-800">
                           <td className="whitespace-nowrap py-4 px-5 font-bold">{kpi.indicator}</td>
                           <td className="whitespace-nowrap py-4 px-5 text-gray-600">{kpi.standard}</td>
@@ -506,7 +572,7 @@ export default function Reports() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {kpis.map(kpi => (
+                {filteredKpis.map(kpi => (
                   <div key={kpi.id} className="bg-[#e8e4e4] hover:bg-[#e2dede] transition-all duration-300 rounded-2xl p-5 border border-gray-200 shadow-sm hover:shadow-md relative overflow-hidden flex flex-col justify-between">
                     <div className="absolute top-0 right-0 w-1.5 h-full bg-indigo-500"></div>
                     <div className="flex justify-between items-start mb-3">

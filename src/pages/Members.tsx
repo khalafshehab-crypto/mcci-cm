@@ -787,7 +787,15 @@ export default function CommitteesMembers() {
         (m.role || "").toLowerCase().includes(term) ||
         (m.committeeName || "").toLowerCase().includes(term) ||
         (m.entity || "").toLowerCase().includes(term) ||
-        (m.email || "").toLowerCase().includes(term)
+        (m.email || "").toLowerCase().includes(term) ||
+        (m.phone || "").toLowerCase().includes(term) ||
+        (m.nationalId || "").toLowerCase().includes(term) ||
+        (m.title || "").toLowerCase().includes(term) ||
+        (m.customTitle || "").toLowerCase().includes(term) ||
+        (m.govAgency || "").toLowerCase().includes(term) ||
+        (m.joiningMechanism || "").toLowerCase().includes(term) ||
+        (m.joinedDate || "").toLowerCase().includes(term) ||
+        (m.note || "").toLowerCase().includes(term)
       );
     });
 
