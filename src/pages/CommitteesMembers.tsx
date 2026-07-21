@@ -156,27 +156,7 @@ function AttachmentInput({ label, value, onChange, id }: AttachmentInputProps) {
   const displayValue = (value && typeof value === "object" && "name" in value) ? (value as any).name : value;
 
   
-  const checkDuplicateRow = (row: any) => {
-    const getColValue = (field: string) => {
-      const colName = columnMapping[field];
-      if (!colName) return "";
-      const colIdx = importColumns.indexOf(colName);
-      if (colIdx === -1) return "";
-      return String(row[colIdx] || "");
-    };
 
-    const nameVal = getColValue("name").trim();
-    const phoneVal = getColValue("phone").trim();
-    const emailVal = getColValue("email").trim();
-    const nationalIdVal = getColValue("nationalId").trim();
-
-    return members.some(m =>
-      (nameVal && m.name.trim() === nameVal) ||
-      (emailVal && m.email.trim() === emailVal) ||
-      (phoneVal && m.phone.trim() === phoneVal) ||
-      (nationalIdVal && m.nationalId.trim() === nationalIdVal)
-    );
-  };
 
   return (
     <div
@@ -931,7 +911,7 @@ export default function CommitteesMembers() {
         if (confirmMerge) {
            await updateFirebaseMember(duplicate.id, {
              secondaryCommitteeId: Number(selectedCommitteeId),
-             secondaryCommitteeName: committees.find(c => c.id === selectedCommitteeId)?.name || ""
+             secondaryCommitteeName: dbCommittees.find(c => c.id === selectedCommitteeId)?.name || ""
            });
            setFormError("");
            setShowSuccessPrompt(true);

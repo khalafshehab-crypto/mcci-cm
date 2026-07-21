@@ -1,5 +1,5 @@
 import React, { useState, useEffect, FormEvent } from "react";
-import {
+import { 
   BookOpen,
   ChevronDown,
   ChevronLeft,
@@ -33,7 +33,7 @@ import {
   Loader2,
   Printer,
   X
-} from "lucide-react";
+, MoreHorizontal, ChevronRight, Reply } from "lucide-react";
 import { db } from "../lib/firebase";
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from "firebase/firestore";
 import { motion, AnimatePresence } from "motion/react";
@@ -250,7 +250,9 @@ export default function CommitteesLibrary() {
   
   // Smart Letter State
   const [isSmartLetterOpen, setIsSmartLetterOpen] = useState(false);
-  const [smartLetterMode, setSmartLetterMode] = useState<"create" | "fill">("create");
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [wizardStep, setWizardStep] = useState<"type" | "doc_subtype" | "letter_type">("type");
+  const [smartLetterMode, setSmartLetterMode] = useState<"create_new" | "create_reply" | "fill">("create_new");
   const [activeSmartLetter, setActiveSmartLetter] = useState<TemplateItem | null>(null);
   const [slTitle, setSlTitle] = useState("");
   const [slContent, setSlContent] = useState("");
@@ -786,11 +788,11 @@ ${t.description}
 
           <button
             type="button"
-            onClick={openCreateSmartLetter}
+            onClick={() => { setWizardStep("type"); setIsWizardOpen(true); }}
             className="h-10 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer shrink-0 w-full lg:w-auto"
           >
             <Wand2 className="w-4 h-4 stroke-[2.5]" />
-            <span>إنشاء قالب خطابات</span>
+            <span>إنشاء قالب</span>
           </button>
           <button
             type="button"
@@ -1560,7 +1562,181 @@ ${t.description}
 
       
       
+      
+      {/* Template Creation Wizard Modal */}
+      <AnimatePresence>
+        {isWizardOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsWizardOpen(false)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl overflow-hidden w-full max-w-lg z-10 flex flex-col"
+              dir="rtl"
+            >
+              <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-900">
+                  {wizardStep === "type" && "إنشاء قالب جديد"}
+                  {wizardStep === "doc_subtype" && "اختيار نوع المستند"}
+                  {wizardStep === "letter_type" && "نوع الخطاب"}
+                </h2>
+                <button
+                  onClick={() => setIsWizardOpen(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-50"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 space-y-3">
+                {wizardStep === "type" && (
+                  <>
+                    <button onClick={() => setWizardStep("doc_subtype")} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <span className="font-bold text-gray-800 group-hover:text-indigo-700">مستندات</span>
+                      </div>
+                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
+                    </button>
+                    <button onClick={() => { setFormType("عروض تقديمية"); setIsWizardOpen(false); setIsAddOpen(true); }} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center">
+                          <Presentation className="w-5 h-5" />
+                        </div>
+                        <span className="font-bold text-gray-800 group-hover:text-indigo-700">عروض تقديمية</span>
+                      </div>
+                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
+                    </button>
+                    <button onClick={() => { setFormType("جداول بيانات"); setIsWizardOpen(false); setIsAddOpen(true); }} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                          <FileSpreadsheet className="w-5 h-5" />
+                        </div>
+                        <span className="font-bold text-gray-800 group-hover:text-indigo-700">جداول بيانات</span>
+                      </div>
+                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
+                    </button>
+                    <button onClick={() => { setFormType("مستندات"); setIsWizardOpen(false); setIsAddOpen(true); }} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+                          <Mail className="w-5 h-5" />
+                        </div>
+                        <span className="font-bold text-gray-800 group-hover:text-indigo-700">بريد إلكتروني</span>
+                      </div>
+                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
+                    </button>
+                    <button onClick={() => { setFormType("أخرى"); setIsWizardOpen(false); setIsAddOpen(true); }} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center">
+                          <MoreHorizontal className="w-5 h-5" />
+                        </div>
+                        <span className="font-bold text-gray-800 group-hover:text-indigo-700">أخرى</span>
+                      </div>
+                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
+                    </button>
+                  </>
+                )}
+
+                {wizardStep === "doc_subtype" && (
+                  <>
+                    <button onClick={() => setWizardStep("letter_type")} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <span className="font-bold text-gray-800 group-hover:text-indigo-700">خطاب</span>
+                      </div>
+                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
+                    </button>
+                    <button onClick={() => { setFormType("مستندات"); setFormTitle("تعميم - "); setIsWizardOpen(false); setIsAddOpen(true); }} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <span className="font-bold text-gray-800 group-hover:text-indigo-700">تعميم</span>
+                      </div>
+                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
+                    </button>
+                    <button onClick={() => { setFormType("مستندات"); setIsWizardOpen(false); setIsAddOpen(true); }} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center">
+                          <MoreHorizontal className="w-5 h-5" />
+                        </div>
+                        <span className="font-bold text-gray-800 group-hover:text-indigo-700">إلخ</span>
+                      </div>
+                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
+                    </button>
+                  </>
+                )}
+
+                {wizardStep === "letter_type" && (
+                  <>
+                    <button onClick={() => {
+                      setSmartLetterMode("create_new");
+                      setSlTitle("");
+                      setSlContent("");
+                      setSlValues({});
+                      setIsSmartLetterOpen(true);
+                      setIsWizardOpen(false);
+                    }} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                          <Plus className="w-5 h-5" />
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-gray-800 group-hover:text-indigo-700">جديد</div>
+                          <div className="text-xs text-gray-500 mt-0.5">إنشاء قالب خطاب جديد من الصفر</div>
+                        </div>
+                      </div>
+                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
+                    </button>
+                    
+                    <button onClick={() => {
+                      setSmartLetterMode("create_reply");
+                      setSlTitle("");
+                      setSlContent("");
+                      setSlValues({});
+                      setIsSmartLetterOpen(true);
+                      setIsWizardOpen(false);
+                    }} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
+                          <Reply className="w-5 h-5" />
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-gray-800 group-hover:text-indigo-700">رد</div>
+                          <div className="text-xs text-gray-500 mt-0.5">إعداد قالب رد تلقائي على خطاب وارد</div>
+                        </div>
+                      </div>
+                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
+                    </button>
+                  </>
+                )}
+              </div>
+              
+              {wizardStep !== "type" && (
+                <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center">
+                  <button
+                    onClick={() => {
+                      if (wizardStep === "doc_subtype") setWizardStep("type");
+                      if (wizardStep === "letter_type") setWizardStep("doc_subtype");
+                    }}
+                    className="flex items-center gap-2 text-sm font-bold text-gray-600 hover:text-gray-900 transition-colors"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                    عودة
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Smart Letter Modal */}
+
       <AnimatePresence>
         {isSmartLetterOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
@@ -1577,9 +1753,9 @@ ${t.description}
                     <Wand2 className="w-6 h-6" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-gray-900">{smartLetterMode === "create" ? "إنشاء قالب خطابات ذكي أو إعداد رد" : "تعبئة خطاب ذكي"}</h2>
+                    <h2 className="text-xl font-black text-gray-900">{smartLetterMode === "create_new" ? "إنشاء قالب خطابات ذكي" : smartLetterMode === "create_reply" ? "إعداد رد ذكي" : "تعبئة خطاب ذكي"}</h2>
                     <p className="text-gray-500 text-sm font-medium mt-1">
-                      {smartLetterMode === "create" ? "أدخل نص الخطاب الجديد، أو أرفق خطاباً وارداً لإنشاء رد تلقائي" : "قم بتعبئة المتغيرات لمعاينة الخطاب وتصديره"}
+                      {smartLetterMode === "create_new" ? "قم بإدخال قالب الخطاب وعنوانه" : smartLetterMode === "create_reply" ? "أدخل نص الخطاب الوارد أو أرفق ملفاً لإنشاء رد تلقائي" : "قم بتعبئة المتغيرات لمعاينة الخطاب وتصديره"}
                     </p>
                   </div>
                 </div>
@@ -1594,9 +1770,9 @@ ${t.description}
               <div className="flex-1 overflow-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-8 bg-gray-50/50">
                 {/* Left Column (Inputs) */}
                 <div className="space-y-6 flex flex-col">
-                  {smartLetterMode === "create" && (
+                  {(smartLetterMode === "create_new" || smartLetterMode === "create_reply") && (
                     <>
-                      <div className="bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100 shadow-sm space-y-4">
+                      {smartLetterMode === "create_reply" && (<div className="bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100 shadow-sm space-y-4">
                         <h3 className="font-bold text-indigo-800 text-sm flex items-center gap-2">
                           <Wand2 className="w-4 h-4 text-indigo-500" />
                           إعداد رد تلقائي على خطاب وارد
@@ -1682,12 +1858,7 @@ ${t.description}
                               className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm transition-colors shadow-sm disabled:opacity-50"
                             >
                               <span className="flex items-center gap-2"><Wand2 className="w-4 h-4" />توليد الرد التلقائي</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                            </button></div></div></div>)}<div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
                         <div>
                           <label className="block text-sm font-bold text-gray-700 mb-1.5">عنوان الخطاب (القالب)</label>
                           <input
@@ -1815,7 +1986,7 @@ ${t.description}
                   طباعة
                 </button>
                 
-                {smartLetterMode === "create" && (
+                {(smartLetterMode === "create_new" || smartLetterMode === "create_reply") && (
                   <button
                     type="button"
                     onClick={handleSaveSmartLetter}
