@@ -1,26 +1,10 @@
 const fs = require('fs');
+let code = fs.readFileSync('server.ts', 'utf8');
 
-const code = fs.readFileSync('server.ts', 'utf8');
-
-const target = `    } catch (err) {
-      console.error("Gemini Generate Letter Error:", err);
-      return res.status(500).json({ error: err.message || "Internal Server Error" });
-    }
-  });`;
-
-const replacement = `    } catch (err: any) {
-      console.error("Gemini Generate Letter Error:", err);
-      return res.status(500).json({ error: err.message || "Internal Server Error" });
-    }
-  });
-
-  app.post("/api/gemini/reply-to-letter", async (req, res) => {
+const newEndpoint = `
+  app.post("/api/gemini/generate-new-letter", async (req, res) => {
     try {
-      const { incomingLetter } = req.body;
-      if (!incomingLetter) {
-        return res.status(400).json({ error: "Missing incomingLetter text" });
-      }
-
+      const { committeeName, recipientName, recipientPosition, subject, details, contact, attachments, signatory } = req.body;
       if (!process.env.GEMINI_API_KEY) {
         return res.status(500).json({ error: "GEMINI_API_KEY is missing from environment variables." });
       }
@@ -28,22 +12,40 @@ const replacement = `    } catch (err: any) {
       const ai = new GoogleGenAI({
         apiKey: process.env.GEMINI_API_KEY,
         httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
+          headers: { 'User-Agent': 'aistudio-build' }
         }
       });
 
-      const fullPrompt = \`أنت خبير في صياغة الخطابات الرسمية في المملكة العربية السعودية.
-تم استلام الخطاب التالي:
----
-\${incomingLetter}
----
-المطلوب:
-إعداد قالب خطاب رد رسمي على هذا الخطاب.
-يجب أن يحتوي القالب على متغيرات محاطة بأقواس مربعة مثل [الاسم]، [التاريخ]، [الموضوع] لكي يقوم المستخدم بتعبئتها لاحقاً.
-الرد يجب أن يكون مناسباً للرد على الخطاب الوارد أعلاه، وبصيغة رسمية واحترافية.
-أعد نص قالب الخطاب فقط بدون أي شروحات إضافية وبدون استخدام markdown (فقط النص).\`;
+      const fullPrompt = \`أنت كاتب خطابات رسمية محترف في المملكة العربية السعودية (وتحديداً غرفة مكة المكرمة).
+المطلوب إعداد خطاب رسمي نهائي وجاهز، بناءً على المعطيات التالية:
+اللجنة: \${committeeName || "غير محدد"}
+المرسل إليه: \${recipientName || "غير محدد"}
+منصبه: \${recipientPosition || "غير محدد"}
+الموضوع: \${subject || "غير محدد"}
+تفاصيل الخطاب: \${details || "لا يوجد تفاصيل إضافية"}
+ضابط الاتصال: \${contact || "لا يوجد"}
+مرفقات الخطاب: \${attachments || "لا يوجد"}
+الشخص الذي سيوقع الخطاب: \${signatory || "الأمين العام"}
+
+يجب أن يكون الخطاب مصاغاً بناءً على الهيكل التالي المعتمد لدينا:
+[التاريخ الهجري والميلادي يمكن تركه كمتغير مثل: التاريخ: .... / .... / ....هـ]
+
+سعادة \${recipientName} سلمه الله
+\${recipientPosition}
+
+السلام عليكم ورحمة الله وبركاته، وبعد:
+
+تهديكم غرفة مكة المكرمة أطيب تحية، بناءً على توصيات (\${committeeName}) ... 
+[صغ محتوى الخطاب بناءً على التفاصيل المعطاة بطريقة رسمية جداً وواضحة ومقنعة]
+
+[في حال وجود ضابط اتصال، أشر إليه للتواصل]
+[في حال وجود مرفقات، أشر إليها]
+
+شاكرين ومقدرين دعم واهتمام سعادتكم،
+
+\${signatory}
+
+أعد نص الخطاب فقط بدون أي شروحات إضافية وبدون استخدام markdown.\`;
 
       const response = await ai.models.generateContent({
         model: "gemini-3.5-flash",
@@ -51,11 +53,15 @@ const replacement = `    } catch (err: any) {
       });
 
       return res.json({ result: response.text });
-    } catch (err: any) {
-      console.error("Gemini Reply to Letter Error:", err);
+    } catch (err) {
+      console.error("Gemini Generate New Letter Error:", err);
       return res.status(500).json({ error: err.message || "Internal Server Error" });
     }
-  });`;
+  });
+`;
 
-fs.writeFileSync('server.ts', code.replace(target, replacement));
-console.log("Patched server.ts");
+if (!code.includes('/api/gemini/generate-new-letter')) {
+  code = code.replace('app.post("/api/gemini/generate-letter"', newEndpoint + '\n  app.post("/api/gemini/generate-letter"');
+  fs.writeFileSync('server.ts', code);
+  console.log("Patched server.ts");
+}

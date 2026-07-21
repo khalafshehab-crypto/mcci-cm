@@ -2490,7 +2490,7 @@ ${formattedItems}
 																</thead>
 																<tbody className="divide-y text-gray-850 font-bold">
 																	{agenda.map((item, index) => (
-																		<tr key={item.id} className="hover:bg-slate-50/50">
+																		<tr key={item.id || `item-${index}`} className="hover:bg-slate-50/50">
 																			<td className="whitespace-nowrap px-3 py-2 text-center font-bold text-gray-400">{index + 1}</td>
 																			<td className="whitespace-nowrap px-3 py-2 font-black text-slate-900">{item.title}</td>
 																			<td className="whitespace-nowrap px-3 py-2 text-center text-brand font-black">{item.duration} دقيقة</td>
@@ -2562,7 +2562,7 @@ ${formattedItems}
                                             ) : (
                                               <div className="space-y-4 max-h-[350px] overflow-y-auto pr-1">
                                                 {agenda.map((item, idx) => (
-                                                  <div key={item.id} className="p-3.5 border border-gray-200 rounded-lg bg-slate-50 space-y-3 shadow-inner">
+                                                  <div key={item.id || `item-${idx}`} className="p-3.5 border border-gray-200 rounded-lg bg-slate-50 space-y-3 shadow-inner">
                                                     <div className="flex items-center justify-between border-b pb-1.5 border-gray-200">
                                                       <span className="font-extrabold text-[10.5px] text-slate-900">
                                                         {idx + 1}. {item.title} ({item.specialist})
@@ -2811,7 +2811,7 @@ ${formattedItems}
                                                         const hasDifference = matchingDbRec ? matchingDbRec.description !== rec.recommendation : false;
 
                                                         return (
-                                                          <div key={rec.id} className={`p-3 transition-colors ${isSelected ? "bg-white" : "bg-gray-50/50 opacity-60"} flex items-start gap-3`}>
+                                                          <div key={rec.id || `rec-${index}`} className={`p-3 transition-colors ${isSelected ? "bg-white" : "bg-gray-50/50 opacity-60"} flex items-start gap-3`}>
                                                             <input 
                                                               type="checkbox"
                                                               checked={isSelected}
