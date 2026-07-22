@@ -1932,7 +1932,8 @@ export default function CommitteesHome() {
 
               <AnimatePresence>
                 {isFilterOpen && (
-                  <>
+                  
+<div key="filter-popover-1784704070969-1">
                     <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
                     <motion.div
                       initial={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -2017,7 +2018,7 @@ export default function CommitteesHome() {
                         </div>
                       </div>
                     </motion.div>
-                  </>
+                  </div>
                 )}
               </AnimatePresence>
             </div>
@@ -2438,7 +2439,8 @@ export default function CommitteesHome() {
                   {selectedAlarm.type === "task" ? (() => {
                     const matchedTask = dbTasks.find((t: any) => String(t.id) === String(selectedAlarm.id).replace("task-", ""));
                     return (
-                      <>
+                      
+<div key="filter-popover-1784704070969-2">
                         <h4 className="text-xs font-black text-gray-400 tracking-wider">تفاصيل مسار المهمة</h4>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium">
@@ -2482,12 +2484,13 @@ export default function CommitteesHome() {
                             </div>
                           </div>
                         </div>
-                      </>
+                      </div>
                     );
                   })() : selectedAlarm.type === "recommendation" ? (() => {
                     const matchedRec = allRecommendations.find((r: any) => String(r.id) === String(selectedAlarm.id).replace(/^rec-/, ""));
                     return (
-                      <>
+                      
+<div key="filter-popover-1784704070969-3">
                         <h4 className="text-xs font-black text-gray-400 tracking-wider">تفاصيل مسار التوصية</h4>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium">
@@ -2531,10 +2534,11 @@ export default function CommitteesHome() {
                             </div>
                           </div>
                         </div>
-                      </>
+                      </div>
                     );
                   })() : (
-                    <>
+                    
+<div key="filter-popover-1784704070969-4">
                       <h4 className="text-xs font-black text-gray-400 tracking-wider">البيانات الإدارية والتنظيمية</h4>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium">
@@ -2578,7 +2582,7 @@ export default function CommitteesHome() {
                           </div>
                         </div>
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
                 {/* 2. Dynamic Details Section */}
@@ -2601,7 +2605,8 @@ export default function CommitteesHome() {
                         </p>
                       </div>
                     ) : (
-                      <>
+                      
+<div key="filter-popover-1784704070969-5">
                         <div>
                           <span className="text-[10px] text-gray-400 font-black block mb-1">موضوع البند:</span>
                           <p className="text-xs font-extrabold text-blue-900 bg-blue-50/50 p-2.5 rounded-lg border border-blue-100">
@@ -2620,7 +2625,7 @@ export default function CommitteesHome() {
                             {resolvedDetails.recommendationText}
                           </p>
                         </div>
-                      </>
+                      </div>
                     )}
                     
                     {/* Add History Log similar to Tasks */}

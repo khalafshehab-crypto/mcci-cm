@@ -1195,7 +1195,8 @@ ${formattedItems}
               </button>
 
               {selectedCommIdForCards !== null && (
-                <>
+                
+<div key="filter-popover-1784704070979-1">
                   <span className="text-gray-400 font-bold font-mono">/</span>
                   <button
                     onClick={() => {
@@ -1213,11 +1214,12 @@ ${formattedItems}
                       {rawCommittees.find((c) => c.id === selectedCommIdForCards)?.name || "اللجنة المحددة"}
                     </span>
                   </button>
-                </>
+                </div>
               )}
 
               {selectedEventKindForCards !== null && (
-                <>
+                
+<div key="filter-popover-1784704070979-2">
                   <span className="text-gray-400 font-bold font-mono">/</span>
                   <button
                     onClick={() => {
@@ -1232,17 +1234,18 @@ ${formattedItems}
                     <Calendar className="w-3.5 h-3.5" />
                     <span>نوع الفعالية: {selectedEventKindForCards}</span>
                   </button>
-                </>
+                </div>
               )}
 
               {selectedClassificationForCards !== null && (
-                <>
+                
+<div key="filter-popover-1784704070979-3">
                   <span className="text-gray-400 font-bold font-mono">/</span>
                   <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white shadow-sm font-black">
                     <Sliders className="w-3.5 h-3.5 animate-pulse" />
                     <span>تصنيف الفعالية: {selectedClassificationForCards}</span>
                   </div>
-                </>
+                </div>
               )}
             </div>
 
@@ -1463,22 +1466,24 @@ ${formattedItems}
                 <div>
                   <h3 className="text-sm font-black text-gray-800">
                     {selectedEventKindForCards === "اجتماع" ? (
-                      <>
+                      
+<div key="filter-popover-1784704070979-4">
                         قائمة الفعاليات الـ (<span className="text-emerald-600">{selectedClassificationForCards}</span>) من نوع (
                         <span className="text-blue-600">{selectedEventKindForCards}</span>) لـ (
                         <span className="text-brand">
                           {rawCommittees.find((c) => c.id === selectedCommIdForCards)?.name}
                         </span>
                         )
-                      </>
+                      </div>
                     ) : (
-                      <>
+                      
+<div key="filter-popover-1784704070979-5">
                         قائمة فعاليات نوع (<span className="text-blue-600">{selectedEventKindForCards}</span>) لـ (
                         <span className="text-brand">
                           {rawCommittees.find((c) => c.id === selectedCommIdForCards)?.name}
                         </span>
                         )
-                      </>
+                      </div>
                     )}
                   </h3>
                 </div>
@@ -1537,7 +1542,8 @@ ${formattedItems}
                             </button>
 
                             {activeGearMenuId === evt.id && (
-                              <>
+                              
+<div key="filter-popover-1784704070979-6">
                                 <div className="fixed inset-0 z-30" onClick={() => setActiveGearMenuId(null)} />
                                 <div className="absolute left-0 bottom-full mb-1.5 w-36 bg-white rounded-xl shadow-xl border border-gray-200 py-1 z-40 text-right">
                                   <button
@@ -1569,7 +1575,7 @@ ${formattedItems}
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
-                              </>
+                              </div>
                             )}
                           </div>
 
@@ -1818,7 +1824,8 @@ ${formattedItems}
                             </button>
                             
                             {activeGearMenuId === evt.id && (
-                              <>
+                              
+<div key="filter-popover-1784704070979-7">
                                 <div 
                                   className="fixed inset-0 z-30" 
                                   onClick={() => setActiveGearMenuId(null)} 
@@ -1853,7 +1860,7 @@ ${formattedItems}
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
-                              </>
+                              </div>
                             )}
                           </div>
                         </td>
@@ -3060,7 +3067,8 @@ ${formattedItems}
                     </div>
                   </div>
                 ) : (
-                  <>
+                  
+<div key="filter-popover-1784704070979-8">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-right mb-6" dir="rtl">
                       <div className="md:col-span-full flex justify-end">
                         <div className="bg-gray-100 p-1 rounded-xl flex shadow-inner">
@@ -3089,7 +3097,8 @@ ${formattedItems}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-right" dir="rtl">
                       
                       {newType === "مفردة" && (
-                        <>
+                        
+<div key="filter-popover-1784704070979-9">
                           {/* Row 1 */}
                           <div className="space-y-1">
                             <label className="text-[11px] font-black text-gray-500 block">اللجنة *</label>
@@ -3215,11 +3224,12 @@ ${formattedItems}
                               placeholder="أدخل عنوان الفعالية أو قم بتعديله يدوياً..."
                             />
                           </div>
-                        </>
+                        </div>
                       )}
 
                       {newType === "متسلسلة" && (
-                        <>
+                        
+<div key="filter-popover-1784704070979-10">
                           {/* Row 1 */}
                           <div className="space-y-1">
                             <label className="text-[11px] font-black text-gray-500 block">النوع *</label>
@@ -3387,7 +3397,7 @@ ${formattedItems}
                               </div>
                             )}
                           </div>
-                        </>
+                        </div>
                       )}
 
                       
@@ -3419,7 +3429,7 @@ ${formattedItems}
                     إلغاء
                   </button>
                 </div>
-              </>
+              </div>
             )}
           </form>
               </div>

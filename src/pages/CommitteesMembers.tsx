@@ -1365,7 +1365,8 @@ export default function CommitteesMembers() {
       <AnimatePresence>
 
                 {isFilterOpen && (
-                  <>
+                  
+<div key="animate-wrapper-1784704053937-1">
                     <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
                     <motion.div
                       initial={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -1470,7 +1471,7 @@ export default function CommitteesMembers() {
                       </button>
 
                     </motion.div>
-                  </>
+                  </div>
                 )}
               </AnimatePresence>
             </div>
@@ -1507,7 +1508,8 @@ export default function CommitteesMembers() {
             </button>
             <AnimatePresence>
               {isAddMenuOpen && (
-                <>
+                
+<div key="animate-wrapper-1784704053937-2">
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -1569,7 +1571,7 @@ export default function CommitteesMembers() {
                       <span>تصدير</span>
                     </button>
                   </motion.div>
-                </>
+                </div>
               )}
             </AnimatePresence>
           </div>
@@ -1775,7 +1777,8 @@ export default function CommitteesMembers() {
                   </button>
 
                   {activeGearMenuId === m.id && (
-                    <>
+                    
+<div key="animate-wrapper-1784704053937-3">
                       <div 
                         className="fixed inset-0 z-30" 
                         onClick={() => setActiveGearMenuId(null)} 
@@ -1809,7 +1812,7 @@ export default function CommitteesMembers() {
                           <Trash2 className="w-3.5 h-3.5 text-red-600" />
                         </button>
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
 
@@ -2028,7 +2031,8 @@ export default function CommitteesMembers() {
                         </button>
                         
                         {activeGearMenuId === m.id && (
-                          <>
+                          
+<div key="animate-wrapper-1784704053937-4">
                             <div 
                               className="fixed inset-0 z-30" 
                               onClick={() => setActiveGearMenuId(null)} 
@@ -2062,7 +2066,7 @@ export default function CommitteesMembers() {
                                 <Trash2 className="w-3.5 h-3.5 text-red-650" />
                               </button>
                             </div>
-                          </>
+                          </div>
                         )}
                       </div>
                     </td>
@@ -3232,7 +3236,8 @@ export default function CommitteesMembers() {
                     {isImporting ? (
                       <span>جاري الاستيراد...</span>
                     ) : (
-                      <>
+                      
+<>
                         <Download className="w-4 h-4" />
                         <span>تأكيد الاستيراد ({selectedImportRows.length})</span>
                       </>

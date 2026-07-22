@@ -1,6 +1,22 @@
 <!doctype html>
 <html lang="en">
   <head>
+<script>
+const originalError = console.error;
+console.error = function(...args) {
+  if (args[0] && typeof args[0] === 'string' && args[0].includes('Encountered two children with the same key')) {
+    const stack = new Error().stack;
+    fetch('/api/log-client-error', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: args, keyArg: args[1], stack })
+    }).catch(e => {});
+  }
+  originalError.apply(console, args);
+};
+</script>
+
+    <script src="/error_tracker.js"></script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
     <title>نظام إدارة اللجان - نسخة V4</title>

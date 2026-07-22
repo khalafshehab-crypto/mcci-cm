@@ -801,7 +801,6 @@ export default function Committees() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ duration: 0.3 }}
-                key={comm.id}
                 className={`bg-[#e8e4e4] hover:bg-[#e2dede] transition-colors duration-300 rounded-2xl p-5 border shadow-sm hover:shadow-md relative group flex flex-col justify-between ${!comm.active ? "opacity-50 grayscale-[30%] border-gray-300" : "border-gray-200"}`}
               >
                 {/* ⚙️ Settings Gear Button */}
@@ -815,7 +814,8 @@ export default function Committees() {
                   </button>
                   
                   {activeGearMenuId === comm.id && (
-                    <>
+                    
+<div key="filter-popover-1784704070948-1">
                       <div 
                         className="fixed inset-0 z-30" 
                         onClick={() => setActiveGearMenuId(null)} 
@@ -838,7 +838,7 @@ export default function Committees() {
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
 
@@ -1036,7 +1036,8 @@ export default function Committees() {
                         </button>
                         
                         {activeGearMenuId === comm.id && (
-                          <>
+                          
+<div key="filter-popover-1784704070948-2">
                             <div 
                               className="fixed inset-0 z-30" 
                               onClick={() => setActiveGearMenuId(null)} 
@@ -1070,7 +1071,7 @@ export default function Committees() {
                                 <Trash2 className="w-3.5 h-3.5 text-red-650" />
                               </button>
                             </div>
-                          </>
+                          </div>
                         )}
                       </div>
                     </td>
@@ -1356,15 +1357,17 @@ export default function Committees() {
                     className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-black text-sm rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
                     {isUploading ? (
-                      <>
+                      
+<div key="filter-popover-1784704070948-3">
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                         <span>جاري الرفع والأرشفة...</span>
-                      </>
+                      </div>
                     ) : (
-                      <>
+                      
+<div key="filter-popover-1784704070948-4">
                         <Check className="w-4 h-4" />
                         <span>{editingComm ? "حفظ التعديلات الحالية" : "إضافة وتشكيل اللجنة"}</span>
-                      </>
+                      </div>
                     )}
                   </button>
                   <button

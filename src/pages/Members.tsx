@@ -998,7 +998,8 @@ export default function CommitteesMembers() {
       <AnimatePresence>
 
                 {isFilterOpen && (
-                  <>
+                  
+<div key="filter-popover-1784704070984-1">
                     <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
                     <motion.div
                       initial={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -1103,7 +1104,7 @@ export default function CommitteesMembers() {
                       </button>
 
                     </motion.div>
-                  </>
+                  </div>
                 )}
               </AnimatePresence>
             </div>
@@ -1297,7 +1298,8 @@ export default function CommitteesMembers() {
                   </button>
 
                   {activeGearMenuId === m.id && (
-                    <>
+                    
+<div key="filter-popover-1784704070984-2">
                       <div 
                         className="fixed inset-0 z-30" 
                         onClick={() => setActiveGearMenuId(null)} 
@@ -1331,7 +1333,7 @@ export default function CommitteesMembers() {
                           <Trash2 className="w-3.5 h-3.5 text-red-600" />
                         </button>
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
 
@@ -1545,7 +1547,8 @@ export default function CommitteesMembers() {
                         </button>
                         
                         {activeGearMenuId === m.id && (
-                          <>
+                          
+<div key="filter-popover-1784704070984-3">
                             <div 
                               className="fixed inset-0 z-30" 
                               onClick={() => setActiveGearMenuId(null)} 
@@ -1579,7 +1582,7 @@ export default function CommitteesMembers() {
                                 <Trash2 className="w-3.5 h-3.5 text-red-650" />
                               </button>
                             </div>
-                          </>
+                          </div>
                         )}
                       </div>
                     </td>

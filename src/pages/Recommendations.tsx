@@ -1655,7 +1655,8 @@ ${formattedItems}
               </button>
 
               {selectedCommIdForCards !== null && (
-                <>
+                
+<div key="filter-popover-1784704070989-1">
                   <span className="text-gray-400 font-bold font-mono">/</span>
                   <button
                     onClick={() => {
@@ -1672,11 +1673,12 @@ ${formattedItems}
                       {committees.find((c) => c.id === selectedCommIdForCards)?.name || "التحميل..."}
                     </span>
                   </button>
-                </>
+                </div>
               )}
 
               {selectedCommIdForCards !== null && selectedEventIdForCards !== null && (
-                <>
+                
+<div key="filter-popover-1784704070989-2">
                   <span className="text-gray-400 font-bold font-mono">/</span>
                   <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white shadow-sm font-black animate-bounce">
                     <Sliders className="w-3.5 h-3.5" />
@@ -1687,7 +1689,7 @@ ${formattedItems}
                       })()}
                     </span>
                   </div>
-                </>
+                </div>
               )}
             </div>
 
@@ -2467,7 +2469,8 @@ ${formattedItems}
                             </button>
                             
                             {activeGearMenuId === evt.id && (
-                              <>
+                              
+<div key="filter-popover-1784704070989-3">
                                 <div 
                                   className="fixed inset-0 z-30" 
                                   onClick={() => setActiveGearMenuId(null)} 
@@ -2506,7 +2509,7 @@ ${formattedItems}
                                     </button>
                                   )}
                                 </div>
-                              </>
+                              </div>
                             )}
                           </div>
                         </td>
@@ -2632,7 +2635,8 @@ ${formattedItems}
                                                 <label className="text-[9.5px] text-slate-900 font-extrabold font-sans">الصياغة الفنية المقترحة للتوصية:</label>
                                                 <div className="flex gap-1">
                                                   {evt.preparationsText && (
-                                                    <>
+                                                    
+<div key="filter-popover-1784704070989-4">
                                                       <button
                                                         type="button"
                                                         onClick={() => {
@@ -2654,7 +2658,7 @@ ${formattedItems}
                                                         <Mail className="w-3.5 h-3.5" />
                                                         إرسال بالإيميل
                                                       </button>
-                                                    </>
+                                                    </div>
                                                   )}
 
                                                   <button
@@ -3174,7 +3178,8 @@ const generatedProposal = evt.description || evt.recommendationText || evt.notes
                     </div>
                   </div>
                 ) : (
-                  <>
+                  
+<div key="filter-popover-1784704070989-5">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-right mb-6" dir="rtl">
                       <div className="md:col-span-full flex justify-end">
                         <div className="bg-gray-100 p-1 rounded-xl flex shadow-inner">
@@ -3202,7 +3207,8 @@ const generatedProposal = evt.description || evt.recommendationText || evt.notes
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-right" dir="rtl">
                       
                       {newType === "مفردة" && (
-                        <>
+                        
+<div key="filter-popover-1784704070989-6">
                           <div className="space-y-1">
                             <label className="text-[11px] font-black text-gray-500 block">اللجنة *</label>
                             <select
@@ -3367,7 +3373,7 @@ const generatedProposal = evt.description || evt.recommendationText || evt.notes
                               </div>
                             )}
                           </div>
-                        </>
+                        </div>
                       )}
 
                       {newType === "متسلسلة" && (
@@ -3474,7 +3480,7 @@ const generatedProposal = evt.description || evt.recommendationText || evt.notes
                     إلغاء
                   </button>
                 </div>
-              </>
+              </div>
             )}
           </form>
               </div>

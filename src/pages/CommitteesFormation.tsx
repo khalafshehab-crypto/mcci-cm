@@ -1482,7 +1482,8 @@ export default function CommitteesFormation() {
 
               <AnimatePresence>
                 {isColumnsOpen && (
-                  <>
+                  
+<div key="animate-wrapper-1784704053917-1">
                     <div className="fixed inset-0 z-40" onClick={() => setIsColumnsOpen(false)} />
                     <motion.div
                       initial={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -1515,7 +1516,7 @@ export default function CommitteesFormation() {
                         </div>
                       </div>
                     </motion.div>
-                  </>
+                  </div>
                 )}
               </AnimatePresence>
             </div>
@@ -1534,7 +1535,8 @@ export default function CommitteesFormation() {
             </button>
             <AnimatePresence>
               {isAddMenuOpen && (
-                <>
+                
+<div key="animate-wrapper-1784704053917-2">
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -1591,7 +1593,7 @@ export default function CommitteesFormation() {
                       <span>تصدير</span>
                     </button>
                   </motion.div>
-                </>
+                </div>
               )}
             </AnimatePresence>
           </div>
@@ -1640,7 +1642,6 @@ export default function CommitteesFormation() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ duration: 0.3 }}
-                key={comm.id}
                 className={`bg-[#e8e4e4] hover:bg-[#e2dede] transition-colors duration-300 rounded-2xl p-5 border shadow-sm hover:shadow-md relative group flex flex-col justify-between ${!comm.active ? "opacity-50 grayscale-[30%] border-gray-300" : "border-gray-200"}`}
               >
                 {/* ⚙️ Settings Gear Button with Dropdown logic */}
@@ -1655,7 +1656,8 @@ export default function CommitteesFormation() {
                   </button>
                   
                   {activeGearMenuId === comm.id && (
-                    <>
+                    
+<div key="animate-wrapper-1784704053917-3">
                       <div 
                         className="fixed inset-0 z-30" 
                         onClick={() => setActiveGearMenuId(null)} 
@@ -1678,7 +1680,7 @@ export default function CommitteesFormation() {
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
 
@@ -1903,7 +1905,8 @@ export default function CommitteesFormation() {
                         </button>
                         
                         {activeGearMenuId === comm.id && (
-                          <>
+                          
+<div key="animate-wrapper-1784704053917-4">
                             <div 
                               className="fixed inset-0 z-30" 
                               onClick={() => setActiveGearMenuId(null)} 
@@ -1937,7 +1940,7 @@ export default function CommitteesFormation() {
                                 <Trash2 className="w-3.5 h-3.5 text-red-650" />
                               </button>
                             </div>
-                          </>
+                          </div>
                         )}
                       </div>
                     </td>
@@ -2431,7 +2434,8 @@ export default function CommitteesFormation() {
               {/* Footer */}
               <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex flex-wrap gap-3">
                 {exportModalMode === 'export' ? (
-                  <>
+                  
+<>
                     <button
                       type="button"
                       onClick={handleExportToGoogleSheets}
@@ -2449,7 +2453,8 @@ export default function CommitteesFormation() {
                     </button>
                   </>
                 ) : (
-                  <>
+                  
+<>
                     <label className="flex-1 min-w-[140px] h-11 bg-blue-600 hover:bg-blue-700 hover:shadow-md text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer">
                       <Download className="w-4 h-4" />
                       <span>استيراد ملف CSV</span>

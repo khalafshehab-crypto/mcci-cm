@@ -600,7 +600,8 @@ export default function Tasks() {
 
             <AnimatePresence>
               {isFilterOpen && (
-                <>
+                
+<div key="filter-popover-1784704070991-1">
                   <div className="fixed inset-0 z-45" onClick={() => setIsFilterOpen(false)} />
                   <motion.div
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -680,7 +681,7 @@ export default function Tasks() {
                       إعادة تعيين الفلاتر
                     </button>
                   </motion.div>
-                </>
+                </div>
               )}
             </AnimatePresence>
 

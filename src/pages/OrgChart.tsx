@@ -1411,7 +1411,8 @@ export default function OrgChart() {
         </button>
 
         {currentUserRole === "SYS_ADMIN" && (
-          <>
+          
+<div key="filter-popover-1784704070986-1">
             <button
               onClick={() => setActiveTab("transfer")}
               className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
@@ -1458,7 +1459,7 @@ export default function OrgChart() {
               <Database className="w-4 h-4 shrink-0" />
               <span>البيانات الموحدة</span>
             </button>
-          </>
+          </div>
         )}
       </div>
 
@@ -1467,7 +1468,8 @@ export default function OrgChart() {
         
         {/* TAB 1: EMPLOYEES */}
         {activeTab === "hierarchy" && (
-          <>
+          
+<div key="filter-popover-1784704070986-2">
             {/* Search Filters Toolbar */}
             <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="relative flex-1 max-w-md">
@@ -1708,7 +1710,7 @@ export default function OrgChart() {
                 </div>
               </div>
             )}
-          </>
+          </div>
         )}
 
         {/* TAB 2: ORG BUILDER */}
@@ -2408,7 +2410,8 @@ export default function OrgChart() {
                     <input type="text" required value={orgNodeForm.name} onChange={(e) => setOrgNodeForm({...orgNodeForm, name: e.target.value})} placeholder="اكتب المسمى هنا..." className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-brand" />
                   </div>
                 ) : (
-                  <>
+                  
+<div key="filter-popover-1784704070986-3">
                     {!orgNodeForm.id && orgNodeForm.type !== "JOB_TITLE" && (
                       <div className="mb-4">
                         <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">نوع العقدة المضافة</label>
@@ -2472,7 +2475,7 @@ export default function OrgChart() {
                       </label>
                       <input type="text" required value={orgNodeForm.name} onChange={(e) => setOrgNodeForm({...orgNodeForm, name: e.target.value})} placeholder="اكتب المسمى هنا..." className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-brand" />
                     </div>
-                  </>
+                  </div>
                 )}
 
                 <div className="pt-2 flex justify-end">

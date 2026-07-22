@@ -1949,7 +1949,8 @@ export default function Home() {
 
               <AnimatePresence>
                 {isFilterOpen && (
-                  <>
+                  
+<div key="animate-wrapper-1784704053945-1">
                     <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
                     <motion.div
                       initial={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -2034,7 +2035,7 @@ export default function Home() {
                         </div>
                       </div>
                     </motion.div>
-                  </>
+                  </div>
                 )}
               </AnimatePresence>
             </div>
