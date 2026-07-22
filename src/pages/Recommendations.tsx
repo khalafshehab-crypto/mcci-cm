@@ -2420,7 +2420,7 @@ ${formattedItems}
                             </span>
                             {evt.preparationsText ? (
                               <div className="text-[9.5px] text-brand font-bold truncate max-w-sm">
-                                {evt.preparationsText.substring(0, 65).replace(/[\r\n]+/g, " ")}...
+                                {(evt.preparationsText || "").substring(0, 65).replace(/[\r\n]+/g, " ")}...
                               </div>
                             ) : (
                               <div className="text-[9px] text-gray-400 font-bold">

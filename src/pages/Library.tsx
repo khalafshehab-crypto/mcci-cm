@@ -1133,7 +1133,7 @@ ${t.description}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-xs font-bold text-gray-500 bg-white/60 p-2 rounded-lg border border-gray-200/50">
                     <span className="w-6 h-6 rounded bg-gray-200 flex items-center justify-center text-gray-600 text-[10px] uppercase font-black tracking-wider shadow-[inset_0_1px_1px_rgba(0,0,0,0.1)]">
-                      {t.creator.substring(0, 2)}
+                      {(t.creator || "  ").substring(0, 2)}
                     </span>
                     صانع القالب: {t.creator}
                   </div>
@@ -1217,7 +1217,7 @@ ${t.description}
                       <td className="whitespace-nowrap py-4 px-5 font-black text-gray-500">
                         <div className="flex items-center gap-2">
                           <span className="w-6 h-6 rounded bg-gray-200 flex items-center justify-center text-gray-600 text-[10px] uppercase font-black tracking-wider">
-                            {t.creator.substring(0, 2)}
+                            {(t.creator || "  ").substring(0, 2)}
                           </span>
                           {t.creator}
                         </div>
