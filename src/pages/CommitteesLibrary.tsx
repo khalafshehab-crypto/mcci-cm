@@ -1,3 +1,4 @@
+import { showGlobalToast } from "../lib/toastUtils";
 import React, { useState, useEffect, FormEvent } from "react";
 import { 
   BookOpen,
@@ -292,10 +293,10 @@ export default function CommitteesLibrary() {
         setAiGenGeneratedText(data.result);
         setAiGenStep(3);
       } else {
-        showToast("حدث خطأ أثناء التوليد", "error");
+        showGlobalToast("حدث خطأ أثناء التوليد", "error");
       }
     } catch (e) {
-      showToast("حدث خطأ أثناء الاتصال بالخادم", "error");
+      showGlobalToast("حدث خطأ أثناء الاتصال بالخادم", "error");
     } finally {
       setIsAIGenGenerating(false);
     }
@@ -313,11 +314,11 @@ export default function CommitteesLibrary() {
         committeeId: aiGenCommittee || "",
         tags: ["خطاب", "مسودة"]
       };
-      await addDoc(collection(db, "library"), newDoc);
-      showToast("تم حفظ وأرشفة الخطاب بنجاح", "success");
+      await addDoc(collection(db, "templates"), newDoc);
+      showGlobalToast("تم حفظ وأرشفة الخطاب بنجاح", "success");
       setIsAIGenOpen(false);
     } catch (e) {
-      showToast("حدث خطأ أثناء الحفظ", "error");
+      showGlobalToast("حدث خطأ أثناء الحفظ", "error");
     }
   };
 
@@ -955,7 +956,7 @@ ${t.description}
       {/* -------------------- Unified Google Workspace Integration Center -------------------- */}
       <AnimatePresence>
         {showWorkspaceCenter && (
-          <motion.div
+          <motion.div key="workspace-center"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
@@ -1210,7 +1211,7 @@ ${t.description}
       {/* Add Modal */}
       <AnimatePresence>
         {isAddOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pb-20">
+          <div key="isAddOpen-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pb-20">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1551,7 +1552,7 @@ ${t.description}
       {/* Share Modal */}
       <AnimatePresence>
         {isShareOpen && templateToShare && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pb-20">
+          <div key="share-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pb-20">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1713,7 +1714,7 @@ ${t.description}
       {/* Template Creation Wizard Modal */}
       <AnimatePresence>
         {isWizardOpen && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+          <div key="isWizardOpen-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsWizardOpen(false)} />
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -1886,7 +1887,7 @@ ${t.description}
 
       <AnimatePresence>
         {isSmartLetterOpen && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+          <div key="isSmartLetterOpen-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsSmartLetterOpen(false)} />
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -2213,7 +2214,7 @@ ${t.description}
       {/* AI Generator Modal */}
       <AnimatePresence>
         {isAIGenOpen && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+          <div key="isAIGenOpen-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsAIGenOpen(false)} />
             <motion.div
               key="ai-generator-modal"
@@ -2262,7 +2263,7 @@ ${t.description}
                       <button
                         onClick={() => {
                           if (!aiGenCommittee) {
-                            showToast("الرجاء اختيار اللجنة", "warning");
+                            showGlobalToast("الرجاء اختيار اللجنة", "error");
                             return;
                           }
                           setAiGenStep(2);
