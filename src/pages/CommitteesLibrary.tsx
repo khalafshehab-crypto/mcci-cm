@@ -308,25 +308,7 @@ export default function CommitteesLibrary() {
     }
   };
 
-  const saveAIGeneratedLetter = async () => {
-    try {
-      const newDoc = {
-        title: aiGenSubject || "خطاب جديد",
-        type: "خطابات",
-        subType: "مسودات",
-        content: aiGenGeneratedText,
-        author: "الأخصائي",
-        date: new Date().toISOString(),
-        committeeId: aiGenCommittee || "",
-        tags: ["خطاب", "مسودة"]
-      };
-      await addDoc(collection(db, "templates"), newDoc);
-      showGlobalToast("تم حفظ وأرشفة الخطاب بنجاح", "success");
-      setIsAIGenOpen(false);
-    } catch (e) {
-      showGlobalToast("حدث خطأ أثناء الحفظ", "error");
-    }
-  };
+
 
   const openGenerateWizard = () => {
     setIsTemplateMenuOpen(false);
@@ -376,37 +358,45 @@ export default function CommitteesLibrary() {
         setAiGenGeneratedText(data.result || "");
         setAiGenStep(3);
       } else {
-        alert("فشل توليد الخطاب. يرجى التأكد من الإعدادات.");
+        const errData = await response.json().catch(() => null);
+        alert("عذراً، الخادم يواجه ضغطاً حالياً (أو حدث خطأ). الرجاء المحاولة مرة أخرى بعد قليل.\n" + (errData?.error || ""));
       }
     } catch (e) {
       console.error(e);
-      alert("حدث خطأ أثناء التوليد.");
+      alert("حدث خطأ أثناء الاتصال بالخادم. الرجاء التأكد من اتصالك بالإنترنت والمحاولة مجدداً.");
     } finally {
       setIsAIGenGenerating(false);
     }
   };
 
-  const handleSaveArchivedLetter = async () => {
-    const newDoc = {
-      title: aiGenSubject || "خطاب جديد",
-      description: `خطاب صادر إلى ${aiGenRecipientName} - ${aiGenRecipientPosition}`,
-      type: "خطاب ذكي",
-      creator: "مدير النظام",
-      cloudUrl: "#",
-      downloadUrl: "#",
-      lastUpdated: new Date().toISOString().split('T')[0],
-      isFavorite: false,
-      templateText: aiGenGeneratedText
-    };
+  const saveAIGeneratedLetter = async () => {
     try {
+      const selectedCommittee = committees.find(c => String(c.id) === String(aiGenCommittee));
+      const committeeName = selectedCommittee ? selectedCommittee.name : "اللجنة";
+      const finalType = aiGenTemplateType.includes("مستندات") ? "مستندات" : "خطاب ذكي";
+
+      const newDoc = {
+        title: aiGenSubject || "خطاب جديد",
+        description: `مجلد خطابات - مجلد مسودات | لجنة: ${committeeName} | صادر إلى: ${aiGenRecipientName}`,
+        type: finalType,
+        creator: "الأخصائي",
+        cloudUrl: "#",
+        downloadUrl: "#",
+        lastUpdated: new Date().toISOString().split('T')[0],
+        isFavorite: false,
+        templateText: aiGenGeneratedText,
+        committeeId: aiGenCommittee || "",
+      };
+      
       await addDoc(collection(db, "templates"), newDoc);
+      alert("تم حفظ القالب بنجاح في المكتبة الرقمية.");
       setIsAIGenOpen(false);
-      alert("تم حفظ الخطاب بنجاح في المكتبة.");
     } catch (e) {
       console.error(e);
-      alert("فشل الحفظ.");
+      alert("حدث خطأ أثناء الحفظ. الرجاء المحاولة مجدداً.");
     }
   };
+
 
   const [activeSmartLetter, setActiveSmartLetter] = useState<TemplateItem | null>(null);
   const [slTitle, setSlTitle] = useState("");
