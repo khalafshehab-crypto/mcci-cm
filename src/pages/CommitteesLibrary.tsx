@@ -1,4 +1,5 @@
 import { showGlobalToast } from "../lib/toastUtils";
+import { createGoogleDoc, resolveDrivePath, moveDriveFile } from "../lib/googleApi";
 import React, { useState, useEffect, FormEvent } from "react";
 import { 
   BookOpen,
@@ -375,13 +376,28 @@ export default function CommitteesLibrary() {
       const committeeName = selectedCommittee ? selectedCommittee.name : "اللجنة";
       const finalType = aiGenTemplateType.includes("مستندات") ? "مستندات" : "خطاب ذكي";
 
+      let finalCloudUrl = "#";
+
+      if (finalType === "مستندات") {
+        try {
+          const folderPath = `تقرير اللجان للدورة الـ 22/اللجان المعتمدة/${committeeName}/الخطابات/مسودات`;
+          const folderId = await resolveDrivePath(folderPath);
+          const { documentId, documentUrl } = await createGoogleDoc(aiGenSubject || "خطاب جديد", aiGenGeneratedText);
+          await moveDriveFile(documentId, folderId);
+          finalCloudUrl = documentUrl;
+        } catch (apiError) {
+          console.error("Google API Error:", apiError);
+          alert("تعذر الحفظ في Google Drive. الرجاء التأكد من ربط Google Workspace. سيتم حفظ الخطاب في المكتبة الرقمية فقط.");
+        }
+      }
+
       const newDoc = {
         title: aiGenSubject || "خطاب جديد",
         description: `مجلد خطابات - مجلد مسودات | لجنة: ${committeeName} | صادر إلى: ${aiGenRecipientName}`,
         type: finalType,
         creator: "الأخصائي",
-        cloudUrl: "#",
-        downloadUrl: "#",
+        cloudUrl: finalCloudUrl,
+        downloadUrl: finalCloudUrl,
         lastUpdated: new Date().toISOString().split('T')[0],
         isFavorite: false,
         templateText: aiGenGeneratedText,
@@ -389,7 +405,7 @@ export default function CommitteesLibrary() {
       };
       
       await addDoc(collection(db, "templates"), newDoc);
-      alert("تم حفظ القالب بنجاح في المكتبة الرقمية.");
+      alert(finalCloudUrl !== "#" ? "تم حفظ الخطاب بنجاح في المكتبة الرقمية وفي Google Drive." : "تم حفظ الخطاب بنجاح في المكتبة الرقمية.");
       setIsAIGenOpen(false);
     } catch (e) {
       console.error(e);

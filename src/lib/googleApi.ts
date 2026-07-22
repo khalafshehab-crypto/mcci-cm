@@ -754,3 +754,12 @@ export async function uploadFileToDriveByPath(file: File, pathStr: string, newNa
   const uploaded = await uploadBinaryFileToDrive(finalName, base64, file.type, folderId);
   return uploaded.webViewLink || `https://drive.google.com/file/d/${uploaded.id}/view`;
 }
+
+export async function moveDriveFile(fileId: string, folderId: string) {
+  const file = await fetchGoogleAPI(`drive/v3/files/${fileId}?fields=parents`);
+  const previousParents = (file.parents || []).join(',');
+  await fetchGoogleAPI(`drive/v3/files/${fileId}?addParents=${folderId}&removeParents=${previousParents}`, {
+    method: "PATCH",
+    body: JSON.stringify({})
+  });
+}
