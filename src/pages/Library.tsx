@@ -941,30 +941,83 @@ ${t.description}
             </span>
           </button>
 
+          <div className="relative dropdown-container">
+            <button
+              type="button"
+              onClick={() => setIsTemplateMenuOpen(!isTemplateMenuOpen)}
+              className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer shrink-0 w-full lg:w-auto"
+            >
+              <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
+              <span>إجراءات القوالب</span>
+              <ChevronDown className="w-4 h-4 mr-1 opacity-70" />
+            </button>
+            <AnimatePresence>
+              {isTemplateMenuOpen && (
+                <div key="animate-wrapper-template-actions-lib">
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-10"
+                    onClick={() => setIsTemplateMenuOpen(false)}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    className="absolute left-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-20"
+                  >
+                    <button
+                      onClick={() => { setIsTemplateMenuOpen(false); setWizardStep("type"); setIsWizardOpen(true); }}
+                      className="w-full text-right px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors"
+                    >
+                      <div className="w-6 h-6 rounded-md bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                        <Wand2 className="w-3.5 h-3.5" />
+                      </div>
+                      إنشاء قالب
+                    </button>
+                    <button
+                      onClick={() => { setIsTemplateMenuOpen(false); openGenerateWizard(); }}
+                      className="w-full text-right px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2 transition-colors"
+                    >
+                      <div className="w-6 h-6 rounded-md bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                        <Sparkles className="w-3.5 h-3.5" />
+                      </div>
+                      توليد خطاب ذكي
+                    </button>
+                    <div className="h-px bg-gray-100 my-1 mx-4"></div>
+                    <button
+                      onClick={() => { setIsTemplateMenuOpen(false); setIsAddOpen(true); }}
+                      className="w-full text-right px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2 transition-colors"
+                    >
+                      <div className="w-6 h-6 rounded-md bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                        <Download className="w-3.5 h-3.5" />
+                      </div>
+                      استيراد النماذج الجاهزة
+                    </button>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
+          </div>
           <button
             type="button"
-            onClick={() => { setWizardStep("type"); setIsWizardOpen(true); }}
-            className="h-10 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer shrink-0 w-full lg:w-auto"
+            onClick={() => setShowWorkspaceCenter(!showWorkspaceCenter)}
+            className={`h-10 px-4 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all duration-200 cursor-pointer shrink-0 w-full lg:w-auto ${
+              showWorkspaceCenter
+                ? "bg-amber-600 hover:bg-amber-700 text-white animate-pulse"
+                : "bg-emerald-600 hover:bg-emerald-700 text-white"
+            }`}
           >
-            <Wand2 className="w-4 h-4 stroke-[2.5]" />
-            <span>إنشاء قالب</span>
-          </button>
-          <button
-            type="button"
-            onClick={openGenerateWizard}
-            className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer shrink-0 w-full lg:w-auto"
-          >
-            <Sparkles className="w-4 h-4 stroke-[2.5]" />
-            <span>توليد خطاب ذكي</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsAddOpen(true)}
-            className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer shrink-0 w-full lg:w-auto"
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>زر استيراد وتصدير النماذج الجهازة</span>
+            <RefreshCw
+              className={`w-4 h-4 ${showWorkspaceCenter ? "animate-spin" : ""}`}
+            />
+            <span>
+              {showWorkspaceCenter
+                ? "إغلاق بوابة Google Workspace"
+                : "مزامنة Google Workspace 🌐"}
+            </span>
           </button>
         </div>
       </div>
