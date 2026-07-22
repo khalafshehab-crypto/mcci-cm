@@ -2,25 +2,20 @@ const fs = require('fs');
 
 let mainTsx = fs.readFileSync('src/main.tsx', 'utf8');
 
-if (!mainTsx.includes('Duplicate key')) {
-  const patch = `
+const patch = `
   const originalConsoleError = console.error;
   console.error = (...args) => {
     if (args[0] && typeof args[0] === 'string' && args[0].includes('Encountered two children with the same key')) {
-      originalConsoleError('DUPLICATE KEY ERROR DETECTED:', args[1], new Error().stack);
-      
-      // Also send it to server so we can see it
       fetch('/api/log-client-error', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ duplicateKey: args[1], stack: new Error().stack })
+        body: JSON.stringify({ arg0: args[0], arg1: args[1], arg2: args[2] })
       }).catch(e => {});
     }
     originalConsoleError(...args);
   };
   `;
 
-  // insert after imports
-  mainTsx = mainTsx.replace("import './index.css';", "import './index.css';\n" + patch);
-  fs.writeFileSync('src/main.tsx', mainTsx);
-}
+// Replace the old patch
+mainTsx = mainTsx.replace(/const originalConsoleError.*catch\(e => \{\}\);\n    \}\n    originalConsoleError\(\.\.\.args\);\n  \};\n/s, patch);
+fs.writeFileSync('src/main.tsx', mainTsx);

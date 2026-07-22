@@ -568,7 +568,7 @@ ${t.description}
     link.href = url;
     link.setAttribute(
       "download",
-      `${t.title.replace(/\s+/g, "_")}_قالب_مرجعي.txt`,
+      `${(t.title || "").replace(/\s+/g, "_")}_قالب_مرجعي.txt`,
     );
     document.body.appendChild(link);
     link.click();
@@ -616,9 +616,9 @@ ${t.description}
       "المسلسل,اسم القالب المرجعي,الوصف,التصنيف,المنشئ,الرابط السحابي,آخر تحديث\n";
 
     targets.forEach((t, index) => {
-      const cleanTitle = t.title.replace(/"/g, '""');
-      const cleanDesc = t.description.replace(/"/g, '""');
-      const cleanCreator = t.creator.replace(/"/g, '""');
+      const cleanTitle = (t.title || "").replace(/"/g, '""');
+      const cleanDesc = (t.description || "").replace(/"/g, '""');
+      const cleanCreator = (t.creator || "").replace(/"/g, '""');
       csvContent += `${index + 1},"${cleanTitle}","${cleanDesc}","${t.type}","${cleanCreator}","${t.cloudUrl}","${t.lastUpdated}"\n`;
     });
 
@@ -672,7 +672,7 @@ ${t.description}
     membersCount: 0,
     recommendationsCount: 0,
     tasksCount: 0,
-    committees: committees.map((c) => ({
+    committees: committees.map((c, i) => ({
       id: c.id,
       name: c.name,
       president: c.president || "أ. خالد الزهراني",
@@ -1074,9 +1074,9 @@ ${t.description}
           </div>
         ) : viewMode === "cards" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {filteredTemplates.map((t) => (
+            {filteredTemplates.map((t, i) => (
               <div
-                key={t.id}
+                key={`${t.id}-${i}`}
                 className="bg-[#e8e4e4] hover:bg-[#e2dede] transition-all duration-300 rounded-2xl p-5 border border-gray-200 shadow-sm hover:shadow-md relative overflow-hidden flex flex-col justify-between group"
               >
                 {/* Top Indicator */}
@@ -1198,9 +1198,9 @@ ${t.description}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200/60">
-                  {filteredTemplates.map((t) => (
+                  {filteredTemplates.map((t, i) => (
                     <tr
-                      key={t.id}
+                      key={`${t.id}-${i}`}
                       className="hover:bg-white/40 transition-colors text-sm font-semibold text-gray-800"
                     >
                       <td className="whitespace-nowrap py-4 px-5 font-bold">
@@ -1280,7 +1280,7 @@ ${t.description}
       {/* Add Modal */}
       <AnimatePresence>
         {isAddOpen && (
-          <div key="isAddOpen-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pb-20">
+          <div key="lib-isAddOpen-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pb-20">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1504,11 +1504,11 @@ ${t.description}
                     className="border border-gray-200 rounded-xl max-h-[160px] overflow-y-auto divide-y divide-gray-100 bg-slate-50 p-1.5 text-right font-sans"
                     dir="rtl"
                   >
-                    {templates.map((t) => {
+                    {templates.map((t, i) => {
                       const isChecked = exportSelectedIds.includes(t.id);
                       return (
                         <div
-                          key={t.id}
+                          key={`${t.id}-${i}`}
                           onClick={() => {
                             if (isChecked) {
                               setExportSelectedIds(
@@ -1782,10 +1782,12 @@ ${t.description}
       
       
       
+      </AnimatePresence>
+
       {/* Template Creation Wizard Modal */}
       <AnimatePresence>
         {isWizardOpen && (
-          <div key="isWizardOpen-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+          <div key="lib-isWizardOpen-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsWizardOpen(false)} />
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -1961,7 +1963,7 @@ ${t.description}
 
       <AnimatePresence>
         {isSmartLetterOpen && (
-          <div key="isSmartLetterOpen-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+          <div key="lib-isSmartLetterOpen-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsSmartLetterOpen(false)} />
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -2226,6 +2228,7 @@ ${t.description}
       </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
+      <AnimatePresence>
         {deleteTarget && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pb-20">
             <motion.div
@@ -2289,7 +2292,7 @@ ${t.description}
       {/* AI Generator Modal */}
       <AnimatePresence>
         {isAIGenOpen && (
-          <div key="isAIGenOpen-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+          <div key="lib-isAIGenOpen-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsAIGenOpen(false)} />
             <motion.div
               key="ai-generator-modal"
@@ -2329,8 +2332,8 @@ ${t.description}
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
                       >
                         <option value="">-- اختر اللجنة --</option>
-                        {committees.map((c) => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
+                        {committees.map((c, i) => (
+                          <option key={`${c.id}-${i}`} value={c.id}>{c.name}</option>
                         ))}
                       </select>
                     </div>
@@ -2437,8 +2440,8 @@ ${t.description}
                             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                           >
                             <option value="">-- اختر ضابط الاتصال --</option>
-                            {employees.map(emp => (
-                              <option key={emp.id} value={emp.id}>{emp.name} ({emp.jobTitle})</option>
+                            {employees.map((emp, i) => (
+                              <option key={`${emp.id}-${i}`} value={emp.id}>{emp.name} ({emp.jobTitle})</option>
                             ))}
                           </select>
                           {aiGenContact && employees.find(e => e.id === aiGenContact) && (
@@ -2467,8 +2470,8 @@ ${t.description}
                             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                           >
                             <option value="">-- اختر الموقع --</option>
-                            {employees.map(emp => (
-                              <option key={emp.id} value={emp.id}>{emp.name} ({emp.jobTitle})</option>
+                            {employees.map((emp, i) => (
+                              <option key={`${emp.id}-${i}`} value={emp.id}>{emp.name} ({emp.jobTitle})</option>
                             ))}
                           </select>
                         </div>

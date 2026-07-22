@@ -11,7 +11,7 @@ async function startServer() {
   // Middleware to parse JSON
   app.use(express.json({ limit: "50mb" }));
   app.post('/api/log-client-error', (req, res) => {
-    const fs = require('fs');
+    
     fs.appendFileSync('client_errors.log', JSON.stringify(req.body) + '\n');
     res.json({ ok: true });
   });

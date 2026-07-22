@@ -1,47 +1,11 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" dir="rtl">
   <head>
-<script>
-const originalError = console.error;
-console.error = function(...args) {
-  if (args[0] && typeof args[0] === 'string' && args[0].includes('Encountered two children with the same key')) {
-    const stack = new Error().stack;
-    fetch('/api/log-client-error', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: args, keyArg: args[1], stack })
-    }).catch(e => {});
-  }
-  originalError.apply(console, args);
-};
-</script>
-
-    <script src="/error_tracker.js"></script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
-    <title>نظام إدارة اللجان - نسخة V4</title>
+    <title>نظام إدارة اللجان</title>
   </head>
   <body>
-    <script>
-      window.onerror = function(msg) {
-        if (msg && typeof msg === 'string' && (msg.toLowerCase().includes('script error') || msg.toLowerCase().includes('resizeobserver'))) {
-          return true;
-        }
-        return false;
-      };
-      window.addEventListener('error', function(e) {
-        const msg = e.message || '';
-        if (msg && typeof msg === 'string' && (msg.toLowerCase().includes('script error') || msg.toLowerCase().includes('resizeobserver'))) {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          return true;
-        }
-      }, true);
-      window.addEventListener('unhandledrejection', function(e) {
-        // Suppress benign unhandled rejections if needed
-      });
-    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx" crossorigin="anonymous"></script>
   </body>

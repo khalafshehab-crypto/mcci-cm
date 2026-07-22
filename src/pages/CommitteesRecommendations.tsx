@@ -3831,7 +3831,7 @@ ${itemTitleFull} .
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value="">اختر المكلف</option>
-                              {availableAssignees.map((opt: any) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                              {availableAssignees.map((opt: any, idx: number) => <option key={opt.value || idx} value={opt.value}>{opt.label}</option>)}
                             </select>
                           </div>
 
