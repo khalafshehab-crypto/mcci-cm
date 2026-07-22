@@ -28,14 +28,28 @@ if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
 // Helper to load collection from localStorage with institutional fallback seeds
 export function getLocalCollection(collectionName: string): any[] {
   const dataStr = localStorage.getItem(`mock_db_${collectionName}`);
+  let data;
   if (!dataStr) {
-    return getSeedData(collectionName);
+    data = getSeedData(collectionName);
+  } else {
+    try {
+      data = JSON.parse(dataStr);
+    } catch (e) {
+      data = getSeedData(collectionName);
+    }
   }
-  try {
-    return JSON.parse(dataStr);
-  } catch (e) {
-    return getSeedData(collectionName);
+  let changed = false;
+  const fixedData = data.map(item => {
+    if (!item || !item.id) {
+      changed = true;
+      return { ...item, id: Math.random().toString(36).substring(2, 11) };
+    }
+    return item;
+  });
+  if (changed) {
+    localStorage.setItem(`mock_db_${collectionName}`, JSON.stringify(fixedData));
   }
+  return fixedData;
 }
 
 // Helper to save collection to localStorage and notify all subscribers
@@ -77,7 +91,7 @@ export function saveLocalCollection(collectionName: string, data: any[]) {
 function makeSnapshot(data: any[]) {
   return {
     docs: data.map(item => ({
-      id: item.id || '',
+      id: item.id || Math.random().toString(36).substring(2, 9),
       data: () => item
     }))
   };
@@ -227,7 +241,7 @@ export async function addDoc(collectionRef: any, data: any): Promise<any> {
   const colName = collectionRef.name;
   const list = getLocalCollection(colName);
   const newId = `${colName.substring(0, 4)}_${Math.random().toString(36).substring(2, 11)}`;
-  const item = { id: newId, ...data };
+  const item = { ...data, id: newId };
   list.push(item);
   saveLocalCollection(colName, list);
   return { id: newId, path: `${colName}/${newId}` };
@@ -242,10 +256,10 @@ export async function setDoc(docRef: any, data: any, options: any = {}): Promise
     if (options.merge) {
       list[index] = { ...list[index], ...data };
     } else {
-      list[index] = { id: targetId, ...data };
+      list[index] = { ...data, id: targetId };
     }
   } else {
-    list.push({ id: targetId, ...data });
+    list.push({ ...data, id: targetId });
   }
   saveLocalCollection(colName, list);
 }

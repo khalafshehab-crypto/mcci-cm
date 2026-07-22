@@ -1448,7 +1448,6 @@ ${formattedItems}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {activeClassifications.map((cls) => {
                       const count = kindEvents.filter((e) => getEventClassification(e.title) === cls).length;
-
                       return (
                         <motion.div
                           key={cls}

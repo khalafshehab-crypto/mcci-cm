@@ -1,14 +1,13 @@
 const fs = require('fs');
 
-function fixFile(filepath) {
-  let code = fs.readFileSync(filepath, 'utf8');
-  
-  code = code.replace(/key=\{item\.id\}/g, 'key={item.id || index}');
-  code = code.replace(/key=\{rec\.id\}/g, 'key={rec.id || index}');
-  
-  fs.writeFileSync(filepath, code);
-  console.log("Fixed keys in " + filepath);
+function fixKeys(file, mapVar, idProp) {
+  let code = fs.readFileSync(file, 'utf8');
+  code = code.replace(
+    new RegExp(`\\{\\s*${mapVar}\\.map\\(\\s*\\([^)]+\\)\\s*=>\\s*\\(\\s*<motion\\.div`, 'g'),
+    `{${mapVar}.map((comm) => (\n              <motion.div key={comm.${idProp}}`
+  );
+  fs.writeFileSync(file, code);
 }
 
-fixFile('src/pages/CommitteesEvents.tsx');
-fixFile('src/pages/Events.tsx');
+fixKeys('src/pages/Committees.tsx', 'filteredCommittees', 'id');
+fixKeys('src/pages/CommitteesFormation.tsx', 'filteredCommittees', 'id');

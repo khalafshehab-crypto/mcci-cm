@@ -292,7 +292,7 @@ export default function Layout({ children }: LayoutProps) {
             
             <AnimatePresence>
               {activeDropdown === 'mainMenu' && (
-                <motion.div 
+                <motion.div key="main-menu" 
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 5 }}
@@ -326,7 +326,7 @@ export default function Layout({ children }: LayoutProps) {
                               
                               <AnimatePresence>
                                 {isExpanded && (
-                                  <motion.div 
+                                  <motion.div key="main-menu" 
                                     initial={{ height: 0, opacity: 0 }}
                                     animate={{ height: 'auto', opacity: 1 }}
                                     exit={{ height: 0, opacity: 0 }}

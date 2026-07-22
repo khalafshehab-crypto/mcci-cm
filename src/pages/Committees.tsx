@@ -795,7 +795,7 @@ export default function Committees() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <AnimatePresence mode="popLayout">
             {filteredCommittees.map((comm) => (
-              <motion.div
+              <motion.div key={comm.id}
                 layout
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}

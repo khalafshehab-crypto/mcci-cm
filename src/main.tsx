@@ -10,7 +10,7 @@ console.error = (...args) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        log: 'Duplicate key error: ' + args.join(' '),
+        log: 'Duplicate key error: ' + JSON.stringify(args),
         stack: new Error().stack
       })
     }).catch(()=> {
