@@ -981,14 +981,29 @@ ${t.description}
                       type="button"
                       onClick={() => {
                         setIsTemplateMenuOpen(false);
+                        setModalTab("import");
                         setIsAddOpen(true);
                       }}
                       className="w-full h-10 px-3 bg-white hover:bg-blue-50 text-gray-800 font-bold text-xs rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-right group"
                     >
                       <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100">
-                        <Plus className="w-3.5 h-3.5" />
+                        <Download className="w-3.5 h-3.5" />
                       </div>
-                      <span>استيراد وتصدير</span>
+                      <span>استيراد قالب</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsTemplateMenuOpen(false);
+                        setModalTab("export");
+                        setIsAddOpen(true);
+                      }}
+                      className="w-full h-10 px-3 bg-white hover:bg-blue-50 text-gray-800 font-bold text-xs rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-right group"
+                    >
+                      <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100">
+                        <Upload className="w-3.5 h-3.5" />
+                      </div>
+                      <span>تصدير قوالب</span>
                     </button>
                   </motion.div>
                 </div>
@@ -2300,45 +2315,45 @@ ${t.description}
               <div className="p-6 overflow-y-auto">
                 {aiGenStep === 1 && (
                   <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1.5">اختر اللجنة للربط والأرشفة</label>
-                      <select
-                        value={aiGenCommittee}
-                        onChange={(e) => setAiGenCommittee(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
-                      >
-                        <option value="">-- اختر اللجنة --</option>
-                        {committees.map((c, i) => (
-                          <option key={`${c.id}-${i}`} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1.5">نوع النموذج</label>
-                      <select
-                        value={aiGenTemplateType}
-                        onChange={(e) => setAiGenTemplateType(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
-                      >
-                        <option value="مستندات (Google Docs)">مستندات (Google Docs)</option>
-                        <option value="عروض تقديمية (Google Slides)">عروض تقديمية (Google Slides)</option>
-                        <option value="جداول بيانات (Google Sheets)">جداول بيانات (Google Sheets)</option>
-                        <option value="نماذج (Google Forms)">نماذج (Google Forms)</option>
-                        <option value="مواقع (Google Sites)">مواقع (Google Sites)</option>
-                        <option value="بريد إلكتروني (Gmail)">بريد إلكتروني (Gmail)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1.5">حالة الخطاب</label>
-                      <div className="flex gap-4">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="radio" name="aiGenMode" value="new" checked={aiGenMode === "new"} onChange={() => setAiGenMode("new")} className="text-emerald-600 focus:ring-emerald-500" />
-                          <span className="text-sm">جديد</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="radio" name="aiGenMode" value="reply" checked={aiGenMode === "reply"} onChange={() => setAiGenMode("reply")} className="text-emerald-600 focus:ring-emerald-500" />
-                          <span className="text-sm">رد</span>
-                        </label>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5">اختر اللجنة للربط والأرشفة</label>
+                        <select
+                          value={aiGenCommittee}
+                          onChange={(e) => setAiGenCommittee(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
+                        >
+                          <option value="">-- اختر اللجنة --</option>
+                          {committees.map((c, i) => (
+                            <option key={`${c.id}-${i}`} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5">نوع النموذج</label>
+                        <select
+                          value={aiGenTemplateType}
+                          onChange={(e) => setAiGenTemplateType(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
+                        >
+                          <option value="مستندات (Google Docs)">مستندات (Google Docs)</option>
+                          <option value="عروض تقديمية (Google Slides)">عروض تقديمية (Google Slides)</option>
+                          <option value="جداول بيانات (Google Sheets)">جداول بيانات (Google Sheets)</option>
+                          <option value="نماذج (Google Forms)">نماذج (Google Forms)</option>
+                          <option value="مواقع (Google Sites)">مواقع (Google Sites)</option>
+                          <option value="بريد إلكتروني (Gmail)">بريد إلكتروني (Gmail)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5">حالة النموذج</label>
+                        <select
+                          value={aiGenMode}
+                          onChange={(e) => setAiGenMode(e.target.value as "new" | "reply")}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
+                        >
+                          <option value="new">مستند جديد</option>
+                          <option value="reply">رد على مستند</option>
+                        </select>
                       </div>
                     </div>
                     <div className="flex justify-end pt-4">
@@ -2362,34 +2377,37 @@ ${t.description}
                   <div className="space-y-4">
                     {aiGenMode === "new" ? (
                       <>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div>
-                            <label className="block text-xs font-bold text-gray-700 mb-1.5">الصفة</label>
+                            <label className="block text-xs font-bold text-gray-700 mb-1.5 text-gray-400">الصفة</label>
                             <input
                               type="text"
                               value={aiGenRecipientPosition}
+                              placeholder="سعادة الأستاذ/"
                               onChange={(e) => setAiGenRecipientPosition(e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm placeholder:text-gray-300 placeholder:font-light"
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-bold text-gray-700 mb-1.5">الاسم</label>
+                            <label className="block text-xs font-bold text-gray-700 mb-1.5 text-gray-400">الاسم</label>
                             <input
                               type="text"
                               value={aiGenRecipientName}
+                              placeholder="يرجى كتابة الاسم الثلاثي"
                               onChange={(e) => setAiGenRecipientName(e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm placeholder:text-gray-300 placeholder:font-light"
                             />
                           </div>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-gray-700 mb-1.5">الديباجة</label>
-                          <input
-                            type="text"
-                            value={aiGenPreamble}
-                            onChange={(e) => setAiGenPreamble(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                          />
+                          <div>
+                            <label className="block text-xs font-bold text-gray-700 mb-1.5 text-gray-400">الديباجة</label>
+                            <input
+                              type="text"
+                              value={aiGenPreamble}
+                              placeholder="سلمه الله"
+                              onChange={(e) => setAiGenPreamble(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm placeholder:text-gray-300 placeholder:font-light"
+                            />
+                          </div>
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-gray-700 mb-1.5">موضوع الخطاب</label>
@@ -2417,10 +2435,11 @@ ${t.description}
                           >
                             <option value="">-- اختر ضابط الاتصال --</option>
                             {employees.map((emp, i) => (
-                              <option key={`${emp.id}-${i}`} value={emp.id}>{emp.name} ({emp.jobTitle})</option>
+                              <option key={`${emp.id}-${i}`} value={emp.id}>{emp.jobTitle} / {emp.name}</option>
                             ))}
+                            <option value="other">غير ذلك (كتابة يدوية)</option>
                           </select>
-                          {aiGenContact && employees.find(e => e.id === aiGenContact) && (
+                          {aiGenContact && aiGenContact !== "other" && employees.find(e => e.id === aiGenContact) && (
                             <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs space-y-1">
                               <p><span className="font-bold text-gray-600">المنصب:</span> {employees.find(e => e.id === aiGenContact)?.jobTitle}</p>
                               <p><span className="font-bold text-gray-600">الاسم:</span> {employees.find(e => e.id === aiGenContact)?.name}</p>
@@ -2428,15 +2447,34 @@ ${t.description}
                               <p><span className="font-bold text-gray-600">البريد الإلكتروني:</span> {employees.find(e => e.id === aiGenContact)?.email}</p>
                             </div>
                           )}
+                          {aiGenContact === "other" && (
+                            <div className="mt-2 grid grid-cols-2 gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                              <input type="text" placeholder="المنصب (مثال: مدير العلاقات)" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs" />
+                              <input type="text" placeholder="الاسم" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs" />
+                              <input type="text" placeholder="رقم الجوال" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs" />
+                              <input type="email" placeholder="البريد الإلكتروني" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs" />
+                            </div>
+                          )}
                         </div>
-                        <div>
-                          <label className="block text-xs font-bold text-gray-700 mb-1.5">المرفقات</label>
-                          <textarea
-                            value={aiGenAttachments}
-                            onChange={(e) => setAiGenAttachments(e.target.value)}
-                            placeholder="يمكنك كتابة روابط المرفقات أو أسمائها"
-                            className="w-full h-16 px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                          />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold text-gray-700 mb-1.5">إرفاق من الجهاز</label>
+                            <label className="flex items-center justify-center gap-2 w-full h-10 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-emerald-400 hover:bg-emerald-50 transition-colors">
+                               <Upload className="w-4 h-4 text-gray-400" />
+                               <span className="text-xs text-gray-500 font-bold">اختر ملفاً</span>
+                               <input type="file" className="hidden" />
+                            </label>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-gray-700 mb-1.5">إدراج رابط</label>
+                            <input
+                              type="url"
+                              value={aiGenAttachments}
+                              onChange={(e) => setAiGenAttachments(e.target.value)}
+                              placeholder="https://..."
+                              className="w-full h-10 px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                            />
+                          </div>
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-gray-700 mb-1.5">توقيع الخطاب</label>
@@ -2446,9 +2484,9 @@ ${t.description}
                             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                           >
                             <option value="">-- اختر الموقع --</option>
-                            {employees.map((emp, i) => (
-                              <option key={`${emp.id}-${i}`} value={emp.id}>{emp.name} ({emp.jobTitle})</option>
-                            ))}
+                            <option value="مدير الإدارة">مدير الإدارة</option>
+                            <option value="مساعد الأمين العام">مساعد الأمين العام</option>
+                            <option value="الأمين العام">الأمين العام</option>
                           </select>
                         </div>
                       </>
