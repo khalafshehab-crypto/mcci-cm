@@ -1,5 +1,5 @@
 import { showGlobalToast } from "../lib/toastUtils";
-import { createGoogleDoc, resolveDrivePath, moveDriveFile } from "../lib/googleApi";
+import { createGoogleDoc, resolveDrivePath, uploadFileToDriveByPath, moveDriveFile } from "../lib/googleApi";
 import React, { useState, useEffect, FormEvent } from "react";
 import { 
   BookOpen,
@@ -83,7 +83,11 @@ export default function CommitteesLibrary() {
       setTemplates(dbTemplates);
       setIsLoadingTemplates(false);
     });
-    return () => unsubscribe();
+    const qEmp = query(collection(db, "employees"));
+    const unsubEmp = onSnapshot(qEmp, (snap) => {
+      setEmployees(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return () => { unsubscribe(); unsubEmp(); };
   }, []);
 
   const fallbackTemplates: TemplateItem[] = [
@@ -267,6 +271,7 @@ export default function CommitteesLibrary() {
   const [aiGenDetails, setAiGenDetails] = useState("");
   const [aiGenContact, setAiGenContact] = useState("");
   const [aiGenAttachments, setAiGenAttachments] = useState("");
+  const [aiGenFileAttachment, setAiGenFileAttachment] = useState<File | null>(null);
   const [aiGenSignatory, setAiGenSignatory] = useState("");
   const [aiGenGeneratedText, setAiGenGeneratedText] = useState("");
   const [employees, setEmployees] = useState<any[]>([]);
@@ -385,6 +390,11 @@ export default function CommitteesLibrary() {
           const { documentId, documentUrl } = await createGoogleDoc(aiGenSubject || "خطاب جديد", aiGenGeneratedText);
           await moveDriveFile(documentId, folderId);
           finalCloudUrl = documentUrl;
+          
+          if (aiGenFileAttachment) {
+            const attachmentName = `مرفق خطاب ${aiGenSubject || "جديد"} ${committeeName}`;
+            await uploadFileToDriveByPath(aiGenFileAttachment, folderPath, attachmentName);
+          }
         } catch (apiError) {
           console.error("Google API Error:", apiError);
           alert("تعذر الحفظ في Google Drive. الرجاء التأكد من ربط Google Workspace. سيتم حفظ الخطاب في المكتبة الرقمية فقط.");
@@ -2465,10 +2475,14 @@ ${t.description}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-xs font-bold text-gray-700 mb-1.5">إرفاق من الجهاز</label>
-                            <label className="flex items-center justify-center gap-2 w-full h-10 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-emerald-400 hover:bg-emerald-50 transition-colors">
+                            <label className="flex items-center justify-center gap-2 w-full h-10 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-emerald-400 hover:bg-emerald-50 transition-colors relative overflow-hidden">
                                <Upload className="w-4 h-4 text-gray-400" />
-                               <span className="text-xs text-gray-500 font-bold">اختر ملفاً</span>
-                               <input type="file" className="hidden" />
+                               <span className="text-xs text-gray-500 font-bold truncate px-2">{aiGenFileAttachment ? aiGenFileAttachment.name : "اختر ملفاً"}</span>
+                               <input type="file" className="hidden" onChange={(e) => {
+                                 if (e.target.files && e.target.files[0]) {
+                                   setAiGenFileAttachment(e.target.files[0]);
+                                 }
+                               }} />
                             </label>
                           </div>
                           <div>
@@ -2490,9 +2504,10 @@ ${t.description}
                             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                           >
                             <option value="">-- اختر الموقع --</option>
-                            <option value="مدير الإدارة">مدير الإدارة</option>
-                            <option value="مساعد الأمين العام">مساعد الأمين العام</option>
-                            <option value="الأمين العام">الأمين العام</option>
+                            {employees.filter(emp => ["الأمين العام", "مساعد الأمين العام", "مدير الإدارة", "رئيس قسم", "أخصائي"].includes(emp.jobTitle) || emp.jobTitle).map((emp, i) => (
+                              <option key={`sig-${emp.id}-${i}`} value={emp.id}>{emp.jobTitle} / {emp.name}</option>
+                            ))}
+                            <option value="other">غير ذلك (كتابة يدوية)</option>
                           </select>
                         </div>
                       </>

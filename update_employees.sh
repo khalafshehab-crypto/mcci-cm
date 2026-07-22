@@ -1,0 +1,1 @@
+sed -i 's/setIsLoadingTemplates(false);/setIsLoadingTemplates(false);\n    });\n    const qEmp = query(collection(db, "employees"));\n    const unsubEmp = onSnapshot(qEmp, (snap) => {\n      setEmployees(snap.docs.map(d => ({ id: d.id, ...d.data() })));/g' src/pages/CommitteesLibrary.tsx
