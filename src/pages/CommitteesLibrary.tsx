@@ -348,7 +348,7 @@ export default function CommitteesLibrary() {
           mode: aiGenMode,
           replyContent: aiGenReplyContent,
           preamble: aiGenPreamble,
-          committeeName: committees.find(c => String(c.id) === String(aiGenCommittee))?.name || aiGenCommittee,
+          committeeName: aiGenCommittee === "all" ? "لجان الغرفة" : (committees.find(c => String(c.id) === String(aiGenCommittee))?.name || aiGenCommittee),
           recipientName: aiGenRecipientName,
           recipientPosition: aiGenRecipientPosition,
           subject: aiGenSubject,
@@ -377,45 +377,72 @@ export default function CommitteesLibrary() {
 
   const saveAIGeneratedLetter = async () => {
     try {
-      const selectedCommittee = committees.find(c => String(c.id) === String(aiGenCommittee));
-      const committeeName = selectedCommittee ? selectedCommittee.name : "اللجنة";
-      const finalType = aiGenTemplateType.includes("مستندات") ? "مستندات" : "خطاب ذكي";
-
-      let finalCloudUrl = "#";
-
-      if (finalType === "مستندات") {
-        try {
-          const folderPath = `تقرير اللجان للدورة الـ 22/اللجان المعتمدة/${committeeName}/الخطابات/مسودات`;
-          const folderId = await resolveDrivePath(folderPath);
-          const { documentId, documentUrl } = await createGoogleDoc(aiGenSubject || "خطاب جديد", aiGenGeneratedText);
-          await moveDriveFile(documentId, folderId);
-          finalCloudUrl = documentUrl;
-          
-          if (aiGenFileAttachment) {
-            const attachmentName = `مرفق خطاب ${aiGenSubject || "جديد"} ${committeeName}`;
-            await uploadFileToDriveByPath(aiGenFileAttachment, folderPath, attachmentName);
-          }
-        } catch (apiError) {
-          console.error("Google API Error:", apiError);
-          alert("تعذر الحفظ في Google Drive. الرجاء التأكد من ربط Google Workspace. سيتم حفظ الخطاب في المكتبة الرقمية فقط.");
+      const stored = localStorage.getItem("current_user");
+      let currentUser = null;
+      if (stored) currentUser = JSON.parse(stored);
+      
+      const creatorName = currentUser ? currentUser.name : "الأخصائي";
+      
+      const targetCommittees = [];
+      if (aiGenCommittee === "all") {
+        if (currentUser && currentUser.committees && currentUser.committees.length > 0) {
+          targetCommittees.push(...committees.filter(c => currentUser.committees.includes(c.id)));
+        } else {
+          targetCommittees.push(...committees);
         }
+      } else {
+        const selectedCommittee = committees.find(c => String(c.id) === String(aiGenCommittee));
+        if (selectedCommittee) targetCommittees.push(selectedCommittee);
       }
 
-      const newDoc = {
-        title: aiGenSubject || "خطاب جديد",
-        description: `مجلد خطابات - مجلد مسودات | لجنة: ${committeeName} | صادر إلى: ${aiGenRecipientName}`,
-        type: finalType,
-        creator: "الأخصائي",
-        cloudUrl: finalCloudUrl,
-        downloadUrl: finalCloudUrl,
-        lastUpdated: new Date().toISOString().split('T')[0],
-        isFavorite: false,
-        templateText: aiGenGeneratedText,
-        committeeId: aiGenCommittee || "",
-      };
+      if (targetCommittees.length === 0) {
+        alert("لم يتم العثور على لجان للحفظ فيها.");
+        return;
+      }
+
+      for (const committee of targetCommittees) {
+        const committeeName = committee.name;
+        const finalType = aiGenTemplateType.includes("مستندات") ? "مستندات" : "خطاب ذكي";
+
+        let finalCloudUrl = "#";
+
+        if (finalType === "مستندات") {
+          try {
+            const folderPath = `تقرير اللجان للدورة الـ 22/اللجان المعتمدة/${committeeName}/الخطابات/مسودات`;
+            const folderId = await resolveDrivePath(folderPath);
+            const { documentId, documentUrl } = await createGoogleDoc(aiGenSubject || "خطاب جديد", aiGenGeneratedText);
+            await moveDriveFile(documentId, folderId);
+            finalCloudUrl = documentUrl;
+            
+            if (aiGenFileAttachment) {
+              const attachmentName = `مرفق خطاب ${aiGenSubject || "جديد"} ${committeeName}`;
+              await uploadFileToDriveByPath(aiGenFileAttachment, folderPath, attachmentName);
+            }
+          } catch (apiError) {
+            console.error("Google API Error:", apiError);
+            if (targetCommittees.length === 1) {
+              alert("تعذر الحفظ في Google Drive. الرجاء التأكد من ربط Google Workspace. سيتم حفظ الخطاب في المكتبة الرقمية فقط.");
+            }
+          }
+        }
+
+        const newDoc = {
+          title: aiGenSubject || "خطاب جديد",
+          description: `مجلد خطابات - مجلد مسودات | لجنة: ${committeeName} | صادر إلى: ${aiGenRecipientName}`,
+          type: finalType,
+          creator: creatorName,
+          cloudUrl: finalCloudUrl,
+          downloadUrl: finalCloudUrl,
+          lastUpdated: new Date().toISOString().split('T')[0],
+          isFavorite: false,
+          templateText: aiGenGeneratedText,
+          committeeId: committee.id || "",
+        };
+        
+        await addDoc(collection(db, "templates"), newDoc);
+      }
       
-      await addDoc(collection(db, "templates"), newDoc);
-      alert(finalCloudUrl !== "#" ? "تم حفظ الخطاب بنجاح في المكتبة الرقمية وفي Google Drive." : "تم حفظ الخطاب بنجاح في المكتبة الرقمية.");
+      alert(targetCommittees.length > 1 ? `تم حفظ الخطاب بنجاح لعدد ${targetCommittees.length} من اللجان.` : "تم حفظ الخطاب بنجاح.");
       setIsAIGenOpen(false);
     } catch (e) {
       console.error(e);
@@ -2333,19 +2360,6 @@ ${t.description}
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5">اختر اللجنة للربط والأرشفة</label>
-                        <select
-                          value={aiGenCommittee}
-                          onChange={(e) => setAiGenCommittee(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
-                        >
-                          <option value="">-- اختر اللجنة --</option>
-                          {committees.map((c, i) => (
-                            <option key={`${c.id}-${i}`} value={c.id}>{c.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
                         <label className="block text-xs font-bold text-gray-700 mb-1.5">نوع النموذج</label>
                         <select
                           value={aiGenTemplateType}
@@ -2369,6 +2383,20 @@ ${t.description}
                         >
                           <option value="new">مستند جديد</option>
                           <option value="reply">رد على مستند</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5">اختر اللجنة للربط والأرشفة</label>
+                        <select
+                          value={aiGenCommittee}
+                          onChange={(e) => setAiGenCommittee(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
+                        >
+                          <option value="">-- اختر اللجنة --</option>
+                          <option value="all">جميع اللجان</option>
+                          {committees.map((c, i) => (
+                            <option key={`${c.id}-${i}`} value={c.id}>{c.name}</option>
+                          ))}
                         </select>
                       </div>
                     </div>
