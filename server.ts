@@ -321,27 +321,6 @@ ${text}`;
   });
 
 
-  app.post("/api/google-proxy", async (req, res) => {
-    try {
-      const { url, method, headers, bodyString } = req.body;
-      if (!url) return res.status(400).json({ error: "URL is required" });
-      
-      const response = await fetch(url, {
-        method: method || "GET",
-        headers: headers || {},
-        body: bodyString || undefined
-      });
-      
-      const data = await response.text();
-      res.status(response.status).send(data);
-    } catch (err) {
-      console.error("Google Proxy Error:", err);
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // API health check
-
   app.post("/api/fetch-public-sheet", async (req, res) => {
     try {
       const { url } = req.body;

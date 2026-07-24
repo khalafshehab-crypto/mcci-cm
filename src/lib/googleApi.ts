@@ -179,20 +179,15 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
     url = `https://chat.googleapis.com/${endpoint.substring(5)}`;
   }
 
-  const reqHeaders = {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${token}`,
-    ...options.headers,
-  };
-
   const response = await fetch("/api/google-proxy", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      token,
       url,
       method: options.method || "GET",
-      headers: reqHeaders,
-      bodyString: options.body
+      headers: { ...options.headers },
+      body: options.body
     })
   });
 
@@ -208,13 +203,11 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              token: newAccessToken,
               url,
               method: options.method || "GET",
-              headers: {
-                ...reqHeaders,
-                "Authorization": `Bearer ${newAccessToken}`,
-              },
-              bodyString: options.body
+              headers: { ...options.headers },
+              body: options.body
             })
           });
           if (retryResponse.status === 204) return null;
@@ -225,111 +218,39 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
         throw new Error("Google Workspace Session Expired. Please log in again.");
       }
     }
-    const errText = await response.text();
-    throw new Error(`Google API Error (${response.status}): ${errText}`);
+    const errObj = await response.json().catch(() => ({}));
+    throw new Error(`Google API Error (${response.status}): ${errObj?.error?.message || response.statusText}`);
   }
   if (response.status === 204) return null;
   return response.json();
 }
 
-/**
- * 1. GOOGLE DRIVE SERVICES
- */
+
 export async function listDriveFiles(q: string = ""): Promise<any[]> {
-  const queryParam = q ? `q=${encodeURIComponent(q)}` : "";
-  const data = await fetchGoogleAPI(`drive/v3/files?${queryParam}&includeItemsFromAllDrives=true&supportsAllDrives=true&fields=files(id,name,mimeType,webViewLink,iconLink)`);
+  const endpoint = q ? `drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)` : "drive/v3/files";
+  const data = await fetchGoogleAPI(endpoint);
   return data.files || [];
 }
 
 export async function createDriveFolder(name: string, parentId?: string): Promise<{ id: string; name: string }> {
-  const body: any = {
+  const metadata: any = {
     name,
-    mimeType: "application/vnd.google-apps.folder",
+    mimeType: "application/vnd.google-apps.folder"
   };
-  if (parentId) {
-    body.parents = [parentId];
-  }
-  return fetchGoogleAPI("drive/v3/files?supportsAllDrives=true", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-}
-
-// Upload file directly into details folder
-export async function uploadFileToDrive(name: string, content: string, mimeType: string = "text/plain", parentId?: string): Promise<any> {
-  const token = await getSharedAccessToken();
-  if (!token) throw new Error("No Google token found");
-
-  const metadata: any = { name };
   if (parentId) {
     metadata.parents = [parentId];
   }
-
-  const boundary = "boundary_workspace_integration_mcci";
-  const multipartBody = 
-    `--${boundary}\r\n` +
-    `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
-    `${JSON.stringify(metadata)}\r\n` +
-    `--${boundary}\r\n` +
-    `Content-Type: ${mimeType}\r\n\r\n` +
-    `${content}\r\n` +
-    `--${boundary}--`;
-
-    const response = await fetch("/api/google-proxy", {
+  const folder = await fetchGoogleAPI("drive/v3/files", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": `multipart/related; boundary=${boundary}`,
-      },
-      bodyString: multipartBody
-    })
+    body: JSON.stringify(metadata),
   });
-
-  if (!response.ok) {
-    if (response.status === 401) {
-      console.warn("Google API 401: Token expired. Attempting silent refresh...");
-      try {
-        console.warn("Google API 401: Pausing and requesting user to re-authenticate via UI...");
-        const newAccessToken = await triggerAuthModal();
-        if (newAccessToken) {
-          setCachedAccessToken(newAccessToken);
-          // Retry
-          const retryResponse = await fetch("/api/google-proxy", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${newAccessToken}`,
-                "Content-Type": `multipart/related; boundary=${boundary}`,
-              },
-              bodyString: multipartBody
-            })
-          });
-          return retryResponse.json();
-        }
-      } catch (e) {
-        console.error("User rejected re-auth", e);
-        throw new Error("Google Workspace Session Expired. Please log in again.");
-      }
-    }
-    const errText = await response.text();
-    throw new Error(`Google API Error (${response.status}): ${errText}`);
-  }
-
-  return response.json();
+  return { id: folder.id, name: folder.name };
 }
 
-/**
- * 2. GOOGLE SHEETS SERVICES
- */
-
-// Upload binary file directly into details folder (e.g. images, pdfs)
+export async function uploadFileToDrive(name: string, content: string, mimeType: string = "text/plain", parentId?: string): Promise<any> {
+  const base64Content = btoa(unescape(encodeURIComponent(content)));
+  return uploadBinaryFileToDrive(name, base64Content, mimeType, parentId);
+}
 
 export async function getOrCreateFolder(name: string, parentId?: string): Promise<string> {
   const safeName = name.replace(/'/g, "\\'");
@@ -347,6 +268,15 @@ export async function getOrCreateFolder(name: string, parentId?: string): Promis
   const folder = await createDriveFolder(name, parentId);
   return folder.id;
 }
+
+
+/**
+ * 2. GOOGLE SHEETS SERVICES
+ */
+
+// Upload binary file directly into details folder (e.g. images, pdfs)
+
+
 
 export async function uploadBinaryFileToDrive(name: string, base64Content: string, mimeType: string, parentId?: string): Promise<any> {
   const token = await getSharedAccessToken();
@@ -367,14 +297,19 @@ export async function uploadBinaryFileToDrive(name: string, base64Content: strin
     `Content-Transfer-Encoding: base64\r\n\r\n` +
     `${base64Content}\r\n` +
     `--${boundary}--`;
-
-    const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
+    
+  const response = await fetch("/api/google-proxy", {
     method: "POST",
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": `multipart/related; boundary=${boundary}`,
-    },
-    body: multipartBody
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      token,
+      url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
+      method: "POST",
+      headers: {
+        "Content-Type": `multipart/related; boundary=${boundary}`,
+      },
+      body: multipartBody
+    })
   });
 
   if (!response.ok) {
@@ -386,13 +321,18 @@ export async function uploadBinaryFileToDrive(name: string, base64Content: strin
         if (newAccessToken) {
           setCachedAccessToken(newAccessToken);
           // Retry
-          const retryResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
+          const retryResponse = await fetch("/api/google-proxy", {
             method: "POST",
-            headers: {
-              "Authorization": `Bearer ${newAccessToken}`,
-              "Content-Type": `multipart/related; boundary=${boundary}`,
-            },
-            body: multipartBody
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              token: newAccessToken,
+              url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
+              method: "POST",
+              headers: {
+                "Content-Type": `multipart/related; boundary=${boundary}`,
+              },
+              body: multipartBody
+            })
           });
           return retryResponse.json();
         }
@@ -401,8 +341,8 @@ export async function uploadBinaryFileToDrive(name: string, base64Content: strin
         throw new Error("Google Workspace Session Expired. Please log in again.");
       }
     }
-    const errText = await response.text();
-    throw new Error(`Google API Error (${response.status}): ${errText}`);
+    const errObj = await response.json().catch(() => ({}));
+    throw new Error(`Google API Error (${response.status}): ${errObj?.error?.message || response.statusText}`);
   }
 
   return response.json();
@@ -466,13 +406,16 @@ export async function sendGmailMessage(to: string, subject: string, bodyHtml: st
     throw new Error("Authentication required: No active Google Workspace connection.");
   }
 
-  const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+  const response = await fetch("/api/google-proxy", {
     method: "POST",
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ raw })
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      token,
+      url: "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ raw })
+    })
   });
 
   if (!response.ok) {
@@ -484,13 +427,16 @@ export async function sendGmailMessage(to: string, subject: string, bodyHtml: st
         if (newAccessToken) {
           setCachedAccessToken(newAccessToken);
           // Retry
-          const retryResponse = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+          const retryResponse = await fetch("/api/google-proxy", {
             method: "POST",
-            headers: {
-              "Authorization": `Bearer ${newAccessToken}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ raw })
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              token: newAccessToken,
+              url: "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ raw })
+            })
           });
           return retryResponse.json();
         }
@@ -499,8 +445,8 @@ export async function sendGmailMessage(to: string, subject: string, bodyHtml: st
         throw new Error("Google Workspace Session Expired. Please log in again.");
       }
     }
-    const errText = await response.text();
-    throw new Error(`Google API Error (${response.status}): ${errText}`);
+    const errObj = await response.json().catch(() => ({}));
+    throw new Error(`Google API Error (${response.status}): ${errObj?.error?.message || response.statusText}`);
   }
 
   return response.json();
