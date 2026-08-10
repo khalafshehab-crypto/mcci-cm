@@ -376,6 +376,7 @@ ${replyFileBase64 ? 'لقد تم إرفاق ملف المعاملة الوارد
           replyFileBase64,
           replyFileMimeType,
           committeeName: commName,
+          workspaceService,
           recipientName: aiGenRecipientName,
           recipientPosition: aiGenRecipientPosition,
           subject: aiGenSubject,
@@ -429,7 +430,7 @@ ${replyFileBase64 ? 'لقد تم إرفاق ملف المعاملة الوارد
 
       for (const committee of targetCommittees) {
         const committeeName = committee.name;
-        const finalType = aiGenTemplateType.includes("مستندات") ? "مستندات" : "خطاب ذكي";
+        const finalType = aiGenTemplateType.replace(/\s*\(.*\)/, "").trim();
 
         let finalCloudUrl = "#";
 
@@ -1867,7 +1868,7 @@ ${t.description}
                     <Sparkles className="w-6 h-6" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-gray-900">صياغة الخطابات بالذكاء الاصطناعي</h2>
+                    <h2 className="text-xl font-black text-gray-900">إنشاء نموذج مخصص للمهام</h2>
                     <p className="text-gray-500 text-sm font-medium mt-1">
                       الخطوة {aiGenStep} من 3
                     </p>
@@ -1959,10 +1960,7 @@ ${t.description}
                     <div className="flex justify-end">
                       <button
                         onClick={() => {
-                          if (workspaceService !== "docs") {
-                            showGlobalToast("سيتم برمجة هذا المسار لاحقاً بناءً على طبيعة عمل الخدمة", "success");
-                            return;
-                          }
+
                           if (!aiGenCommittee) {
                              showGlobalToast("الرجاء اختيار اللجنة للربط والأرشفة", "error");
                              return;
@@ -1985,8 +1983,9 @@ ${t.description}
                         <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
                           <h3 className="font-bold text-gray-800 border-b border-gray-100 pb-3 flex items-center gap-2">
                             <Plus className="w-4 h-4 text-emerald-600" />
-                            بيانات الخطاب الجديد
+                            {(workspaceService === 'docs' || workspaceService === 'gmail') ? 'بيانات الخطاب الجديد' : 'بيانات النموذج الجديد'}
                           </h3>
+                          {(workspaceService === 'docs' || workspaceService === 'gmail') && (
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div>
                               <label className="block text-xs font-bold text-gray-600 mb-1.5">صفة الموجه إليه</label>
@@ -2019,8 +2018,9 @@ ${t.description}
                               />
                             </div>
                           </div>
+                          )}
                           <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1.5">موضوع الخطاب الرئيسي</label>
+                            <label className="block text-xs font-bold text-gray-600 mb-1.5">{(workspaceService === 'docs' || workspaceService === 'gmail') ? 'موضوع الخطاب الرئيسي' : 'عنوان الموضوع الرئيسي'}</label>
                             <input
                               type="text"
                               value={aiGenSubject}
@@ -2036,7 +2036,7 @@ ${t.description}
                               النقاط التوضيحية (التعليمات لـ Gemini)
                             </h4>
                             <label className="block text-xs font-bold text-emerald-700 mb-2 opacity-80">
-                              اكتب النقاط التي تريد أن يتضمنها الخطاب باختصار وسيقوم النظام بصياغتها بلغة مؤسسية.
+                              اكتب النقاط التي تريد أن يتضمنها {(workspaceService === 'docs' || workspaceService === 'gmail') ? 'الخطاب' : 'النموذج'} باختصار وسيقوم النظام بصياغتها بلغة مؤسسية.
                             </label>
                             <textarea
                               value={aiGenDetails}
