@@ -814,7 +814,7 @@ ${formattedItems}
     const newEventsList: EventItem[] = selectedGen.map((gen, idx) => ({
       id: Date.now() + idx, // unique ID
       title: gen.title,
-      type: "م مفردة",
+      type: "متسلسلة",
       date: gen.date,
       time: gen.time,
       committeeId: newCommitteeId,
@@ -825,8 +825,6 @@ ${formattedItems}
       members: newMembers,
       notes: newNotes,
     }));
-    // fix previously set wrong type
-    newEventsList.forEach(e => e.type = "مفردة");
 
     setEvents([...newEventsList, ...events]);
     setIsConfirmingSeries(false);
@@ -3098,7 +3096,7 @@ ${formattedItems}
                       
                       {newType === "مفردة" && (
                         
-<div key="filter-popover-1784704070979-9">
+<div key="filter-popover-1784704070979-9" className="contents">
                           {/* Row 1 */}
                           <div className="space-y-1">
                             <label className="text-[11px] font-black text-gray-500 block">اللجنة *</label>
@@ -3229,7 +3227,7 @@ ${formattedItems}
 
                       {newType === "متسلسلة" && (
                         
-<div key="filter-popover-1784704070979-10">
+<div key="filter-popover-1784704070979-10" className="contents">
                           {/* Row 1 */}
                           <div className="space-y-1">
                             <label className="text-[11px] font-black text-gray-500 block">النوع *</label>

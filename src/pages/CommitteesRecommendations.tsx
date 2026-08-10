@@ -3744,7 +3744,7 @@ ${itemTitleFull} .
                       
                       {newType === "مفردة" && (
                         
-<div key="filter-popover-1784704070975-7">
+<div key="filter-popover-fixed" className="contents">
                           <div className="space-y-1">
                             <label className="text-[11px] font-black text-gray-500 block">اللجنة *</label>
                             <select

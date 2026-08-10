@@ -840,7 +840,7 @@ ${formattedItems}
     const newEventsList: EventItem[] = selectedGen.map((gen, idx) => ({
       id: Date.now() + idx, // unique ID
       title: gen.title,
-      type: "م مفردة",
+      type: "متسلسلة",
       date: gen.date,
       time: gen.time,
       committeeId: newCommitteeId,
@@ -851,8 +851,6 @@ ${formattedItems}
       members: newMembers,
       notes: newNotes,
     }));
-    // fix previously set wrong type
-    newEventsList.forEach(e => e.type = "مفردة");
 
     setEvents([...newEventsList, ...events]);
     setIsConfirmingSeries(false);

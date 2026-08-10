@@ -3208,7 +3208,7 @@ const generatedProposal = evt.description || evt.recommendationText || evt.notes
                       
                       {newType === "مفردة" && (
                         
-<div key="filter-popover-1784704070989-6">
+<div key="filter-popover-fixed" className="contents">
                           <div className="space-y-1">
                             <label className="text-[11px] font-black text-gray-500 block">اللجنة *</label>
                             <select
