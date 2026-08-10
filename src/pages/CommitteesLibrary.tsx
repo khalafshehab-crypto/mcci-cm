@@ -1896,6 +1896,9 @@ ${t.description}
                              onChange={e => {
                                setWorkspaceService(e.target.value);
                                const val = e.target.value;
+                               if (val !== "docs" && val !== "gmail") {
+                                 setAiGenMode("new");
+                               }
                                if(val === "docs") setAiGenTemplateType("مستندات (Google Docs)");
                                else if(val === "slides") setAiGenTemplateType("عروض تقديمية (Google Slides)");
                                else if(val === "sheets") setAiGenTemplateType("جداول بيانات (Google Sheets)");
@@ -1927,8 +1930,33 @@ ${t.description}
                              onChange={e => setAiGenMode(e.target.value as any)}
                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-sm"
                            >
-                             <option value="new">إنشاء خطاب جديد</option>
-                             <option value="reply">رد على خطاب وارد</option>
+                             {workspaceService === "docs" ? (
+                               <>
+                                 <option value="new">إنشاء خطاب/مستند جديد</option>
+                                 <option value="reply">رد على خطاب/مستند وارد</option>
+                               </>
+                             ) : workspaceService === "slides" ? (
+                               <option value="new">إنشاء عرض تقديمي جديد</option>
+                             ) : workspaceService === "sheets" ? (
+                               <option value="new">إنشاء جدول بيانات جديد</option>
+                             ) : workspaceService === "gmail" ? (
+                               <>
+                                 <option value="new">إنشاء بريد إلكتروني جديد</option>
+                                 <option value="reply">رد على بريد إلكتروني</option>
+                               </>
+                             ) : workspaceService === "tasks" ? (
+                               <option value="new">إنشاء مهمة جديدة</option>
+                             ) : workspaceService === "calendar" ? (
+                               <option value="new">إنشاء حدث جديد في التقويم</option>
+                             ) : workspaceService === "chat" ? (
+                               <option value="new">إنشاء رسالة محادثة جديدة</option>
+                             ) : workspaceService === "meet" ? (
+                               <option value="new">إنشاء رابط اجتماع جديد</option>
+                             ) : workspaceService === "forms" ? (
+                               <option value="new">إنشاء نموذج جديد</option>
+                             ) : (
+                               <option value="new">إنشاء نموذج جديد</option>
+                             )}
                            </select>
                         </div>
 
@@ -2189,12 +2217,15 @@ ${t.description}
                       </button>
                     </div>
                     
-                    <div className="flex-1 bg-white border border-gray-200 shadow-inner rounded-xl overflow-hidden relative min-h-[500px]">
-                      <textarea
-                        value={aiGenGeneratedText}
-                        onChange={(e) => setAiGenGeneratedText(e.target.value)}
-                        className="w-full h-full p-8 text-sm leading-loose text-justify font-sans focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none"
-                      />
+                    <div className="flex-1 bg-gray-200/80 p-4 sm:p-8 rounded-xl overflow-y-auto flex justify-center h-[70vh]">
+                      <div className="bg-white shadow-xl border border-gray-300 w-full max-w-[21cm] min-h-[29.7cm] flex flex-col mx-auto shrink-0 transition-all">
+                        <textarea
+                          value={aiGenGeneratedText}
+                          onChange={(e) => setAiGenGeneratedText(e.target.value)}
+                          className="flex-1 w-full h-full p-12 sm:p-16 text-[16px] leading-[2.2] text-justify font-sans focus:outline-none resize-none bg-transparent placeholder-gray-300"
+                          style={{ whiteSpace: 'pre-wrap' }}
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
