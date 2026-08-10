@@ -3111,7 +3111,7 @@ ${formattedItems}
                       
                       {newType === "مفردة" && (
                         
-<div key="filter-popover-1784704070964-9">
+<div key="filter-popover-1784704070964-9" className="contents">
                           {/* Row 1 */}
                           <div className="space-y-1">
                             <label className="text-[11px] font-black text-gray-500 block">اللجنة *</label>
@@ -3242,7 +3242,7 @@ ${formattedItems}
 
                       {newType === "متسلسلة" && (
                         
-<div key="filter-popover-1784704070964-10">
+<div key="filter-popover-1784704070964-10" className="contents">
                           {/* Row 1 */}
                           <div className="space-y-1">
                             <label className="text-[11px] font-black text-gray-500 block">النوع *</label>
