@@ -1,3 +1,4 @@
+import { DriveImage } from "../components/DriveImage";
 import React, { useState, useEffect, FormEvent, ChangeEvent, DragEvent, useRef } from "react";
 import * as XLSX from "xlsx";
 import { motion, AnimatePresence } from "motion/react";
@@ -868,6 +869,41 @@ export default function CommitteesMembers() {
     return (parts[0][0] || "ع").toUpperCase();
   };
 
+  const renderAvatar = (name: string, photo?: string, className: string = "w-12 h-12 rounded-2xl") => {
+    let driveFileId = "";
+    if (photo && photo.includes("drive.google.com/file/d/")) {
+      const match = photo.match(/d\/([a-zA-Z0-9_-]+)/);
+      if (match && match[1]) {
+        driveFileId = match[1];
+      }
+    }
+    
+    const fallbackClass = `${className} bg-gradient-to-br from-brand/90 to-[#4ea0b0]/90 text-white flex items-center justify-center font-black text-sm tracking-wide shadow-md shadow-brand/15 group-hover:scale-105 transition-transform`;
+    
+    if (driveFileId) {
+      return (
+        <DriveImage 
+          fileId={driveFileId}
+          className={`${className} overflow-hidden object-cover shadow-md shadow-brand/15 group-hover:scale-105 transition-transform`}
+          fallbackClassName={fallbackClass}
+          fallbackInitials={getMemberInitials(name)}
+        />
+      );
+    } else if (photo) {
+      return (
+        <div className={`${className} overflow-hidden bg-gray-100 flex items-center justify-center shrink-0 shadow-md shadow-brand/15 group-hover:scale-105 transition-transform`}>
+          <img src={photo} referrerPolicy="no-referrer" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; const parent = e.currentTarget.parentElement; if(parent) { parent.innerHTML = `<span class="text-white font-black text-sm drop-shadow-sm">${getMemberInitials(name)}</span>`; parent.className = fallbackClass; } }} />
+        </div>
+      );
+    }
+    
+    return (
+      <div className={fallbackClass}>
+        {getMemberInitials(name)}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 pb-16">
       
@@ -1211,9 +1247,7 @@ export default function CommitteesMembers() {
               {/* Card top banner with initials avatar & status badge */}
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand/90 to-[#4ea0b0]/90 text-white flex items-center justify-center font-black text-sm tracking-wide shadow-md shadow-brand/15 group-hover:scale-105 transition-transform">
-                    {getMemberInitials(m.name)}
-                  </div>
+                  {renderAvatar(m.name, m.personalPhoto, "w-12 h-12 rounded-2xl")}
                   <div className="text-right">
                     <h3 
                       onClick={() => setDetailsMember(m)}
@@ -1432,6 +1466,7 @@ export default function CommitteesMembers() {
                         title="عرض الملف التفصيلي"
                       >
                         <div className="flex items-center gap-2.5">
+                          {renderAvatar(m.name, m.personalPhoto, "w-8 h-8 rounded-lg")}
                           <div className="flex flex-col text-right">
                             <span className="text-xs font-black text-gray-900 leading-tight transition-colors group-hover/row:text-brand underline decoration-dotted decoration-brand/45 underline-offset-4">
                               {getMemberFullName(m)}
@@ -2447,9 +2482,7 @@ export default function CommitteesMembers() {
               {/* Header profile panel */}
               <div className="bg-[#e8e4e4] p-6 border-b border-gray-200 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand to-[#4ea0b0] text-white flex items-center justify-center font-black text-lg shadow-lg shadow-brand/20">
-                    {getMemberInitials(detailsMember.name)}
-                  </div>
+                  {renderAvatar(detailsMember.name, detailsMember.personalPhoto, "w-14 h-14 rounded-2xl shadow-lg shadow-brand/20")}
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-extrabold text-gray-900 text-sm leading-tight md:text-base">
@@ -2599,7 +2632,7 @@ export default function CommitteesMembers() {
                       {detailsMember.cv ? (
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">{detailsMember.cv}</span>
-                          <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">تحميل السجل</span>
+                          <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">عرض</span>
                         </div>
                       ) : (
                         <span className="text-[10px] text-rose-800 font-extrabold bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-full">غير مرفق</span>
@@ -2612,7 +2645,7 @@ export default function CommitteesMembers() {
                       {detailsMember.commercialRegister ? (
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">{detailsMember.commercialRegister}</span>
-                          <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">تحميل السجل</span>
+                          <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">عرض</span>
                         </div>
                       ) : (
                         <span className="text-[10px] text-rose-800 font-extrabold bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-full">غير مرفق</span>
@@ -2625,7 +2658,7 @@ export default function CommitteesMembers() {
                       {detailsMember.membershipCertificate ? (
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">{detailsMember.membershipCertificate}</span>
-                          <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">عرض المستند</span>
+                          <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">عرض</span>
                         </div>
                       ) : (
                         <span className="text-[10px] text-rose-800 font-extrabold bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-full">غير مرفق</span>
@@ -2638,7 +2671,7 @@ export default function CommitteesMembers() {
                       {detailsMember.authorization ? (
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">{detailsMember.authorization}</span>
-                          <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">عرض المستند</span>
+                          <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">عرض</span>
                         </div>
                       ) : (
                         <span className="text-[10px] text-rose-800 font-extrabold bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-full">غير مرفق</span>

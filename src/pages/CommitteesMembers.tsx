@@ -1,6 +1,7 @@
 import { mergeDuplicateMembers } from './mergeDuplicates';
 import { getSharedAccessToken, getCachedAccessToken, getOrCreateFolder, uploadBinaryFileToDrive, subscribeToAccessToken, triggerAuthModal } from "../lib/googleApi";
 import { showGlobalToast, clearGlobalToast } from "../lib/toastUtils";
+import { DriveImage } from "../components/DriveImage";
 import React, { useState, useEffect, FormEvent, ChangeEvent, DragEvent, useRef } from "react";
 import * as XLSX from "xlsx";
 import { motion, AnimatePresence } from "motion/react";
@@ -972,26 +973,25 @@ export default function CommitteesMembers() {
       }
     }
 
+    const readFileAsDataURL = (file: File): Promise<string> => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    };
+
     if (token) {
       try {
-        const readFileAsBase64 = (file: File): Promise<string> => {
-          return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              const result = reader.result as string;
-              resolve(result.split(',')[1] || "");
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-        };
 
         const uploadAttachment = async (file: File | string | null, label: string) => {
           if (file && typeof file === "object" && "name" in file) {
             const ext = (file as any).name.split('.').pop();
             const fileName = `${label} لـ ${name.trim()}.${ext}`;
-            const base64 = await readFileAsBase64(file as any);
-            const res = await uploadBinaryFileToDrive(fileName, base64 as string, (file as any).type || "application/octet-stream", memberFolderId);
+            const dataURL = await readFileAsDataURL(file as any);
+            const base64Content = dataURL.split(',')[1] || "";
+            const res = await uploadBinaryFileToDrive(fileName, base64Content, (file as any).type || "application/octet-stream", memberFolderId);
             return res && res.id ? `https://drive.google.com/file/d/${res.id}/view` : fileName;
           }
           return typeof file === "string" ? file : "";
@@ -1020,7 +1020,10 @@ export default function CommitteesMembers() {
         return; // Stop saving to Firestore if Drive upload fails
       }
     } else {
-      if (personalPhoto && typeof personalPhoto === "object" && "name" in personalPhoto) finalPersonalPhoto = (personalPhoto as any).name;
+      if (personalPhoto && typeof personalPhoto === "object" && "name" in personalPhoto) {
+        // Read as Data URL so it can be displayed in UI directly as img src without Google Drive
+        finalPersonalPhoto = await readFileAsDataURL(personalPhoto as any);
+      }
       if (cv && typeof cv === "object" && "name" in cv) finalCv = (cv as any).name;
       if (commercialRegister && typeof commercialRegister === "object" && "name" in commercialRegister) finalCommercialRegister = (commercialRegister as any).name;
       if (membershipCertificate && typeof membershipCertificate === "object" && "name" in membershipCertificate) finalMembershipCertificate = (membershipCertificate as any).name;
@@ -1039,8 +1042,8 @@ export default function CommitteesMembers() {
             role: role,
             committeeId: selectedCommitteeId,
             committeeName: matchedComm.name,
-            secondaryCommitteeId: secondaryCommitteeId && String(secondaryCommitteeId) !== "0" ? secondaryCommitteeId : undefined,
-            secondaryCommitteeName: matchedSecondaryComm ? matchedSecondaryComm.name : undefined,
+            secondaryCommitteeId: secondaryCommitteeId && String(secondaryCommitteeId) !== "0" ? secondaryCommitteeId : "",
+            secondaryCommitteeName: matchedSecondaryComm ? matchedSecondaryComm.name : "",
             joiningMechanism: joiningMechanism,
             govAgency: joiningMechanism === "ممثل لجهة حكومية" ? govAgency.trim() : "",
             entity: calculatedEntity,
@@ -1076,8 +1079,8 @@ export default function CommitteesMembers() {
         role: role,
         committeeId: selectedCommitteeId,
         committeeName: matchedComm.name,
-        secondaryCommitteeId: secondaryCommitteeId && String(secondaryCommitteeId) !== "0" ? secondaryCommitteeId : undefined,
-        secondaryCommitteeName: matchedSecondaryComm ? matchedSecondaryComm.name : undefined,
+        secondaryCommitteeId: secondaryCommitteeId && String(secondaryCommitteeId) !== "0" ? secondaryCommitteeId : "",
+        secondaryCommitteeName: matchedSecondaryComm ? matchedSecondaryComm.name : "",
         joiningMechanism: joiningMechanism,
         govAgency: joiningMechanism === "ممثل لجهة حكومية" ? govAgency.trim() : "",
         entity: calculatedEntity,
@@ -1210,6 +1213,41 @@ export default function CommitteesMembers() {
       return (parts[0][0] + (parts[1][0] || "")).toUpperCase();
     }
     return (parts[0][0] || "ع").toUpperCase();
+  };
+
+  const renderAvatar = (name: string, photo?: string, className: string = "w-12 h-12 rounded-2xl") => {
+    let driveFileId = "";
+    if (photo && photo.includes("drive.google.com/file/d/")) {
+      const match = photo.match(/d\/([a-zA-Z0-9_-]+)/);
+      if (match && match[1]) {
+        driveFileId = match[1];
+      }
+    }
+    
+    const fallbackClass = `${className} bg-gradient-to-br from-brand/90 to-[#4ea0b0]/90 text-white flex items-center justify-center font-black text-sm tracking-wide shadow-md shadow-brand/15 group-hover:scale-105 transition-transform`;
+    
+    if (driveFileId) {
+      return (
+        <DriveImage 
+          fileId={driveFileId}
+          className={`${className} overflow-hidden object-cover shadow-md shadow-brand/15 group-hover:scale-105 transition-transform`}
+          fallbackClassName={fallbackClass}
+          fallbackInitials={getMemberInitials(name)}
+        />
+      );
+    } else if (photo) {
+      return (
+        <div className={`${className} overflow-hidden bg-gray-100 flex items-center justify-center shrink-0 shadow-md shadow-brand/15 group-hover:scale-105 transition-transform`}>
+          <img src={photo} referrerPolicy="no-referrer" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; const parent = e.currentTarget.parentElement; if(parent) { parent.innerHTML = `<span class="text-white font-black text-sm drop-shadow-sm">${getMemberInitials(name)}</span>`; parent.className = fallbackClass; } }} />
+        </div>
+      );
+    }
+    
+    return (
+      <div className={fallbackClass}>
+        {getMemberInitials(name)}
+      </div>
+    );
   };
 
   
@@ -1643,14 +1681,12 @@ export default function CommitteesMembers() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.25 }}
-              className="bg-[#e8e4e4] hover:bg-[#e2dede] hover:shadow-lg rounded-3xl p-5 border border-gray-200 relative flex flex-col justify-between transition-all group duration-300 min-h-[300px]"
+              className="bg-white border-2 border-slate-100 hover:border-[#dfba6b]/60 hover:shadow-lg transition-all duration-300 rounded-3xl p-6 relative group flex flex-col justify-between space-y-4 min-h-[300px]"
             >
               {/* Card top banner with initials avatar & status badge */}
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand/90 to-[#4ea0b0]/90 text-white flex items-center justify-center font-black text-sm tracking-wide shadow-md shadow-brand/15 group-hover:scale-105 transition-transform">
-                    {getMemberInitials(m.name)}
-                  </div>
+                  {renderAvatar(m.name, m.personalPhoto, "w-12 h-12 rounded-2xl")}
                   <div className="text-right">
                     <h3 
                       onClick={() => setDetailsMember(m)}
@@ -1911,6 +1947,7 @@ export default function CommitteesMembers() {
                         title="عرض الملف التفصيلي"
                       >
                         <div className="flex items-center gap-2.5">
+                          {renderAvatar(m.name, m.personalPhoto, "w-8 h-8 rounded-lg")}
                           <div className="flex flex-col text-right">
                             <span className="text-xs font-black text-gray-900 leading-tight transition-colors group-hover/row:text-brand underline decoration-dotted decoration-brand/45 underline-offset-4">
                               {getMemberFullName(m)}
@@ -2629,9 +2666,7 @@ export default function CommitteesMembers() {
               {/* Header profile panel */}
               <div className="bg-[#e8e4e4] p-6 border-b border-gray-200 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand to-[#4ea0b0] text-white flex items-center justify-center font-black text-lg shadow-lg shadow-brand/20">
-                    {getMemberInitials(detailsMember.name)}
-                  </div>
+                  {renderAvatar(detailsMember.name, detailsMember.personalPhoto, "w-14 h-14 rounded-2xl shadow-lg shadow-brand/20")}
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-extrabold text-gray-900 text-sm leading-tight md:text-base">
@@ -2793,9 +2828,9 @@ export default function CommitteesMembers() {
                             {detailsMember.cv.includes('http') ? 'مرفق (رابط)' : detailsMember.cv}
                           </span>
                           {detailsMember.cv.includes('http') ? (
-                            <a href={detailsMember.cv} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#4ea0b0] font-black hover:underline">تحميل السجل</a>
+                            <a href={detailsMember.cv} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#4ea0b0] font-black hover:underline">عرض</a>
                           ) : (
-                            <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">تحميل السجل</span>
+                            <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">عرض</span>
                           )}
                         </div>
                       ) : (
@@ -2812,9 +2847,9 @@ export default function CommitteesMembers() {
                             {detailsMember.commercialRegister.includes('http') ? 'مرفق (رابط)' : detailsMember.commercialRegister}
                           </span>
                           {detailsMember.commercialRegister.includes('http') ? (
-                            <a href={detailsMember.commercialRegister} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#4ea0b0] font-black hover:underline">تحميل السجل</a>
+                            <a href={detailsMember.commercialRegister} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#4ea0b0] font-black hover:underline">عرض</a>
                           ) : (
-                            <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">تحميل السجل</span>
+                            <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">عرض</span>
                           )}
                         </div>
                       ) : (
@@ -2831,9 +2866,9 @@ export default function CommitteesMembers() {
                             {detailsMember.membershipCertificate.includes('http') ? 'مرفق (رابط)' : detailsMember.membershipCertificate}
                           </span>
                           {detailsMember.membershipCertificate.includes('http') ? (
-                            <a href={detailsMember.membershipCertificate} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#4ea0b0] font-black hover:underline">عرض المستند</a>
+                            <a href={detailsMember.membershipCertificate} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#4ea0b0] font-black hover:underline">عرض</a>
                           ) : (
-                            <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">عرض المستند</span>
+                            <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">عرض</span>
                           )}
                         </div>
                       ) : (
@@ -2850,9 +2885,9 @@ export default function CommitteesMembers() {
                             {detailsMember.authorization.includes('http') ? 'مرفق (رابط)' : detailsMember.authorization}
                           </span>
                           {detailsMember.authorization.includes('http') ? (
-                            <a href={detailsMember.authorization} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#4ea0b0] font-black hover:underline">عرض المستند</a>
+                            <a href={detailsMember.authorization} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#4ea0b0] font-black hover:underline">عرض</a>
                           ) : (
-                            <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">عرض المستند</span>
+                            <span className="text-[10px] text-[#4ea0b0] font-black cursor-pointer hover:underline">عرض</span>
                           )}
                         </div>
                       ) : (

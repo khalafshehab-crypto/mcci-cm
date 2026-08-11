@@ -1,3 +1,5 @@
+import { showGlobalToast } from "../lib/toastUtils";
+import { autoCreateEventDriveFolders } from "../lib/googleApi";
 import React, { useState, useEffect, FormEvent } from "react";
 import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
@@ -47,6 +49,13 @@ interface EventItem {
   preparationsChecklist?: string[];
   preparationsAdditional?: string;
   agendaTransferred?: boolean;
+  attendanceListUrl?: string;
+  approvedMinutesUrl?: string;
+  xLink?: string;
+  linkedinLink?: string;
+  instagramLink?: string;
+  otherAttachmentsUrl?: string;
+  evidencesSaved?: boolean;
 }
 
 const DEFAULT_PREPARATIONS = [
@@ -343,6 +352,9 @@ export default function Events() {
     if (!evt.exportedRecommendationsToPage) {
       return "التوصيات";
     }
+    if (!evt.evidencesSaved) {
+      return "المرفقات والشواهد";
+    }
     return "منتهية";
   };
 
@@ -355,6 +367,7 @@ export default function Events() {
       case "جدول الأعمال": return 4;
       case "محضر الاجتماع": return 5;
       case "التوصيات": return 6;
+      case "المرفقات والشواهد": return 7;
       default: return 6;
     }
   };
@@ -597,8 +610,30 @@ ${formattedItems}
   const getEventTimeValue = (evt: EventItem) => {
     try {
       if (!evt.date) return 0;
-      const dt = new Date(`${evt.date}T${evt.time || "00:00"}`);
-      return isNaN(dt.getTime()) ? 0 : dt.getTime();
+      let dateStr = evt.date;
+      if (dateStr.includes("/")) {
+        const parts = dateStr.split("/");
+        if (parts[0].length === 2 && parts[2].length === 4) {
+          dateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+      }
+      let timeStr = evt.time || "00:00";
+      timeStr = timeStr.replace(/[^\d:]/g, '').trim();
+      if (!timeStr) timeStr = "00:00";
+      if (timeStr.length === 4 && timeStr.indexOf(":") === 1) {
+         timeStr = "0" + timeStr;
+      }
+      if (timeStr.split(":").length === 2) {
+         timeStr += ":00"; // Safari support
+      }
+      let ts = new Date(`${dateStr}T${timeStr}`).getTime();
+      if (isNaN(ts)) {
+         ts = new Date(`${dateStr} ${timeStr}`).getTime();
+      }
+      if (isNaN(ts)) {
+         ts = new Date(dateStr).getTime();
+      }
+      return isNaN(ts) ? 0 : ts;
     } catch (_) {
       return 0;
     }
@@ -630,19 +665,29 @@ ${formattedItems}
     const nowTimestamp = Date.now();
     
     return list.sort((a, b) => {
-      const aComp = isEventCompleted(a);
-      const bComp = isEventCompleted(b);
-      
-      if (aComp && !bComp) return 1;
-      if (!aComp && bComp) return -1;
-      
       const timeValA = getEventTimeValue(a);
       const timeValB = getEventTimeValue(b);
       
-      const diffA = Math.abs(timeValA - nowTimestamp);
-      const diffB = Math.abs(timeValB - nowTimestamp);
+      // Determine if event is past (before beginning of today for strictness, but exact time is fine too)
+      const aIsPast = timeValA > 0 && timeValA < nowTimestamp;
+      const bIsPast = timeValB > 0 && timeValB < nowTimestamp;
       
-      return diffA - diffB;
+      const aComp = isEventCompleted(a);
+      const bComp = isEventCompleted(b);
+      
+      const aDone = aComp || aIsPast;
+      const bDone = bComp || bIsPast;
+      
+      if (aDone && !bDone) return 1;
+      if (!aDone && bDone) return -1;
+      
+      if (aDone && bDone) {
+        // Both are past or completed, sort most recent first
+        return timeValB - timeValA;
+      }
+      
+      // Both are future, sort closest to now first
+      return timeValA - timeValB;
     });
   }, [filteredEvents]);
 
@@ -969,6 +1014,15 @@ ${formattedItems}
     }
   };
 
+  const getDisplayStatus = (evt: EventItem) => {
+    if (isEventCompleted(evt)) return "منتهية";
+    const timeVal = getEventTimeValue(evt);
+    if (timeVal > 0 && timeVal < Date.now()) {
+      return "فائت";
+    }
+    return evt.status || "جديدة";
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "تجهيز الفعاليات": return "text-blue-600 bg-blue-100 ring-blue-200";
@@ -978,6 +1032,7 @@ ${formattedItems}
       case "محضر الاجتماع": return "text-purple-600 bg-purple-100 ring-purple-200";
       case "التوصيات": return "text-brand bg-brand/10 ring-brand/20";
       case "منتهية": return "text-emerald-600 bg-emerald-100 ring-emerald-200";
+      case "فائت": return "text-red-600 bg-red-100 ring-red-200";
       default: return "text-gray-600 bg-gray-100 ring-gray-200";
     }
   };
@@ -1579,8 +1634,8 @@ ${formattedItems}
 
                           <div className="space-y-4">
                             <div className="flex flex-wrap gap-1.5 items-center">
-                              <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black ring-1 ${getStatusColor(evt.status)}`}>
-                                {evt.status}
+                              <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black ring-1 ${getStatusColor(getDisplayStatus(evt))}`}>
+                                {getDisplayStatus(evt)}
                               </span>
                               <span
                                 className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wide border ${getEventKindStyle(
@@ -1764,9 +1819,17 @@ ${formattedItems}
                             if (completedCount === 7) {
                               overallStatusText = "منجزة";
                               overallStatusClass = "text-emerald-700 bg-emerald-50 ring-1 ring-emerald-250 border-emerald-250 font-black";
-                            } else if (completedCount > 0) {
-                              overallStatusText = `جاري العمل على ${shortStepTitles[activeIndex]}`;
-                              overallStatusClass = "text-amber-700 bg-amber-50 ring-1 ring-amber-250 border-amber-250 font-black";
+                            } else {
+                              const timeVal = getEventTimeValue(evt);
+                              const isPast = timeVal > 0 && timeVal < Date.now();
+                              
+                              if (isPast) {
+                                overallStatusText = "فائت";
+                                overallStatusClass = "text-red-700 bg-red-50 ring-1 ring-red-250 border-red-250 font-black";
+                              } else if (completedCount > 0) {
+                                overallStatusText = `جاري العمل على ${shortStepTitles[activeIndex]}`;
+                                overallStatusClass = "text-amber-700 bg-amber-50 ring-1 ring-amber-250 border-amber-250 font-black";
+                              }
                             }
 
                             return (
@@ -1781,7 +1844,15 @@ ${formattedItems}
                                     let dotColorClass = "bg-gray-300";
                                     const isActive = i === activeIndex;
 
-                                    if (completedCount === 0) {
+                                    if (overallStatusText === "فائت") {
+                                      if (isStepDone) {
+                                        dotColorClass = "bg-emerald-500";
+                                      } else if (isActive) {
+                                        dotColorClass = "bg-red-700 ring-[1px] ring-red-400 scale-125 z-10 font-bold shadow-sm";
+                                      } else {
+                                        dotColorClass = "bg-red-200/50";
+                                      }
+                                    } else if (completedCount === 0) {
                                       // All Blue as New
                                       dotColorClass = isActive ? "bg-blue-800 ring-[1px] ring-blue-400 scale-125 z-10 font-bold shadow-sm" : "bg-blue-300/60";
                                     } else if (completedCount === 7) {
@@ -1883,7 +1954,7 @@ ${formattedItems}
                                       مراحل الإجراءات والتحضير للفعالية
                                     </span>
                                     <span className="text-[9px] px-2 py-0.5 rounded bg-brand/10 text-brand font-black">
-                                      خطوة {getStepIndex(nextStep) + 1} من 7
+                                      خطوة {getStepIndex(nextStep) + 1} من 8
                                     </span>
                                   </div>
                                   
@@ -1896,7 +1967,8 @@ ${formattedItems}
                                     const isStep4Unlocked = isStep3Unlocked && !!evt.preparationsConfirmed;
                                     const isStep5Unlocked = isStep4Unlocked && !!(evt.agenda && evt.agenda.length > 0 && evt.agendaTransferred);
                                     const isStep6Unlocked = isStep5Unlocked && !!evt.minutesSaved;
-                                    
+                                    const isStep7Unlocked = isStep6Unlocked && !!evt.exportedRecommendationsToPage;
+                                      
                                     const isUnlockedByStepIndex = [
                                       isStep0Unlocked,
                                       isStep1Unlocked,
@@ -1904,7 +1976,8 @@ ${formattedItems}
                                       isStep3Unlocked,
                                       isStep4Unlocked,
                                       isStep5Unlocked,
-                                      isStep6Unlocked
+                                      isStep6Unlocked,
+                                      isStep7Unlocked
                                     ];
 
                                     const stepList = [
@@ -1915,6 +1988,7 @@ ${formattedItems}
                                       { title: "جدول الأعمال (الأجندة)", desc: "ترحيل بنود وجداول المناقشات والمدد", done: !!(evt.agenda && evt.agenda.length > 0 && evt.agendaTransferred) },
                                       { title: "محضر الاجتماع وتدوين الوقائع", desc: "صياغة المناقشة وتثبيت وقائع المحضر", done: !!evt.minutesSaved },
                                       { title: "التوصيات واعتماد المحضر", desc: "اعتماد وتصدير وحفظ وسجل الترحيل النهائي", done: !!evt.exportedRecommendationsToPage },
+                                      { title: "المرفقات والشواهد", desc: "إرفاق كشف الحضور والمحضر والروابط", done: !!evt.evidencesSaved },
                                     ];
 
                                     return stepList.map((step, idx) => {
@@ -1987,7 +2061,7 @@ ${formattedItems}
                                                 <CheckSquare className="w-4 h-4 text-brand" />
                                                 تنسيق وتأكيد موعد وقاعة الاجتماع مع رئيس اللجنة
                                               </h3>
-                                              <span className="text-[9px] text-gray-500 font-bold leading-none">مرحلة 1 من 7</span>
+                                              <span className="text-[9px] text-gray-500 font-bold leading-none">مرحلة 1 من 8</span>
                                             </div>
                                             
                                             <p className="text-[10px] text-gray-550 leading-relaxed font-bold">
@@ -2056,7 +2130,7 @@ ${formattedItems}
                                                 <Send className="w-4 h-4 text-brand" />
                                                 توليد وتعديل وإرسال الدعوة لجميع أعضاء اللجنة الكرام
                                               </h3>
-                                              <span className="text-[9px] text-gray-500 font-bold">مرحلة 2 من 7</span>
+                                              <span className="text-[9px] text-gray-500 font-bold">مرحلة 2 من 8</span>
                                             </div>
                                             
                                             <p className="text-[10px] text-gray-550 leading-relaxed font-bold">
@@ -2128,7 +2202,7 @@ ${formattedItems}
                                                 <Users className="w-4 h-4 text-brand" />
                                                 تأكيد حضور الأعضاء ورصد النصاب القانوني للاجتماع الحالي
                                               </h3>
-                                              <span className="text-[9px] text-gray-500 font-bold">مرحلة 3 من 7</span>
+                                              <span className="text-[9px] text-gray-500 font-bold">مرحلة 3 من 8</span>
                                             </div>
                                             
                                             {/* Live Quorum Display */}
@@ -2238,7 +2312,7 @@ ${formattedItems}
                                                 <Presentation className="w-4 h-4 text-brand" />
                                                 تجهيزات اللقاء وتأمين المتطلبات والضيافة والتغطية الإعلامية
                                               </h3>
-                                              <span className="text-[9px] text-gray-500 font-bold">مرحلة 4 من 7</span>
+                                              <span className="text-[9px] text-gray-500 font-bold">مرحلة 4 من 8</span>
                                             </div>
                                             
                                             <p className="text-[10px] text-gray-550 leading-relaxed font-bold font-sans">
@@ -2403,7 +2477,7 @@ ${formattedItems}
 														<Sliders className="w-4 h-4 text-brand" />
 														بناء بنود جدول أعمال الفعالية وتحديد المدد مع المختصين
 													</h3>
-													<span className="text-[9px] text-gray-500 font-bold">مرحلة 5 من 7</span>
+													<span className="text-[9px] text-gray-500 font-bold">مرحلة 5 من 8</span>
 												</div>
 
 												{/* Form block */}
@@ -2557,7 +2631,7 @@ ${formattedItems}
                                                 <BookOpen className="w-4 h-4 text-brand" />
                                                 تحرير بنود المحضر وكتابة التوصية والمسؤول والمدة (الوقائع الرسمية)
                                               </h3>
-                                              <span className="text-[9px] text-gray-500 font-bold">مرحلة 6 من 7</span>
+                                              <span className="text-[9px] text-gray-500 font-bold">مرحلة 6 من 8</span>
                                             </div>
 
                                             {agenda.length === 0 ? (
@@ -2727,6 +2801,12 @@ ${formattedItems}
 
                                           const count = await exportRecommendationsToLocalStorage(evt, selectedIds);
                                           updateEventWorkflow(evt.id, { exportedRecommendationsToPage: true });
+
+                                          showGlobalToast("جاري إنشاء ملفات الفعالية والتوصيات في جوجل درايف...", "loading", 0);
+                                          const selectedRecs = recsToExport.filter(item => !!selectedAgendaRecsExport[`${evt.id}-${item.id}`]);
+                                          const success = await autoCreateEventDriveFolders(evt, []); // Create only event folders, recommendation folders are created in Recommendations page
+                                          if (success) showGlobalToast("تم المزامنة بنجاح مع درايف", "success");
+                                          else showGlobalToast("تم الترحيل محلياً ولكن حدث خطأ في مزامنة درايف", "error");
                                         };
                                         
                                         return (
@@ -2736,7 +2816,7 @@ ${formattedItems}
                                                 <Sparkles className="w-4 h-4 text-brand" />
                                                 سجل ترحيل التوصيات التلقائي المتقدم والموازنة
                                               </h3>
-                                              <span className="text-[9px] text-gray-500 font-bold">مرحلة 7 من 7</span>
+                                              <span className="text-[9px] text-gray-500 font-bold">مرحلة 7 من 8</span>
                                             </div>
 
                                             {!evt.minutesSaved ? (
@@ -2798,7 +2878,13 @@ ${formattedItems}
                                                         ) : (
                                                           <button
                                                             type="button"
-                                                            onClick={() => updateEventWorkflow(evt.id, { exportedRecommendationsToPage: true })}
+                                                            onClick={async () => {
+                                                              updateEventWorkflow(evt.id, { exportedRecommendationsToPage: true });
+                                                              showGlobalToast("جاري إنشاء ملفات الفعالية في جوجل درايف...", "loading", 0);
+                                                              const success = await autoCreateEventDriveFolders(evt, []);
+                                                              if (success) showGlobalToast("تم إنشاء ملف الفعالية بنجاح في درايف", "success");
+                                                              else showGlobalToast("حدث خطأ أثناء مزامنة درايف", "error");
+                                                            }}
                                                             className="px-5 py-2.5 bg-slate-900 border-transparent hover:bg-slate-800 text-white font-black rounded-lg text-[10.5px] flex items-center gap-2 cursor-pointer transition-all shadow-md"
                                                           >
                                                             <Lock className="w-4 h-4 text-brand shadow animate-pulse" />
@@ -2885,7 +2971,108 @@ ${formattedItems}
                                           </div>
                                         );
                                       }
-                                      
+                                      case 7: { // Step 8: Attachments and Evidences
+                                        const isComplete = evt.attendanceListUrl && evt.approvedMinutesUrl;
+                                        
+                                        return (
+                                          <div className="space-y-4">
+                                            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                                              <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                                <BookOpen className="w-4 h-4 text-brand" />
+                                                المرفقات والشواهد الختامية
+                                              </h3>
+                                              <span className="text-[9px] text-gray-500 font-bold">مرحلة 8 من 8</span>
+                                            </div>
+
+                                            <p className="text-[10px] text-gray-550 leading-relaxed font-bold">
+                                              يرجى إرفاق روابط المستندات المطلوبة عبر جوجل درايف. (كشف الحضور ومحضر الاجتماع إلزامية).
+                                            </p>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                              <div className="space-y-1.5">
+                                                <label className="text-[9.5px] font-bold text-gray-700">كشف الحضور (إلزامي) *</label>
+                                                <input
+                                                  type="url"
+                                                  value={evt.attendanceListUrl || ""}
+                                                  onChange={e => updateEventWorkflow(evt.id, { attendanceListUrl: e.target.value })}
+                                                  placeholder="رابط جوجل درايف..."
+                                                  className="w-full text-[10px] p-2 border border-gray-200 rounded-lg focus:ring-brand"
+                                                />
+                                              </div>
+                                              <div className="space-y-1.5">
+                                                <label className="text-[9.5px] font-bold text-gray-700">محضر الاجتماع المعتمد (إلزامي) *</label>
+                                                <input
+                                                  type="url"
+                                                  value={evt.approvedMinutesUrl || ""}
+                                                  onChange={e => updateEventWorkflow(evt.id, { approvedMinutesUrl: e.target.value })}
+                                                  placeholder="رابط جوجل درايف..."
+                                                  className="w-full text-[10px] p-2 border border-gray-200 rounded-lg focus:ring-brand"
+                                                />
+                                              </div>
+                                              <div className="space-y-1.5">
+                                                <label className="text-[9.5px] font-bold text-gray-700">رابط منصة X (اختياري)</label>
+                                                <input
+                                                  type="url"
+                                                  value={evt.xLink || ""}
+                                                  onChange={e => updateEventWorkflow(evt.id, { xLink: e.target.value })}
+                                                  placeholder="https://x.com/..."
+                                                  className="w-full text-[10px] p-2 border border-gray-200 rounded-lg focus:ring-brand"
+                                                />
+                                              </div>
+                                              <div className="space-y-1.5">
+                                                <label className="text-[9.5px] font-bold text-gray-700">رابط منصة Linkedin (اختياري)</label>
+                                                <input
+                                                  type="url"
+                                                  value={evt.linkedinLink || ""}
+                                                  onChange={e => updateEventWorkflow(evt.id, { linkedinLink: e.target.value })}
+                                                  placeholder="https://linkedin.com/..."
+                                                  className="w-full text-[10px] p-2 border border-gray-200 rounded-lg focus:ring-brand"
+                                                />
+                                              </div>
+                                              <div className="space-y-1.5">
+                                                <label className="text-[9.5px] font-bold text-gray-700">رابط منصة Instagram (اختياري)</label>
+                                                <input
+                                                  type="url"
+                                                  value={evt.instagramLink || ""}
+                                                  onChange={e => updateEventWorkflow(evt.id, { instagramLink: e.target.value })}
+                                                  placeholder="https://instagram.com/..."
+                                                  className="w-full text-[10px] p-2 border border-gray-200 rounded-lg focus:ring-brand"
+                                                />
+                                              </div>
+                                              <div className="space-y-1.5">
+                                                <label className="text-[9.5px] font-bold text-gray-700">مرفقات أخرى (اختياري)</label>
+                                                <input
+                                                  type="url"
+                                                  value={evt.otherAttachmentsUrl || ""}
+                                                  onChange={e => updateEventWorkflow(evt.id, { otherAttachmentsUrl: e.target.value })}
+                                                  placeholder="رابط إضافي..."
+                                                  className="w-full text-[10px] p-2 border border-gray-200 rounded-lg focus:ring-brand"
+                                                />
+                                              </div>
+                                            </div>
+
+                                            <div className="pt-4 border-t border-gray-100 flex justify-end">
+                                              <button
+                                                type="button"
+                                                disabled={!isComplete}
+                                                onClick={() => {
+                                                  updateEventWorkflow(evt.id, { evidencesSaved: true, status: "منتهية" });
+                                                  showGlobalToast("تم حفظ المرفقات بنجاح! تم تحويل الفعالية إلى منجزة.", "success");
+                                                }}
+                                                className={`px-5 py-2.5 rounded-lg text-[10.5px] font-black flex items-center gap-2 transition-all ${
+                                                  isComplete 
+                                                    ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md cursor-pointer" 
+                                                    : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                                }`}
+                                              >
+                                                <CheckCircle className="w-4 h-4" />
+                                                حفظ وإحالة إلى منجز
+                                              </button>
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+
                                       default: return null;
                                     }
                                   })()}

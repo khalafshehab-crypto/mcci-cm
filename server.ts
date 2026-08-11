@@ -343,6 +343,37 @@ ${text}`;
   });
 
 
+  app.get("/api/drive-file/:fileId", async (req, res) => {
+    try {
+      const fileId = req.params.fileId;
+      const token = req.query.token;
+      
+      if (!token) {
+        return res.status(401).send("No token provided");
+      }
+
+      const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        return res.status(response.status).send("Failed to fetch from Drive");
+      }
+
+      const contentType = response.headers.get("content-type");
+      if (contentType) res.setHeader("Content-Type", contentType);
+      
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      res.send(buffer);
+    } catch (error: any) {
+      console.error("Drive file fetch error:", error);
+      res.status(500).send("Internal error");
+    }
+  });
+
   app.post("/api/fetch-public-sheet", async (req, res) => {
     try {
       const { url } = req.body;

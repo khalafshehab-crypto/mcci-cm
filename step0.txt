@@ -1,0 +1,315 @@
+                                {/* Left Column: Active Step Form Content */}
+                                <div className="flex-1 bg-white p-5 rounded-xl border border-gray-200 shadow-sm relative text-right min-h-[300px]">
+                                  {(() => {
+                                    const currentTab = activeStepTab[evt.id] ?? getStepIndex(nextStep);
+                                    switch (currentTab) {
+                                      case 0: { // Step 0: Prep Recommendation
+                                        const sampleFiles = ["مرفق 1.pdf", "مرفق 2.pdf", "مرفق 3.pdf"];
+                                        const attachmentsList = evt.attachments || [];
+                                        
+                                        return (
+                                          <div className="space-y-4 animate-fade-in text-right">
+                                            <div className="flex items-center justify-between pb-2 border-b border-gray-100 font-sans">
+                                              <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5 font-sans">
+                                                <Sparkles className="w-4 h-4 text-brand animate-bounce" />
+                                                تجهيز التوصية وصياغتها مع المرفقات
+                                              </h3>
+                                              <span className="text-[9px] text-[#4ea0b0] font-extrabold px-2 py-0.5 rounded bg-[#4ea0b0]/5 font-sans">مرحلة 1 من 3</span>
+                                            </div>
+                                            
+                                            <p className="text-[10px] text-gray-550 leading-relaxed font-bold font-sans text-right">
+                                              صغ مسودة التوصية في المربع أدناه أو استخدم خيار التوليد الذكي، مع أرفق الوثائق المطلوبة.
+                                            </p>
+                                            
+                                            <div className="space-y-3 font-sans">
+                                              <div className="flex justify-between items-center">
+                                                <label className="text-[9.5px] text-slate-900 font-extrabold font-sans">الصياغة المقترحة للتوصية:</label>
+                                                <div className="flex gap-1">
+                                                  {evt.preparationsText && (
+                                                    
+<div key="filter-popover-1784704070975-5">
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                          navigator.clipboard.writeText(evt.preparationsText || "");
+                                                          setAlertState({ isOpen: true, message: "تم نسخ الصياغة المقترحة بنجاح!", onClose: () => {} });
+                                                        }}
+                                                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[8.5px] font-black rounded-lg cursor-pointer flex items-center gap-1 transition-all border border-gray-200 font-sans"
+                                                      >
+                                                        <Copy className="w-3.5 h-3.5" />
+                                                        نسخ نص التوصية
+                                                      </button>
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                          
+const textBody = evt.preparationsText || "";
+let mailSubject = "تفعيل توصية قطاعية دائرية";
+let mailBody = textBody;
+
+if (textBody.startsWith("الموضوع: ")) {
+  const firstLineEnd = textBody.indexOf("\n");
+  if (firstLineEnd !== -1) {
+    mailSubject = textBody.substring("الموضوع: ".length, firstLineEnd).trim();
+    mailBody = textBody.substring(firstLineEnd + 1).trim();
+  }
+}
+window.location.href = `mailto:?subject=${encodeURIComponent(mailSubject)}&body=${encodeURIComponent(mailBody)}`;
+                                                        }}
+                                                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[8.5px] font-black rounded-lg cursor-pointer flex items-center gap-1 transition-all border border-gray-200 font-sans"
+                                                      >
+                                                        <Mail className="w-3.5 h-3.5" />
+                                                        إرسال بالإيميل
+                                                      </button>
+                                                    </div>
+                                                  )}
+
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      const dayArabic = getDayNameFromDate(evt.date) || "الاثنين";
+                                                      const isPassing = evt.recommendationClassification === "بالتمرير";
+                                                      const rType = evt.recommendationType === "عاجلة" ? "عاجلة" : "عادية";
+                                                      const attachmentsText = attachmentsList && attachmentsList.length > 0 ? attachmentsList.map((a) => a.name).join(", ") : "لا يوجد مرفقات";
+                                                      
+const linkedEvent = events.find(e => String(e.id) === String(evt.recommendationEventId));
+const meetingName = linkedEvent ? linkedEvent.title : (evt.eventName && evt.eventName !== "توصية غير محددة" ? evt.eventName : (evt.title.includes("اجتماع") ? evt.title : `اجتماع ${evt.committeeName || "اللجنة"}`));
+
+const eventTime = linkedEvent?.time || evt.time || "……";
+const eventLocation = linkedEvent?.location || evt.location || "……";
+const dateStr = linkedEvent?.date || evt.date || "……";
+
+let formattedTime = eventTime;
+if (eventTime && eventTime !== "……") {
+    const [hours, minutes] = eventTime.split(":");
+    if (hours && minutes) {
+      let h = parseInt(hours, 10);
+      const ampm = h >= 12 ? "مساءً" : "صباحاً";
+      h = h % 12;
+      h = h ? h : 12;
+      formattedTime = `${h}:${minutes} ${ampm}`;
+    }
+}
+
+let formattedDate = dateStr;
+if (dateStr && dateStr !== "……") {
+    const months = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+        const dayStr = d.getDate().toString().padStart(2, '0');
+        const monthStr = months[d.getMonth()];
+        const yearStr = d.getFullYear();
+        formattedDate = `${dayStr} ${monthStr} ${yearStr}م`;
+    }
+}
+
+let itemTitle = "……";
+let itemTitleFull = "البند: ……";
+let itemDiscussion = evt.recommendationDiscussion || "……";
+let itemRec = evt.description || evt.recommendationText || evt.notes || "لا يوجد نص للتوصية";
+
+if (linkedEvent && linkedEvent.agenda) {
+    const agendaIdx = linkedEvent.agenda.findIndex((a: any) => evt.title && evt.title.includes(a.title));
+    if (agendaIdx !== -1) {
+        const agendaItem = linkedEvent.agenda[agendaIdx];
+        itemTitle = agendaItem.title;
+        itemTitleFull = `البند ${getArabicOrdinalGlobal(agendaIdx + 1)}: ${itemTitle}`;
+        itemDiscussion = agendaItem.discussion || "……";
+        itemRec = agendaItem.recommendation || itemRec;
+    } else {
+       const match = evt.title?.match(/توصية البند (.*?) "(.*?)"/);
+       if (match) {
+           itemTitle = match[2];
+           itemTitleFull = `البند ${match[1]}: ${match[2]}`;
+       } else {
+           itemTitle = evt.title || "……";
+           itemTitleFull = `البند: ${itemTitle}`;
+       }
+    }
+} else {
+    const match = evt.title?.match(/توصية البند (.*?) "(.*?)"/);
+    if (match) {
+        itemTitle = match[2];
+        itemTitleFull = `البند ${match[1]}: ${match[2]}`;
+    } else {
+        itemTitle = evt.title || "……";
+        itemTitleFull = `البند: ${itemTitle}`;
+    }
+}
+
+let assigneeText = evt.assignedTo || evt.recommendationAssignee || (evt.employees && evt.employees.length > 0 ? evt.employees[0] : "غير محدد");
+if (assigneeText === "الأخصائي" || assigneeText === "أخصائي اللجنة") {
+    const committeeIdMatch = evt.committeeId || (events.find(e => String(e.id) === String(evt.recommendationEventId))?.committeeId);
+    const comm = committees.find(c => c.name === evt.committeeName || (committeeIdMatch && String(c.id) === String(committeeIdMatch)));
+    if (comm && comm.specialist) {
+        assigneeText = `أخصائي اللجنة: ${comm.specialist}`;
+    }
+}
+let attachmentsLabel = attachmentsText;
+if (attachmentsList && attachmentsList.length > 0) {
+    attachmentsLabel = attachmentsList.map((a: any) => a.name).join("، ");
+} else {
+    attachmentsLabel = "لا يوجد مرفقات";
+}
+
+const subjectText = `تفعيل توصية ${itemTitleFull} ل${meetingName}`;
+
+const generatedProposal = `الموضوع: ${subjectText}
+سعادة الأستاذ/ محمد بن محسن السبيعي                 سلمه الله
+رئيس قسم اللجان
+السلام عليكم ورحمه الله وبركاته .. وبعد
+نهديكم أطيب تحية وتقدير.. ونشكر لسعادتكم تعاونكم الدائم والمستمر لإنجاح سير أعمال إدارة اللجان.
+إشارة إلى ${meetingName} الذي تم عقده في تمام الساعة ${formattedTime} من ظهر يوم ${dayArabic} بتاريخ ${formattedDate} بقاعة/ ${eventLocation}  بمقر غرفة مكة المكرمة، وما ورد به من:
+${itemTitleFull} .
+المناقشة: ${itemDiscussion} .
+التوصية: ${itemRec} .
+المكلف: ${assigneeText} .
+المرفقات: ${attachmentsLabel} .
+
+آمل من سعادتكم التكرم بالاطلاع والتوجيه حتى يتسنى لنا إكمال اللازم.
+
+شاكرين ومقدرين لسعادتكم حسن تعاونكم..
+وتفضلوا بقبول وافر التحية والتقدير،،،`;
+                                                      
+                                                      updateEventWorkflow(evt.id, { preparationsText: generatedProposal });
+                                                    }}
+                                                    className="px-2.5 py-1.5 bg-slate-900 border-transparent hover:bg-slate-800 text-brand text-[8.5px] font-black rounded-lg cursor-pointer flex items-center gap-1 shadow transition-all duration-200 animate-pulse font-sans"
+                                                  >
+                                                    <Sparkles className="w-3.5 h-3.5" />
+                                                    توليد النص المقترح
+                                                  </button>
+                                                </div>
+                                              </div>
+                                              
+                                              <textarea
+                                                value={evt.preparationsText || evt.description || evt.recommendationText || ""}
+                                                onChange={(e) => updateEventWorkflow(evt.id, { preparationsText: e.target.value })}
+                                                placeholder="اكتب هنا نص التوصية..."
+                                                className="w-full h-32 p-3 text-[10px] font-bold text-slate-800 border border-gray-200 rounded-lg focus:ring-1 focus:ring-brand focus:border-brand resize-none bg-slate-50/70 leading-relaxed text-right font-sans"
+                                                dir="rtl"
+                                              />
+                                              
+                                              {/* Digital Library Drag & Drop Simulator */}
+                                              <div 
+                                                className="border-2 border-dashed border-gray-200 rounded-2xl p-3.5 text-center transition-all relative bg-gray-50/50 hover:bg-gray-100/70 font-sans"
+                                                onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-brand', 'bg-brand/5'); }}
+                                                onDragLeave={(e) => { e.preventDefault(); e.currentTarget.classList.remove('border-brand', 'bg-brand/5'); }}
+                                                onDrop={(e) => {
+                                                  e.preventDefault();
+                                                  e.currentTarget.classList.remove('border-brand', 'bg-brand/5');
+                                                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                                                    handleFileUploads(Array.from(e.dataTransfer.files), evt, attachmentsList || []);
+                                                  }
+                                                }}
+                                              >
+                                                <input
+                                                  type="file"
+                                                  id={`file-input-${evt.id}`}
+                                                  multiple
+                                                  className="hidden"
+                                                  onChange={(e) => {
+                                                    if (e.target.files && e.target.files.length > 0) {
+                                                      handleFileUploads(Array.from(e.target.files), evt, attachmentsList || []);
+                                                    }
+                                                  }}
+                                                />
+                                                <label htmlFor={`file-input-${evt.id}`} className="cursor-pointer block space-y-1">
+                                                  <div className="flex items-center justify-between">
+                                                    <span className="text-[11px] font-black text-gray-700">المكتبة الرقمية</span>
+                                                    <span className="text-[10px] text-gray-400 font-bold flex items-center gap-1 hover:text-brand">
+                                                      <Upload className="w-3.5 h-3.5" />
+                                                      <span>تحميل</span>
+                                                    </span>
+                                                  </div>
+                                                  <p className="text-[10px] text-gray-500 font-medium truncate text-right">
+                                                    اسحب الملفات هنا أو انقر للإدراج أو للربط بجوجل درايف
+                                                  </p>
+                                                </label>
+                                                
+                                                <div className="mt-2.5 flex flex-wrap justify-center gap-1.5 font-sans relative z-20">
+                                                  {sampleFiles.map((fn, idx) => (
+                                                    <button
+                                                      key={idx}
+                                                      type="button"
+                                                      onClick={() => {
+                                                        const exists = attachmentsList.some((a: any) => a.name === fn);
+                                                        if (!exists) {
+                                                          const newAtt = { name: fn, size: "1.8 MB", date: new Date().toLocaleDateString('ar-SA') };
+                                                          updateEventWorkflow(evt.id, { attachments: [...attachmentsList, newAtt] });
+                                                        }
+                                                      }}
+                                                      className="px-2 py-1 bg-white hover:bg-gray-150 text-gray-700 text-[8px] font-bold border border-gray-200 rounded-lg shadow-sm transition-all flex items-center gap-1 cursor-pointer font-sans"
+                                                    >
+                                                      <Paperclip className="w-2.5 h-2.5 text-[#4ea0b0]" />
+                                                      إرفاق {fn}
+                                                    </button>
+                                                  ))}
+                                                </div>
+                                                
+                                                {attachmentsList.length > 0 && (
+                                                  <div className="mt-3.5 border-t border-slate-100 pt-2 text-right font-sans">
+                                                    <span className="text-[8px] text-[#4ea0b0] font-black block mb-1">المستندات المرفقة بالتوصية حتى الآن ({attachmentsList.length}):</span>
+                                                    <div className="space-y-1 font-sans">
+                                                      {attachmentsList.map((att: any, index: number) => (
+                                                        <div key={index} className="flex items-center justify-between bg-white px-2 py-1 rounded border border-gray-150 text-[8.5px] text-slate-800 font-extrabold animate-fade-in font-sans">
+                                                          <span className="flex items-center gap-1">
+                                                            <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                                                            {att.name}
+                                                          </span>
+                                                          <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                              const filtered = attachmentsList.filter((_: any, i: number) => i !== index);
+                                                              updateEventWorkflow(evt.id, { attachments: filtered });
+                                                            }}
+                                                            className="text-red-500 hover:text-red-700 font-bold px-1"
+                                                          >
+                                                            حذف
+                                                          </button>
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </div>
+                                            
+                                            <div className="pt-3 border-t border-gray-100 flex items-center justify-between font-sans">
+                                              <label className="flex items-center gap-2.5 cursor-pointer font-sans">
+                                                <input 
+                                                  type="checkbox"
+                                                  checked={!!evt.preparationsConfirmed}
+                                                  onChange={(e) => updateEventWorkflow(evt.id, { preparationsConfirmed: e.target.checked })}
+                                                  className="w-4.5 h-4.5 rounded border-gray-350 text-brand focus:ring-brand cursor-pointer focus:outline-none"
+                                                />
+                                                <span className="text-[10px] text-slate-900 font-extrabold select-none font-sans">
+                                                  تم الانتهاء من صياغة مسودة التوصية وإرفاق المستندات المرجعية
+                                                </span>
+                                              </label>
+                                              
+                                              {evt.preparationsConfirmed ? (
+                                                <span className="text-[9px] text-emerald-600 font-black flex items-center gap-1 shrink-0 font-sans">
+                                                  <Check className="w-3.5 h-3.5" /> جاهز
+                                                </span>
+                                              ) : (
+                                                <span className="text-[9.5px] text-amber-600 font-bold shrink-0 font-sans">بانتظار تجهيز التوصية</span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+                                      case 1: { // Step 2: Refer Recommendation (إحالة التوصية)
+                                        return (
+                                          <div className="space-y-4 animate-fade-in text-right">
+                                            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                                              <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5 font-sans">
+                                                <Users className="w-4 h-4 text-brand" />
+                                                إحالة التوصية وشروحات سلسلة الاعتمادات
+                                              </h3>
+                                              <span className="text-[9px] text-[#4ea0b0] font-extrabold px-2 py-0.5 rounded bg-[#4ea0b0]/5">مرحلة 2 من 3</span>
+                                            </div>
+                                            
+                                            <p className="text-[10px] text-gray-550 leading-relaxed font-bold font-sans text-right">
+                                              توصيق شرح التوصية:
+                                            </p>
+                                            

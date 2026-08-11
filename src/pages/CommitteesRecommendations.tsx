@@ -2,7 +2,7 @@ import React, { useState, useEffect, FormEvent } from "react";
 import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { 
-  Calendar, CheckCircle, Search, Plus, X, Users2, Trash2, Edit2, LayoutGrid, List, AlertTriangle, Check, BookOpen, Clock, Presentation, MapPin, AlignLeft, Send, PlayCircle, Filter, Users, Settings, Copy, ChevronDown, ChevronUp, CheckSquare, Sparkles, Activity, Sliders, Lock, Loader2, Paperclip, Mail, UploadCloud
+  Calendar, CheckCircle, Search, Plus, X, Users2, Trash2, Edit2, LayoutGrid, List, AlertTriangle, Check, BookOpen, Clock, Presentation, MapPin, AlignLeft, Send, PlayCircle, Filter, Users, Settings, Copy, ChevronDown, ChevronUp, CheckSquare, Sparkles, Activity, Sliders, Lock, Loader2, Paperclip, Mail, UploadCloud, Upload
 } from "lucide-react";
 import { Member } from "../data/initialMembers";
 import { formatCommitteeNameArabic } from "../lib/arabicUtils";
@@ -998,19 +998,29 @@ ${formattedItems}
     const nowTimestamp = Date.now();
     
     return list.sort((a, b) => {
-      const aComp = isEventCompleted(a);
-      const bComp = isEventCompleted(b);
-      
-      if (aComp && !bComp) return 1;
-      if (!aComp && bComp) return -1;
-      
       const timeValA = getEventTimeValue(a);
       const timeValB = getEventTimeValue(b);
       
-      const diffA = Math.abs(timeValA - nowTimestamp);
-      const diffB = Math.abs(timeValB - nowTimestamp);
+      // Determine if event is past (before beginning of today for strictness, but exact time is fine too)
+      const aIsPast = timeValA > 0 && timeValA < nowTimestamp;
+      const bIsPast = timeValB > 0 && timeValB < nowTimestamp;
       
-      return diffA - diffB;
+      const aComp = isEventCompleted(a);
+      const bComp = isEventCompleted(b);
+      
+      const aDone = aComp || aIsPast;
+      const bDone = bComp || bIsPast;
+      
+      if (aDone && !bDone) return 1;
+      if (!aDone && bDone) return -1;
+      
+      if (aDone && bDone) {
+        // Both are past or completed, sort most recent first
+        return timeValB - timeValA;
+      }
+      
+      // Both are future, sort closest to now first
+      return timeValA - timeValB;
     });
   }, [filteredEvents]);
 
@@ -1671,59 +1681,81 @@ ${formattedItems}
 
 
   
-  const handleFileUploads = async (files, evt, existingAtts) => {
-    showGlobalToast("جاري الرفع والمزامنة مع أرشيف جوجل درايف...", "loading", 0);
-    try {
-      let token = await getSharedAccessToken();
-      if (!token) {
+  const handleFileUploads = async (files: File[], evt: any, existingAtts: any[]) => {
+    
+    // Auto-generate the path based on user requirements
+    let eventTitle = evt.eventName || evt.title || "بدون عنوان";
+    let eventKind = "فعاليات أخرى";
+    if (eventTitle.includes("اجتماع")) eventKind = "الاجتماعات";
+    else if (eventTitle.includes("لقاء")) eventKind = "اللقاءات";
+    else if (eventTitle.includes("زيارة")) eventKind = "الزيارات";
+    else if (eventTitle.includes("ورشة عمل")) eventKind = "ورش العمل";
+
+    const defaultPathStr = `/تقرير اللجان للدورة الـ 22/اللجان المعتمدة/${evt.committeeName || "عام"}/الفعاليات/${eventKind}/${eventTitle}/التوصيات/${evt.title || "بدون عنوان"}`;
+
+    const pathVal = defaultPathStr;
+    const executeUpload = async (pathVal: string) => {
+        if (!pathVal) return;
+        showGlobalToast("جاري الرفع والمزامنة مع أرشيف جوجل درايف...", "loading", 0);
         try {
-          token = await triggerAuthModal();
-        } catch (err) {
-          console.warn("User cancelled auth", err);
-          showGlobalToast("لا يمكن حفظ التوصية بدون المصادقة. يرجى تسجيل الدخول إلى جوجل درايف أولاً.", "error");
-          return null;
-        }
-      }
-      
-      const newAtts = [];
-      
-      if (token) {
-        const rootFolderId = await getOrCreateFolder("أرشيف اللجان - الدورة 22");
-        const committeeFolderId = await getOrCreateFolder(evt.committeeName || "عام", rootFolderId);
-        const recFolderId = await getOrCreateFolder("التوصيات", committeeFolderId);
-        const itemFolderId = await getOrCreateFolder(evt.title || "بدون عنوان", recFolderId);
+          let token = await getSharedAccessToken();
+          if (!token) {
+            try {
+              token = await triggerAuthModal();
+            } catch (err) {
+              console.warn("User cancelled auth", err);
+              showGlobalToast("لا يمكن حفظ التوصية بدون المصادقة. يرجى تسجيل الدخول إلى جوجل درايف أولاً.", "error");
+              return null;
+            }
+          }
+          
+          const newAtts: any[] = [];
+          
+          if (token) {
+            const parts = pathVal.split('/').filter(p => p.trim());
+            let currentFolderId: string | null = null;
+            for (const part of parts) {
+              if (!currentFolderId) {
+                currentFolderId = await getOrCreateFolder(part);
+              } else {
+                currentFolderId = await getOrCreateFolder(part, currentFolderId);
+              }
+            }
+            const itemFolderId = currentFolderId;
+            
+            for (const file of files) {
+              const base64 = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve((reader.result as string).split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+              });
+              const res = await uploadBinaryFileToDrive(file.name, base64 as string, file.type || "application/octet-stream", itemFolderId);
+              newAtts.push({
+                name: file.name,
+                url: res && res.id ? `https://drive.google.com/file/d/${res.id}/view` : "#",
+                size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
+                date: new Date().toLocaleDateString('ar-SA')
+              });
+            }
+          } else {
+            files.forEach(f => newAtts.push({
+              name: f.name,
+              url: "#",
+              size: (f.size / (1024 * 1024)).toFixed(2) + " MB",
+              date: new Date().toLocaleDateString('ar-SA')
+            }));
+          }
 
-        for (const file of files) {
-          const base64 = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve((reader.result as string).split(',')[1]);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-          const res = await uploadBinaryFileToDrive(file.name, base64 as string, file.type || "application/octet-stream", itemFolderId);
-          newAtts.push({
-            name: file.name,
-            url: res && res.id ? `https://drive.google.com/file/d/${res.id}/view` : "#",
-            size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
-            date: new Date().toLocaleDateString('ar-SA')
-          });
+          updateEventWorkflow(evt.id, { attachments: [...existingAtts, ...newAtts] });
+          showGlobalToast(`تمت المزامنة وحفظ الملفات بنجاح في المسار: ${pathVal}`, "success");
+        } catch (err: any) {
+          console.error("Upload error:", err);
+          const msg = err?.message?.includes("عفواً") ? err.message : "حدث خطأ أثناء رفع الملفات والمزامنة. تأكد من صلاحية الربط بحساب جوجل.";
+          showGlobalToast(msg, "error");
         }
-      } else {
-        files.forEach(f => newAtts.push({
-          name: f.name,
-          url: "#",
-          size: (f.size / (1024 * 1024)).toFixed(2) + " MB",
-          date: new Date().toLocaleDateString('ar-SA')
-        }));
-      }
-
-      updateEventWorkflow(evt.id, { attachments: [...existingAtts, ...newAtts] });
-      showGlobalToast("تمت المزامنة وحفظ الملفات بنجاح في أرشيف جوجل درايف.", "success");
-    } catch (err: any) {
-      console.error("Upload error:", err);
-      const msg = err?.message?.includes("عفواً") ? err.message : "حدث خطأ أثناء رفع الملفات والمزامنة. تأكد من صلاحية الربط بحساب جوجل.";
-      showGlobalToast(msg, "error");
-    }
+    };
+    executeUpload(pathVal);
   };
 
   const handleCustomLinkAttachment = (evtId: number, currentAttachments: any[]) => {
@@ -3205,31 +3237,41 @@ ${itemTitleFull} .
                                               />
                                               
                                               {/* Digital Library Drag & Drop Simulator */}
-                                              <div className="border-2 border-dashed border-slate-200 rounded-xl p-3 bg-slate-50/20 text-center relative hover:border-brand/45 transition-colors font-sans">
-                                                <div 
-                                                  className="relative p-2 cursor-pointer group"
-                                                  onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-brand', 'bg-brand/5'); }}
-                                                  onDragLeave={(e) => { e.preventDefault(); e.currentTarget.classList.remove('border-brand', 'bg-brand/5'); }}
-                                                  onDrop={(e) => {
-                                                    e.preventDefault();
-                                                    e.currentTarget.classList.remove('border-brand', 'bg-brand/5');
-                                                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                                                      handleFileUploads(Array.from(e.dataTransfer.files), evt, attachmentsList || []);
+                                              <div 
+                                                className="border-2 border-dashed border-gray-200 rounded-2xl p-3.5 text-center transition-all relative bg-gray-50/50 hover:bg-gray-100/70 font-sans"
+                                                onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-brand', 'bg-brand/5'); }}
+                                                onDragLeave={(e) => { e.preventDefault(); e.currentTarget.classList.remove('border-brand', 'bg-brand/5'); }}
+                                                onDrop={(e) => {
+                                                  e.preventDefault();
+                                                  e.currentTarget.classList.remove('border-brand', 'bg-brand/5');
+                                                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                                                    handleFileUploads(Array.from(e.dataTransfer.files), evt, attachmentsList || []);
+                                                  }
+                                                }}
+                                              >
+                                                <input
+                                                  type="file"
+                                                  id={`file-input-${evt.id}`}
+                                                  multiple
+                                                  className="hidden"
+                                                  onChange={(e) => {
+                                                    if (e.target.files && e.target.files.length > 0) {
+                                                      handleFileUploads(Array.from(e.target.files), evt, attachmentsList || []);
                                                     }
                                                   }}
-                                                >
-                                                  <input 
-                                                    type="file" 
-                                                    multiple
-                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                                    onChange={(e) => {
-                                                      if (e.target.files && e.target.files.length > 0) {
-                                                        handleFileUploads(Array.from(e.target.files), evt, attachmentsList || []);
-                                                      }
-                                                    }}
-                                                  />
-                                                  <p className="text-[9.5px] text-slate-600 font-extrabold font-sans group-hover:text-brand transition-colors">المكتبة الرقمية: اسحب وأفلت المرفق هنا أو اضغط لربطه بجوجل درايف</p>
-                                                </div>
+                                                />
+                                                <label htmlFor={`file-input-${evt.id}`} className="cursor-pointer block space-y-1">
+                                                  <div className="flex items-center justify-between">
+                                                    <span className="text-[11px] font-black text-gray-700">المكتبة الرقمية</span>
+                                                    <span className="text-[10px] text-gray-400 font-bold flex items-center gap-1 hover:text-brand">
+                                                      <Upload className="w-3.5 h-3.5" />
+                                                      <span>تحميل</span>
+                                                    </span>
+                                                  </div>
+                                                  <p className="text-[10px] text-gray-500 font-medium truncate text-right">
+                                                    اسحب الملفات هنا أو انقر للإدراج أو للربط بجوجل درايف
+                                                  </p>
+                                                </label>
                                                 
                                                 <div className="mt-2.5 flex flex-wrap justify-center gap-1.5 font-sans relative z-20">
                                                   {sampleFiles.map((fn, idx) => (

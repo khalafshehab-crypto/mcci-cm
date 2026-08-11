@@ -1,9 +1,10 @@
+import { DriveImage } from "../components/DriveImage";
 import React, { useState, useEffect, FormEvent, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Users2, Search, Plus, X, Users, Calendar, CheckCircle, FileText, Trash2, SlidersHorizontal,
   Check, ChevronLeft, ChevronDown, Settings2, Columns, Edit2, Save, Download, MoreVertical, Activity, AlertCircle,
-  UserCheck, LayoutGrid, List, FileSpreadsheet, Settings, Upload, AlertTriangle, TriangleAlert
+  UserCheck, LayoutGrid, List, FileSpreadsheet, Settings, Upload, AlertTriangle, TriangleAlert, FolderOutput, Paperclip, Eye
 } from "lucide-react";
 // @ts-ignore
 import { generateDocx } from "../lib/docxGenerator";
@@ -143,7 +144,7 @@ const advancedMatch = (commName: string, targetName: string) => {
 function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenEdit, handleOpenDelete, dbMembers, dbEvents, dbRecs }: any) {
   const getStatusColor = (status: string) => {
     if (status === "مكتمل" || status === "منجزة" || status === "مؤكد") return "bg-emerald-50 text-emerald-700 border-emerald-200 border-l-4 border-l-emerald-700";
-    if (status === "متأخر" || status === "متأخرة" || status === "ملغي") return "bg-rose-50 text-rose-700 border-rose-200 border-l-4 border-l-rose-700";
+    if (status === "متأخر" || status === "متأخرة" || status === "ملغي" || status === "فائت") return "bg-rose-50 text-rose-700 border-rose-200 border-l-4 border-l-rose-700";
     if (status === "جاري" || status === "جاري العمل عليها") return "bg-amber-50 text-amber-700 border-amber-200 border-l-4 border-l-amber-700";
     return "bg-blue-50 text-blue-700 border-blue-200 border-l-4 border-l-blue-700";
   };
@@ -296,28 +297,117 @@ function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenE
                 </div>
               </div>
 
+              {(detailsComm.strategicPlan || detailsComm.ratingIssues) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {detailsComm.strategicPlan && (
+                    <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4 shadow-sm">
+                      <div className="flex items-center gap-2 mb-2 text-emerald-700">
+                        <List className="w-4 h-4" />
+                        <span className="text-[11px] font-black">الخطة الاستراتيجية المعتمدة</span>
+                      </div>
+                      <p className="text-xs font-bold text-gray-700 leading-relaxed whitespace-pre-line">{detailsComm.strategicPlan}</p>
+                    </div>
+                  )}
+                  {detailsComm.ratingIssues && (
+                    <div className="bg-amber-50/50 border border-amber-100 rounded-2xl p-4 shadow-sm">
+                      <div className="flex items-center gap-2 mb-2 text-amber-700">
+                        <TriangleAlert className="w-4 h-4" />
+                        <span className="text-[11px] font-black">قضايا التقدير والمخاطر</span>
+                      </div>
+                      <p className="text-xs font-bold text-gray-700 leading-relaxed whitespace-pre-line">{detailsComm.ratingIssues}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-4">
                 <h5 className="text-xs font-black text-gray-500 border-b border-gray-100 pb-2">قيادات اللجنة</h5>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-                      <UserCheck className="w-5 h-5" />
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                        <UserCheck className="w-5 h-5" />
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-gray-400 font-black block">رئيس اللجنة</span>
+                        <span className="text-xs font-extrabold text-blue-900">{presidentName}</span>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="text-[10px] text-gray-400 font-black block">رئيس اللجنة</span>
-                      <span className="text-xs font-extrabold text-blue-900">{presidentName}</span>
-                    </div>
+                    {actualPresident && (actualPresident.cv || actualPresident.commercialRegister || actualPresident.membershipCertificate || actualPresident.authorization) && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {[
+                          { label: "السيرة", value: actualPresident.cv },
+                          { label: "السجل", value: actualPresident.commercialRegister },
+                          { label: "الاشتراك", value: actualPresident.membershipCertificate },
+                          { label: "التفويض", value: actualPresident.authorization }
+                        ].map((doc, idx) => doc.value ? (
+                          <div key={idx} className="flex items-center gap-1 p-1 px-1.5 bg-gray-50 rounded border border-gray-100">
+                            <Paperclip className="w-2.5 h-2.5 text-blue-500" />
+                            <span className="text-[8px] font-bold text-gray-700">{doc.label}</span>
+                            <a 
+                              href={typeof doc.value === 'string' && doc.value.startsWith('http') ? doc.value : '#'}
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="w-4 h-4 flex items-center justify-center bg-white border border-gray-200 rounded text-emerald-600 hover:bg-emerald-50 transition-colors shadow-sm"
+                              title="عرض المرفق"
+                              onClick={(e) => {
+                                if (typeof doc.value === 'string' && !doc.value.startsWith('http')) {
+                                  e.preventDefault();
+                                  alert('المرفق محلي وغير متوفر كرابط.');
+                                }
+                              }}
+                            >
+                              <Eye className="w-2.5 h-2.5" />
+                            </a>
+                          </div>
+                        ) : null)}
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-purple-50 text-purple-600 rounded-xl">
-                      <UserCheck className="w-5 h-5" />
+                  
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-50 text-purple-600 rounded-xl">
+                        <UserCheck className="w-5 h-5" />
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-gray-400 font-black block">نائب رئيس اللجنة</span>
+                        <span className="text-xs font-extrabold text-purple-900">{vicePresidentName}</span>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="text-[10px] text-gray-400 font-black block">نائب رئيس اللجنة</span>
-                      <span className="text-xs font-extrabold text-purple-900">{vicePresidentName}</span>
-                    </div>
+                    {actualVice && (actualVice.cv || actualVice.commercialRegister || actualVice.membershipCertificate || actualVice.authorization) && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {[
+                          { label: "السيرة", value: actualVice.cv },
+                          { label: "السجل", value: actualVice.commercialRegister },
+                          { label: "الاشتراك", value: actualVice.membershipCertificate },
+                          { label: "التفويض", value: actualVice.authorization }
+                        ].map((doc, idx) => doc.value ? (
+                          <div key={idx} className="flex items-center gap-1 p-1 px-1.5 bg-gray-50 rounded border border-gray-100">
+                            <Paperclip className="w-2.5 h-2.5 text-blue-500" />
+                            <span className="text-[8px] font-bold text-gray-700">{doc.label}</span>
+                            <a 
+                              href={typeof doc.value === 'string' && doc.value.startsWith('http') ? doc.value : '#'}
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="w-4 h-4 flex items-center justify-center bg-white border border-gray-200 rounded text-emerald-600 hover:bg-emerald-50 transition-colors shadow-sm"
+                              title="عرض المرفق"
+                              onClick={(e) => {
+                                if (typeof doc.value === 'string' && !doc.value.startsWith('http')) {
+                                  e.preventDefault();
+                                  alert('المرفق محلي وغير متوفر كرابط.');
+                                }
+                              }}
+                            >
+                              <Eye className="w-2.5 h-2.5" />
+                            </a>
+                          </div>
+                        ) : null)}
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-3">
+
+                  <div className="flex items-center gap-3 h-fit">
                     <div className="p-2 bg-slate-100 text-gray-650 rounded-xl">
                       <UserCheck className="w-5 h-5" />
                     </div>
@@ -326,6 +416,45 @@ function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenE
                       <span className="text-xs font-extrabold text-gray-800">{detailsComm.specialist || "غير محدد"}</span>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-4">
+                <h5 className="text-xs font-black text-gray-500 border-b border-gray-100 pb-2">مرفقات اللجنة</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {[
+                    { label: "قرار التشكيل", value: detailsComm.formationLetter },
+                    { label: "اعتماد الأعضاء", value: detailsComm.membersApproval },
+                    { label: "اللوائح", value: detailsComm.regulations },
+                    { label: "الأدلة", value: detailsComm.guides }
+                  ].map((doc, idx) => (
+                    <div key={idx} className="flex flex-col items-center justify-center gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <Paperclip className="w-4 h-4 text-blue-500 mb-1" />
+                        <span className="text-xs font-bold text-gray-700">{doc.label}</span>
+                      </div>
+                      {doc.value ? (
+                        <a 
+                          href={typeof doc.value === 'string' && doc.value.startsWith('http') ? doc.value : '#'}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200 transition-all shadow-sm"
+                          title="عرض المرفق"
+                          onClick={(e) => {
+                            if (typeof doc.value === 'string' && !doc.value.startsWith('http')) {
+                              e.preventDefault();
+                              alert('المرفق محلي وغير متوفر كرابط.');
+                            }
+                          }}
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span className="text-[10px] font-black">عرض</span>
+                        </a>
+                      ) : (
+                        <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded-md mt-0.5">غير متوفر</span>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -337,15 +466,79 @@ function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenE
               {commMembers.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {commMembers.map((m: any) => (
-                    <div key={m.id} className="flex items-center gap-3 bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
-                      <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
-                        {m.personalPhoto ? <img src={m.personalPhoto} className="w-full h-full object-cover" /> : <UserCheck className="w-5 h-5 text-gray-400" />}
+                    <div key={m.id} className="flex flex-col gap-3 bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+                      <div className="flex items-center gap-3">
+                        {(() => {
+                          let photoSrc = m.personalPhoto;
+                          let driveFileId = "";
+                          if (photoSrc && photoSrc.includes("drive.google.com/file/d/")) {
+                            const match = photoSrc.match(/d\/([a-zA-Z0-9_-]+)/);
+                            if (match && match[1]) {
+                              driveFileId = match[1];
+                            }
+                          }
+                          
+                          if (driveFileId) {
+                            return (
+                              <DriveImage 
+                                fileId={driveFileId}
+                                className="w-10 h-10 rounded-full object-cover shrink-0"
+                                fallbackClassName="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden"
+                                fallbackInitials={m.name ? m.name.charAt(0) : "ع"}
+                              />
+                            );
+                          }
+                          
+                          return (
+                            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
+                              {photoSrc ? <img src={photoSrc} referrerPolicy="no-referrer" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.parentElement!.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>'; }} /> : <UserCheck className="w-5 h-5 text-gray-400" />}
+                            </div>
+                          );
+                        })()}
+                        <div className="text-right">
+                          <span className="text-[10px] text-brand font-black block">{m.role}</span>
+                          <span className="text-xs font-extrabold text-gray-800">{m.title} {m.name}</span>
+                          <span className="text-[10px] text-gray-400 block mt-0.5">{m.phone}</span>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <span className="text-[10px] text-brand font-black block">{m.role}</span>
-                        <span className="text-xs font-extrabold text-gray-800">{m.title} {m.name}</span>
-                        <span className="text-[10px] text-gray-400 block mt-0.5">{m.phone}</span>
-                      </div>
+
+                      {/* Member Attachments */}
+                      {(m.cv || m.commercialRegister || m.membershipCertificate || m.authorization) && (
+                        <div className="pt-2 border-t border-gray-100">
+                          <span className="text-[10px] font-black text-gray-400 mb-2 block text-right">مرفقات العضو</span>
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              { label: "السيرة الذاتية", value: m.cv },
+                              { label: "السجل التجاري", value: m.commercialRegister },
+                              { label: "الاشتراك", value: m.membershipCertificate },
+                              { label: "التفويض", value: m.authorization }
+                            ].map((doc, idx) => doc.value ? (
+                              <div key={idx} className="flex flex-col items-center justify-center gap-1.5 p-2 bg-gray-50 rounded-xl border border-gray-100 text-center">
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <Paperclip className="w-3.5 h-3.5 text-blue-500 mb-0.5" />
+                                  <span className="text-[9px] font-bold text-gray-700">{doc.label}</span>
+                                </div>
+                                <a 
+                                  href={typeof doc.value === 'string' && doc.value.startsWith('http') ? doc.value : '#'}
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 px-2 py-1 bg-white border border-gray-200 rounded-lg text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200 transition-all shadow-sm"
+                                  title="عرض المرفق"
+                                  onClick={(e) => {
+                                    if (typeof doc.value === 'string' && !doc.value.startsWith('http')) {
+                                      e.preventDefault();
+                                      alert('المرفق محلي وغير متوفر كرابط.');
+                                    }
+                                  }}
+                                >
+                                  <Eye className="w-3 h-3" />
+                                  <span className="text-[9px] font-black">عرض</span>
+                                </a>
+                              </div>
+                            ) : null)}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -505,6 +698,7 @@ export default function CommitteesFormation() {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newMtgError, setNewMtgError] = useState("");
+  const [actionType, setActionType] = useState<"إضافة" | "استيراد" | "تصدير">("إضافة");
 
   // Dynamic employees fetched from Org Chart database
   const [dynamicEmployees, setDynamicEmployees] = useState<string[]>(EMPLOYEES);
@@ -556,6 +750,7 @@ export default function CommitteesFormation() {
   const [membersApproval, setMembersApproval] = useState<File | string | null>(null);
   const [regulations, setRegulations] = useState<File | string | null>(null);
   const [guides, setGuides] = useState<File | string | null>(null);
+  const [googleDriveUrl, setGoogleDriveUrl] = useState("");
   
   // New Form Fields for Robust Committee Cards
   const [president, setPresident] = useState("");
@@ -1013,6 +1208,7 @@ export default function CommitteesFormation() {
     setMembersApproval(null);
     setRegulations(null);
     setGuides(null);
+    setGoogleDriveUrl("");
     setPresident("");
     setRecommendationsCount(0);
     setEventsCount(0);
@@ -1040,6 +1236,7 @@ export default function CommitteesFormation() {
     setMembersApproval(comm.membersApproval || null);
     setRegulations(comm.regulations || null);
     setGuides(comm.guides || null);
+    setGoogleDriveUrl(comm.libraryLink || "");
     setPresident(comm.president || "");
     setRecommendationsCount(comm.recommendationsCount || 0);
     setEventsCount(comm.eventsCount || 0);
@@ -1199,6 +1396,7 @@ export default function CommitteesFormation() {
             ratingIssues: ratingIssues.trim(),
             strategicPlan: strategicPlan.trim(),
             driveFolderId: folderId,
+            libraryLink: folderId ? `https://drive.google.com/drive/folders/${folderId}` : googleDriveUrl,
           };
         }
         return c;
@@ -1229,6 +1427,7 @@ export default function CommitteesFormation() {
         ratingIssues: ratingIssues.trim(),
         strategicPlan: strategicPlan.trim(),
         driveFolderId: folderId,
+            libraryLink: folderId ? `https://drive.google.com/drive/folders/${folderId}` : googleDriveUrl,
       };
       setCommittees([newComm, ...committees]);
     }
@@ -1522,81 +1721,18 @@ export default function CommitteesFormation() {
             </div>
           </div>
 
-          {/* Merged Add/Import/Export Dropdown */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
-              className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer"
-            >
-              <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
-              <span>إجراءات اللجان</span>
-              <ChevronDown className="w-4 h-4 mr-1 opacity-70" />
-            </button>
-            <AnimatePresence>
-              {isAddMenuOpen && (
-                
-<div key="animate-wrapper-1784704053917-2">
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-10"
-                    onClick={() => setIsAddMenuOpen(false)}
-                  />
-                  <motion.div
-                    initial={{ opacity: 0, y: 5, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 5, scale: 0.95 }}
-                    className="absolute left-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-2 z-20 flex flex-col gap-1"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsAddMenuOpen(false);
-                        handleOpenAdd();
-                      }}
-                      className="w-full h-10 px-3 bg-white hover:bg-blue-50 text-gray-800 font-bold text-xs rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-right group"
-                    >
-                      <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100">
-                        <Plus className="w-3.5 h-3.5" />
-                      </div>
-                      <span>إضافة لجنة</span>
-                    </button>
-                    
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsAddMenuOpen(false);
-                        setExportModalMode('import');
-                        setIsExportOpen(true);
-                      }}
-                      className="w-full h-10 px-3 bg-white hover:bg-blue-50 text-gray-800 font-bold text-xs rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-right group"
-                    >
-                      <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100">
-                        <Download className="w-3.5 h-3.5" />
-                      </div>
-                      <span>استيراد</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsAddMenuOpen(false);
-                        setExportModalMode('export');
-                        setIsExportOpen(true);
-                      }}
-                      className="w-full h-10 px-3 bg-white hover:bg-emerald-50 text-gray-800 font-bold text-xs rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-right group"
-                    >
-                      <div className="w-6 h-6 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:bg-emerald-100">
-                        <Upload className="w-3.5 h-3.5" />
-                      </div>
-                      <span>تصدير</span>
-                    </button>
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>
-          </div>
+          {/* Committees Actions Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setActionType("إضافة");
+              handleOpenAdd();
+            }}
+            className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer shrink-0"
+          >
+            <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
+            <span>إجراءات اللجان</span>
+          </button>
 
           {/* Vertical divider */}
           <div className="h-8 w-px bg-gray-300 hidden sm:block mx-1"></div>
@@ -1642,7 +1778,7 @@ export default function CommitteesFormation() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ duration: 0.3 }}
-                className={`bg-[#e8e4e4] hover:bg-[#e2dede] transition-colors duration-300 rounded-2xl p-5 border shadow-sm hover:shadow-md relative group flex flex-col justify-between ${!comm.active ? "opacity-50 grayscale-[30%] border-gray-300" : "border-gray-200"}`}
+                className={`bg-white border-2 hover:border-[#dfba6b]/60 hover:shadow-lg transition-all duration-300 rounded-3xl p-6 relative group flex flex-col justify-between space-y-4 ${!comm.active ? "opacity-50 grayscale-[30%] border-gray-300" : "border-slate-100"}`}
               >
                 {/* ⚙️ Settings Gear Button with Dropdown logic */}
                 <div className="absolute top-4 left-4 z-20">
@@ -1977,13 +2113,15 @@ export default function CommitteesFormation() {
               <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-600 text-white rounded-xl">
-                    {editingComm ? <Edit2 className="w-5 h-5 stroke-[2.5]" /> : <Plus className="w-5 h-5 stroke-[2.5]" />}
+                    {editingComm ? <Edit2 className="w-5 h-5 stroke-[2.5]" /> : actionType === "إضافة" ? <Plus className="w-5 h-5 stroke-[2.5]" /> : <FileSpreadsheet className="w-5 h-5 stroke-[2.5]" />}
                   </div>
                   <div>
                     <h3 className="font-extrabold text-gray-900 text-base leading-tight">
-                      {editingComm ? `تعديل لجنة: ${editingComm.name}` : "تشكيل لجنة جديدة"}
+                      {editingComm ? `تعديل لجنة: ${editingComm.name}` : actionType === "إضافة" ? "إجراءات اللجان" : actionType === "استيراد" ? "استيراد اللجان (CSV)" : "تصدير اللجان (Google Sheets)"}
                     </h3>
-                    <p className="text-xs text-gray-500 font-medium">يرجى التأكد من تسجيل البيانات بعناية لربطها بالنظام</p>
+                    <p className="text-xs text-gray-500 font-medium">
+                      {editingComm || actionType === "إضافة" ? "يرجى التأكد من تسجيل البيانات بعناية لربطها بالنظام" : actionType === "استيراد" ? "اختر الحقول والبيانات المراد استيرادها" : "اختر الحقول والبيانات المراد تصديرها"}
+                    </p>
                   </div>
                 </div>
                 <button
@@ -1996,219 +2134,279 @@ export default function CommitteesFormation() {
               </div>
 
               {/* Form Content */}
-              <form onSubmit={handleFormSubmit} className="flex flex-col h-full overflow-hidden">
-                <div className="p-6 space-y-4 overflow-y-auto flex-1">
-{newMtgError && (
-                  <div className="bg-red-50 border border-red-100 text-red-700 p-3 rounded-xl text-[11px] font-bold text-right flex items-center gap-2">
-                    <span className="w-2 h-2 shrink-0 rounded-full bg-red-600 animate-pulse"></span>
-                    <span className="flex-1">{newMtgError}</span>
-                  </div>
-                )}
-
-                {/* Submitting context reason (ONLY required when editing) */}
-                {editingComm && (
-                  <div className="space-y-1.5 bg-amber-50/60 p-3.5 rounded-2xl border border-amber-200 text-right">
-                    <label className="block text-xs font-black text-amber-800 mb-1">
-                      سبب التعديل <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={editReason}
-                      onChange={(e) => setEditReason(e.target.value)}
-                      placeholder="اكتب هنا سبب تغيير بيانات اللجنة (مثل: استبدال الأخصائي أو زيادة عدد الأعضاء)"
-                      className="w-full h-11 bg-white border border-amber-350 rounded-xl px-4 text-xs font-bold text-right focus:ring-2 focus:ring-brand/20 outline-none transition-all placeholder-amber-600/55 text-amber-900"
-                    />
-                  </div>
-                )}
-
-                {/* Committee Name Field */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-black text-gray-700">اسم اللجنة<span className="text-red-500">*</span></label>
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="مثال: لجنة الاتصالات وتقنية المعلومات"
-                    className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-sm font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-right outline-none transition-all"
-                  />
-                </div>
-
-                {/* President & Strategic Plan Row */}
-                <div className={editingComm ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "w-full"}>
-                  {editingComm && (
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-black text-gray-700">رئيس اللجنة</label>
-                      <input
-                        type="text"
-                        value={president}
-                        onChange={(e) => setPresident(e.target.value)}
-                        placeholder="يترك فارغاً"
-                        className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-xs font-bold focus:ring-2 focus:ring-blue-500/20 outline-none transition-all text-right"
-                      />
-                    </div>
-                  )}
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-black text-gray-700">الخطة الاستراتيجية</label>
-                    <select
-                      value={strategicPlan}
-                      onChange={(e) => setStrategicPlan(e.target.value)}
-                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-2 text-xs font-black text-right focus:ring-2 focus:ring-blue-500/20 outline-none transition-all cursor-pointer"
-                    >
-                      <option value="">غير مدرجة</option>
-                      <option value="تم الاعتماد">تم الاعتماد</option>
-                      <option value="قيد الدراسة">قيد الدراسة</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Quantities Row */}
-                {editingComm && (
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-black text-gray-700">عدد الأعضاء</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={80}
-                      value={membersCount}
-                      onChange={(e) => setMembersCount(Number(e.target.value))}
-                      className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-sm font-black font-mono text-right focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-                    />
-                  </div>
-                )}
-
-                {/* Numeric Statistics Row */}
-                {editingComm && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-black text-gray-700">عدد الاجتماعات</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={meetingsCount}
-                        onChange={(e) => setMeetingsCount(Number(e.target.value))}
-                        className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-3 text-xs font-bold font-mono text-center outline-none"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-black text-gray-700">عدد التوصيات</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={recommendationsCount}
-                        onChange={(e) => setRecommendationsCount(Number(e.target.value))}
-                        className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-3 text-xs font-bold font-mono text-center outline-none"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-black text-gray-700">عدد الفعاليات</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={eventsCount}
-                        onChange={(e) => setEventsCount(Number(e.target.value))}
-                        className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-3 text-xs font-bold font-mono text-center outline-none"
-                      />
+              <div className="flex flex-col h-full overflow-hidden">
+                {!editingComm && (
+                  <div className="px-6 pt-6 shrink-0">
+                    <div className="bg-gray-100 p-1 rounded-xl flex shadow-inner text-right" dir="rtl">
+                      <button
+                        type="button"
+                        onClick={() => setActionType("إضافة")}
+                        className={`flex-1 py-2 rounded-lg font-black text-xs transition-all ${
+                          actionType === "إضافة" ? "bg-blue-600 text-white shadow" : "text-gray-500 hover:text-gray-700"
+                        }`}
+                      >
+                        إضافة لجنة
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActionType("استيراد")}
+                        className={`flex-1 py-2 rounded-lg font-black text-xs transition-all ${
+                          actionType === "استيراد" ? "bg-blue-600 text-white shadow" : "text-gray-500 hover:text-gray-700"
+                        }`}
+                      >
+                        استيراد اللجان
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActionType("تصدير")}
+                        className={`flex-1 py-2 rounded-lg font-black text-xs transition-all ${
+                          actionType === "تصدير" ? "bg-blue-600 text-white shadow" : "text-gray-500 hover:text-gray-700"
+                        }`}
+                      >
+                        تصدير اللجان
+                      </button>
                     </div>
                   </div>
                 )}
 
-                {/* Status Toggle Block (Active: Green, Inactive: Red) */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-black text-gray-700">حالة اللجنة</label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setIsActive(true)}
-                      className={`h-11 rounded-xl flex items-center justify-center gap-2 border font-black text-xs transition-all cursor-pointer ${
-                        isActive 
-                          ? "bg-emerald-50 border-emerald-250 text-emerald-800 ring-2 ring-emerald-500/10" 
-                          : "bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100"
-                      }`}
-                    >
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                      <span>نشطة</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsActive(false)}
-                      className={`h-11 rounded-xl flex items-center justify-center gap-2 border font-black text-xs transition-all cursor-pointer ${
-                        !isActive 
-                          ? "bg-rose-50 border-rose-250 text-rose-800 ring-2 ring-rose-500/10" 
-                          : "bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100"
-                      }`}
-                    >
-                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-                      <span>غير نشطة</span>
-                    </button>
+                {actionType === "إضافة" || editingComm ? (
+                  <form onSubmit={handleFormSubmit} className="flex flex-col flex-1 overflow-hidden">
+                    <div className="p-6 space-y-4 overflow-y-auto flex-1">
+                      {newMtgError && (
+                        <div className="bg-red-50 border border-red-100 text-red-700 p-3 rounded-xl text-[11px] font-bold text-right flex items-center gap-2">
+                          <span className="w-2 h-2 shrink-0 rounded-full bg-red-600 animate-pulse"></span>
+                          <span className="flex-1">{newMtgError}</span>
+                        </div>
+                      )}
+
+                      {/* Submitting context reason (ONLY required when editing) */}
+                      {editingComm && (
+                        <div className="space-y-1.5 bg-amber-50/60 p-3.5 rounded-2xl border border-amber-200 text-right">
+                          <label className="block text-xs font-black text-amber-800 mb-1">
+                            سبب التعديل <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={editReason}
+                            onChange={(e) => setEditReason(e.target.value)}
+                            placeholder="اكتب هنا سبب تغيير بيانات اللجنة (مثل: استبدال الأخصائي أو زيادة عدد الأعضاء)"
+                            className="w-full h-11 bg-white border border-amber-350 rounded-xl px-4 text-xs font-bold text-right focus:ring-2 focus:ring-brand/20 outline-none transition-all placeholder-amber-600/55 text-amber-900"
+                          />
+                        </div>
+                      )}
+
+                      {/* Committee Name Field */}
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-black text-gray-700">اسم اللجنة<span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          required
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          placeholder="مثال: لجنة الاتصالات وتقنية المعلومات"
+                          className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-sm font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-right outline-none transition-all"
+                        />
+                      </div>
+
+                      {/* President & Strategic Plan Row */}
+                      <div className={editingComm ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "w-full"}>
+                        {editingComm && (
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-black text-gray-700">الرئيس<span className="text-red-500">*</span></label>
+                            <input
+                              type="text"
+                              value={president}
+                              onChange={(e) => setPresident(e.target.value)}
+                              placeholder="اسم الرئيس..."
+                              className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-sm font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-right outline-none transition-all"
+                            />
+                          </div>
+                        )}
+                        <div className="space-y-1.5">
+                          <label className="block text-xs font-black text-gray-700">الخطة الاستراتيجية<span className="text-red-500">*</span></label>
+                          <select
+                            value={strategicPlan}
+                            onChange={(e) => setStrategicPlan(e.target.value)}
+                            className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-sm font-bold text-gray-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-right outline-none transition-all appearance-none"
+                            dir="rtl"
+                          >
+                            <option value="قيد المراجعة">قيد المراجعة</option>
+                            <option value="معتمدة">معتمدة</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Member Count Field */}
+                        <div className="space-y-1.5">
+                          <label className="block text-xs font-black text-gray-700">عدد الأعضاء <span className="text-gray-400">(الافتراضي 10)</span></label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={membersCount}
+                            onChange={(e) => setMembersCount(parseInt(e.target.value) || 1)}
+                            className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-sm font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-right outline-none transition-all"
+                          />
+                        </div>
+
+                        {/* Assign Specialist Field (Dynamic) */}
+                        <div className="space-y-1.5">
+                          <label className="block text-xs font-black text-gray-700">أخصائي اللجنة</label>
+                          <select
+                            value={specialist}
+                            onChange={(e) => setSpecialist(e.target.value)}
+                            className="w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-sm font-bold text-gray-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-right outline-none transition-all appearance-none"
+                            dir="rtl"
+                          >
+                            <option value="غير محدد">غير محدد (لا يوجد أخصائي مكلف)</option>
+                            {dynamicEmployees.filter(emp => emp !== "غير محدد").map(emp => (
+                              <option key={emp} value={emp}>{emp}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Google Drive Library Link */}
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-black text-gray-700 flex items-center justify-end gap-1.5">
+                          <span>رابط المكتبة الرقمية للجنة (Google Drive)</span>
+                          <FolderOutput className="w-3.5 h-3.5 text-blue-500" />
+                        </label>
+                        <input
+                          type="url"
+                          value={googleDriveUrl}
+                          onChange={(e) => setGoogleDriveUrl(e.target.value)}
+                          placeholder="https://drive.google.com/..."
+                          className="w-full h-11 bg-blue-50/30 border border-blue-100 rounded-xl px-4 text-xs font-mono font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-right outline-none transition-all"
+                        />
+                      </div>
+
+                      {/* Attachments Section */}
+                      <div className="pt-2">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Paperclip className="w-4 h-4 text-blue-600" />
+                          <h4 className="text-xs font-black text-gray-800">مرفقات اللجنة المؤسسية</h4>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <AttachmentInput 
+                            id="formationLetter" 
+                            label="قرار التشكيل" 
+                            value={formationLetter} 
+                            onChange={setFormationLetter} 
+                          />
+                          <AttachmentInput 
+                            id="membersApproval" 
+                            label="اعتماد الأعضاء" 
+                            value={membersApproval} 
+                            onChange={setMembersApproval} 
+                          />
+                          <AttachmentInput 
+                            id="regulations" 
+                            label="اللوائح" 
+                            value={regulations} 
+                            onChange={setRegulations} 
+                          />
+                          <AttachmentInput 
+                            id="guides" 
+                            label="الأدلة" 
+                            value={guides} 
+                            onChange={setGuides} 
+                          />
+                        </div>
+                      </div>
+
+                      {/* Description Field */}
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-black text-gray-700">وصف اللجنة (اختياري)</label>
+                        <textarea
+                          value={desc}
+                          onChange={(e) => setDesc(e.target.value)}
+                          rows={3}
+                          placeholder="اكتب أهداف اللجنة ومهامها باختصار..."
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-right outline-none transition-all resize-none"
+                        ></textarea>
+                      </div>
+                    </div>
+
+                    {/* Footer Actions (Submit / Cancel) */}
+                    <div className="p-5 border-t border-gray-100 bg-gray-50/50 flex flex-row-reverse gap-3 shrink-0">
+                      <button
+                        type="submit"
+                        className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 text-white font-black text-sm rounded-xl transition-all cursor-pointer shadow-sm hover:shadow active:scale-95"
+                      >
+                        {editingComm ? "حفظ التعديلات" : "اعتماد وتشكيل اللجنة"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddOpen(false)}
+                        className="px-6 h-11 bg-white hover:bg-gray-100 border border-gray-200 text-gray-750 font-bold text-sm rounded-xl transition-all cursor-pointer"
+                      >
+                        إلغاء
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex flex-col flex-1 overflow-hidden">
+                    <div className="p-6 space-y-4 overflow-y-auto flex-1">
+                      <p className="text-xs font-semibold text-gray-650 leading-relaxed bg-emerald-50 text-emerald-800 p-3 rounded-xl border border-emerald-100">
+                        {actionType === 'تصدير' ? 'سيتم فرز وتصدير اللجان المحددة أبجدياً مع جلب كافة الإحصائيات الفعالة تلقائياً.' : 'للاستيراد، يرجى اختيار ملف CSV مطابق للأعمدة المحددة.'}
+                      </p>
+
+                      <div className="space-y-2">
+                        <span className="block text-xs font-black text-gray-700">{actionType === 'تصدير' ? 'تحديد الحقول المراد تصديرها:' : 'تحديد الحقول المراد استيرادها:'}</span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[220px] overflow-y-auto p-1 border border-gray-100 rounded-xl bg-gray-50/50">
+                          {EXPORT_FIELDS_META.map(f => (
+                            <label 
+                              key={f.key} 
+                              className="flex items-center gap-2.5 p-2 bg-white rounded-lg border border-gray-150 hover:border-emerald-300 transition-colors cursor-pointer select-none"
+                            >
+                              <input 
+                                type="checkbox"
+                                checked={selectedExportFields.includes(f.key)}
+                                onChange={() => toggleExportField(f.key)}
+                                className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                              />
+                              <span className="text-xs font-extrabold text-gray-800">{f.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-5 border-t border-gray-100 bg-gray-50/50 flex flex-row-reverse gap-3 shrink-0">
+                      {actionType === 'تصدير' ? (
+                        <button
+                          type="button"
+                          onClick={handleExportToGoogleSheets}
+                          className="flex-1 min-w-[140px] h-11 bg-emerald-600 hover:bg-emerald-700 hover:shadow-md text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                        >
+                          <Upload className="w-4 h-4" />
+                          <span>تصدير إلى Sheets</span>
+                        </button>
+                      ) : (
+                        <label className="flex-1 min-w-[140px] h-11 bg-blue-600 hover:bg-blue-700 hover:shadow-md text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95">
+                          <Download className="w-4 h-4" />
+                          <span>استيراد ملف CSV</span>
+                          <input 
+                            type="file" 
+                            accept=".csv"
+                            className="hidden" 
+                            onChange={handleImportCSV}
+                          />
+                        </label>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setIsAddOpen(false)}
+                        className="px-6 h-11 bg-white hover:bg-gray-100 border border-gray-200 text-gray-750 font-bold text-sm rounded-xl transition-all cursor-pointer"
+                      >
+                        إلغاء
+                      </button>
+                    </div>
                   </div>
-                </div>
-
-                
-                {/* Documents and Attachments Section */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-black text-gray-700">المستندات والقرارات الرسمية</label>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <AttachmentInput
-                      id="formationLetter"
-                      label="قرار التشكيل"
-                      value={formationLetter}
-                      onChange={setFormationLetter}
-                    />
-                    <AttachmentInput
-                      id="membersApproval"
-                      label="اعتماد الأعضاء"
-                      value={membersApproval}
-                      onChange={setMembersApproval}
-                    />
-                    <AttachmentInput
-                      id="regulations"
-                      label="اللوائح"
-                      value={regulations}
-                      onChange={setRegulations}
-                    />
-                    <AttachmentInput
-                      id="guides"
-                      label="الأدلة"
-                      value={guides}
-                      onChange={setGuides}
-                    />
-                  </div>
-                </div>
-
-
-                {/* Description Field */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-black text-gray-700">وصف اللجنة ومسؤولياتها الرئيسية <span className="text-red-500">*</span></label>
-                  <textarea
-                    rows={2.5}
-                    required
-                    value={desc}
-                    onChange={(e) => setDesc(e.target.value)}
-                    placeholder="اكتب هنا ملخصاً لأهداف اللجنة واختصاصاتها الرئيسية ومحاور تركيزها..."
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all resize-none"
-                  />
-                </div>
-                </div>
-                {/* Buttons block */}
-                <div className="flex items-center gap-3 p-5 border-t border-gray-100 bg-gray-50 shrink-0">
-                  <button
-                    type="submit"
-                    className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 hover:shadow-md text-white font-black text-sm rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <Check className="w-4 h-4" />
-                    <span>{editingComm ? "حفظ التعديلات الحالية" : "إضافة وتشكيل اللجنة"}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsAddOpen(false)}
-                    className="px-6 h-11 bg-gray-200 hover:bg-gray-300 text-gray-750 font-extrabold text-sm rounded-xl transition-all cursor-pointer"
-                  >
-                    إلغاء الأمر
-                  </button>
-                </div>
-              </form>
+                )}
+              </div>
             </motion.div>
           </div>
         )}
@@ -2360,126 +2558,7 @@ export default function CommitteesFormation() {
 
       
     
-      {/* 📊 GOOGLE SHEETS DYNAMIC EXPORT MODAL */}
-      <AnimatePresence>
-        {isExportOpen && (
-          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsExportOpen(false)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-            />
-
-            {/* Modal Body */}
-            <motion.div
-              initial={{ scale: 0.9, y: 15, opacity: 0 }}
-              animate={{ scale: 1, y: 0, opacity: 1 }}
-              exit={{ scale: 0.9, y: 15, opacity: 0 }}
-              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right text-slate-800"
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                    <FileSpreadsheet className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-gray-900 text-base leading-tight">
-                      {exportModalMode === 'export' ? 'تصدير اللجان (Google Sheets)' : 'استيراد اللجان (CSV)'}
-                    </h3>
-                    <p className="text-xs text-gray-500 font-bold mt-0.5">
-                      {exportModalMode === 'export' ? 'اختر الحقول والبيانات المراد تصديرها' : 'اختر الحقول والبيانات المراد استيرادها'}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsExportOpen(false)}
-                  className="p-1.5 hover:bg-gray-200/50 text-gray-500 rounded-lg transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Body */}
-              <div className="p-6 space-y-4">
-                <p className="text-xs font-semibold text-gray-650 leading-relaxed bg-emerald-50 text-emerald-800 p-3 rounded-xl border border-emerald-100">
-                  {exportModalMode === 'export' ? 'سيتم فرز وتصدير اللجان المحددة أبجدياً مع جلب كافة الإحصائيات الفعالة تلقائياً.' : 'للاستيراد، يرجى اختيار ملف CSV مطابق للأعمدة المحددة.'}
-                </p>
-
-                <div className="space-y-2">
-                  <span className="block text-xs font-black text-gray-700">{exportModalMode === 'export' ? 'تحديد الحقول المراد تصديرها:' : 'تحديد الحقول المراد استيرادها:'}</span>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[220px] overflow-y-auto p-1 border border-gray-100 rounded-xl bg-gray-50/50">
-                    {EXPORT_FIELDS_META.map(f => (
-                      <label 
-                        key={f.key} 
-                        className="flex items-center gap-2.5 p-2 bg-white rounded-lg border border-gray-150 hover:border-emerald-300 transition-colors cursor-pointer select-none"
-                      >
-                        <input 
-                          type="checkbox"
-                          checked={selectedExportFields.includes(f.key)}
-                          onChange={() => toggleExportField(f.key)}
-                          className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4"
-                        />
-                        <span className="text-xs font-extrabold text-gray-800">{f.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex flex-wrap gap-3">
-                {exportModalMode === 'export' ? (
-                  
-<>
-                    <button
-                      type="button"
-                      onClick={handleExportToGoogleSheets}
-                      className="flex-1 min-w-[140px] h-11 bg-emerald-600 hover:bg-emerald-700 hover:shadow-md text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                    >
-                      <Upload className="w-4 h-4" />
-                      <span>تصدير إلى Sheets</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsExportOpen(false)}
-                      className="px-5 h-11 bg-gray-200 hover:bg-gray-300 text-gray-750 font-bold text-xs rounded-xl transition-all cursor-pointer"
-                    >
-                      إلغاء
-                    </button>
-                  </>
-                ) : (
-                  
-<>
-                    <label className="flex-1 min-w-[140px] h-11 bg-blue-600 hover:bg-blue-700 hover:shadow-md text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer">
-                      <Download className="w-4 h-4" />
-                      <span>استيراد ملف CSV</span>
-                      <input 
-                        type="file" 
-                        accept=".csv"
-                        className="hidden" 
-                        onChange={handleImportCSV}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setIsExportOpen(false)}
-                      className="px-5 h-11 bg-gray-200 hover:bg-gray-300 text-gray-750 font-bold text-xs rounded-xl transition-all cursor-pointer"
-                    >
-                      إلغاء
-                    </button>
-                  </>
-                )}
-              </div>
-
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      
 
       {/* 📊 GOOGLE SHEETS IMPORT PREVIEW MODAL */}
       <AnimatePresence>
