@@ -1,49 +1,51 @@
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import { showGlobalToast } from "../lib/toastUtils";
 import { createGoogleDoc, resolveDrivePath, uploadFileToDriveByPath, moveDriveFile } from "../lib/googleApi";
-import React, { useState, useEffect, FormEvent } from "react";
-import { 
-  BookOpen,
-  ChevronDown,
-  ChevronLeft,
-  ChevronUp,
+import React, { useState, useEffect, FormEvent, useRef } from "react";
+import {
+  Paperclip,
+  Printer,
+  ChevronRight,
   Clock,
+  Check,
+  CheckSquare,
+  AlertTriangle,
+  ChevronLeft,
+  Presentation,
   Download,
   Edit2,
-  ExternalLink,
-  FileJson,
-  FileSpreadsheet,
-  FileText,
-  LayoutGrid,
-  Library as LibraryIcon,
-  List,
-  Mail,
-  Paperclip,
-  Plus,
-  Presentation,
-  RefreshCw,
-  Search,
-  Settings,
-  Share2,
-  Trash2,
-  AlertTriangle,
-  Upload,
-  CheckCircle2,
-  Check,
-  Send,
-  Copy,
   Wand2,
-  Calendar,
-  Loader2,
-  Sparkles,
-  Printer,
-  X,
-  MoreHorizontal, 
-  ChevronRight, 
-  Reply,
-  CheckSquare,
   MessageSquare,
+  ExternalLink,
+  Calendar,
   Video,
-  ClipboardList
+  Trash2,
+  Reply,
+  FileJson,
+  Library as LibraryIcon,
+  ClipboardList,
+  X,
+  LayoutGrid,
+  MoreHorizontal,
+  Upload,
+  Mail,
+  Plus,
+  Send,
+  BookOpen,
+  Share2,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  Settings,
+  List,
+  FileSpreadsheet,
+  Sparkles,
+  FileText,
+  Loader2,
+  CheckCircle2,
+  Search,
+  Copy
 } from "lucide-react";
 import { db } from "../lib/firebase";
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from "firebase/firestore";
@@ -61,6 +63,104 @@ export interface TemplateItem {
   downloadUrl: string;
   lastUpdated: string;
   isFavorite: boolean;
+}
+
+
+interface AttachmentInputProps {
+  label: string;
+  value: File | string | null;
+  onChange: (val: File | string | null) => void;
+  id: string;
+}
+
+function AttachmentInput({ label, value, onChange, id }: AttachmentInputProps) {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      onChange(e.target.files[0]);
+    }
+  };
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      onChange(e.dataTransfer.files[0]);
+    }
+  };
+  const displayValue = (value && typeof value === "object" && "name" in value) ? (value as any).name : value;
+  
+  return (
+    <div
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      className={`relative w-full flex flex-col items-center justify-center p-3 border-2 border-dashed rounded-xl transition-all ${
+        value
+          ? "border-emerald-300 bg-emerald-50/40"
+          : "border-gray-200 bg-gray-50/50 hover:bg-gray-100/70"
+      }`}
+    >
+      <input
+        type="file"
+        id={id}
+        className="hidden"
+        onChange={handleFileChange}
+      />
+      {value ? (
+        <div className="flex flex-col items-center gap-1.5 w-full">
+          <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
+            <Check className="w-4 h-4 text-emerald-600" />
+          </div>
+          <span className="text-[10px] font-bold text-emerald-800 max-w-full truncate px-2">{displayValue}</span>
+          <div className="flex items-center gap-2 mt-1 w-full">
+            <input 
+              type="text" 
+              placeholder="إعادة التسمية (اختياري)" 
+              className="flex-1 text-[9px] p-1 border border-gray-200 rounded"
+              onChange={(e) => {
+                if (typeof value === 'object' && value !== null) {
+                  // We can't rename a File object directly easily without making a new one, 
+                  // but we can just store the custom name in a separate state if needed, 
+                  // OR we can create a new File object:
+                  const newFile = new File([value], e.target.value || value.name, { type: value.type });
+                  onChange(newFile);
+                }
+              }}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); onChange(null); }}
+            className="text-[9px] text-rose-500 hover:text-rose-600 font-bold underline mt-1"
+          >
+            حذف المرفق
+          </button>
+        </div>
+      ) : (
+        <label htmlFor={id} className="cursor-pointer flex flex-col items-center gap-1.5 w-full">
+          <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
+            <Upload className="w-4 h-4 text-blue-500" />
+          </div>
+          <span className="text-[10px] font-bold text-gray-600">
+            {label}
+          </span>
+          <span className="text-[8.5px] text-gray-400">سحب وإفلات أو تصفح</span>
+        </label>
+      )}
+      {!value && (
+        <div className="mt-2 pt-2 border-t border-gray-200/50 w-full">
+          <input 
+             type="text" 
+             placeholder="أو ضع رابط هنا..." 
+             className="w-full text-[9px] p-1.5 rounded-lg border border-gray-200 focus:border-blue-500 outline-none text-right font-mono bg-white/50"
+            onChange={(e) => {
+              if(e.target.value) onChange(e.target.value);
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function CommitteesLibrary() {
@@ -261,7 +361,7 @@ export default function CommitteesLibrary() {
   const [importSource, setImportSource] = useState<"drive" | "computer">(
     "drive",
   );
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | string | null>(null);
   
   // Smart Letter State
   const [isSmartLetterOpen, setIsSmartLetterOpen] = useState(false);
@@ -273,14 +373,47 @@ export default function CommitteesLibrary() {
   const [isAIGenOpen, setIsAIGenOpen] = useState(false);
   const [aiGenStep, setAiGenStep] = useState(1);
   const [workspaceService, setWorkspaceService] = useState("docs"); // التحديث: حالة خدمة مساحة العمل
-  const [aiGenCommittee, setAiGenCommittee] = useState("");
+  const [aiGenCommittees, setAiGenCommittees] = useState<string[]>([]);
+  const [circularViaEmail, setCircularViaEmail] = useState(false);
+  const [circularViaWhatsApp, setCircularViaWhatsApp] = useState(false);
+  const [circularMainFile, setCircularMainFile] = useState<File | string | null>(null);
+  const [circularAtt1, setCircularAtt1] = useState<File | string | null>(null);
+  const [circularAtt2, setCircularAtt2] = useState<File | string | null>(null);
+  const [circularAtt3, setCircularAtt3] = useState<File | string | null>(null);
+  const [circularIncomingFrom, setCircularIncomingFrom] = useState("");
+  const [circularTypes, setCircularTypes] = useState<string[]>([]);
+  const [circularNumberDate, setCircularNumberDate] = useState("");
+  const [circularSubject, setCircularSubject] = useState("");
+  
+  const [circularOutNumber, setCircularOutNumber] = useState(`CIR-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
+  const [circularOutDate, setCircularOutDate] = useState(new Date().toLocaleDateString('ar-SA'));
+  const circularPrintRef = useRef<HTMLDivElement>(null);
+  
+  const handleDownloadPDF = async () => {
+    if (!circularPrintRef.current) return;
+    try {
+      showGlobalToast("جاري تحضير ملف PDF...", "loading");
+      const canvas = await html2canvas(circularPrintRef.current, { scale: 2, useCORS: true, backgroundColor: '#FFFFFF' });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`تعميم_${circularOutNumber}.pdf`);
+      showGlobalToast("تم تحميل التعميم بنجاح", "success");
+    } catch (err) {
+      console.error(err);
+      showGlobalToast("حدث خطأ أثناء التصدير", "error");
+    }
+  };
+
   const [aiGenRecipientName, setAiGenRecipientName] = useState("");
   const [aiGenRecipientPosition, setAiGenRecipientPosition] = useState("");
   const [aiGenSubject, setAiGenSubject] = useState("");
   const [aiGenDetails, setAiGenDetails] = useState("");
   const [aiGenContact, setAiGenContact] = useState("");
   const [aiGenAttachments, setAiGenAttachments] = useState("");
-  const [aiGenFileAttachment, setAiGenFileAttachment] = useState<File | null>(null);
+  const [aiGenFileAttachment, setAiGenFileAttachment] = useState<File | string | null>(null);
   const [aiGenSignatory, setAiGenSignatory] = useState("");
   const [aiGenGeneratedText, setAiGenGeneratedText] = useState("");
   const [employees, setEmployees] = useState<any[]>([]);
@@ -289,7 +422,7 @@ export default function CommitteesLibrary() {
   const [aiGenTemplateType, setAiGenTemplateType] = useState("مستندات (Google Docs)");
   const [aiGenPreamble, setAiGenPreamble] = useState("");
   const [aiGenReplyContent, setAiGenReplyContent] = useState("");
-  const [aiGenReplyFile, setAiGenReplyFile] = useState<File | null>(null);
+  const [aiGenReplyFile, setAiGenReplyFile] = useState<File | string | null>(null);
   const [isAIGenGenerating, setIsAIGenGenerating] = useState(false);
 
   // التحديث: إضافة دالة لفتح المولد الذكي بالخطوة 1 الجديدة
@@ -297,7 +430,16 @@ export default function CommitteesLibrary() {
     setIsTemplateMenuOpen(false);
     setAiGenStep(1); // يبدأ من خطوة اختيار الخدمة
     setWorkspaceService("docs");
-    setAiGenCommittee("");
+    setAiGenCommittees([]);
+    setCircularViaEmail(false);
+    setCircularViaWhatsApp(false);
+    setCircularMainFile(null);
+    setCircularAtt1(null);
+    setCircularAtt2(null);
+    setCircularAtt3(null);
+    setCircularIncomingFrom("");
+    setCircularNumberDate("");
+    setCircularSubject("");
     setAiGenTemplateType("مستندات (Google Docs)");
     setAiGenMode("new");
     setAiGenRecipientName("");
@@ -331,11 +473,19 @@ export default function CommitteesLibrary() {
         reader.readAsDataURL(aiGenReplyFile);
         replyFileBase64 = await base64Promise;
         replyFileMimeType = aiGenReplyFile.type;
+      } else if (workspaceService === "circular" && circularMainFile && typeof circularMainFile === 'object') {
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve) => {
+          reader.onload = (ev) => resolve((ev.target?.result as string).split(',')[1]);
+        });
+        reader.readAsDataURL(circularMainFile as File);
+        replyFileBase64 = await base64Promise;
+        replyFileMimeType = circularMainFile.type;
       }
 
       const contactInfo = contactEmp ? `${contactEmp.jobTitle} - ${contactEmp.name} (جوال: ${contactEmp.phone}, بريد: ${contactEmp.email})` : aiGenContact;
       const signatoryInfo = signatoryEmp ? `${signatoryEmp.name} (${signatoryEmp.jobTitle})` : aiGenSignatory;
-      const commName = aiGenCommittee === "all" ? "لجان الغرفة" : (committees.find(c => String(c.id) === String(aiGenCommittee))?.name || aiGenCommittee);
+      const commName = aiGenCommittees.map(id => committees.find(c => String(c.id) === id)?.name || id).join("، ");
 
       let systemPrompt = "";
 
@@ -346,7 +496,7 @@ export default function CommitteesLibrary() {
 الديباجة: ${aiGenPreamble || 'سلمه الله'}
 موضوع الخطاب: ${aiGenSubject}
 التفاصيل والنقاط المطلوبة في الخطاب: ${aiGenDetails}
-لجنة: ${commName}
+لجنة: ${aiGenCommittees.map(id => committees.find(c => String(c.id) === id)?.name || id).join("، ")}
 جهة التوقيع: ${signatoryInfo}
 معلومات التواصل (إن وجدت): ${contactInfo || 'لا يوجد'}
 
@@ -380,7 +530,7 @@ ${replyFileBase64 ? 'لقد تم إرفاق ملف المعاملة الوارد
 التوجيهات ونقاط الرد المطلوبة:
 ${aiPrompt}
 
-الجهة المصدرة للرد: ${commName}
+الجهة المصدرة للرد: ${aiGenCommittees.map(id => committees.find(c => String(c.id) === id)?.name || id).join("، ")}
 جهة التوقيع: ${signatoryInfo}
 معلومات التواصل (إن وجدت): ${contactInfo || 'لا يوجد'}
 
@@ -428,7 +578,18 @@ ${aiPrompt}
 
       if (response.ok) {
         const data = await response.json();
-        setAiGenGeneratedText(data.result || "");
+        const text = data.result || "";
+        setAiGenGeneratedText(text);
+        if (workspaceService === "circular") {
+          const fromMatch = text.match(/التعميم وارد من:\s*(.*)/);
+          const numMatch = text.match(/رقم وتاريخ:\s*(.*)/);
+          const subMatch = text.match(/الموضوع:\s*(.*)/);
+          const textMatch = text.match(/عرض التعميم:\s*([\s\S]*)/);
+          
+          if (fromMatch) setCircularIncomingFrom(fromMatch[1].trim());
+          if (numMatch) setCircularNumberDate(numMatch[1].trim());
+          if (subMatch) setCircularSubject(subMatch[1].trim());
+        }
         setAiGenStep(3); // التحديث: النقل للخطوة الثالثة (المعاينة)
       } else {
         const errData = await response.json().catch(() => null);
@@ -450,17 +611,7 @@ ${aiPrompt}
       
       const creatorName = currentUser ? currentUser.name : "الأخصائي";
       
-      const targetCommittees = [];
-      if (aiGenCommittee === "all") {
-        if (currentUser && currentUser.committees && currentUser.committees.length > 0) {
-          targetCommittees.push(...committees.filter(c => currentUser.committees.includes(c.id)));
-        } else {
-          targetCommittees.push(...committees);
-        }
-      } else {
-        const selectedCommittee = committees.find(c => String(c.id) === String(aiGenCommittee));
-        if (selectedCommittee) targetCommittees.push(selectedCommittee);
-      }
+      const targetCommittees = committees.filter(c => aiGenCommittees.includes(String(c.id)));
 
       if (targetCommittees.length === 0) {
         alert("لم يتم العثور على لجان للحفظ فيها.");
@@ -471,20 +622,32 @@ ${aiPrompt}
         const committeeName = committee.name;
         const finalType = aiGenTemplateType.replace(/\s*\(.*\)/, "").trim();
 
+        let finalDocumentText = aiGenGeneratedText;
+        if (workspaceService === "circular") {
+            const circularBody = aiGenGeneratedText.split("عرض التعميم:")[1]?.trim() || aiGenGeneratedText.split("نص توجيهي مقترح لإرساله للجان:")[1]?.trim() || aiGenGeneratedText;
+            finalDocumentText = `تعميم داخلي\nاللجنة: ${committeeName}\n\nإلى: جميع أعضاء اللجان الموقرين\nمن: إدارة اللجان\nوارد من: ${circularIncomingFrom || "—"}\nالتاريخ والرقم: ${circularNumberDate || "—"}\nالموضوع: ${circularSubject || "—"}\n\n${circularBody}\n\nشاكرين ومقدرين تعاونكم،،،`;
+        }
+        
         let finalCloudUrl = "#";
 
-        if (finalType === "مستندات") {
+        if (finalType === "مستندات" || workspaceService === "circular") {
           try {
-            const subjectName = aiGenSubject || "خطاب جديد";
-            const folderPath = `تقرير اللجان للدورة الـ 22/اللجان المعتمدة/${committeeName}/الخطابات/مسودات/${subjectName}`;
+            const subjectName = aiGenSubject || circularSubject || "خطاب جديد";
+            const folderPath = workspaceService === "circular" ? `تقرير اللجان للدورة الـ 22/اللجان المعتمدة/${committeeName}/التعاميم/${subjectName}` : `تقرير اللجان للدورة الـ 22/اللجان المعتمدة/${committeeName}/الخطابات/مسودات/${subjectName}`;
             const folderId = await resolveDrivePath(folderPath);
-            const { documentId, documentUrl } = await createGoogleDoc(subjectName, aiGenGeneratedText);
+            const { documentId, documentUrl } = await createGoogleDoc(subjectName, finalDocumentText);
             await moveDriveFile(documentId, folderId);
             finalCloudUrl = documentUrl;
             
             if (aiGenReplyFile) {
               const attachmentName = `مرفق خطاب ${subjectName} ${committeeName}`;
               await uploadFileToDriveByPath(aiGenReplyFile, folderPath, attachmentName);
+            }
+            if (workspaceService === "circular") {
+               if (circularMainFile && typeof circularMainFile === 'object') await uploadFileToDriveByPath(circularMainFile as File, folderPath, (circularMainFile as File).name);
+               if (circularAtt1 && typeof circularAtt1 === 'object') await uploadFileToDriveByPath(circularAtt1 as File, folderPath, (circularAtt1 as File).name);
+               if (circularAtt2 && typeof circularAtt2 === 'object') await uploadFileToDriveByPath(circularAtt2 as File, folderPath, (circularAtt2 as File).name);
+               if (circularAtt3 && typeof circularAtt3 === 'object') await uploadFileToDriveByPath(circularAtt3 as File, folderPath, (circularAtt3 as File).name);
             }
           } catch (apiError) {
             console.error("Google API Error:", apiError);
@@ -494,17 +657,24 @@ ${aiPrompt}
           }
         }
 
+        const urlAttachments = [];
+        if (typeof circularMainFile === 'string') urlAttachments.push(circularMainFile);
+        if (typeof circularAtt1 === 'string') urlAttachments.push(circularAtt1);
+        if (typeof circularAtt2 === 'string') urlAttachments.push(circularAtt2);
+        if (typeof circularAtt3 === 'string') urlAttachments.push(circularAtt3);
+        
         const newDoc = {
-          title: aiGenSubject || "خطاب جديد",
-          description: `مجلد خطابات - مجلد مسودات | لجنة: ${committeeName} | صادر إلى: ${aiGenRecipientName}`,
-          type: finalType,
+          title: aiGenSubject || circularSubject || "خطاب جديد",
+          description: workspaceService === "circular" ? `مجلد تعاميم | لجنة: ${committeeName} | موضوع: ${circularSubject || ""}` : `مجلد خطابات - مجلد مسودات | لجنة: ${committeeName} | صادر إلى: ${aiGenRecipientName}`,
+          type: workspaceService === "circular" ? "تعميم" : finalType,
           creator: creatorName,
           cloudUrl: finalCloudUrl,
           downloadUrl: finalCloudUrl,
           lastUpdated: new Date().toISOString().split('T')[0],
           isFavorite: false,
-          templateText: aiGenGeneratedText,
+          templateText: finalDocumentText,
           committeeId: committee.id || "",
+          attachments: urlAttachments,
         };
         
         await addDoc(collection(db, "templates"), newDoc);
@@ -1909,7 +2079,7 @@ ${t.description}
                   <div>
                     <h2 className="text-xl font-black text-gray-900">إنشاء نموذج مخصص للمهام</h2>
                     <p className="text-gray-500 text-sm font-medium mt-1">
-                      الخطوة {aiGenStep} من 3
+                      الخطوة {aiGenStep} من {workspaceService === "circular" ? 4 : 3}
                     </p>
                   </div>
                 </div>
@@ -1947,6 +2117,7 @@ ${t.description}
                                else if(val === "chat") setAiGenTemplateType("محادثات Chat");
                                else if(val === "meet") setAiGenTemplateType("اجتماعات Meet");
                                else if(val === "forms") setAiGenTemplateType("نماذج Forms");
+                               else if(val === "circular") { setAiGenTemplateType("تعميم"); setAiGenMode("new"); }
                              }}
                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-sm"
                            >
@@ -1959,10 +2130,11 @@ ${t.description}
                              <option value="chat">محادثات (Google Chat)</option>
                              <option value="meet">اجتماعات (Google Meet)</option>
                              <option value="forms">نماذج (Google Forms)</option>
+                             <option value="circular">تعميم (Circular)</option>
                            </select>
                         </div>
 
-                        <div>
+                        {workspaceService !== "circular" && <div>
                            <label className="block text-sm font-bold text-gray-800 mb-2">حالة النموذج</label>
                            <select 
                              value={aiGenMode} 
@@ -1997,38 +2169,85 @@ ${t.description}
                                <option value="new">إنشاء نموذج جديد</option>
                              )}
                            </select>
-                        </div>
+                        </div>}
 
                         <div>
-                           <label className="block text-sm font-bold text-gray-800 mb-2">اختر اللجنة للربط والأرشفة</label>
-                           <select 
-                             value={aiGenCommittee} 
-                             onChange={e => setAiGenCommittee(e.target.value)}
-                             className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-sm"
-                           >
-                             <option value="">-- اختر اللجنة --</option>
-                             <option value="all">جميع اللجان</option>
-                             {committees
-                                .filter(c => {
+                           <label className="block text-sm font-bold text-gray-800 mb-2">اختر اللجان للربط والأرشفة</label>
+                           <div className="w-full border border-gray-200 rounded-xl overflow-hidden flex flex-col max-h-48 bg-white">
+                             <div className="p-3 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
+                               <input 
+                                  type="checkbox"
+                                  checked={aiGenCommittees.length > 0 && aiGenCommittees.length === committees.filter(c => {
+                                    const stored = localStorage.getItem("current_user");
+                                    if (!stored) return true;
+                                    const currentUser = JSON.parse(stored);
+                                    if (currentUser.role === 'مدير نظام') return true;
+                                    if (!currentUser.committees || currentUser.committees.length === 0) return true;
+                                    return currentUser.committees.includes(c.id);
+                                  }).length}
+                                  onChange={(e) => {
+                                     const available = committees.filter(c => {
+                                      const stored = localStorage.getItem("current_user");
+                                      if (!stored) return true;
+                                      const currentUser = JSON.parse(stored);
+                                      if (currentUser.role === 'مدير نظام') return true;
+                                      if (!currentUser.committees || currentUser.committees.length === 0) return true;
+                                      return currentUser.committees.includes(c.id);
+                                    });
+                                     if (e.target.checked) setAiGenCommittees(available.map(c => String(c.id)));
+                                     else setAiGenCommittees([]);
+                                  }}
+                                  className="w-4 h-4 text-emerald-600 rounded border-gray-300"
+                               />
+                               <span className="text-sm font-bold text-gray-700">تحديد جميع اللجان</span>
+                             </div>
+                             <div className="overflow-y-auto p-2 space-y-1">
+                               {committees.filter(c => {
                                   const stored = localStorage.getItem("current_user");
                                   if (!stored) return true;
                                   const currentUser = JSON.parse(stored);
                                   if (currentUser.role === 'مدير نظام') return true;
                                   if (!currentUser.committees || currentUser.committees.length === 0) return true;
                                   return currentUser.committees.includes(c.id);
-                                })
-                                .map((c, i) => (
-                               <option key={`${c.id}-${i}`} value={c.id}>{c.name}</option>
-                             ))}
-                           </select>
+                                }).map((c, i) => (
+                                 <label key={`${c.id}-${i}`} className="flex items-center gap-3 p-2 hover:bg-emerald-50/50 rounded-lg cursor-pointer transition-colors">
+                                    <input 
+                                       type="checkbox"
+                                       checked={aiGenCommittees.includes(String(c.id))}
+                                       onChange={(e) => {
+                                         if (e.target.checked) setAiGenCommittees([...aiGenCommittees, String(c.id)]);
+                                         else setAiGenCommittees(aiGenCommittees.filter(id => id !== String(c.id)));
+                                       }}
+                                       className="w-4 h-4 text-emerald-600 rounded border-gray-300"
+                                    />
+                                    <span className="text-sm font-medium text-gray-700">{c.name}</span>
+                                 </label>
+                               ))}
+                             </div>
+                           </div>
                         </div>
+                        {workspaceService === "circular" && (
+                          <div>
+                             <label className="block text-sm font-bold text-gray-800 mb-2">وسيلة إرسال التعميم</label>
+                             <div className="flex gap-4 items-center">
+                               <label className="flex items-center gap-2 cursor-pointer">
+                                 <input type="checkbox" checked={circularViaEmail} onChange={e => setCircularViaEmail(e.target.checked)} className="w-4 h-4 text-emerald-600 rounded border-gray-300" />
+                                 <span className="text-sm font-bold text-gray-700">البريد الإلكتروني</span>
+                               </label>
+                               <label className="flex items-center gap-2 cursor-pointer">
+                                 <input type="checkbox" checked={circularViaWhatsApp} onChange={e => setCircularViaWhatsApp(e.target.checked)} className="w-4 h-4 text-emerald-600 rounded border-gray-300" />
+                                 <span className="text-sm font-bold text-gray-700">واتس آب</span>
+                               </label>
+                             </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex justify-end">
                       <button
                         onClick={() => {
 
-                          if (!aiGenCommittee) {
+                          if (aiGenCommittees.length === 0) {
                              showGlobalToast("الرجاء اختيار اللجنة للربط والأرشفة", "error");
                              return;
                           }
@@ -2046,7 +2265,40 @@ ${t.description}
                   <div className="flex flex-col lg:flex-row gap-6">
                     {/* Left Column: Input Forms */}
                     <div className="flex-1 space-y-5">
-                      {aiGenMode === "new" ? (
+                      {workspaceService === "circular" ? (
+                        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                          <h3 className="font-bold text-gray-800 border-b border-gray-100 pb-3 flex items-center gap-2">
+                            <Plus className="w-4 h-4 text-emerald-600" />
+                            بيانات التعميم
+                          </h3>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <AttachmentInput
+                              id="circularMain"
+                              label="التعميم الأساسي *"
+                              value={circularMainFile}
+                              onChange={setCircularMainFile}
+                            />
+                            <AttachmentInput
+                              id="circularAtt1"
+                              label="مرفق إضافي 1"
+                              value={circularAtt1}
+                              onChange={setCircularAtt1}
+                            />
+                            <AttachmentInput
+                              id="circularAtt2"
+                              label="مرفق إضافي 2"
+                              value={circularAtt2}
+                              onChange={setCircularAtt2}
+                            />
+                            <AttachmentInput
+                              id="circularAtt3"
+                              label="مرفق إضافي 3"
+                              value={circularAtt3}
+                              onChange={setCircularAtt3}
+                            />
+                          </div>
+                        </div>
+                      ) : aiGenMode === "new" ? (
                         <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
                           <h3 className="font-bold text-gray-800 border-b border-gray-100 pb-3 flex items-center gap-2">
                             <Plus className="w-4 h-4 text-emerald-600" />
@@ -2217,7 +2469,7 @@ ${t.description}
                           onClick={handleGenerateNewLetter}
                           disabled={
                             isAIGenGenerating || 
-                            (aiGenMode === 'new' ? (!aiGenSubject && !aiGenDetails) : (!aiPrompt && !aiGenReplyFile && !aiGenReplyContent))
+                            (workspaceService === 'circular' ? !circularMainFile : (aiGenMode === 'new' ? (!aiGenSubject && !aiGenDetails) : (!aiPrompt && !aiGenReplyFile && !aiGenReplyContent)))
                           }
                           className="w-full py-3.5 bg-blue-600 text-white rounded-xl text-sm font-black hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                         >
@@ -2243,8 +2495,9 @@ ${t.description}
                     <div className="flex items-center justify-between">
                       <h3 className="font-bold text-gray-800 flex items-center gap-2">
                         <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                        الخطاب المولد (يمكنك تعديله يدوياً قبل الطباعة أو الحفظ)
+                        {workspaceService === "circular" ? "بيانات التعميم المستخرجة" : "الخطاب المولد (يمكنك تعديله يدوياً قبل الطباعة أو الحفظ)"}
                       </h3>
+                      {workspaceService !== "circular" && (
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(aiGenGeneratedText);
@@ -2254,8 +2507,58 @@ ${t.description}
                       >
                         <Copy className="w-3.5 h-3.5" /> نسخ النص
                       </button>
+                      )}
                     </div>
                     
+                    {workspaceService === "circular" ? (
+                      <div className="flex flex-col lg:flex-row gap-6 h-full">
+                        <div className="lg:w-1/3 flex flex-col gap-4 overflow-y-auto pr-2">
+                          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                            <h4 className="font-bold text-gray-800 border-b border-gray-100 pb-2">بيانات التعميم المستخرجة</h4>
+                            <div>
+                              <label className="block text-xs font-bold text-gray-600 mb-1.5">التعميم وارد من</label>
+                              <input type="text" value={circularIncomingFrom} onChange={e => setCircularIncomingFrom(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg font-bold text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-gray-600 mb-1.5">رقم وتاريخ التعميم</label>
+                              <input type="text" value={circularNumberDate} onChange={e => setCircularNumberDate(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg font-bold text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-gray-600 mb-1.5">موضوع التعميم</label>
+                              <input type="text" value={circularSubject} onChange={e => setCircularSubject(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg font-bold text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-gray-600 mb-1.5">عرض التعميم (النص التوجيهي)</label>
+                              <textarea value={aiGenGeneratedText.split("عرض التعميم:")[1]?.trim() || aiGenGeneratedText.split("نص توجيهي مقترح لإرساله للجان:")[1]?.trim() || aiGenGeneratedText} onChange={e => setAiGenGeneratedText("عرض التعميم:\n" + e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg font-bold text-sm min-h-[150px] resize-none" />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="lg:w-2/3 bg-gray-200/80 p-4 rounded-xl overflow-y-auto flex justify-center h-[70vh]">
+                          <div className="bg-white shadow-xl border border-gray-300 w-full max-w-[21cm] min-h-[29.7cm] flex flex-col mx-auto shrink-0 transition-all p-12 sm:p-16 text-[16px] leading-[2.2] font-sans">
+                             <div className="border-b-2 border-gray-800 pb-4 mb-6 text-center">
+                               <h1 className="text-2xl font-black text-gray-900 mb-2">تعميم داخلي</h1>
+                               <h2 className="text-lg font-bold text-gray-700">{aiGenCommittees.map(id => committees.find(c => String(c.id) === id)?.name || id).join("، ")}</h2>
+                             </div>
+                             
+                             <div className="grid grid-cols-2 gap-4 mb-8 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                               <div><span className="font-bold text-gray-900">إلى:</span> جميع أعضاء اللجان الموقرين</div>
+                               <div><span className="font-bold text-gray-900">من:</span> إدارة اللجان</div>
+                               <div><span className="font-bold text-gray-900">وارد من:</span> {circularIncomingFrom || "—"}</div>
+                               <div><span className="font-bold text-gray-900">التاريخ والرقم:</span> {circularNumberDate || "—"}</div>
+                               <div className="col-span-2"><span className="font-bold text-gray-900">الموضوع:</span> {circularSubject || "—"}</div>
+                             </div>
+
+                             <div className="flex-1 whitespace-pre-wrap text-justify">
+                               {aiGenGeneratedText.split("عرض التعميم:")[1]?.trim() || aiGenGeneratedText.split("نص توجيهي مقترح لإرساله للجان:")[1]?.trim() || aiGenGeneratedText}
+                             </div>
+                             
+                             <div className="mt-12 pt-8 border-t border-gray-200 text-center">
+                               <p className="font-bold text-gray-800">شاكرين ومقدرين تعاونكم،،،</p>
+                             </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
                     <div className="flex-1 bg-gray-200/80 p-4 sm:p-8 rounded-xl overflow-y-auto flex justify-center h-[70vh]">
                       <div className="bg-white shadow-xl border border-gray-300 w-full max-w-[21cm] min-h-[29.7cm] flex flex-col mx-auto shrink-0 transition-all">
                         <div
@@ -2268,6 +2571,133 @@ ${t.description}
                         </div>
                       </div>
                     </div>
+                    )}
+                  </div>
+                )}
+                {aiGenStep === 4 && workspaceService === "circular" && (
+                  <div className="flex flex-col h-full space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                        معاينة التعميم النهائي (جاهز للطباعة والتصدير)
+                      </h3>
+                    </div>
+                    
+                    <div className="flex-1 bg-gray-200/80 p-4 sm:p-8 rounded-xl overflow-y-auto flex justify-center h-[70vh]">
+                        <div 
+                          ref={circularPrintRef}
+                          className="bg-white shadow-2xl border border-gray-200 w-full max-w-[21cm] min-h-[29.7cm] flex flex-col mx-auto shrink-0 transition-all p-12 sm:p-16 text-[18px] leading-[2.2] font-sans text-gray-900 relative"
+                        >
+                           {/* Header */}
+                           <div className="grid grid-cols-3 items-center mb-10">
+                             {/* Right: Info */}
+                             <div className="text-right text-lg text-gray-800 space-y-3 font-bold">
+                               <div className="flex items-center justify-start gap-2">
+                                  <span>رقم التعميم:</span>
+                                  <input type="text" value={circularOutNumber} onChange={e => setCircularOutNumber(e.target.value)} className="bg-transparent border-b border-gray-400 text-gray-900 text-right w-32 focus:outline-none focus:border-gray-800" />
+                               </div>
+                               <div className="flex items-center justify-start gap-2">
+                                  <span>تاريخه:</span>
+                                  <input type="text" value={circularOutDate} onChange={e => setCircularOutDate(e.target.value)} className="bg-transparent border-b border-gray-400 text-gray-900 text-right w-32 focus:outline-none focus:border-gray-800" />
+                               </div>
+                             </div>
+
+                             {/* Center: Title */}
+                             <div className="text-center relative">
+                               <h1 className="text-4xl sm:text-5xl font-black text-gray-900 tracking-[0.2em] relative z-10 inline-block px-4 bg-white pb-2">تـعـمـيـم</h1>
+                               <div className="absolute top-[40%] left-0 w-full h-[2px] bg-gray-900 -translate-y-1/2 z-0"></div>
+                             </div>
+
+                             {/* Left: Logo area */}
+                             <div className="flex justify-end">
+                               <div className="w-24 h-24 border border-gray-900 flex items-center justify-center p-2">
+                                 <div className="text-center font-bold text-gray-900 leading-tight">
+                                   شعار<br/>غرفة<br/>مكة
+                                 </div>
+                               </div>
+                             </div>
+                           </div>
+
+                           {/* Meta Info Box */}
+                           <div className="border border-gray-900 px-4 py-2 rounded mb-10 flex flex-wrap justify-center items-center gap-2 text-xl font-bold bg-transparent">
+                             <span>وارد من:</span>
+                             <span className="text-gray-900">{circularIncomingFrom || "—"}</span>
+                             <span className="mx-2">برقم:</span>
+                             <span className="text-gray-900">{circularNumberDate ? circularNumberDate.split(" ")[0] : "—"}</span>
+                             <span className="mx-2">وتاريخ:</span>
+                             <span className="text-gray-900">{circularNumberDate ? circularNumberDate.split(" ").slice(1).join(" ") : "—"}</span>
+                           </div>
+                           
+                           {/* Subject */}
+                           <div className="text-center text-3xl font-bold text-gray-900 mb-12 leading-relaxed px-4 underline underline-offset-8 decoration-gray-400">
+                             {circularSubject || "—"}
+                           </div>
+
+                           {/* Body */}
+                           <div className="flex-1 flex flex-col mb-12">
+                             <textarea 
+                               value={aiGenGeneratedText.split("عرض التعميم:")[1]?.trim() || aiGenGeneratedText.split("نص توجيهي مقترح لإرساله للجان:")[1]?.trim() || aiGenGeneratedText} 
+                               onChange={e => setAiGenGeneratedText("عرض التعميم:\n" + e.target.value)}
+                               className="flex-1 w-full bg-transparent text-gray-900 text-justify text-[22px] leading-[2.2] font-bold focus:outline-none resize-none min-h-[200px]"
+                             />
+                           </div>
+                           
+                           {/* Footer Horizontal Line */}
+                           <div className="w-full h-[2px] bg-gray-400 mb-8 mt-auto"></div>
+                           
+                           {/* Footer (Contact & Attachments) */}
+                           <div className="flex items-start justify-between">
+                             {/* First item in RTL (Right side of paper): Attachments */}
+                             <div className="flex items-start gap-2">
+                               <span className="font-bold text-xl text-gray-900 mt-2">
+                                 المرفقات:
+                               </span>
+                               <div className="flex flex-col gap-2">
+                                 {(circularMainFile || circularAtt1 || circularAtt2 || circularAtt3) ? (
+                                   <>
+                                     {(circularMainFile && typeof circularMainFile === 'string' && circularMainFile !== "#") || (circularMainFile && typeof circularMainFile === 'object') ? (
+                                       <div className="border border-gray-900 px-4 py-2 text-gray-900 font-bold bg-transparent text-lg">
+                                         خطاب اتحاد الغرف
+                                       </div>
+                                     ) : null}
+                                     {(circularAtt1 && typeof circularAtt1 === 'string' && circularAtt1 !== "#") || (circularAtt1 && typeof circularAtt1 === 'object') ? (
+                                       <div className="border border-gray-900 px-4 py-2 text-gray-900 font-bold bg-transparent text-lg mt-2">
+                                         مرفق 1
+                                       </div>
+                                     ) : null}
+                                     {(circularAtt2 && typeof circularAtt2 === 'string' && circularAtt2 !== "#") || (circularAtt2 && typeof circularAtt2 === 'object') ? (
+                                       <div className="border border-gray-900 px-4 py-2 text-gray-900 font-bold bg-transparent text-lg mt-2">
+                                         مرفق 2
+                                       </div>
+                                     ) : null}
+                                     {(circularAtt3 && typeof circularAtt3 === 'string' && circularAtt3 !== "#") || (circularAtt3 && typeof circularAtt3 === 'object') ? (
+                                       <div className="border border-gray-900 px-4 py-2 text-gray-900 font-bold bg-transparent text-lg mt-2">
+                                         مرفق 3
+                                       </div>
+                                     ) : null}
+                                   </>
+                                 ) : (
+                                   <div className="border border-gray-900 px-4 py-2 text-gray-900 font-bold inline-block bg-transparent text-lg">
+                                     لا توجد مرفقات
+                                   </div>
+                                 )}
+                               </div>
+                             </div>
+
+                             {/* Last item in RTL (Left side of paper): Contact */}
+                             <div className="space-y-4 text-left">
+                               <div className="text-2xl font-bold text-gray-900 text-left w-full">
+                                 الأستاذ / {employees.find(e => e.id === aiGenContact)?.name || "محمد الصيعري"}
+                               </div>
+                               <div className="flex items-center justify-end gap-3 mt-4 w-full">
+                                  <span className="font-bold text-gray-800 text-lg">للتواصل:</span>
+                                  <div className="border border-gray-900 px-4 py-1.5 font-bold text-gray-900 text-lg bg-transparent">جوال</div>
+                                  <div className="border border-gray-900 px-4 py-1.5 font-bold text-gray-900 text-lg bg-transparent">بريد إلكتروني</div>
+                               </div>
+                             </div>
+                           </div>
+                        </div>
+                      </div>
                   </div>
                 )}
               </div>
@@ -2284,33 +2714,90 @@ ${t.description}
                   )}
                 </div>
                 
-                {aiGenStep === 3 && (
+                {aiGenStep === 3 && workspaceService === "circular" && (
+                  <button
+                    onClick={() => setAiGenStep(4)}
+                    className="px-6 py-2.5 bg-[#0B1A35] text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-colors flex items-center gap-2"
+                  >
+                    معاينة التصميم النهائي <ChevronLeft className="w-4 h-4" />
+                  </button>
+                )}
+                {aiGenStep === 4 && workspaceService === "circular" && (
+                  <button
+                    onClick={handleDownloadPDF}
+                    className="px-6 py-2.5 bg-[#0B1A35] text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-colors flex items-center gap-2 shadow-lg"
+                  >
+                    <Download className="w-4 h-4" /> تصدير PDF
+                  </button>
+                )}
+                {((aiGenStep === 4 && workspaceService === "circular") || (aiGenStep === 3 && workspaceService !== "circular")) && (
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => {
                         const printWin = window.open('', '_blank');
                         if (printWin) {
-                          printWin.document.write(`
-                            <html dir="rtl">
-                              <head>
-                                <title>طباعة الخطاب</title>
-                                <style>
-                                  body { font-family: 'Cairo', system-ui, sans-serif; padding: 40px; color: #000; line-height: 2.2; max-width: 800px; margin: 0 auto; font-size: 16px; }
-                                  .content { white-space: pre-wrap; text-align: justify; }
-                                  @media print {
-                                    body { padding: 0; }
-                                    @page { margin: 2.5cm; }
-                                  }
-                                </style>
-                              </head>
-                              <body>
-                                <div class="content">${aiGenGeneratedText}</div>
-                                <script>
-                                  window.onload = () => { window.print(); window.close(); }
-                                </script>
-                              </body>
-                            </html>
-                          `);
+                          if (workspaceService === "circular") {
+                            const circularBody = aiGenGeneratedText.split("عرض التعميم:")[1]?.trim() || aiGenGeneratedText.split("نص توجيهي مقترح لإرساله للجان:")[1]?.trim() || aiGenGeneratedText;
+                            printWin.document.write(`
+                              <html dir="rtl">
+                                <head>
+                                  <title>طباعة التعميم</title>
+                                  <style>
+                                    body { font-family: 'Cairo', system-ui, sans-serif; padding: 40px; color: #000; line-height: 2.2; max-width: 800px; margin: 0 auto; font-size: 16px; }
+                                    .content { white-space: pre-wrap; text-align: justify; }
+                                    .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 30px; }
+                                    .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #f9fafb; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb; margin-bottom: 30px; }
+                                    @media print {
+                                      body { padding: 0; }
+                                      @page { margin: 2.5cm; }
+                                    }
+                                  </style>
+                                </head>
+                                <body>
+                                  <div class="header">
+                                    <h1 style="font-size: 24px; font-weight: 900; margin-bottom: 8px;">تعميم داخلي</h1>
+                                    <h2 style="font-size: 18px; font-weight: bold; margin: 0;">${aiGenCommittees.map(id => committees.find(c => String(c.id) === id)?.name || id).join("، ")}</h2>
+                                  </div>
+                                  <div class="meta">
+                                    <div><strong>إلى:</strong> جميع أعضاء اللجان الموقرين</div>
+                                    <div><strong>من:</strong> إدارة اللجان</div>
+                                    <div><strong>وارد من:</strong> ${circularIncomingFrom || "—"}</div>
+                                    <div><strong>التاريخ والرقم:</strong> ${circularNumberDate || "—"}</div>
+                                    <div style="grid-column: 1 / -1;"><strong>الموضوع:</strong> ${circularSubject || "—"}</div>
+                                  </div>
+                                  <div class="content">${circularBody}</div>
+                                  <div style="margin-top: 50px; text-align: center; font-weight: bold; border-top: 1px solid #e5e7eb; padding-top: 30px;">
+                                    شاكرين ومقدرين تعاونكم،،،
+                                  </div>
+                                  <script>
+                                    window.onload = () => { window.print(); window.close(); }
+                                  </script>
+                                </body>
+                              </html>
+                            `);
+                          } else {
+                            printWin.document.write(`
+                              <html dir="rtl">
+                                <head>
+                                  <title>طباعة الخطاب</title>
+                                  <style>
+                                    body { font-family: 'Cairo', system-ui, sans-serif; padding: 40px; color: #000; line-height: 2.2; max-width: 800px; margin: 0 auto; font-size: 16px; }
+                                    .content { white-space: pre-wrap; text-align: justify; }
+                                    @media print {
+                                      body { padding: 0; }
+                                      @page { margin: 2.5cm; }
+                                    }
+                                  </style>
+                                </head>
+                                <body>
+                                  <div class="content">${aiGenGeneratedText}</div>
+                                  <script>
+                                    window.onload = () => { window.print(); window.close(); }
+                                  </script>
+                                </body>
+                              </html>
+                            `);
+                          }
                           printWin.document.close();
                         }
                       }}

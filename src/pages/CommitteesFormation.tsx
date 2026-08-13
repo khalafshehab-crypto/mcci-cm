@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { 
   Users2, Search, Plus, X, Users, Calendar, CheckCircle, FileText, Trash2, SlidersHorizontal,
   Check, ChevronLeft, ChevronDown, Settings2, Columns, Edit2, Save, Download, MoreVertical, Activity, AlertCircle,
-  UserCheck, LayoutGrid, List, FileSpreadsheet, Settings, Upload, AlertTriangle, TriangleAlert, FolderOutput, Paperclip, Eye
+  UserCheck, LayoutGrid, List, FileSpreadsheet, Settings, Upload, AlertTriangle, TriangleAlert, FolderOutput, Paperclip, Eye, Mail, Printer
 } from "lucide-react";
 // @ts-ignore
 import { generateDocx } from "../lib/docxGenerator";
@@ -655,6 +655,7 @@ export default function CommitteesFormation() {
   const { data: dbEvents } = useFirestoreCollection<any>("events", []);
   const { data: dbRecs } = useFirestoreCollection<any>("recommendations", []);
   const { data: dbEmployees } = useFirestoreCollection<any>("employees", []);
+  const { data: dbTemplates } = useFirestoreCollection<any>("templates", []);
   
   const setCommittees = (action: React.SetStateAction<Committee[]>) => {
     let nextItems = typeof action === 'function' ? action(dbCommittees) : action;
@@ -675,6 +676,19 @@ export default function CommitteesFormation() {
   };
 
   const committees = dbCommittees;
+
+  const isUserAdmin = (): boolean => {
+    try {
+      const stored = localStorage.getItem("current_user");
+      if (!stored) return true;
+      const user = JSON.parse(stored);
+      if (!user) return true;
+      if (user.role === "SYS_ADMIN" || user.role === "مدير النظام" || user.role === "مدير إدارة") return true;
+      return false;
+    } catch (e) {
+      return false;
+    }
+  };
 
   const canUserEditCommittee = (committeeName: string): boolean => {
     try {
@@ -770,6 +784,7 @@ export default function CommitteesFormation() {
 
   // Active Gear action menu state for dropdowns
   const [activeGearMenuId, setActiveGearMenuId] = useState<number | null>(null);
+  const [activeCircularsComm, setActiveCircularsComm] = useState<Committee | null>(null);
 
   // Details Modal State
   const [detailsComm, setDetailsComm] = useState<Committee | null>(null);
@@ -1608,7 +1623,91 @@ export default function CommitteesFormation() {
                   )}
                 </motion.form>
               )}
-            </AnimatePresence>
+              {activeCircularsComm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setActiveCircularsComm(null)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-6 flex flex-col"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <Mail className="w-5 h-5 text-brand" />
+                  تعاميم لجنة {activeCircularsComm.name}
+                </h2>
+                <button onClick={() => setActiveCircularsComm(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-4">
+                {dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                    <Mail className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                    لا توجد تعاميم مرسلة لهذه اللجنة بعد.
+                  </div>
+                ) : (
+                  dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).map((circ: any) => (
+                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <h4 className="font-bold text-gray-800 mb-1">{circ.title || "بدون عنوان"}</h4>
+                        <div className="text-xs text-gray-500 mb-3">{circ.lastUpdated}</div>
+                        <div className="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg max-h-32 overflow-y-auto text-right">
+                          {circ.templateText}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2 min-w-[120px]">
+                        {circ.cloudUrl && circ.cloudUrl !== "#" && (
+                          <a href={circ.cloudUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                            <Eye className="w-4 h-4" /> عرض المستند
+                          </a>
+                        )}
+                        {circ.attachments && circ.attachments.length > 0 && circ.attachments.map((att: string, idx: number) => (
+                          <a key={idx} href={att} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                            <Paperclip className="w-4 h-4" /> مرفق {idx + 1}
+                          </a>
+                        ))}
+                        <button onClick={() => {
+                          const printWin = window.open('', '_blank');
+                          if (printWin) {
+                            printWin.document.write(`
+                              <html dir="rtl">
+                                <head>
+                                  <title>${circ.title}</title>
+                                  <style>
+                                    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
+                                    body { font-family: 'Cairo', Arial, sans-serif; padding: 40px; color: #111; line-height: 2.2; max-width: 800px; margin: 0 auto; font-size: 16px; text-align: justify; }
+                                    .content { white-space: pre-wrap; }
+                                    @media print {
+                                      body { padding: 0; }
+                                      @page { margin: 2.5cm; }
+                                    }
+                                  </style>
+                                </head>
+                                <body>
+                                  <div class="content">${circ.templateText}</div>
+                                  <script>
+                                    window.onload = () => { window.print(); }
+                                  </script>
+                                </body>
+                              </html>
+                            `);
+                            printWin.document.close();
+                          }
+                        }} className="px-3 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                          <Printer className="w-4 h-4" /> طباعة
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
             <button
               type="button"
@@ -1717,7 +1816,91 @@ export default function CommitteesFormation() {
                     </motion.div>
                   </div>
                 )}
-              </AnimatePresence>
+                {activeCircularsComm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setActiveCircularsComm(null)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-6 flex flex-col"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <Mail className="w-5 h-5 text-brand" />
+                  تعاميم لجنة {activeCircularsComm.name}
+                </h2>
+                <button onClick={() => setActiveCircularsComm(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-4">
+                {dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                    <Mail className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                    لا توجد تعاميم مرسلة لهذه اللجنة بعد.
+                  </div>
+                ) : (
+                  dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).map((circ: any) => (
+                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <h4 className="font-bold text-gray-800 mb-1">{circ.title || "بدون عنوان"}</h4>
+                        <div className="text-xs text-gray-500 mb-3">{circ.lastUpdated}</div>
+                        <div className="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg max-h-32 overflow-y-auto text-right">
+                          {circ.templateText}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2 min-w-[120px]">
+                        {circ.cloudUrl && circ.cloudUrl !== "#" && (
+                          <a href={circ.cloudUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                            <Eye className="w-4 h-4" /> عرض المستند
+                          </a>
+                        )}
+                        {circ.attachments && circ.attachments.length > 0 && circ.attachments.map((att: string, idx: number) => (
+                          <a key={idx} href={att} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                            <Paperclip className="w-4 h-4" /> مرفق {idx + 1}
+                          </a>
+                        ))}
+                        <button onClick={() => {
+                          const printWin = window.open('', '_blank');
+                          if (printWin) {
+                            printWin.document.write(`
+                              <html dir="rtl">
+                                <head>
+                                  <title>${circ.title}</title>
+                                  <style>
+                                    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
+                                    body { font-family: 'Cairo', Arial, sans-serif; padding: 40px; color: #111; line-height: 2.2; max-width: 800px; margin: 0 auto; font-size: 16px; text-align: justify; }
+                                    .content { white-space: pre-wrap; }
+                                    @media print {
+                                      body { padding: 0; }
+                                      @page { margin: 2.5cm; }
+                                    }
+                                  </style>
+                                </head>
+                                <body>
+                                  <div class="content">${circ.templateText}</div>
+                                  <script>
+                                    window.onload = () => { window.print(); }
+                                  </script>
+                                </body>
+                              </html>
+                            `);
+                            printWin.document.close();
+                          }
+                        }} className="px-3 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                          <Printer className="w-4 h-4" /> طباعة
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
             </div>
           </div>
 
@@ -1781,7 +1964,15 @@ export default function CommitteesFormation() {
                 className={`bg-white border-2 hover:border-[#dfba6b]/60 hover:shadow-lg transition-all duration-300 rounded-3xl p-6 relative group flex flex-col justify-between space-y-4 ${!comm.active ? "opacity-50 grayscale-[30%] border-gray-300" : "border-slate-100"}`}
               >
                 {/* ⚙️ Settings Gear Button with Dropdown logic */}
-                <div className="absolute top-4 left-4 z-20">
+                <div className="absolute top-4 left-4 z-20 flex gap-2">
+                  <button
+                    onClick={() => setActiveCircularsComm(comm)}
+                    style={{ display: isUserAdmin() ? 'flex' : 'none' }}
+                    className="p-1.5 bg-white/80 hover:bg-white text-brand hover:text-brand-dark rounded-lg border border-gray-200/80 shadow-sm transition-all cursor-pointer"
+                    title="التعاميم"
+                  >
+                    <Mail className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={() => setActiveGearMenuId(activeGearMenuId === comm.id ? null : comm.id)}
                     style={{ display: canUserEditCommittee(comm.name) ? 'flex' : 'none' }}
@@ -1921,7 +2112,91 @@ export default function CommitteesFormation() {
                 </div>
               </motion.div>
             ))}
-          </AnimatePresence>
+            {activeCircularsComm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setActiveCircularsComm(null)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-6 flex flex-col"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <Mail className="w-5 h-5 text-brand" />
+                  تعاميم لجنة {activeCircularsComm.name}
+                </h2>
+                <button onClick={() => setActiveCircularsComm(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-4">
+                {dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                    <Mail className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                    لا توجد تعاميم مرسلة لهذه اللجنة بعد.
+                  </div>
+                ) : (
+                  dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).map((circ: any) => (
+                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <h4 className="font-bold text-gray-800 mb-1">{circ.title || "بدون عنوان"}</h4>
+                        <div className="text-xs text-gray-500 mb-3">{circ.lastUpdated}</div>
+                        <div className="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg max-h-32 overflow-y-auto text-right">
+                          {circ.templateText}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2 min-w-[120px]">
+                        {circ.cloudUrl && circ.cloudUrl !== "#" && (
+                          <a href={circ.cloudUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                            <Eye className="w-4 h-4" /> عرض المستند
+                          </a>
+                        )}
+                        {circ.attachments && circ.attachments.length > 0 && circ.attachments.map((att: string, idx: number) => (
+                          <a key={idx} href={att} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                            <Paperclip className="w-4 h-4" /> مرفق {idx + 1}
+                          </a>
+                        ))}
+                        <button onClick={() => {
+                          const printWin = window.open('', '_blank');
+                          if (printWin) {
+                            printWin.document.write(`
+                              <html dir="rtl">
+                                <head>
+                                  <title>${circ.title}</title>
+                                  <style>
+                                    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
+                                    body { font-family: 'Cairo', Arial, sans-serif; padding: 40px; color: #111; line-height: 2.2; max-width: 800px; margin: 0 auto; font-size: 16px; text-align: justify; }
+                                    .content { white-space: pre-wrap; }
+                                    @media print {
+                                      body { padding: 0; }
+                                      @page { margin: 2.5cm; }
+                                    }
+                                  </style>
+                                </head>
+                                <body>
+                                  <div class="content">${circ.templateText}</div>
+                                  <script>
+                                    window.onload = () => { window.print(); }
+                                  </script>
+                                </body>
+                              </html>
+                            `);
+                            printWin.document.close();
+                          }
+                        }} className="px-3 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                          <Printer className="w-4 h-4" /> طباعة
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
         </div>
       ) : (
         /* TABLE REGISTER VIEW LAYOUT (سجل اللجان) */
@@ -2031,6 +2306,14 @@ export default function CommitteesFormation() {
                     {/* Action controls - ⚙️ Custom settings gear button with menu */}
                     <td className="whitespace-nowrap px-4 py-3.5 text-center relative whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1.5 relative dropdown-container">
+                        <button
+                          onClick={() => setActiveCircularsComm(comm)}
+                          style={{ display: isUserAdmin() ? 'flex' : 'none' }}
+                          className="p-1.5 hover:bg-gray-150 text-brand hover:text-brand-dark rounded-lg border border-transparent hover:border-gray-350 transition-all cursor-pointer"
+                          title="التعاميم"
+                        >
+                          <Mail className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => setActiveGearMenuId(activeGearMenuId === comm.id ? null : comm.id)}
                     style={{ display: canUserEditCommittee(comm.name) ? 'flex' : 'none' }}
@@ -2410,6 +2693,90 @@ export default function CommitteesFormation() {
             </motion.div>
           </div>
         )}
+        {activeCircularsComm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setActiveCircularsComm(null)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-6 flex flex-col"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <Mail className="w-5 h-5 text-brand" />
+                  تعاميم لجنة {activeCircularsComm.name}
+                </h2>
+                <button onClick={() => setActiveCircularsComm(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-4">
+                {dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                    <Mail className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                    لا توجد تعاميم مرسلة لهذه اللجنة بعد.
+                  </div>
+                ) : (
+                  dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).map((circ: any) => (
+                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <h4 className="font-bold text-gray-800 mb-1">{circ.title || "بدون عنوان"}</h4>
+                        <div className="text-xs text-gray-500 mb-3">{circ.lastUpdated}</div>
+                        <div className="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg max-h-32 overflow-y-auto text-right">
+                          {circ.templateText}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2 min-w-[120px]">
+                        {circ.cloudUrl && circ.cloudUrl !== "#" && (
+                          <a href={circ.cloudUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                            <Eye className="w-4 h-4" /> عرض المستند
+                          </a>
+                        )}
+                        {circ.attachments && circ.attachments.length > 0 && circ.attachments.map((att: string, idx: number) => (
+                          <a key={idx} href={att} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                            <Paperclip className="w-4 h-4" /> مرفق {idx + 1}
+                          </a>
+                        ))}
+                        <button onClick={() => {
+                          const printWin = window.open('', '_blank');
+                          if (printWin) {
+                            printWin.document.write(`
+                              <html dir="rtl">
+                                <head>
+                                  <title>${circ.title}</title>
+                                  <style>
+                                    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
+                                    body { font-family: 'Cairo', Arial, sans-serif; padding: 40px; color: #111; line-height: 2.2; max-width: 800px; margin: 0 auto; font-size: 16px; text-align: justify; }
+                                    .content { white-space: pre-wrap; }
+                                    @media print {
+                                      body { padding: 0; }
+                                      @page { margin: 2.5cm; }
+                                    }
+                                  </style>
+                                </head>
+                                <body>
+                                  <div class="content">${circ.templateText}</div>
+                                  <script>
+                                    window.onload = () => { window.print(); }
+                                  </script>
+                                </body>
+                              </html>
+                            `);
+                            printWin.document.close();
+                          }
+                        }} className="px-3 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                          <Printer className="w-4 h-4" /> طباعة
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
 
       {/* POPUP BACKDROP & DELETION PROCESS safeguarded modal */}
@@ -2539,6 +2906,90 @@ export default function CommitteesFormation() {
             </motion.div>
           </div>
         )}
+        {activeCircularsComm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setActiveCircularsComm(null)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-6 flex flex-col"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <Mail className="w-5 h-5 text-brand" />
+                  تعاميم لجنة {activeCircularsComm.name}
+                </h2>
+                <button onClick={() => setActiveCircularsComm(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-4">
+                {dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                    <Mail className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                    لا توجد تعاميم مرسلة لهذه اللجنة بعد.
+                  </div>
+                ) : (
+                  dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).map((circ: any) => (
+                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <h4 className="font-bold text-gray-800 mb-1">{circ.title || "بدون عنوان"}</h4>
+                        <div className="text-xs text-gray-500 mb-3">{circ.lastUpdated}</div>
+                        <div className="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg max-h-32 overflow-y-auto text-right">
+                          {circ.templateText}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2 min-w-[120px]">
+                        {circ.cloudUrl && circ.cloudUrl !== "#" && (
+                          <a href={circ.cloudUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                            <Eye className="w-4 h-4" /> عرض المستند
+                          </a>
+                        )}
+                        {circ.attachments && circ.attachments.length > 0 && circ.attachments.map((att: string, idx: number) => (
+                          <a key={idx} href={att} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                            <Paperclip className="w-4 h-4" /> مرفق {idx + 1}
+                          </a>
+                        ))}
+                        <button onClick={() => {
+                          const printWin = window.open('', '_blank');
+                          if (printWin) {
+                            printWin.document.write(`
+                              <html dir="rtl">
+                                <head>
+                                  <title>${circ.title}</title>
+                                  <style>
+                                    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
+                                    body { font-family: 'Cairo', Arial, sans-serif; padding: 40px; color: #111; line-height: 2.2; max-width: 800px; margin: 0 auto; font-size: 16px; text-align: justify; }
+                                    .content { white-space: pre-wrap; }
+                                    @media print {
+                                      body { padding: 0; }
+                                      @page { margin: 2.5cm; }
+                                    }
+                                  </style>
+                                </head>
+                                <body>
+                                  <div class="content">${circ.templateText}</div>
+                                  <script>
+                                    window.onload = () => { window.print(); }
+                                  </script>
+                                </body>
+                              </html>
+                            `);
+                            printWin.document.close();
+                          }
+                        }} className="px-3 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                          <Printer className="w-4 h-4" /> طباعة
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
 
       {/* POPUP BACKDROP & DETAILS MODAL */}
@@ -2553,6 +3004,90 @@ export default function CommitteesFormation() {
              dbEvents={dbEvents}
              dbRecs={dbRecs}
           />
+        )}
+        {activeCircularsComm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setActiveCircularsComm(null)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-6 flex flex-col"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <Mail className="w-5 h-5 text-brand" />
+                  تعاميم لجنة {activeCircularsComm.name}
+                </h2>
+                <button onClick={() => setActiveCircularsComm(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-4">
+                {dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                    <Mail className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                    لا توجد تعاميم مرسلة لهذه اللجنة بعد.
+                  </div>
+                ) : (
+                  dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).map((circ: any) => (
+                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <h4 className="font-bold text-gray-800 mb-1">{circ.title || "بدون عنوان"}</h4>
+                        <div className="text-xs text-gray-500 mb-3">{circ.lastUpdated}</div>
+                        <div className="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg max-h-32 overflow-y-auto text-right">
+                          {circ.templateText}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2 min-w-[120px]">
+                        {circ.cloudUrl && circ.cloudUrl !== "#" && (
+                          <a href={circ.cloudUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                            <Eye className="w-4 h-4" /> عرض المستند
+                          </a>
+                        )}
+                        {circ.attachments && circ.attachments.length > 0 && circ.attachments.map((att: string, idx: number) => (
+                          <a key={idx} href={att} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                            <Paperclip className="w-4 h-4" /> مرفق {idx + 1}
+                          </a>
+                        ))}
+                        <button onClick={() => {
+                          const printWin = window.open('', '_blank');
+                          if (printWin) {
+                            printWin.document.write(`
+                              <html dir="rtl">
+                                <head>
+                                  <title>${circ.title}</title>
+                                  <style>
+                                    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
+                                    body { font-family: 'Cairo', Arial, sans-serif; padding: 40px; color: #111; line-height: 2.2; max-width: 800px; margin: 0 auto; font-size: 16px; text-align: justify; }
+                                    .content { white-space: pre-wrap; }
+                                    @media print {
+                                      body { padding: 0; }
+                                      @page { margin: 2.5cm; }
+                                    }
+                                  </style>
+                                </head>
+                                <body>
+                                  <div class="content">${circ.templateText}</div>
+                                  <script>
+                                    window.onload = () => { window.print(); }
+                                  </script>
+                                </body>
+                              </html>
+                            `);
+                            printWin.document.close();
+                          }
+                        }} className="px-3 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                          <Printer className="w-4 h-4" /> طباعة
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
@@ -2663,6 +3198,90 @@ export default function CommitteesFormation() {
                   <Check className="w-4 h-4" />
                   <span>تأكيد استيراد ({importedCommittees.filter(c => c.selected).length}) لجنة</span>
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+        {activeCircularsComm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setActiveCircularsComm(null)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-6 flex flex-col"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <Mail className="w-5 h-5 text-brand" />
+                  تعاميم لجنة {activeCircularsComm.name}
+                </h2>
+                <button onClick={() => setActiveCircularsComm(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-4">
+                {dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                    <Mail className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                    لا توجد تعاميم مرسلة لهذه اللجنة بعد.
+                  </div>
+                ) : (
+                  dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).map((circ: any) => (
+                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <h4 className="font-bold text-gray-800 mb-1">{circ.title || "بدون عنوان"}</h4>
+                        <div className="text-xs text-gray-500 mb-3">{circ.lastUpdated}</div>
+                        <div className="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg max-h-32 overflow-y-auto text-right">
+                          {circ.templateText}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2 min-w-[120px]">
+                        {circ.cloudUrl && circ.cloudUrl !== "#" && (
+                          <a href={circ.cloudUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                            <Eye className="w-4 h-4" /> عرض المستند
+                          </a>
+                        )}
+                        {circ.attachments && circ.attachments.length > 0 && circ.attachments.map((att: string, idx: number) => (
+                          <a key={idx} href={att} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                            <Paperclip className="w-4 h-4" /> مرفق {idx + 1}
+                          </a>
+                        ))}
+                        <button onClick={() => {
+                          const printWin = window.open('', '_blank');
+                          if (printWin) {
+                            printWin.document.write(`
+                              <html dir="rtl">
+                                <head>
+                                  <title>${circ.title}</title>
+                                  <style>
+                                    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
+                                    body { font-family: 'Cairo', Arial, sans-serif; padding: 40px; color: #111; line-height: 2.2; max-width: 800px; margin: 0 auto; font-size: 16px; text-align: justify; }
+                                    .content { white-space: pre-wrap; }
+                                    @media print {
+                                      body { padding: 0; }
+                                      @page { margin: 2.5cm; }
+                                    }
+                                  </style>
+                                </head>
+                                <body>
+                                  <div class="content">${circ.templateText}</div>
+                                  <script>
+                                    window.onload = () => { window.print(); }
+                                  </script>
+                                </body>
+                              </html>
+                            `);
+                            printWin.document.close();
+                          }
+                        }} className="px-3 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-2 transition-colors">
+                          <Printer className="w-4 h-4" /> طباعة
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </motion.div>
           </div>

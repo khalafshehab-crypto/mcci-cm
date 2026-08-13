@@ -1,4 +1,5 @@
 import { showGlobalToast } from "../lib/toastUtils";
+import { createGoogleDoc, resolveDrivePath, uploadFileToDriveByPath, moveDriveFile } from "../lib/googleApi";
 import React, { useState, useEffect, FormEvent } from "react";
 import { 
   BookOpen,
@@ -34,8 +35,11 @@ import {
   Loader2,
   Sparkles,
   Printer,
-  X
-, MoreHorizontal, ChevronRight, Reply } from "lucide-react";
+  X,
+  MoreHorizontal, 
+  ChevronRight, 
+  Reply 
+} from "lucide-react";
 import { db } from "../lib/firebase";
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from "firebase/firestore";
 import { motion, AnimatePresence } from "motion/react";
@@ -183,6 +187,11 @@ export default function Library() {
   const [aiResult, setAiResult] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
 
+  // States for Circular Template
+  const [circularDate, setCircularDate] = useState(new Date().toLocaleDateString('ar-SA'));
+  const [circularRef, setCircularRef] = useState("");
+  const [circularAttachments, setCircularAttachments] = useState("لا يوجد");
+
   const handleOpenAI = (t: TemplateItem) => {
     setAiTemplate(t);
     setAiResult("");
@@ -223,9 +232,74 @@ export default function Library() {
       document.body.innerHTML = printContent.innerHTML;
       window.print();
       document.body.innerHTML = originalContents;
-      window.location.reload(); // Quick restore of React state
+      window.location.reload(); 
     }
   };
+
+  const getPrintableTemplate = (content: string, title: string, date: string, refNum: string, attachments: string) => `
+    <html dir="rtl">
+      <head>
+        <title>${title}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+        <style>
+          body { font-family: 'Cairo', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; background: #fff; }
+          @page { size: A4 landscape; margin: 0; }
+          .page-container { width: 100vw; height: 100vh; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box; position: relative; }
+          .content-area { flex: 1; padding: 1.5rem 4rem; overflow: hidden; position: relative; z-index: 10; }
+          .watermark { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); opacity: 0.03; z-index: 0; pointer-events: none; width: 400px; height: 400px; border: 40px solid #0B2D4F; border-radius: 50%; }
+        </style>
+      </head>
+      <body>
+        <div class="page-container">
+          <div style="height: 12px; display: flex; width: 100%;">
+            <div style="flex: 1; background-color: #0B2D4F;"></div>
+            <div style="width: 25%; background-color: #C39C5D;"></div>
+          </div>
+          
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; padding: 2rem 4rem 1rem 4rem;">
+            <div style="color: #0B2D4F; text-align: right; line-height: 1.6; width: 33%;">
+              <div style="font-size: 11px; font-weight: 700;">المملكة العربية السعودية</div>
+              <div style="font-size: 11px; font-weight: 700;">اتحاد الغرف السعودية</div>
+              <div style="font-size: 14px; font-weight: 900; color: #C39C5D;">الغرفة التجارية بمكة المكرمة</div>
+            </div>
+            
+            <div style="width: 33%; display: flex; justify-content: center;">
+               <div style="width: 60px; height: 80px; border: 2px dashed #C39C5D; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #C39C5D; font-weight: bold; font-size: 11px; background-color: #fdfaf3;">شعار الغرفة</div>
+            </div>
+
+            <div style="color: #0B2D4F; text-align: right; border-right: 2px solid #e5e7eb; padding-right: 1.5rem; line-height: 1.8; width: 33%;">
+              <div style="font-size: 11px; font-weight: 700; display: flex;"><span style="width: 60px; color: #6b7280;">التاريخ:</span> <span>${date}</span></div>
+              <div style="font-size: 11px; font-weight: 700; display: flex;"><span style="width: 60px; color: #6b7280;">الرقم:</span> <span>${refNum || '.......................'}</span></div>
+              <div style="font-size: 11px; font-weight: 700; display: flex;"><span style="width: 60px; color: #6b7280;">المرفقات:</span> <span>${attachments}</span></div>
+            </div>
+          </div>
+          
+          <div style="padding: 0 4rem;"><hr style="border-color: #e5e7eb; margin: 0;" /></div>
+          
+          <div class="content-area">
+            <div class="watermark"></div>
+            <div style="text-align: center; margin-bottom: 2rem;">
+              <h1 style="font-size: 22px; font-weight: 900; color: #0B2D4F; text-decoration: underline; text-decoration-color: #C39C5D; text-underline-offset: 8px; margin-bottom: 1rem;">تــعــمــيــم</h1>
+              <h2 style="font-size: 16px; font-weight: 700; color: #1f2937; margin: 0;">${title}</h2>
+            </div>
+            <div style="font-size: 15px; line-height: 2.2; color: #1f2937; text-align: justify; white-space: pre-wrap; font-weight: 600;">${content}</div>
+          </div>
+          
+          <div style="background-color: #f9fafb; border-top: 1px solid #e5e7eb; padding: 1rem 4rem; display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #6b7280; font-weight: 700;">
+            <div style="display: flex; gap: 2rem;">
+              <span>makkahchamber.sa</span>
+              <span>info@makkahchamber.sa</span>
+              <span>920000000</span>
+            </div>
+            <div>مكة المكرمة - طريق الأمير محمد بن سلمان</div>
+          </div>
+        </div>
+        <script>
+          window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 500); }
+        </script>
+      </body>
+    </html>
+  `;
 
   const [templateToShare, setTemplateToShare] = useState<TemplateItem | null>(
     null,
@@ -240,23 +314,19 @@ export default function Library() {
   const [deleteTarget, setDeleteTarget] = useState<TemplateItem | null>(null);
   const [deleteReason, setDeleteReason] = useState("");
 
-  // Share form state
   const [shareEmail, setShareEmail] = useState("");
 
-  // Import / Export advanced state additions
   const [modalTab, setModalTab] = useState<"import" | "export">("import");
   const [importSource, setImportSource] = useState<"drive" | "computer">(
     "drive",
   );
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   
-  // Smart Letter State
   const [isSmartLetterOpen, setIsSmartLetterOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState<"type" | "doc_subtype" | "letter_type">("type");
   const [smartLetterMode, setSmartLetterMode] = useState<"create_new" | "create_reply" | "fill">("create_new");
 
-  // AI Generator States
   const [isAIGenOpen, setIsAIGenOpen] = useState(false);
   const [aiGenStep, setAiGenStep] = useState(1);
   const [aiGenCommittee, setAiGenCommittee] = useState("");
@@ -274,59 +344,8 @@ export default function Library() {
   const [aiGenTemplateType, setAiGenTemplateType] = useState("مستندات (Google Docs)");
   const [aiGenPreamble, setAiGenPreamble] = useState("");
   const [aiGenReplyContent, setAiGenReplyContent] = useState("");
+  const [aiGenReplyFile, setAiGenReplyFile] = useState<{base64: string, mimeType: string, name: string} | null>(null);
   const [isAIGenGenerating, setIsAIGenGenerating] = useState(false);
-
-  
-  const generateAILetter = async () => {
-    setIsAIGenGenerating(true);
-    try {
-      const response = await fetch('/api/gemini/generate-new-letter', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          committeeName: aiGenCommittee,
-          recipientName: aiGenRecipientName,
-          recipientPosition: aiGenRecipientPosition,
-          subject: aiGenSubject,
-          details: aiGenDetails,
-          contact: aiGenContact,
-          attachments: aiGenAttachments,
-          signatory: aiGenSignatory
-        })
-      });
-      const data = await response.json();
-      if (data.result) {
-        setAiGenGeneratedText(data.result);
-        setAiGenStep(3);
-      } else {
-        showGlobalToast("حدث خطأ أثناء التوليد", "error");
-      }
-    } catch (e) {
-      showGlobalToast("حدث خطأ أثناء الاتصال بالخادم", "error");
-    } finally {
-      setIsAIGenGenerating(false);
-    }
-  };
-
-  const saveAIGeneratedLetter = async () => {
-    try {
-      const newDoc = {
-        title: aiGenSubject || "خطاب جديد",
-        type: "خطابات",
-        subType: "مسودات",
-        content: aiGenGeneratedText,
-        author: "الأخصائي",
-        date: new Date().toISOString(),
-        committeeId: aiGenCommittee || "",
-        tags: ["خطاب", "مسودة"]
-      };
-      await addDoc(collection(db, "templates"), newDoc);
-      showGlobalToast("تم حفظ وأرشفة الخطاب بنجاح", "success");
-      setIsAIGenOpen(false);
-    } catch (e) {
-      showGlobalToast("حدث خطأ أثناء الحفظ", "error");
-    }
-  };
 
   const openGenerateWizard = () => {
     setIsTemplateMenuOpen(false);
@@ -343,7 +362,9 @@ export default function Library() {
     setAiGenAttachments("");
     setAiGenSignatory("");
     setAiGenReplyContent("");
+    setAiGenReplyFile(null); 
     setAiGenGeneratedText("");
+    setCircularRef("");
     setIsAIGenOpen(true);
   };
 
@@ -353,21 +374,54 @@ export default function Library() {
       const contactEmp = employees.find(e => e.id === aiGenContact);
       const signatoryEmp = employees.find(e => e.id === aiGenSignatory);
       
+      let replyFileBase64 = undefined;
+      let replyFileMimeType = undefined;
+      
+      if (aiGenMode === "reply" && aiGenReplyFile) {
+        replyFileBase64 = aiGenReplyFile.base64;
+        replyFileMimeType = aiGenReplyFile.mimeType;
+      }
+
+      const contactInfo = contactEmp ? `${contactEmp.jobTitle} - ${contactEmp.name} (جوال: ${contactEmp.phone}, بريد: ${contactEmp.email})` : aiGenContact;
+      const signatoryInfo = signatoryEmp ? `${signatoryEmp.name} (${signatoryEmp.jobTitle})` : aiGenSignatory;
+      const commName = aiGenCommittee === "all" ? "لجان الغرفة" : (committees.find(c => String(c.id) === String(aiGenCommittee))?.name || aiGenCommittee);
+
+      let systemPrompt = "";
+
+      if (aiGenMode === "new") {
+        systemPrompt = `أنت مساعد ذكي ومحترف لكتابة الخطابات والتعاميم الرسمية المعتمدة في "غرفة مكة المكرمة".
+المطلوب صياغة "تعميم" رسمي احترافي بلغة مؤسسية راقية جداً.
+الجهة المصدرة للتعميم: ${commName}
+موضوع التعميم: ${aiGenSubject}
+النقاط التوضيحية المراد التوسع فيها:
+${aiGenDetails}
+
+ملاحظة هامة: اكتب "نص التعميم فقط" ليكون جاهزاً للنسخ مباشرة، لا تضف أي مساحات للتاريخ أو ديباجات خارجية لأنني سأضعها في قالب مصمم مسبقاً. ركز فقط على المحتوى.`;
+      } else {
+        systemPrompt = `أنت مساعد ذكي ومحترف لكتابة التعاميم الرسمية المعتمدة في "غرفة مكة المكرمة".
+المطلوب صياغة "تعميم" بناءً على معاملة واردة إلينا.
+
+${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، يرجى استخراج البيانات وبناء التعميم بناءً عليها.' : `هذا نص المعاملة الواردة:\n${aiGenReplyContent}`}
+
+الجهة المصدرة للتعميم: ${commName}
+توجيهات التعميم:
+${aiPrompt || 'صغ تعميماً احترافياً يلخص المعاملة الواردة ويوجه بها.'}
+
+ملاحظة هامة: اكتب "نص التعميم فقط" ليكون جاهزاً للنسخ مباشرة في قالب التصميم، بدون أي تواريخ أو عناوين خارجية.`;
+      }
+
       const response = await fetch("/api/gemini/generate-new-letter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: aiGenMode,
-          replyContent: aiGenReplyContent,
-          preamble: aiGenPreamble,
-          committeeName: committees.find(c => String(c.id) === String(aiGenCommittee))?.name || aiGenCommittee,
-          recipientName: aiGenRecipientName,
-          recipientPosition: aiGenRecipientPosition,
+          prompt: systemPrompt,
+          replyFileBase64,
+          replyFileMimeType,
+          committeeName: commName,
           subject: aiGenSubject,
           details: aiGenDetails,
-          contact: contactEmp ? `${contactEmp.jobTitle} - ${contactEmp.name} (جوال: ${contactEmp.phone}, بريد: ${contactEmp.email})` : aiGenContact,
-          attachments: aiGenAttachments,
-          signatory: signatoryEmp ? `${signatoryEmp.name} (${signatoryEmp.jobTitle})` : aiGenSignatory
+          replyContent: aiGenReplyContent
         })
       });
 
@@ -376,35 +430,63 @@ export default function Library() {
         setAiGenGeneratedText(data.result || "");
         setAiGenStep(3);
       } else {
-        alert("فشل توليد الخطاب. يرجى التأكد من الإعدادات.");
+        const errData = await response.json().catch(() => null);
+        alert("عذراً، الخادم يواجه ضغطاً حالياً. الرجاء المحاولة مرة أخرى.\n" + (errData?.error || ""));
       }
     } catch (e) {
       console.error(e);
-      alert("حدث خطأ أثناء التوليد.");
+      alert("حدث خطأ أثناء الاتصال بالخادم.");
     } finally {
       setIsAIGenGenerating(false);
     }
   };
 
-  const handleSaveArchivedLetter = async () => {
-    const newDoc = {
-      title: aiGenSubject || "خطاب جديد",
-      description: `خطاب صادر إلى ${aiGenRecipientName} - ${aiGenRecipientPosition}`,
-      type: "خطاب ذكي",
-      creator: "مدير النظام",
-      cloudUrl: "#",
-      downloadUrl: "#",
-      lastUpdated: new Date().toISOString().split('T')[0],
-      isFavorite: false,
-      templateText: aiGenGeneratedText
-    };
+  const saveAIGeneratedLetter = async () => {
     try {
+      const stored = localStorage.getItem("current_user");
+      let currentUser = null;
+      if (stored) currentUser = JSON.parse(stored);
+      
+      const creatorName = currentUser ? currentUser.name : "الأخصائي";
+      const commName = aiGenCommittee === "all" ? "لجان الغرفة" : (committees.find(c => String(c.id) === String(aiGenCommittee))?.name || aiGenCommittee);
+      
+      // توجيه المسار إلى مجلد التعاميم
+      const folderPath = `تقرير اللجان للدورة الـ 22/اللجان المعتمدة/${commName}/التعاميم`;
+      
+      let finalCloudUrl = "#";
+      try {
+        const folderId = await resolveDrivePath(folderPath);
+        const { documentId, documentUrl } = await createGoogleDoc(aiGenSubject || "تعميم جديد", aiGenGeneratedText);
+        await moveDriveFile(documentId, folderId);
+        finalCloudUrl = documentUrl;
+        
+        if (aiGenReplyFile) {
+          await uploadFileToDriveByPath(aiGenReplyFile, folderPath, `مرفق تعميم ${aiGenSubject} ${commName}`);
+        }
+      } catch (apiError) {
+        console.error("Drive Error:", apiError);
+        showGlobalToast("تم الحفظ في النظام المحلي فقط (تعذر الوصول للدرايف)", "success");
+      }
+
+      const newDoc = {
+        title: aiGenSubject || "تعميم جديد",
+        description: `تعميم صادر من لجنة: ${commName}`,
+        type: "خطاب ذكي",
+        creator: creatorName,
+        cloudUrl: finalCloudUrl,
+        downloadUrl: finalCloudUrl,
+        lastUpdated: new Date().toISOString().split('T')[0],
+        isFavorite: false,
+        templateText: aiGenGeneratedText,
+        committeeId: aiGenCommittee || "",
+      };
+      
       await addDoc(collection(db, "templates"), newDoc);
+      showGlobalToast("تم حفظ وأرشفة التعميم بنجاح", "success");
       setIsAIGenOpen(false);
-      alert("تم حفظ الخطاب بنجاح في المكتبة.");
     } catch (e) {
       console.error(e);
-      alert("فشل الحفظ.");
+      showGlobalToast("حدث خطأ أثناء الحفظ", "error");
     }
   };
 
@@ -499,14 +581,12 @@ export default function Library() {
     if (!file) return;
     setUploadedFile(file);
 
-    // Fill title if empty
     if (!formTitle) {
       const nameWithoutExt =
         file.name.substring(0, file.name.lastIndexOf(".")) || file.name;
       setFormTitle(nameWithoutExt);
     }
 
-    // Guess type from extension
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (ext === "docx" || ext === "doc" || ext === "pdf") {
       setFormType("مستندات");
@@ -518,7 +598,6 @@ export default function Library() {
       setFormType("أخرى");
     }
 
-    // Read to Data URL for preservation / direct local download
     const reader = new FileReader();
     reader.onload = () => {
       setUploadedFileDataUrl(reader.result as string);
@@ -527,7 +606,6 @@ export default function Library() {
   };
 
   const handleDownloadTemplate = (t: TemplateItem) => {
-    // If it's a real file we uploaded, it has a valid Data URL
     if (t.downloadUrl && t.downloadUrl.startsWith("data:")) {
       const downloadAnchor = document.createElement("a");
       downloadAnchor.setAttribute("href", t.downloadUrl);
@@ -546,7 +624,6 @@ export default function Library() {
       return;
     }
 
-    // Otherwise, generate an elegant text-based template file containing info
     const content = `===========================================
 غرفة مكة المكرمة - إدارة اللجان والقطاعات
 قالب مرجعي معتمد: ${t.title}
@@ -937,7 +1014,7 @@ ${t.description}
             <span>
               {showWorkspaceCenter
                 ? "إغلاق بوابة Google Workspace"
-                : "مزامنة Google Workspace 🌐"}
+                : "بوابة التكامل Google Workspace 🌐"}
             </span>
           </button>
 
@@ -953,7 +1030,7 @@ ${t.description}
             </button>
             <AnimatePresence>
               {isTemplateMenuOpen && (
-                <div key="animate-wrapper-template-actions-lib">
+                <div key="animate-wrapper-template-actions-comm">
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -962,63 +1039,54 @@ ${t.description}
                     onClick={() => setIsTemplateMenuOpen(false)}
                   />
                   <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    initial={{ opacity: 0, y: 5, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ duration: 0.15, ease: "easeOut" }}
-                    className="absolute left-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-20"
+                    exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                    className="absolute left-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-2 z-20 flex flex-col gap-1"
                   >
                     <button
-                      onClick={() => { setIsTemplateMenuOpen(false); setWizardStep("type"); setIsWizardOpen(true); }}
-                      className="w-full text-right px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors"
+                      type="button"
+                      onClick={openGenerateWizard}
+                      className="w-full h-10 px-3 bg-white hover:bg-blue-50 text-gray-800 font-bold text-xs rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-right group"
                     >
-                      <div className="w-6 h-6 rounded-md bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                      <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100">
                         <Wand2 className="w-3.5 h-3.5" />
                       </div>
-                      إنشاء قالب
+                      <span>توليد وتصميم تعميم ذكي</span>
                     </button>
                     <button
-                      onClick={() => { setIsTemplateMenuOpen(false); openGenerateWizard(); }}
-                      className="w-full text-right px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2 transition-colors"
+                      type="button"
+                      onClick={() => {
+                        setIsTemplateMenuOpen(false);
+                        setModalTab("import");
+                        setIsAddOpen(true);
+                      }}
+                      className="w-full h-10 px-3 bg-white hover:bg-blue-50 text-gray-800 font-bold text-xs rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-right group"
                     >
-                      <div className="w-6 h-6 rounded-md bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                        <Sparkles className="w-3.5 h-3.5" />
-                      </div>
-                      توليد خطاب ذكي
-                    </button>
-                    <div className="h-px bg-gray-100 my-1 mx-4"></div>
-                    <button
-                      onClick={() => { setIsTemplateMenuOpen(false); setIsAddOpen(true); }}
-                      className="w-full text-right px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2 transition-colors"
-                    >
-                      <div className="w-6 h-6 rounded-md bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                      <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100">
                         <Download className="w-3.5 h-3.5" />
                       </div>
-                      استيراد النماذج الجاهزة
+                      <span>استيراد قالب</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsTemplateMenuOpen(false);
+                        setModalTab("export");
+                        setIsAddOpen(true);
+                      }}
+                      className="w-full h-10 px-3 bg-white hover:bg-blue-50 text-gray-800 font-bold text-xs rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-right group"
+                    >
+                      <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100">
+                        <Upload className="w-3.5 h-3.5" />
+                      </div>
+                      <span>تصدير قوالب</span>
                     </button>
                   </motion.div>
                 </div>
               )}
             </AnimatePresence>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowWorkspaceCenter(!showWorkspaceCenter)}
-            className={`h-10 px-4 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all duration-200 cursor-pointer shrink-0 w-full lg:w-auto ${
-              showWorkspaceCenter
-                ? "bg-amber-600 hover:bg-amber-700 text-white animate-pulse"
-                : "bg-emerald-600 hover:bg-emerald-700 text-white"
-            }`}
-          >
-            <RefreshCw
-              className={`w-4 h-4 ${showWorkspaceCenter ? "animate-spin" : ""}`}
-            />
-            <span>
-              {showWorkspaceCenter
-                ? "إغلاق بوابة Google Workspace"
-                : "مزامنة Google Workspace 🌐"}
-            </span>
-          </button>
         </div>
       </div>
 
@@ -1158,20 +1226,20 @@ ${t.description}
                     </button>
 
                           <button
-                            onClick={() => handleOpenAI(t)}
-                            className="p-1.5 text-brand hover:text-white hover:bg-brand rounded-lg transition-colors border border-brand/20 shadow-sm hover:shadow"
-                            title="تعبئة بالذكاء الاصطناعي"
+                            onClick={() => t.type === "خطاب ذكي" ? openFillSmartLetter(t) : handleOpenAI(t)}
+                            className="p-1.5 text-indigo-600 hover:text-white hover:bg-indigo-600 rounded-lg transition-colors border border-indigo-600/20 shadow-sm hover:shadow"
+                            title={t.type === "خطاب ذكي" ? "تعبئة وطباعة" : "تعبئة بالذكاء الاصطناعي"}
                           >
                             <Wand2 className="w-4 h-4" />
                           </button>
 
 
                     <button
-                      onClick={() => handleOpenAI(t)}
-                      className="flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-l from-brand to-brand/80 text-white hover:brightness-110 rounded-lg text-xs font-extrabold transition-all shadow-sm"
-                      title="المولد الذكي للخطابات"
+                      onClick={() => t.type === "خطاب ذكي" ? openFillSmartLetter(t) : handleOpenAI(t)}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-l from-indigo-600 to-indigo-500 text-white hover:brightness-110 rounded-lg text-xs font-extrabold transition-all shadow-sm"
+                      title={t.type === "خطاب ذكي" ? "تعبئة المتغيرات وطباعة الخطاب" : "المولد الذكي للخطابات"}
                     >
-                      توليد ذكي
+                      {t.type === "خطاب ذكي" ? "تعبئة وطباعة" : "توليد ذكي"}
                       <Wand2 className="w-3.5 h-3.5" />
                     </button>
 
@@ -1242,9 +1310,9 @@ ${t.description}
                           </button>
 
                           <button
-                            onClick={() => handleOpenAI(t)}
-                            className="p-1.5 text-brand hover:text-white hover:bg-brand rounded-lg transition-colors border border-brand/20 shadow-sm hover:shadow"
-                            title="تعبئة بالذكاء الاصطناعي"
+                            onClick={() => t.type === "خطاب ذكي" ? openFillSmartLetter(t) : handleOpenAI(t)}
+                            className="p-1.5 text-indigo-600 hover:text-white hover:bg-indigo-600 rounded-lg transition-colors border border-indigo-600/20 shadow-sm hover:shadow"
+                            title={t.type === "خطاب ذكي" ? "تعبئة وطباعة" : "تعبئة بالذكاء الاصطناعي"}
                           >
                             <Wand2 className="w-4 h-4" />
                           </button>
@@ -1280,7 +1348,7 @@ ${t.description}
       {/* Add Modal */}
       <AnimatePresence>
         {isAddOpen && (
-          <div key="lib-isAddOpen-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pb-20">
+          <div key="comm-isAddOpen-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pb-20">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1683,623 +1751,19 @@ ${t.description}
             </motion.div>
           </div>
         )}
-
-        
-      {/* AI Generator Modal */}
-      {isAIOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden" dir="rtl">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-slate-50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-brand/10 flex items-center justify-center">
-                  <Wand2 className="w-5 h-5 text-brand" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-black text-gray-800">المولد الذكي للخطابات</h2>
-                  <p className="text-sm font-bold text-gray-500 mt-1">
-                    قالب: {aiTemplate?.title}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsAIOpen(false)}
-                className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-full transition-colors"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-6 flex flex-col lg:flex-row gap-6">
-              
-              {/* Input Area */}
-              <div className="w-full lg:w-1/3 flex flex-col gap-4">
-                <div>
-                  <label className="block text-sm font-black text-gray-800 mb-2">تعليمات التعبئة الذكية</label>
-                  <p className="text-xs text-gray-500 mb-3 font-bold leading-relaxed">
-                    حدد المتغيرات (مثال: اسم الموظف، تاريخ الاجتماع، الجهة الموجه لها الخطاب) وسيقوم المولد بصياغة الخطاب بالاعتماد على الهيكل المعتمد.
-                  </p>
-                  <textarea
-                    rows={6}
-                    value={aiPrompt}
-                    onChange={(e) => setAiPrompt(e.target.value)}
-                    placeholder="اكتب البيانات المطلوبة هنا..."
-                    className="w-full p-3 bg-slate-50 border border-gray-300 rounded-xl text-sm font-bold focus:ring-2 focus:ring-brand/50 focus:border-brand outline-none transition-all resize-none"
-                  ></textarea>
-                </div>
-                <button
-                  onClick={handleGenerateAI}
-                  disabled={!aiPrompt.trim() || isAiLoading}
-                  className="w-full py-3 bg-brand text-white font-black text-sm rounded-xl flex items-center justify-center gap-2 hover:bg-brand/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isAiLoading ? (
-                    
-<div key="filter-popover-1784704070982-1">
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      جاري التوليد والصياغة...
-                    </div>
-                  ) : (
-                    
-<div key="filter-popover-1784704070982-2">
-                      <Wand2 className="w-5 h-5" />
-                      توليد الخطاب
-                    </div>
-                  )}
-                </button>
-              </div>
-
-              {/* Output / Preview Area */}
-              <div className="w-full lg:w-2/3 bg-gray-100 rounded-xl border border-gray-200 p-4 flex flex-col">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-black text-gray-700">المعاينة للطباعة</h3>
-                  <button
-                    onClick={handlePrintAI}
-                    disabled={!aiResult}
-                    className="px-4 py-2 bg-white border border-gray-300 text-gray-700 hover:text-brand hover:border-brand rounded-lg text-xs font-black transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Printer className="w-4 h-4" />
-                    طباعة الخطاب
-                  </button>
-                </div>
-                
-                <div className="flex-1 bg-white border border-gray-300 shadow-sm rounded-lg p-8 overflow-y-auto min-h-[400px]">
-                  {aiResult ? (
-                    <div id="printable-letter" className="font-sans text-gray-900 leading-loose text-justify whitespace-pre-wrap">
-                      {aiResult}
-                    </div>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-gray-400">
-                      <Wand2 className="w-12 h-12 mb-4 opacity-20" />
-                      <p className="font-bold text-sm">سيظهر الخطاب الجاهز هنا بعد التوليد</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      
-      
-      
       </AnimatePresence>
 
-      {/* Template Creation Wizard Modal */}
-      <AnimatePresence>
-        {isWizardOpen && (
-          <div key="lib-isWizardOpen-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsWizardOpen(false)} />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl shadow-xl overflow-hidden w-full max-w-lg z-10 flex flex-col"
-              dir="rtl"
-            >
-              <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900">
-                  {wizardStep === "type" && "إنشاء قالب جديد"}
-                  {wizardStep === "doc_subtype" && "اختيار نوع المستند"}
-                  {wizardStep === "letter_type" && "نوع الخطاب"}
-                </h2>
-                <button
-                  onClick={() => setIsWizardOpen(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-50"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="p-6 space-y-3">
-                {wizardStep === "type" && (
-                  
-<div key="filter-popover-1784704070982-3">
-                    <button onClick={() => setWizardStep("doc_subtype")} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
-                          <FileText className="w-5 h-5" />
-                        </div>
-                        <span className="font-bold text-gray-800 group-hover:text-indigo-700">مستندات</span>
-                      </div>
-                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
-                    </button>
-                    <button onClick={() => { setFormType("عروض تقديمية"); setIsWizardOpen(false); setIsAddOpen(true); }} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center">
-                          <Presentation className="w-5 h-5" />
-                        </div>
-                        <span className="font-bold text-gray-800 group-hover:text-indigo-700">عروض تقديمية</span>
-                      </div>
-                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
-                    </button>
-                    <button onClick={() => { setFormType("جداول بيانات"); setIsWizardOpen(false); setIsAddOpen(true); }} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                          <FileSpreadsheet className="w-5 h-5" />
-                        </div>
-                        <span className="font-bold text-gray-800 group-hover:text-indigo-700">جداول بيانات</span>
-                      </div>
-                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
-                    </button>
-                    <button onClick={() => { setFormType("مستندات"); setIsWizardOpen(false); setIsAddOpen(true); }} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
-                          <Mail className="w-5 h-5" />
-                        </div>
-                        <span className="font-bold text-gray-800 group-hover:text-indigo-700">بريد إلكتروني</span>
-                      </div>
-                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
-                    </button>
-                    <button onClick={() => { setFormType("أخرى"); setIsWizardOpen(false); setIsAddOpen(true); }} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center">
-                          <MoreHorizontal className="w-5 h-5" />
-                        </div>
-                        <span className="font-bold text-gray-800 group-hover:text-indigo-700">أخرى</span>
-                      </div>
-                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
-                    </button>
-                  </div>
-                )}
-
-                {wizardStep === "doc_subtype" && (
-                  
-<div key="filter-popover-1784704070982-4">
-                    <button onClick={() => setWizardStep("letter_type")} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
-                          <FileText className="w-5 h-5" />
-                        </div>
-                        <span className="font-bold text-gray-800 group-hover:text-indigo-700">خطاب</span>
-                      </div>
-                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
-                    </button>
-                    <button onClick={() => { setFormType("مستندات"); setFormTitle("تعميم - "); setIsWizardOpen(false); setIsAddOpen(true); }} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
-                          <FileText className="w-5 h-5" />
-                        </div>
-                        <span className="font-bold text-gray-800 group-hover:text-indigo-700">تعميم</span>
-                      </div>
-                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
-                    </button>
-                    <button onClick={() => { setFormType("مستندات"); setIsWizardOpen(false); setIsAddOpen(true); }} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center">
-                          <MoreHorizontal className="w-5 h-5" />
-                        </div>
-                        <span className="font-bold text-gray-800 group-hover:text-indigo-700">إلخ</span>
-                      </div>
-                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
-                    </button>
-                  </div>
-                )}
-
-                {wizardStep === "letter_type" && (
-                  
-<div key="filter-popover-1784704070982-5">
-                    <button onClick={() => {
-                      setSmartLetterMode("create_new");
-                      setSlTitle("");
-                      setSlContent("");
-                      setSlValues({});
-                      setIsSmartLetterOpen(true);
-                      setIsWizardOpen(false);
-                    }} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                          <Plus className="w-5 h-5" />
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold text-gray-800 group-hover:text-indigo-700">جديد</div>
-                          <div className="text-xs text-gray-500 mt-0.5">إنشاء قالب خطاب جديد من الصفر</div>
-                        </div>
-                      </div>
-                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
-                    </button>
-                    
-                    <button onClick={() => {
-                      setSmartLetterMode("create_reply");
-                      setSlTitle("");
-                      setSlContent("");
-                      setSlValues({});
-                      setIsSmartLetterOpen(true);
-                      setIsWizardOpen(false);
-                    }} className="w-full p-4 border border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 flex items-center justify-between group transition-all">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
-                          <Reply className="w-5 h-5" />
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold text-gray-800 group-hover:text-indigo-700">رد</div>
-                          <div className="text-xs text-gray-500 mt-0.5">إعداد قالب رد تلقائي على خطاب وارد</div>
-                        </div>
-                      </div>
-                      <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-indigo-500" />
-                    </button>
-                  </div>
-                )}
-              </div>
-              
-              {wizardStep !== "type" && (
-                <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center">
-                  <button
-                    onClick={() => {
-                      if (wizardStep === "doc_subtype") setWizardStep("type");
-                      if (wizardStep === "letter_type") setWizardStep("doc_subtype");
-                    }}
-                    className="flex items-center gap-2 text-sm font-bold text-gray-600 hover:text-gray-900 transition-colors"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                    عودة
-                  </button>
-                </div>
-              )}
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Smart Letter Modal */}
-
-      <AnimatePresence>
-        {isSmartLetterOpen && (
-          <div key="lib-isSmartLetterOpen-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsSmartLetterOpen(false)} />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl shadow-2xl overflow-hidden w-full max-w-7xl z-10 flex flex-col max-h-[95vh]"
-            >
-              <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-l from-indigo-50/50 to-white shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center shadow-sm">
-                    <Wand2 className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-black text-gray-900">{smartLetterMode === "create_new" ? "إنشاء قالب خطابات ذكي" : smartLetterMode === "create_reply" ? "إعداد رد ذكي" : "تعبئة خطاب ذكي"}</h2>
-                    <p className="text-gray-500 text-sm font-medium mt-1">
-                      {smartLetterMode === "create_new" ? "قم بإدخال قالب الخطاب وعنوانه" : smartLetterMode === "create_reply" ? "أدخل نص الخطاب الوارد أو أرفق ملفاً لإنشاء رد تلقائي" : "قم بتعبئة المتغيرات لمعاينة الخطاب وتصديره"}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsSmartLetterOpen(false)}
-                  className="p-2.5 rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-8 bg-gray-50/50">
-                {/* Left Column (Inputs) */}
-                <div className="space-y-6 flex flex-col">
-                  {(smartLetterMode === "create_new" || smartLetterMode === "create_reply") && (
-                    
-<div key="filter-popover-1784704070982-6">
-                      {smartLetterMode === "create_reply" && (<div className="bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100 shadow-sm space-y-4">
-                        <h3 className="font-bold text-indigo-800 text-sm flex items-center gap-2">
-                          <Wand2 className="w-4 h-4 text-indigo-500" />
-                          إعداد رد تلقائي على خطاب وارد
-                        </h3>
-                        <div className="space-y-3">
-                          <textarea
-                            id="incomingLetterText"
-                            rows={3}
-                            className="w-full px-4 py-3 bg-white border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors font-bold text-sm resize-none"
-                            placeholder="انسخ والصق نص الخطاب الوارد هنا..."
-                          />
-                          <div className="flex items-center gap-2">
-                            <label className="flex-1 cursor-pointer flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-indigo-200 text-indigo-700 rounded-xl hover:bg-indigo-50 transition-colors font-bold text-sm">
-                              <Paperclip className="w-4 h-4" />
-                              <span id="uploadFileName">إرفاق ملف الخطاب (PDF, صورة)</span>
-                              <input 
-                                type="file" 
-                                className="hidden"
-                                accept="application/pdf,image/*"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                    document.getElementById('uploadFileName')!.textContent = file.name;
-                                    const reader = new FileReader();
-                                    reader.onload = (ev) => {
-                                      const base64 = (ev.target?.result as string).split(',')[1];
-                                      (window as any)._incomingLetterFile = { base64, mimeType: file.type, name: file.name };
-                                    };
-                                    reader.readAsDataURL(file);
-                                  }
-                                }}
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                const text = (document.getElementById('incomingLetterText') as HTMLTextAreaElement).value;
-                                const fileObj = (window as any)._incomingLetterFile;
-                                if (!text.trim() && !fileObj) {
-                                  alert("يرجى إدخال نص الخطاب أو إرفاق ملف");
-                                  return;
-                                }
-                                const btn = document.getElementById('generateReplyBtn');
-                                if (btn) {
-                                  btn.innerHTML = '<span class="flex items-center gap-2"><svg class="animate-spin w-4 h-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>جاري توليد الرد...</span>';
-                                  btn.setAttribute('disabled', 'true');
-                                }
-                                try {
-                                  const response = await fetch("/api/gemini/reply-to-letter", {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({
-                                      incomingLetter: text,
-                                      fileBase64: fileObj?.base64,
-                                      mimeType: fileObj?.mimeType
-                                    })
-                                  });
-                                  
-                                  const contentType = response.headers.get("content-type");
-                                  if (contentType && contentType.includes("application/json")) {
-                                    const data = await response.json();
-                                    if (response.ok) {
-                                      setSlContent(data.result);
-                                      if (!slTitle) setSlTitle("رد على خطاب وارد");
-                                    } else {
-                                      alert("خطأ من الخادم: " + (data.error?.message || data.error || JSON.stringify(data)));
-                                    }
-                                  } else {
-                                    const textRes = await response.text();
-                                    throw new Error(`الخادم لا يستجيب بشكل صحيح (تأكد من إعدادات Vercel أو الخادم). الحالة: ${response.status}`);
-                                  }
-                                } catch (e: any) {
-                                  console.error("Generate Reply Catch:", e);
-                                  alert("حدث خطأ أثناء التوليد: " + (e.message || e));
-                                } finally {
-                                  if (btn) {
-                                    btn.innerHTML = '<span class="flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wand2 w-4 h-4"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg>توليد الرد التلقائي</span>';
-                                    btn.removeAttribute('disabled');
-                                  }
-                                }
-                              }}
-                              id="generateReplyBtn"
-                              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm transition-colors shadow-sm disabled:opacity-50"
-                            >
-                              <span className="flex items-center gap-2"><Wand2 className="w-4 h-4" />توليد الرد التلقائي</span>
-                            </button></div></div></div>)}<div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
-                        <div>
-                          <label className="block text-sm font-bold text-gray-700 mb-1.5">عنوان الخطاب (القالب)</label>
-                          <input
-                            type="text"
-                            value={slTitle}
-                            onChange={(e) => setSlTitle(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors font-bold text-sm"
-                            placeholder="مثال: دعوة حضور اجتماع"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-bold text-gray-700 mb-1.5 flex justify-between">
-                            <span>نص الخطاب (الثوابت والمتغيرات)</span>
-                            <span className="text-xs font-normal text-indigo-500">استخدم [الاسم] للمتغيرات</span>
-                          </label>
-                          <textarea
-                            value={slContent}
-                            onChange={(e) => setSlContent(e.target.value)}
-                            rows={12}
-                            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors font-bold text-sm leading-relaxed resize-none"
-                            dir="auto"
-                            placeholder="السيد [الاسم] المحترم،
-ندعوكم لحضور [الفعالية]..."
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Variables Fill Area */}
-                  {slVariables.length > 0 && (
-                    <div className="bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm space-y-4 flex-1">
-                      <h3 className="font-bold text-indigo-800 text-sm flex items-center gap-2 border-b border-indigo-50 pb-3">
-                        <Edit2 className="w-4 h-4 text-indigo-500" />
-                        تعبئة المتغيرات
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {slVariables.map((v, i) => (
-                          <div key={i}>
-                            <label className="block text-xs font-bold text-gray-700 mb-1.5">{v}</label>
-                            <input
-                              type="text"
-                              value={slValues[v] || ""}
-                              onChange={(e) => setSlValues(prev => ({...prev, [v]: e.target.value}))}
-                              className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors font-bold text-sm shadow-sm"
-                              placeholder={`أدخل ${v}...`}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Right Column (Preview) */}
-                <div className="flex flex-col">
-                  <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2 mb-3 px-1">
-                    <BookOpen className="w-4 h-4 text-emerald-500" />
-                    المعاينة الحية للخطاب
-                  </h3>
-                  <div className="flex-1 bg-white border border-gray-200 shadow-sm rounded-xl overflow-hidden p-8 flex flex-col relative min-h-[500px]">
-                    <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-emerald-400 to-teal-500" />
-                    <div className="flex-1 whitespace-pre-wrap font-sans text-gray-800 leading-8 text-base" id="smart-letter-preview">
-                      {slPreview}
-                    </div>
-                    <div className="mt-8 pt-6 border-t border-gray-100 flex justify-between items-end text-sm text-gray-500 font-bold">
-                      <div>التاريخ: {new Date().toLocaleDateString('ar-SA')}</div>
-                      <div className="text-left">
-                        التوقيع
-                        <br />
-                        ........................
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-5 border-t border-gray-100 bg-gray-50 flex items-center justify-end gap-3 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setIsSmartLetterOpen(false)}
-                  className="px-6 py-2.5 rounded-xl font-bold text-sm text-gray-600 hover:bg-gray-200 transition-colors"
-                >
-                  إلغاء
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => {
-                    const printWin = window.open('', '_blank');
-                    if (printWin) {
-                      printWin.document.write(`
-                        <html dir="rtl">
-                          <head>
-                            <title>${slTitle || 'طباعة الخطاب'}</title>
-                            <style>
-                              body { font-family: 'Cairo', system-ui, sans-serif; padding: 40px; color: #000; line-height: 2; max-width: 800px; margin: 0 auto; }
-                              .content { white-space: pre-wrap; font-size: 18px; min-height: 400px; }
-                              .footer { margin-top: 80px; display: flex; justify-content: space-between; font-weight: bold; }
-                              @media print {
-                                body { padding: 0; }
-                                @page { margin: 2cm; }
-                              }
-                            </style>
-                          </head>
-                          <body>
-                            <div class="content">${slPreview.replace(/\n/g, '<br>')}</div>
-                            <div class="footer">
-                              <div>التاريخ: ${new Date().toLocaleDateString('ar-SA')}</div>
-                              <div style="text-align: left;">التوقيع<br/>........................</div>
-                            </div>
-                            <script>
-                              window.onload = () => { window.print(); window.close(); }
-                            </script>
-                          </body>
-                        </html>
-                      `);
-                      printWin.document.close();
-                    }
-                  }}
-                  className="px-6 py-2.5 rounded-xl font-bold text-sm bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-indigo-600 shadow-sm transition-all flex items-center gap-2"
-                >
-                  <Printer className="w-4 h-4" />
-                  طباعة
-                </button>
-                
-                {(smartLetterMode === "create_new" || smartLetterMode === "create_reply") && (
-                  <button
-                    type="button"
-                    onClick={handleSaveSmartLetter}
-                    className="px-6 py-2.5 rounded-xl font-bold text-sm bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm hover:shadow-md transition-all flex items-center gap-2"
-                  >
-                    <Check className="w-4 h-4" />
-                    حفظ القالب
-                  </button>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Delete Confirmation Modal */}
-      <AnimatePresence>
-        {deleteTarget && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pb-20">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setDeleteTarget(null)}
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-sm relative z-10 overflow-hidden flex flex-col p-6"
-            >
-              <h3 className="text-lg font-bold text-slate-800 mb-2 whitespace-normal break-words">
-                حذف القالب "{deleteTarget.title}"
-              </h3>
-              <p className="text-sm text-slate-500 mb-4">
-                الرجاء إدخال سبب الحذف لتأكيد العملية:
-              </p>
-
-              <input
-                autoFocus
-                type="text"
-                value={deleteReason}
-                onChange={(e) => setDeleteReason(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") confirmDelete();
-                  if (e.key === "Escape") setDeleteTarget(null);
-                }}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all mb-5 text-sm"
-                placeholder="سبب الحذف مطلوب..."
-              />
-
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setDeleteTarget(null)}
-                  className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
-                >
-                  إلغاء
-                </button>
-                <button
-                  disabled={formIsSaving || !deleteReason.trim()}
-                  onClick={confirmDelete}
-                  className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-red-600 hover:bg-red-700 flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
-                >
-                  {formIsSaving ? (
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="w-4 h-4" />
-                  )}
-                  تأكيد الحذف
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* AI Generator Modal */}
+      {/* AI Generator Modal - New Gemini Style Implementation */}
       <AnimatePresence>
         {isAIGenOpen && (
-          <div key="lib-isAIGenOpen-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+          <div key="comm-isAIGenOpen-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsAIGenOpen(false)} />
             <motion.div
               key="ai-generator-modal"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl shadow-2xl overflow-hidden w-full max-w-2xl z-10 flex flex-col max-h-[95vh]"
+              className="bg-white rounded-3xl shadow-2xl overflow-hidden w-full max-w-5xl z-10 flex flex-col max-h-[95vh]"
             >
               <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-l from-emerald-50/50 to-white shrink-0">
                 <div className="flex items-center gap-3">
@@ -2307,7 +1771,7 @@ ${t.description}
                     <Sparkles className="w-6 h-6" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-gray-900">توليد خطاب ذكي</h2>
+                    <h2 className="text-xl font-black text-gray-900">صياغة الخطابات بالذكاء الاصطناعي</h2>
                     <p className="text-gray-500 text-sm font-medium mt-1">
                       الخطوة {aiGenStep} من 3
                     </p>
@@ -2321,225 +1785,297 @@ ${t.description}
                 </button>
               </div>
 
-              <div className="p-6 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto bg-gray-50/50">
+                
                 {aiGenStep === 1 && (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1.5">اختر اللجنة للربط والأرشفة</label>
-                      <select
-                        value={aiGenCommittee}
-                        onChange={(e) => setAiGenCommittee(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
-                      >
-                        <option value="">-- اختر اللجنة --</option>
-                        {committees.map((c, i) => (
-                          <option key={`${c.id}-${i}`} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1.5">نوع النموذج</label>
-                      <select
-                        value={aiGenTemplateType}
-                        onChange={(e) => setAiGenTemplateType(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
-                      >
-                        <option value="مستندات (Google Docs)">مستندات (Google Docs)</option>
-                        <option value="عروض تقديمية (Google Slides)">عروض تقديمية (Google Slides)</option>
-                        <option value="جداول بيانات (Google Sheets)">جداول بيانات (Google Sheets)</option>
-                        <option value="نماذج (Google Forms)">نماذج (Google Forms)</option>
-                        <option value="مواقع (Google Sites)">مواقع (Google Sites)</option>
-                        <option value="بريد إلكتروني (Gmail)">بريد إلكتروني (Gmail)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1.5">حالة الخطاب</label>
-                      <div className="flex gap-4">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="radio" name="aiGenMode" value="new" checked={aiGenMode === "new"} onChange={() => setAiGenMode("new")} className="text-emerald-600 focus:ring-emerald-500" />
-                          <span className="text-sm">جديد</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="radio" name="aiGenMode" value="reply" checked={aiGenMode === "reply"} onChange={() => setAiGenMode("reply")} className="text-emerald-600 focus:ring-emerald-500" />
-                          <span className="text-sm">رد</span>
-                        </label>
+                  <div className="max-w-3xl mx-auto space-y-6 p-6">
+                    <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+                      <label className="block text-sm font-bold text-gray-800 mb-4 text-center">اختر خدمة Google Workspace لإنشاء القالب:</label>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <button
+                          onClick={() => setAiGenStep(2)}
+                          className={`flex flex-col items-center justify-center p-5 border-2 rounded-2xl cursor-pointer transition-all hover:shadow-md border-blue-500 bg-blue-50 ring-1 ring-blue-500 shadow-sm`}
+                        >
+                          <div className={`w-12 h-12 rounded-xl mb-3 flex items-center justify-center bg-blue-50 text-blue-600`}>
+                            <FileText className="w-6 h-6" />
+                          </div>
+                          <span className="font-extrabold text-gray-800 text-sm">تعميم (مستندات)</span>
+                        </button>
+                        
+                        {/* تعطيل باقي الخيارات مؤقتاً */}
+                        <button onClick={() => showGlobalToast("سيتم برمجة هذا المسار لاحقاً", "success")} className="flex flex-col items-center justify-center p-5 border-2 rounded-2xl cursor-pointer transition-all hover:shadow-md border-gray-100 hover:border-gray-300 bg-white opacity-60">
+                           <div className="w-12 h-12 rounded-xl mb-3 flex items-center justify-center bg-amber-50 text-amber-600"><Presentation className="w-6 h-6" /></div>
+                           <span className="font-extrabold text-gray-800 text-sm">عروض تقديمية</span>
+                        </button>
+                        <button onClick={() => showGlobalToast("سيتم برمجة هذا المسار لاحقاً", "success")} className="flex flex-col items-center justify-center p-5 border-2 rounded-2xl cursor-pointer transition-all hover:shadow-md border-gray-100 hover:border-gray-300 bg-white opacity-60">
+                           <div className="w-12 h-12 rounded-xl mb-3 flex items-center justify-center bg-emerald-50 text-emerald-600"><FileSpreadsheet className="w-6 h-6" /></div>
+                           <span className="font-extrabold text-gray-800 text-sm">جداول بيانات</span>
+                        </button>
                       </div>
-                    </div>
-                    <div className="flex justify-end pt-4">
-                      <button
-                        onClick={() => {
-                          if (!aiGenCommittee) {
-                            showGlobalToast("الرجاء اختيار اللجنة", "error");
-                            return;
-                          }
-                          setAiGenStep(2);
-                        }}
-                        className="px-6 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors"
-                      >
-                        التالي
-                      </button>
                     </div>
                   </div>
                 )}
 
                 {aiGenStep === 2 && (
-                  <div className="space-y-4">
+                  <div className="max-w-2xl mx-auto space-y-6 p-6">
+                    <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-5">
+                      <div>
+                        <label className="block text-sm font-bold text-gray-800 mb-3">حدد نوع الإجراء المطلوب:</label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <label className={`flex flex-col p-4 border-2 rounded-xl cursor-pointer transition-all ${aiGenMode === "new" ? "border-emerald-500 bg-emerald-50/50" : "border-gray-200 hover:border-emerald-200 bg-white"}`}>
+                            <div className="flex items-center gap-3 mb-2">
+                              <input type="radio" name="mode" checked={aiGenMode === "new"} onChange={() => setAiGenMode("new")} className="w-4 h-4 text-emerald-600 focus:ring-emerald-500" />
+                              <span className="font-bold text-gray-900">إنشاء تعميم جديد</span>
+                            </div>
+                            <p className="text-xs text-gray-500 pr-7 leading-relaxed">اكتب نقاط مختصرة وسيقوم المساعد الذكي بتوسيعها وصياغتها كتعميم رسمي متكامل.</p>
+                          </label>
+                          <label className={`flex flex-col p-4 border-2 rounded-xl cursor-pointer transition-all ${aiGenMode === "reply" ? "border-emerald-500 bg-emerald-50/50" : "border-gray-200 hover:border-emerald-200 bg-white"}`}>
+                            <div className="flex items-center gap-3 mb-2">
+                              <input type="radio" name="mode" checked={aiGenMode === "reply"} onChange={() => setAiGenMode("reply")} className="w-4 h-4 text-emerald-600 focus:ring-emerald-500" />
+                              <span className="font-bold text-gray-900">رد على معاملة واردة</span>
+                            </div>
+                            <p className="text-xs text-gray-500 pr-7 leading-relaxed">أرفق صورة أو PDF لمعاملة واردة وسيقوم الذكاء الاصطناعي بقراءتها وبناء تعميم مبني عليها.</p>
+                          </label>
+                        </div>
+                      </div>
+                      
+                      <div className="pt-4 border-t border-gray-100">
+                        <label className="block text-sm font-bold text-gray-800 mb-2">اللجنة المصدرة للتعميم</label>
+                        <select
+                          value={aiGenCommittee}
+                          onChange={(e) => setAiGenCommittee(e.target.value)}
+                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm font-bold"
+                        >
+                          <option value="">-- اختر اللجنة --</option>
+                          <option value="all">تعميم عام من الغرفة</option>
+                          {committees.map((c, i) => (
+                            <option key={`${c.id}-${i}`} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
                     {aiGenMode === "new" ? (
-                      <>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-xs font-bold text-gray-700 mb-1.5">الصفة</label>
-                            <input
-                              type="text"
-                              value={aiGenRecipientPosition}
-                              onChange={(e) => setAiGenRecipientPosition(e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-700 mb-1.5">الاسم</label>
-                            <input
-                              type="text"
-                              value={aiGenRecipientName}
-                              onChange={(e) => setAiGenRecipientName(e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                            />
-                          </div>
-                        </div>
+                      <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                        <h3 className="font-bold text-gray-800 border-b border-gray-100 pb-3 flex items-center gap-2">
+                          <Plus className="w-4 h-4 text-emerald-600" />
+                          بيانات التعميم الجديد
+                        </h3>
                         <div>
-                          <label className="block text-xs font-bold text-gray-700 mb-1.5">الديباجة</label>
-                          <input
-                            type="text"
-                            value={aiGenPreamble}
-                            onChange={(e) => setAiGenPreamble(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-gray-700 mb-1.5">موضوع الخطاب</label>
+                          <label className="block text-xs font-bold text-gray-600 mb-1.5">موضوع التعميم (العنوان)</label>
                           <input
                             type="text"
                             value={aiGenSubject}
+                            placeholder="مثال: دعوة لحضور الاجتماع التشاوري..."
                             onChange={(e) => setAiGenSubject(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm"
                           />
                         </div>
-                        <div>
-                          <label className="block text-xs font-bold text-gray-700 mb-1.5">تفاصيل الخطاب</label>
+
+                        <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                          <h4 className="font-bold text-emerald-800 mb-2 flex items-center gap-2">
+                            <Wand2 className="w-4 h-4"/> النقاط التوضيحية
+                          </h4>
                           <textarea
                             value={aiGenDetails}
                             onChange={(e) => setAiGenDetails(e.target.value)}
-                            className="w-full h-24 px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                            className="w-full h-28 px-3 py-2 border border-emerald-200 rounded-lg text-sm focus:ring-1 focus:ring-emerald-500 resize-none"
+                            placeholder="اكتب باختصار ما تريده في التعميم وسيقوم النظام بصياغته..."
                           />
                         </div>
-                        <div>
-                          <label className="block text-xs font-bold text-gray-700 mb-1.5">ضابط الاتصال</label>
-                          <select
-                            value={aiGenContact}
-                            onChange={(e) => setAiGenContact(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                          >
-                            <option value="">-- اختر ضابط الاتصال --</option>
-                            {employees.map((emp, i) => (
-                              <option key={`${emp.id}-${i}`} value={emp.id}>{emp.name} ({emp.jobTitle})</option>
-                            ))}
-                          </select>
-                          {aiGenContact && employees.find(e => e.id === aiGenContact) && (
-                            <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs space-y-1">
-                              <p><span className="font-bold text-gray-600">المنصب:</span> {employees.find(e => e.id === aiGenContact)?.jobTitle}</p>
-                              <p><span className="font-bold text-gray-600">الاسم:</span> {employees.find(e => e.id === aiGenContact)?.name}</p>
-                              <p><span className="font-bold text-gray-600">رقم الجوال:</span> {employees.find(e => e.id === aiGenContact)?.phone}</p>
-                              <p><span className="font-bold text-gray-600">البريد الإلكتروني:</span> {employees.find(e => e.id === aiGenContact)?.email}</p>
-                            </div>
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-gray-700 mb-1.5">المرفقات</label>
-                          <textarea
-                            value={aiGenAttachments}
-                            onChange={(e) => setAiGenAttachments(e.target.value)}
-                            placeholder="يمكنك كتابة روابط المرفقات أو أسمائها"
-                            className="w-full h-16 px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-gray-700 mb-1.5">توقيع الخطاب</label>
-                          <select
-                            value={aiGenSignatory}
-                            onChange={(e) => setAiGenSignatory(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                          >
-                            <option value="">-- اختر الموقع --</option>
-                            {employees.map((emp, i) => (
-                              <option key={`${emp.id}-${i}`} value={emp.id}>{emp.name} ({emp.jobTitle})</option>
-                            ))}
-                          </select>
-                        </div>
-                      </>
+                      </div>
                     ) : (
-                      <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5">المرفق أو كتابة محتوى الخطاب للرد</label>
-                        <textarea
-                          value={aiGenReplyContent}
-                          onChange={(e) => setAiGenReplyContent(e.target.value)}
-                          className="w-full h-48 px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                          placeholder="الصق نص الخطاب الوارد هنا..."
-                        />
+                      <div className="space-y-4">
+                        <div className="bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm space-y-4">
+                          <h3 className="font-bold text-indigo-800 border-b border-indigo-50 pb-3 flex items-center gap-2">
+                            <BookOpen className="w-4 h-4 text-indigo-600" />
+                            قراءة المعاملة الواردة
+                          </h3>
+                          <div className="flex flex-col h-full">
+                            <label className="block text-xs font-bold text-gray-600 mb-2">إرفاق المعاملة (PDF/صورة)</label>
+                            <label className="flex-1 flex flex-col items-center justify-center gap-2 w-full min-h-[100px] border-2 border-dashed border-indigo-200 rounded-xl cursor-pointer hover:bg-indigo-50 bg-white transition-colors relative overflow-hidden">
+                              <Upload className="w-6 h-6 text-indigo-400" />
+                              <span className="text-xs text-indigo-600 font-bold truncate max-w-[80%] text-center px-2">
+                                {aiGenReplyFile ? aiGenReplyFile.name : "انقر لإرفاق ملف المعاملة ليقرأه النظام"}
+                              </span>
+                              <input type="file" className="hidden" accept="application/pdf,image/*" onChange={(e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                  const file = e.target.files[0];
+                                  const reader = new FileReader();
+                                  reader.onload = (ev) => {
+                                    const base64 = (ev.target?.result as string).split(',')[1];
+                                    setAiGenReplyFile({ base64, mimeType: file.type, name: file.name });
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }} />
+                            </label>
+                            {aiGenReplyFile && (
+                              <button type="button" onClick={() => setAiGenReplyFile(null)} className="mt-2 text-xs text-red-500 hover:text-red-700 font-bold self-start">حذف المرفق</button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 shadow-sm space-y-4">
+                          <h4 className="font-bold text-emerald-800 flex items-center gap-2">
+                            <Wand2 className="w-4 h-4"/> ماذا تريد في التعميم المبني على المرفق؟
+                          </h4>
+                          <textarea
+                            value={aiPrompt}
+                            onChange={e => setAiPrompt(e.target.value)}
+                            className="w-full h-24 px-3 py-2 border border-emerald-200 rounded-lg text-sm focus:ring-1 focus:ring-emerald-500 resize-none"
+                            placeholder="مثال: قم بدعوة أعضاء اللجان للانضمام للمجلس المذكور في المرفق..."
+                          />
+                        </div>
                       </div>
                     )}
-                    <div className="flex justify-between pt-4 border-t border-gray-100">
+
+                    <div className="flex justify-end gap-3">
                       <button
                         onClick={() => setAiGenStep(1)}
-                        className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors"
+                        className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-300 transition-colors"
                       >
                         السابق
                       </button>
                       <button
                         onClick={handleGenerateNewLetter}
-                        disabled={isAIGenGenerating || (aiGenMode === 'new' ? (!aiGenSubject || !aiGenRecipientName) : !aiGenReplyContent)}
-                        className="px-6 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                        disabled={
+                          isAIGenGenerating || 
+                          (aiGenMode === 'new' ? (!aiGenSubject && !aiGenDetails) : (!aiPrompt && !aiGenReplyFile)) || !aiGenCommittee
+                        }
+                        className="px-8 py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                       >
-                        {isAIGenGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                        توليد الخطاب
+                        {isAIGenGenerating ? (
+                          <><Loader2 className="w-5 h-5 animate-spin" /> جاري التوليد...</>
+                        ) : (
+                          <><Wand2 className="w-5 h-5" /> توليد التعميم</>
+                        )}
                       </button>
                     </div>
                   </div>
                 )}
 
+                {/* الخطوة 3: قالب معاينة التعميم الحي (بمقاس 4:3) */}
                 {aiGenStep === 3 && (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1.5">النص المولد (قابل للتحرير)</label>
-                      <textarea
-                        value={aiGenGeneratedText}
-                        onChange={(e) => setAiGenGeneratedText(e.target.value)}
-                        className="w-full h-64 px-4 py-3 border border-gray-200 rounded-lg text-sm leading-relaxed"
-                      />
-                    </div>
-                    <div className="flex justify-between pt-4 border-t border-gray-100">
+                  <div className="flex flex-col h-full space-y-4 p-6">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                        التعميم المولد (تعديل حي على القالب)
+                      </h3>
                       <button
-                        onClick={() => setAiGenStep(2)}
-                        className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors"
+                        onClick={() => {
+                          navigator.clipboard.writeText(aiGenGeneratedText);
+                          showGlobalToast("تم نسخ التعميم للمسودة", "success");
+                        }}
+                        className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5"
                       >
-                        السابق
+                        <Copy className="w-3.5 h-3.5" /> نسخ النص
                       </button>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                             window.print();
-                          }}
-                          className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors"
-                        >
-                          طباعة
-                        </button>
-                        <button
-                          onClick={saveAIGeneratedLetter}
-                          className="px-6 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors flex items-center gap-2"
-                        >
-                          حفظ وأرشفة
-                        </button>
+                    </div>
+                    
+                    {/* الحاوية البصرية للقالب (4:3 Preview) */}
+                    <div className="flex-1 bg-gray-300 p-6 rounded-xl flex items-center justify-center overflow-auto min-h-[600px] relative shadow-inner">
+                      <div className="w-full max-w-[800px] aspect-[4/3] bg-white shadow-2xl relative flex flex-col overflow-hidden border border-gray-300 transform md:scale-100 origin-top">
+                         {/* Top Bar */}
+                         <div className="h-3 w-full flex shrink-0">
+                           <div className="h-full flex-1 bg-[#0B2D4F]"></div>
+                           <div className="h-full w-1/4 bg-[#C39C5D]"></div>
+                         </div>
+                         {/* Header */}
+                         <div className="flex justify-between items-start px-8 pt-6 pb-2 shrink-0">
+                            <div className="text-right text-[#0B2D4F] space-y-0.5 w-1/3">
+                              <p className="text-[10px] font-bold">المملكة العربية السعودية</p>
+                              <p className="text-[10px] font-bold">اتحاد الغرف السعودية</p>
+                              <p className="text-xs font-black text-[#C39C5D]">الغرفة التجارية بمكة المكرمة</p>
+                            </div>
+                            <div className="w-1/3 flex flex-col items-center">
+                              <div className="w-16 h-20 border-2 border-dashed border-[#C39C5D]/50 rounded-lg flex items-center justify-center text-[#C39C5D] text-[10px] font-bold bg-amber-50/30">شعار الغرفة</div>
+                            </div>
+                            <div className="text-right text-[#0B2D4F] border-r-2 border-gray-200 pr-4 space-y-1.5 w-1/3">
+                              <div className="flex items-center gap-2 text-[10px] font-bold">
+                                 <span className="w-12 text-gray-500">التاريخ:</span>
+                                 <input type="text" value={circularDate} onChange={e=>setCircularDate(e.target.value)} className="w-24 border-b border-gray-300 focus:border-[#C39C5D] outline-none bg-transparent" />
+                              </div>
+                              <div className="flex items-center gap-2 text-[10px] font-bold">
+                                 <span className="w-12 text-gray-500">الرقم:</span>
+                                 <input type="text" value={circularRef} onChange={e=>setCircularRef(e.target.value)} placeholder="---" className="w-24 border-b border-gray-300 focus:border-[#C39C5D] outline-none bg-transparent" />
+                              </div>
+                              <div className="flex items-center gap-2 text-[10px] font-bold">
+                                 <span className="w-12 text-gray-500">المرفقات:</span>
+                                 <input type="text" value={circularAttachments} onChange={e=>setCircularAttachments(e.target.value)} className="w-24 border-b border-gray-300 focus:border-[#C39C5D] outline-none bg-transparent" />
+                              </div>
+                            </div>
+                         </div>
+                         <div className="px-8 shrink-0"><div className="w-full h-px bg-gray-200"></div></div>
+                         
+                         {/* Body */}
+                         <div className="flex-1 px-12 py-6 flex flex-col overflow-hidden relative">
+                            <div className="text-center mb-6 shrink-0 relative z-10">
+                               <h1 className="text-xl font-black text-[#0B2D4F] underline decoration-[#C39C5D] decoration-2 underline-offset-8">تــعــمــيــم</h1>
+                               <input type="text" value={aiGenSubject} onChange={e=>setAiGenSubject(e.target.value)} className="mt-4 w-full text-center text-sm font-bold text-gray-800 bg-transparent border-b border-dashed border-gray-300 focus:border-[#0B2D4F] outline-none" placeholder="عنوان التعميم..." />
+                            </div>
+                            
+                            <textarea
+                              value={aiGenGeneratedText}
+                              onChange={(e) => setAiGenGeneratedText(e.target.value)}
+                              className="w-full flex-1 overflow-y-auto custom-scrollbar text-sm leading-loose text-justify font-semibold focus:outline-none resize-none bg-transparent text-gray-800 relative z-10"
+                              placeholder="نص التعميم المولد سيظهر هنا ويمكنك تعديله..."
+                            />
+                            
+                            {/* Watermark Element */}
+                            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] pointer-events-none z-0">
+                              <div className="w-[400px] h-[400px] border-[40px] border-[#0B2D4F] rounded-full"></div>
+                            </div>
+                         </div>
+                         
+                         {/* Footer */}
+                         <div className="shrink-0 bg-gray-50 border-t border-gray-200 px-8 py-3 flex justify-between items-center text-[10px] font-bold text-gray-500 z-10">
+                            <div className="flex gap-4">
+                              <span>makkahchamber.sa</span>
+                              <span>info@makkahchamber.sa</span>
+                              <span>920000000</span>
+                            </div>
+                            <div>مكة المكرمة - طريق الأمير محمد بن سلمان</div>
+                         </div>
                       </div>
                     </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-5 border-t border-gray-100 bg-gray-50 flex items-center justify-between shrink-0 rounded-b-3xl">
+                <div>
+                  {aiGenStep > 1 && !isAIGenGenerating && (
+                    <button
+                      onClick={() => setAiGenStep(aiGenStep - 1)}
+                      className="px-6 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-50 transition-colors flex items-center gap-2"
+                    >
+                      <ChevronRight className="w-4 h-4" /> رجوع
+                    </button>
+                  )}
+                </div>
+                
+                {aiGenStep === 3 && (
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => {
+                        const printWin = window.open('', '_blank');
+                        if (printWin) {
+                          printWin.document.write(getPrintableTemplate(aiGenGeneratedText, aiGenSubject || "تعميم إداري", circularDate, circularRef, circularAttachments));
+                          printWin.document.close();
+                        }
+                      }}
+                      className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm"
+                    >
+                      <Printer className="w-4 h-4" /> تصدير PDF / طباعة
+                    </button>
+                    <button
+                      onClick={saveAIGeneratedLetter}
+                      className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-sm"
+                    >
+                      <Check className="w-4 h-4" /> حفظ وأرشفة التعميم
+                    </button>
                   </div>
                 )}
               </div>

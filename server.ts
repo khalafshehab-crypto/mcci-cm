@@ -6,6 +6,31 @@ import { GoogleGenAI } from "@google/genai";
 
 async function startServer() {
   const app = express();
+
+const executeWithRetry = async (operation: any, maxRetries = 5) => {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await operation();
+    } catch (err: any) {
+      const errStr = String(err);
+      const is503 = errStr.includes("503") || errStr.includes("UNAVAILABLE") || errStr.includes("high demand") || errStr.includes("overloaded");
+      const is429 = errStr.includes("429") || errStr.includes("RESOURCE_EXHAUSTED") || errStr.includes("quota");
+      
+      if ((is503 || is429) && i < maxRetries - 1) {
+        const delay = Math.pow(2, i) * 1500 + Math.random() * 1000;
+        console.warn(`[Gemini API] busy (${is503 ? '503' : '429'}), retrying in ${Math.round(delay)}ms... (Attempt ${i+1}/${maxRetries-1})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+};
+
+
+
+
+
   const PORT = 3000;
 
   // Middleware to parse JSON
@@ -176,10 +201,10 @@ async function startServer() {
       
       contents.push(finalPrompt);
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash", // use pro since it could be reading a pdf/image reply
+      const response = await executeWithRetry(() => ai.models.generateContent({
+        model: "gemini-3.5-flash", // use pro since it could be reading a pdf/image reply
         contents: contents,
-      });
+      }));
 
       return res.json({ result: response.text });
     } catch (err) {
@@ -223,15 +248,52 @@ ${prompt}
 Output ONLY the final Arabic text of the letter, ready to be printed or used. Do not include markdown blocks or any other commentary.
 `;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
+      const response = await executeWithRetry(() => ai.models.generateContent({
+        model: "gemini-3.5-flash",
         contents: fullPrompt,
-      });
+      }));
 
       return res.json({ result: response.text });
     } catch (err: any) {
       console.error("Gemini Generate Letter Error:", err);
       return res.status(500).json({ error: err.message || "Internal Server Error" });
+    }
+  });
+
+
+  app.post("/api/gemini/extract-agenda", async (req, res) => {
+    try {
+      const { prompt, fileBase64, mimeType } = req.body;
+      
+      if (!process.env.GEMINI_API_KEY) {
+        return res.status(500).json({ error: "GEMINI_API_KEY is missing from environment variables." });
+      }
+      
+      const ai = new GoogleGenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        httpOptions: {
+          headers: { 'User-Agent': 'aistudio-build' }
+        }
+      });
+      
+      let contents = [prompt];
+      if (fileBase64 && mimeType) {
+        contents = [
+          { inlineData: { data: fileBase64, mimeType: mimeType } },
+          prompt
+        ];
+      }
+      
+      const response = await executeWithRetry(() => ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: contents,
+      }));
+      
+      const text = response.text;
+      res.json({ result: text });
+    } catch (error) {
+      console.error("Error in /api/gemini/extract-agenda:", error);
+      res.status(500).json({ error: "Failed to extract agenda", details: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -290,10 +352,10 @@ ${incomingLetter || "مرفق في الملف"}
         ];
       }
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
+      const response = await executeWithRetry(() => ai.models.generateContent({
+        model: "gemini-3.5-flash",
         contents: contents,
-      });
+      }));
 
       return res.json({ result: response.text });
     } catch (err: any) {
@@ -330,10 +392,10 @@ ${incomingLetter || "مرفق في الملف"}
 النص الأصلي:
 ${text}`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
+      const response = await executeWithRetry(() => ai.models.generateContent({
+        model: "gemini-3.5-flash",
         contents: fullPrompt,
-      });
+      }));
 
       return res.json({ result: response.text });
     } catch (err) {

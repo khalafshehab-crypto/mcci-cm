@@ -1,18 +1,16 @@
 import re
-
-def fix_file(filename):
-    with open(filename, 'r') as f:
+files = ['src/pages/Events.tsx', 'src/pages/CommitteesEvents.tsx']
+for fpath in files:
+    with open(fpath, 'r') as f:
         content = f.read()
-
-    old_import = 'import { formatCommitteeNameArabic } from "../lib/arabicUtils";'
-    new_import = 'import { formatCommitteeNameArabic } from "../lib/arabicUtils";\nimport { getSharedAccessToken, getOrCreateFolder, triggerAuthModal, uploadBinaryFileToDrive } from "../lib/googleApi";\nimport { showGlobalToast } from "../lib/toastUtils";'
-
-    if old_import in content:
-        content = content.replace(old_import, new_import)
-        with open(filename, 'w') as f:
-            f.write(content)
-        print(f"Updated {filename}")
-    else:
-        print(f"Could not find exact block in {filename}")
-
-fix_file("src/pages/Recommendations.tsx")
+    
+    # Check if Upload is imported
+    lucide_match = re.search(r'import\s+\{([^}]+)\}\s+from\s+"lucide-react";', content, re.MULTILINE | re.DOTALL)
+    if lucide_match:
+        imports = lucide_match.group(1)
+        if 'Upload' not in imports:
+            new_imports = imports + ', Upload'
+            content = content[:lucide_match.start(1)] + new_imports + content[lucide_match.end(1):]
+    
+    with open(fpath, 'w') as f:
+        f.write(content)

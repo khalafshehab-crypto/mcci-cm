@@ -1,11 +1,11 @@
 import { showGlobalToast } from "../lib/toastUtils";
-import { autoCreateEventDriveFolders } from "../lib/googleApi";
+import { autoCreateEventDriveFolders, getOrCreateFolder, uploadBinaryFileToDrive, downloadDriveFileBase64 } from "../lib/googleApi";
 import React, { useState, useEffect, FormEvent } from "react";
 import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Calendar, CheckCircle, Search, Plus, X, Users2, Trash2, Edit2, LayoutGrid, List, AlertTriangle, Check, BookOpen, Clock, Presentation, MapPin, AlignLeft, Send, PlayCircle, Filter, Users, Settings, Copy, ChevronDown, ChevronUp, CheckSquare, Sparkles, Activity, Sliders, Lock
-} from "lucide-react";
+, Upload, Paperclip, Wand2, Loader2 } from "lucide-react";
 import { Member } from "../data/initialMembers";
 import { formatCommitteeNameArabic } from "../lib/arabicUtils";
 
@@ -49,12 +49,12 @@ interface EventItem {
   preparationsChecklist?: string[];
   preparationsAdditional?: string;
   agendaTransferred?: boolean;
-  attendanceListUrl?: string;
-  approvedMinutesUrl?: string;
+  attendanceListUrl?: string | File | null;
+  approvedMinutesUrl?: string | File | null;
   xLink?: string;
   linkedinLink?: string;
   instagramLink?: string;
-  otherAttachmentsUrl?: string;
+  otherAttachmentsUrl?: string | File | null;
   evidencesSaved?: boolean;
 }
 
@@ -176,6 +176,307 @@ import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc, setDo
 import { db } from '../lib/firebase';
 import { useFirestoreCollection } from '../lib/firebaseUtils';
 
+
+interface AttachmentInputProps {
+  label: string;
+  value: File | string | null;
+  onChange: (val: File | string | null) => void;
+  id: string;
+}
+
+function AttachmentInput({ label, value, onChange, id }: AttachmentInputProps) {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      onChange(e.target.files[0]);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      onChange(e.dataTransfer.files[0]);
+    }
+  };
+
+  const getDisplayValue = () => {
+    if (!value) return "";
+    if (typeof value === "string") {
+      return value.startsWith("http") ? "تم رفع الملف بنجاح (رابط)" : value;
+    }
+    if (typeof value === "object" && value !== null) {
+      return (value as any).name || "ملف مرفق";
+    }
+    return "ملف مرفق";
+  };
+  const displayValue = getDisplayValue();
+
+  return (
+    <div
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      className={`border-2 border-dashed rounded-2xl p-3.5 text-center transition-all relative ${
+        value
+          ? "border-emerald-300 bg-emerald-50/40"
+          : "border-gray-200 bg-gray-50/50 hover:bg-gray-100/70"
+      }`}
+    >
+      <input
+        type="file"
+        id={id}
+        className="hidden"
+        onChange={handleFileChange}
+      />
+      {value ? (
+        <div className="flex flex-col items-center gap-1.5">
+          <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
+            <Check className="w-4 h-4 text-emerald-600" />
+          </div>
+          <span className="text-[10px] font-bold text-gray-700 max-w-full overflow-hidden text-ellipsis whitespace-nowrap px-2">
+            {displayValue}
+          </span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onChange(null);
+            }}
+            className="absolute top-2 left-2 p-1 bg-red-50 text-red-500 rounded-full hover:bg-red-100 transition-colors"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      ) : (
+        <label htmlFor={id} className="cursor-pointer flex flex-col items-center gap-1.5">
+          <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
+            <Upload className="w-4 h-4 text-blue-500" />
+          </div>
+          <span className="text-[10px] font-bold text-gray-600">
+            {label}
+          </span>
+          <span className="text-[8.5px] text-gray-400">سحب وإفلات أو تصفح</span>
+        </label>
+      )}
+      {!value && (
+        <div className="mt-2 pt-2 border-t border-gray-200/50">
+          <input 
+            type="url" 
+            placeholder="أو ضع رابط درايف هنا..." 
+            className="w-full text-[9px] p-1.5 bg-white border border-gray-200 rounded text-center focus:ring-1 focus:ring-brand focus:border-brand"
+            onChange={(e) => {
+              if (e.target.value.trim()) onChange(e.target.value.trim());
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+const readFileAsBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64Data = result.split(',')[1];
+      resolve(base64Data);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
+
+function Step8Attachments({ evt, updateEventWorkflow }: { evt: any, updateEventWorkflow: (id: number, updates: any) => void }) {
+  const [attendanceFile, setAttendanceFile] = React.useState<File | string | null>(evt.attendanceListUrl || null);
+  const [minutesFile, setMinutesFile] = React.useState<File | string | null>(evt.approvedMinutesUrl || null);
+  const [otherFile, setOtherFile] = React.useState<File | string | null>(evt.otherAttachmentsUrl || null);
+  const [isUploading, setIsUploading] = React.useState(false);
+  const [xLink, setXLink] = React.useState(evt.xLink || "");
+  const [linkedinLink, setLinkedinLink] = React.useState(evt.linkedinLink || "");
+  const [instagramLink, setInstagramLink] = React.useState(evt.instagramLink || "");
+
+  const isComplete = attendanceFile && minutesFile;
+
+  const handleFinalSave = async () => {
+    try {
+      setIsUploading(true);
+      let finalAttendance = evt.attendanceListUrl;
+      let finalMinutes = evt.approvedMinutesUrl;
+      let finalOthers = evt.otherAttachmentsUrl;
+
+      const uploadAttachment = async (file: File | string | null, fileName: string, targetFolderId: string) => {
+        if (file && typeof file === "object" && "name" in file) {
+          const ext = (file as any).name.split('.').pop();
+          const fullFileName = `${fileName}.${ext}`;
+          const base64 = await readFileAsBase64(file as any);
+          
+          const { uploadBinaryFileToDrive } = await import("../lib/googleApi");
+          const res = await uploadBinaryFileToDrive(fullFileName, base64 as string, (file as any).type || "application/octet-stream", targetFolderId);
+          return res && res.id ? `https://drive.google.com/file/d/${res.id}/view` : fullFileName;
+        }
+        return typeof file === "string" ? file : "";
+      };
+
+      const hasFilesToUpload = (attendanceFile && typeof attendanceFile === "object") || 
+                               (minutesFile && typeof minutesFile === "object") ||
+                               (otherFile && typeof otherFile === "object");
+
+      if (hasFilesToUpload) {
+        showGlobalToast("جاري معالجة ورفع المرفقات إلى Google Drive...", "loading");
+        
+        const { getOrCreateFolder, getSharedAccessToken, triggerAuthModal } = await import("../lib/googleApi");
+        
+        let token = await getSharedAccessToken();
+        if (!token) {
+          token = await triggerAuthModal();
+          if (!token) {
+            throw new Error("لم يتم تسجيل الدخول بحساب جوجل");
+          }
+        }
+
+        const rootFolderId = await getOrCreateFolder("تقرير اللجان للدورة الـ 22");
+        const approvedFolderId = await getOrCreateFolder("اللجان المعتمدة", rootFolderId);
+        const committeeFolderId = await getOrCreateFolder(evt.committeeName || "عام", approvedFolderId);
+        const eventsFolderId = await getOrCreateFolder("الفعاليات", committeeFolderId);
+        
+        let eventTitle = evt.eventName || evt.title || "بدون عنوان";
+        let eventKind = "فعاليات أخرى";
+        if (eventTitle.includes("اجتماع")) eventKind = "الاجتماعات";
+        else if (eventTitle.includes("لقاء")) eventKind = "اللقاءات";
+        else if (eventTitle.includes("زيارة")) eventKind = "الزيارات";
+        else if (eventTitle.includes("ورشة عمل")) eventKind = "ورش العمل";
+        
+        const kindFolderId = await getOrCreateFolder(eventKind, eventsFolderId);
+        const eventFolderId = await getOrCreateFolder(eventTitle, kindFolderId);
+
+        if (attendanceFile && typeof attendanceFile === "object") {
+          finalAttendance = await uploadAttachment(attendanceFile, `كشف حضور ${eventTitle}`, eventFolderId);
+        }
+        if (minutesFile && typeof minutesFile === "object") {
+          finalMinutes = await uploadAttachment(minutesFile, `محضر ${eventTitle} المعتمد`, eventFolderId);
+        }
+        if (otherFile && typeof otherFile === "object") {
+          finalOthers = await uploadAttachment(otherFile, `مرفقات أخرى لـ ${eventTitle}`, eventFolderId);
+        }
+      }
+
+      updateEventWorkflow(evt.id, { 
+        evidencesSaved: true, 
+        status: "منتهية",
+        attendanceListUrl: finalAttendance,
+        approvedMinutesUrl: finalMinutes,
+        otherAttachmentsUrl: finalOthers,
+        xLink,
+        linkedinLink,
+        instagramLink
+      });
+      showGlobalToast("تم حفظ المرفقات بنجاح! تم تحويل الفعالية إلى منجزة.", "success");
+    } catch (error: any) {
+      console.error("Upload failed", error);
+      showGlobalToast("فشل رفع المرفقات: " + (error.message || "خطأ غير معروف"), "error");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+        <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+          <BookOpen className="w-4 h-4 text-brand" />
+          المرفقات والشواهد الختامية
+        </h3>
+        <span className="text-[9px] text-gray-500 font-bold">مرحلة 8 من 8</span>
+      </div>
+
+      <p className="text-[10px] text-gray-550 leading-relaxed font-bold">
+        يرجى إرفاق روابط المستندات المطلوبة عبر جوجل درايف. (كشف الحضور ومحضر الاجتماع إلزامية).
+      </p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+        <div className="space-y-1.5">
+          <AttachmentInput
+            id={`attendance-${evt.id}`}
+            label="كشف الحضور (إلزامي) *"
+            value={attendanceFile}
+            onChange={(val) => setAttendanceFile(val)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <AttachmentInput
+            id={`minutes-${evt.id}`}
+            label="محضر الاجتماع المعتمد (إلزامي) *"
+            value={minutesFile}
+            onChange={(val) => setMinutesFile(val)}
+          />
+        </div>
+        
+        <div className="space-y-1.5">
+          <label className="text-[9.5px] font-bold text-gray-700">رابط منصة X (اختياري)</label>
+          <input
+            type="url"
+            value={xLink}
+            onChange={e => setXLink(e.target.value)}
+            placeholder="https://x.com/..."
+            className="w-full text-[10px] p-2 border border-gray-200 rounded-lg focus:ring-brand"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-[9.5px] font-bold text-gray-700">رابط منصة Linkedin (اختياري)</label>
+          <input
+            type="url"
+            value={linkedinLink}
+            onChange={e => setLinkedinLink(e.target.value)}
+            placeholder="https://linkedin.com/..."
+            className="w-full text-[10px] p-2 border border-gray-200 rounded-lg focus:ring-brand"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-[9.5px] font-bold text-gray-700">رابط منصة Instagram (اختياري)</label>
+          <input
+            type="url"
+            value={instagramLink}
+            onChange={e => setInstagramLink(e.target.value)}
+            placeholder="https://instagram.com/..."
+            className="w-full text-[10px] p-2 border border-gray-200 rounded-lg focus:ring-brand"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <AttachmentInput
+            id={`other-${evt.id}`}
+            label="مرفقات أخرى (اختياري)"
+            value={otherFile}
+            onChange={(val) => setOtherFile(val)}
+          />
+        </div>
+      </div>
+
+      <div className="pt-4 border-t border-gray-100 flex justify-end">
+        <button
+          type="button"
+          disabled={!isComplete || isUploading}
+          onClick={handleFinalSave}
+          className={`px-5 py-2.5 rounded-lg text-[10.5px] font-black flex items-center gap-2 transition-all ${
+            (isComplete && !isUploading)
+              ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md cursor-pointer" 
+              : "bg-gray-100 text-gray-400 cursor-not-allowed"
+          }`}
+        >
+          <CheckCircle className="w-4 h-4" />
+          {isUploading ? "جاري الرفع..." : "حفظ وإحالة إلى منجز"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
 export default function Events() {
   const location = useLocation();
   const { data: events, addDocument: addFirebaseEvent, updateDocument: updateFirebaseEvent, deleteDocument: deleteFirebaseEvent } = useFirestoreCollection<EventItem>("events", []);
@@ -264,6 +565,9 @@ export default function Events() {
   const [agendaFormTitle, setAgendaFormTitle] = useState("");
   const [agendaFormDuration, setAgendaFormDuration] = useState(15);
   const [agendaFormSpecialistId, setAgendaFormSpecialistId] = useState("");
+  const [editingAgendaItemId, setEditingAgendaItemId] = useState<string | null>(null);
+  const [agendaMinutesFiles, setAgendaMinutesFiles] = useState<Record<string, File | string | null>>({});
+  const [isReadingMinutes, setIsReadingMinutes] = useState(false);
 
   const [copiedEventId, setCopiedEventId] = useState<number | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -379,11 +683,12 @@ export default function Events() {
       alert("عذراً، لا تملك الصلاحية لتعديل فعاليات هذه اللجنة. يمكنك فقط إدارة فعاليات اللجان المكلف بها.");
       return;
     }
-    setEvents(prev => prev.map(evt => {
-      if (String(evt.id) === String(eventId)) {
+    const evt = events.find(e => String(e.id) === String(eventId));
+    if (evt) {
+        const updatesToSave = { ...updates };
         const updated = { ...evt, ...updates };
         
-        // Dynamic Quorum side-effect: automatically check if quorum is met and update status
+        // Dynamic Quorum side-effect
         if ('confirmedAttendees' in updates) {
           const commMems = allMembers.filter(m => (String(m.committeeId) === String(updated.committeeId) || String(m.secondaryCommitteeId) === String(updated.committeeId)) && m.active !== false);
           const presentIds = updates.confirmedAttendees || [];
@@ -393,15 +698,93 @@ export default function Events() {
           const quorumMet = ratioMet && leadersPresent;
           
           if (quorumMet) {
-            updated.status = "مؤكد";
+            updatesToSave.status = "مؤكد";
           } else {
-            updated.status = "تأكيد الحضور";
+            updatesToSave.status = "تأكيد الحضور";
           }
         }
-        return updated;
-      }
-      return evt;
-    }));
+        updateFirebaseEvent(String(eventId), updatesToSave);
+    }
+  };
+
+  const [isAutoFillingMinutes, setIsAutoFillingMinutes] = useState<Record<string, boolean>>({});
+
+  const handleAutoFillMinutesFromAgenda = async (evt: any, checked: boolean) => {
+    updateEventWorkflow(evt.id, { agendaTransferred: checked });
+    
+    if (!checked) return;
+    const agenda = evt.agenda || [];
+    if (agenda.length === 0) return;
+
+    const agendaMinutesFile = agendaMinutesFiles[evt.id] !== undefined ? agendaMinutesFiles[evt.id] : (evt.approvedMinutesUrl || null);
+    if (!agendaMinutesFile) return;
+
+    setIsAutoFillingMinutes(prev => ({ ...prev, [evt.id]: true }));
+    showGlobalToast("جاري استخراج المناقشات والتوصيات تلقائياً...", "info");
+
+    try {
+        let fileBase64 = null;
+        let mimeType = null;
+        if (typeof agendaMinutesFile === 'string') {
+            const driveData = await downloadDriveFileBase64(agendaMinutesFile);
+            fileBase64 = driveData.base64;
+            mimeType = driveData.mimeType;
+        } else {
+            const reader = new FileReader();
+            fileBase64 = await new Promise((resolve) => {
+                reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
+                reader.readAsDataURL(agendaMinutesFile as File);
+            });
+            mimeType = (agendaMinutesFile as File).type;
+        }
+
+        const prompt = "استخرج المناقشة (discussion)، التوصية (recommendation)، المسؤول (assignee)، ومدة التنفيذ (durationRec) لكل بند من بنود جدول الأعمال التالية من المحضر المرفق.\nقائمة البنود الحالية:\n" + JSON.stringify(agenda.map((a) => ({ id: a.id, title: a.title }))) + "\nأرجع النتيجة كـ JSON Array بهذا الشكل بالضبط:\n[{\"id\": \"id-1\", \"title\": \"عنوان البند\", \"discussion\": \"نص المناقشة\", \"recommendation\": \"نص التوصية\", \"assignee\": \"اسم المسؤول\", \"durationRec\": \"يومين\"}]\nيجب أن تتطابق الـ id و الـ title مع المرسل. إذا لم تجد مناقشة أو توصية اتركها فارغة.";
+
+        const response = await fetch('/api/gemini/extract-agenda', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt, fileBase64, mimeType })
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            const errMsg = errData.details || errData.error || "خطأ مجهول";
+            if (errMsg.includes("429") || errMsg.includes("Quota") || errMsg.includes("exceeded")) {
+                throw new Error("عذراً، لقد تم استنفاذ الحد الأقصى للطلبات المجانية.");
+            } else {
+                throw new Error(errMsg);
+            }
+        }
+        
+        const responseData = await response.json();
+        const aiText = responseData.result || "";
+        const jsonMatch = aiText.match(/\[.*\]/s);
+        if (jsonMatch) {
+            const parsedItems = JSON.parse(jsonMatch[0]);
+            const updatedAgenda = agenda.map((item: any) => {
+                const filledData = parsedItems.find((p: any) => String(p.id) === String(item.id) || (p.title && item.title && p.title.trim() === item.title.trim()));
+                if (filledData) {
+                    return {
+                        ...item,
+                        discussion: filledData.discussion || item.discussion || "",
+                        recommendation: filledData.recommendation || item.recommendation || "",
+                        assignee: filledData.assignee || item.assignee || "",
+                        durationRec: filledData.durationRec || item.durationRec || ""
+                    };
+                }
+                return item;
+            });
+            updateEventWorkflow(evt.id, { agenda: updatedAgenda });
+            showGlobalToast("تمت تعبئة المناقشات والتوصيات بنجاح", "success");
+        } else {
+            showGlobalToast("لم يتمكن النظام من استخراج المناقشات، يرجى تعبئتها يدوياً", "error");
+        }
+    } catch (error: any) {
+        console.error(error);
+        showGlobalToast(error.message || "حدث خطأ أثناء التعبئة التلقائية", "error");
+    } finally {
+        setIsAutoFillingMinutes(prev => ({ ...prev, [evt.id]: false }));
+    }
   };
 
   // Generate dynamic invitation template text
@@ -2450,18 +2833,27 @@ ${formattedItems}
 										const handleAddAgendaItem = () => {
 											if (!agendaFormTitle.trim()) return;
 											
-											const newItem = {
-												id: Math.random().toString(36).substring(2, 9),
-												title: agendaFormTitle.trim(),
-												duration: Number(agendaFormDuration) || 15,
-												specialist: agendaFormSpecialistId || commSpecialist,
-												discussion: "",
-												recommendation: "",
-												assignee: "",
-												durationRec: ""
-											};
-											
-											updateEventWorkflow(evt.id, { agenda: [...agenda, newItem] });
+											if (editingAgendaItemId) {
+												const updatedAgenda = agenda.map(item => 
+													item.id === editingAgendaItemId 
+														? { ...item, title: agendaFormTitle.trim(), duration: Number(agendaFormDuration) || 15, specialist: agendaFormSpecialistId || commSpecialist }
+														: item
+												);
+												updateEventWorkflow(evt.id, { agenda: updatedAgenda });
+												setEditingAgendaItemId(null);
+											} else {
+												const newItem = {
+													id: Math.random().toString(36).substring(2, 9),
+													title: agendaFormTitle.trim(),
+													duration: Number(agendaFormDuration) || 15,
+													specialist: agendaFormSpecialistId || commSpecialist,
+													discussion: "",
+													recommendation: "",
+													assignee: "",
+													durationRec: ""
+												};
+												updateEventWorkflow(evt.id, { agenda: [...agenda, newItem] });
+											}
 											setAgendaFormTitle("");
 											setAgendaFormSpecialistId("");
 										};
@@ -2480,9 +2872,165 @@ ${formattedItems}
 													<span className="text-[9px] text-gray-500 font-bold">مرحلة 5 من 8</span>
 												</div>
 
+
 												{/* Form block */}
 												<div className="bg-slate-50 p-3.5 rounded-lg border border-gray-200/80 space-y-3 order-2">
-													<span className="block text-[10px] font-black text-brand">إضافة بند إضافي جديد لجدول الأعمال</span>
+													{/* AI Agenda Reader */}
+													<div className="bg-white p-3.5 rounded-lg border border-emerald-200/80 mb-2 space-y-3">
+														<div className="flex items-center gap-2 mb-2">
+															<Paperclip className="w-4 h-4 text-emerald-600" />
+															<h4 className="text-[10px] font-black text-slate-800">استيراد بنود الاجتماع من محضر معتمد</h4>
+														</div>
+														<div className="flex items-center gap-3">
+															<div className="w-64">
+																<AttachmentInput 
+																	id={`agendaMinutesFile_evt-${evt.id}`} 
+																	label="إرفاق محضر الاجتماع" 
+																	value={agendaMinutesFiles[evt.id] !== undefined ? agendaMinutesFiles[evt.id] : (evt.approvedMinutesUrl || null)} 
+																	onChange={(val) => setAgendaMinutesFiles(prev => ({ ...prev, [evt.id]: val }))} 
+																/>
+															</div>
+															<div className="flex-1 flex flex-col items-start gap-2">
+																<button
+																	onClick={async () => {
+																		const agendaMinutesFile = agendaMinutesFiles[evt.id] !== undefined ? agendaMinutesFiles[evt.id] : (evt.approvedMinutesUrl || null);
+																		if (!agendaMinutesFile) return;
+																		setIsReadingMinutes(true);
+																		try {
+																			let fileBase64 = null;
+																			let mimeType = null;
+																			let docName = "محضر_مستورد.pdf";
+																			if (typeof agendaMinutesFile === 'string') {
+																				try {
+																					showGlobalToast("جاري تنزيل المحضر من جوجل درايف...", "success");
+																					const driveData = await downloadDriveFileBase64(agendaMinutesFile);
+																					fileBase64 = driveData.base64;
+																					mimeType = driveData.mimeType;
+																					docName = "محضر_مستورد_من_رابط.pdf";
+																				} catch (e) {
+																					console.error(e);
+																					showGlobalToast("خطأ: " + (e as Error).message, "error");
+																					setIsReadingMinutes(false);
+																					return;
+																				}
+																			} else {
+																				const reader = new FileReader();
+																				fileBase64 = await new Promise((resolve) => {
+																					reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
+																					reader.readAsDataURL(agendaMinutesFile as File);
+																				});
+																				mimeType = (agendaMinutesFile as File).type;
+																				docName = "محضر_مستورد_" + (agendaMinutesFile as File).name;
+																			}
+																			
+																			const response = await fetch('/api/gemini/extract-agenda', {
+																				method: 'POST',
+																				headers: { 'Content-Type': 'application/json' },
+																				body: JSON.stringify({
+																					prompt: "استخرج بنود جدول الأعمال كقائمة JSON Array: [{title: string, duration: number, specialist: string}] من هذا المحضر، اذا لم يوجد مدد ضعها 15",
+																					fileBase64,
+																					mimeType
+																				})
+																			});
+                                                                            if (!response.ok) {
+                                                                                const errData = await response.json();
+                                                                                const errMsg = errData.details || errData.error || "خطأ مجهول";
+                                                                                if (errMsg.includes("429") || errMsg.includes("Quota") || errMsg.includes("exceeded")) {
+                                                                                    throw new Error("عذراً، لقد تم استنفاذ الحد الأقصى للطلبات المجانية من الذكاء الاصطناعي (Quota Exceeded). يرجى المحاولة لاحقاً.");
+                                                                                } else {
+                                                                                    throw new Error(errMsg);
+                                                                                }
+                                                                            }
+																			
+																			
+                                                                            // Auto-archive in Google Drive
+                                                                            if (typeof agendaMinutesFile !== 'string') {
+                                                                                try {
+                                                                                    const folderId = await autoCreateEventDriveFolders(evt, []);
+                                                                                    if (folderId) {
+                                                                                        const res = await uploadBinaryFileToDrive(
+                                                                                            docName,
+                                                                                            fileBase64 as string,
+                                                                                            mimeType || "application/pdf",
+                                                                                            folderId
+                                                                                        );
+                                                                                        if (res && res.id) {
+                                                                                            const fileUrl = `https://drive.google.com/file/d/${res.id}/view`;
+                                                                                            updateEventWorkflow(evt.id, { approvedMinutesUrl: fileUrl });
+                                                                                        }
+                                                                                        showGlobalToast("تم استيراد المحضر وأرشفته واعتماده في المرفقات بنجاح", "success");
+                                                                                    }
+                                                                                } catch (uploadErr) {
+                                                                                    console.error("Drive auto-archive failed:", uploadErr);
+                                                                                }
+                                                                            }
+                                                                            
+                                                                            const responseData = await response.json();
+                                                                            const aiText = responseData.result || "";
+																			try {
+																				const jsonMatch = aiText.match(/\[.*\]/s);
+																				let parsedItems = [];
+																				if (jsonMatch) {
+																					parsedItems = JSON.parse(jsonMatch[0]);
+																				}
+																				
+																				if (parsedItems && parsedItems.length > 0) {
+																					const newAgenda = [...agenda];
+																					let addedCount = 0;
+																					let duplicateCount = 0;
+																					parsedItems.forEach((item: any) => {
+																						const itemTitle = (item.title || "بند مستخرج").trim();
+																						const exists = newAgenda.some(existing => (existing.title || '').trim() === itemTitle);
+																						if (!exists) {
+																							newAgenda.push({
+																								id: Math.random().toString(36).substring(2, 9),
+																								title: itemTitle,
+																								duration: item.duration || 15,
+																								specialist: item.specialist || commSpecialist,
+																								discussion: "",
+																								recommendation: "",
+																								assignee: "",
+																								durationRec: ""
+																							});
+																							addedCount++;
+																						} else {
+																							duplicateCount++;
+																						}
+																					});
+																					if (addedCount > 0) {
+																						updateEventWorkflow(evt.id, { agenda: newAgenda });
+																						showGlobalToast("تم استخراج " + addedCount + " بنود بنجاح" + (duplicateCount > 0 ? " (تم تجاهل " + duplicateCount + " مكررة)" : ""), "success");
+																					} else {
+																						showGlobalToast("لم يتم إضافة بنود جديدة (جميع البنود المستخرجة موجودة مسبقاً)", "error");
+																					}
+																				} else {
+																					showGlobalToast("لم يتمكن النظام من استخراج بنود واضحة", "error");
+																				}
+																			} catch(e) {
+																				showGlobalToast("حدث خطأ في فهم البنود المستخرجة", "error");
+																			}
+																		} catch (error: any) {
+																			console.error(error);
+																			showGlobalToast(error.message || "حدث خطأ أثناء القراءة", "error");
+																		} finally {
+																			setIsReadingMinutes(false);
+																		}
+																	}}
+																	disabled={!(agendaMinutesFiles[evt.id] !== undefined ? agendaMinutesFiles[evt.id] : evt.approvedMinutesUrl) || isReadingMinutes}
+																	className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg font-bold text-[10px] flex items-center gap-2 transition-all shadow-sm"
+																>
+																	{isReadingMinutes ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+																	قراءة واستخراج البنود تلقائياً
+																</button>
+																<p className="text-[9px] text-gray-500 font-bold leading-relaxed">
+																	سيقوم النظام الذكي بمسح المحضر المرفق واستخراج<br/>بنود جدول الأعمال وإضافتها بالأسفل تلقائياً.
+																</p>
+															</div>
+														</div>
+													</div>
+
+													<span className="block text-[10px] font-black text-brand pt-2 border-t border-gray-100">إضافة بند إضافي جديد لجدول الأعمال يدوياً</span>
+
 													<div className="grid grid-cols-1 md:grid-cols-12 gap-2 text-right">
 														
 														<div className="md:col-span-6 flex flex-col gap-1">
@@ -2543,7 +3091,7 @@ ${formattedItems}
 															className="px-4 py-2 bg-slate-900 border-transparent hover:bg-slate-800 text-white font-extrabold rounded text-[10px] flex items-center gap-1 cursor-pointer transition-all shadow-sm"
 														>
 															<Plus className="w-3.5 h-3.5" />
-															إدراج البند إلى جدول فعاليات الأعمال بالأسفل
+															{editingAgendaItemId ? "حفظ التعديلات" : "إدراج البند إلى جدول فعاليات الأعمال بالأسفل"}
 														</button>
 													</div>
 												</div>
@@ -2564,7 +3112,7 @@ ${formattedItems}
 																		<th className="whitespace-nowrap px-3 py-2">البند / الموضوع الرئيسي</th>
 																		<th className="whitespace-nowrap px-3 py-2 text-center w-28">المدة المحددة</th>
 																		<th className="whitespace-nowrap px-3 py-2">المسؤول عن العرض/المناقشة</th>
-																		<th className="whitespace-nowrap px-3 py-2 text-center w-16">مسح</th>
+																		<th className="whitespace-nowrap px-3 py-2 text-center w-24">الإجراء</th>
 																	</tr>
 																</thead>
 																<tbody className="divide-y text-gray-850 font-bold">
@@ -2575,13 +3123,29 @@ ${formattedItems}
 																			<td className="whitespace-nowrap px-3 py-2 text-center text-brand font-black">{item.duration} دقيقة</td>
 																			<td className="whitespace-nowrap px-3 py-2 text-gray-800 font-black">{item.specialist}</td>
 																			<td className="whitespace-nowrap px-3 py-2 text-center">
-																				<button
-																					type="button"
-																					onClick={() => handleRemoveAgendaItem(item.id)}
-																					className="text-red-600 hover:bg-red-50 p-1 rounded cursor-pointer transition-colors"
-																				>
-																					<Trash2 className="w-3.5 h-3.5" />
-																				</button>
+																				<div className="flex items-center justify-center gap-2">
+																					<button
+																						type="button"
+																						onClick={() => {
+																							setAgendaFormTitle(item.title);
+																							setAgendaFormDuration(item.duration);
+																							setAgendaFormSpecialistId(item.specialist || "");
+																							setEditingAgendaItemId(item.id);
+																						}}
+																						className="text-blue-600 hover:bg-blue-50 p-1 rounded cursor-pointer transition-colors"
+																						title="تحرير البند"
+																					>
+																						<Settings className="w-3.5 h-3.5" />
+																					</button>
+																					<button
+																						type="button"
+																						onClick={() => handleRemoveAgendaItem(item.id)}
+																						className="text-red-600 hover:bg-red-50 p-1 rounded cursor-pointer transition-colors"
+																						title="حذف"
+																					>
+																						<Trash2 className="w-3.5 h-3.5" />
+																					</button>
+																				</div>
 																			</td>
 																		</tr>
 																	))}
@@ -2596,15 +3160,17 @@ ${formattedItems}
 															<input 
 																type="checkbox"
 																checked={!!evt.agendaTransferred}
-																disabled={agenda.length === 0}
-																onChange={(e) => updateEventWorkflow(evt.id, { agendaTransferred: e.target.checked })}
+																disabled={agenda.length === 0 || isAutoFillingMinutes[evt.id]}
+																onChange={(e) => handleAutoFillMinutesFromAgenda(evt, e.target.checked)}
 																className="w-4.5 h-4.5 rounded border-gray-300 text-brand focus:ring-brand cursor-pointer focus:outline-none shrink-0"
 															/>
 															<span className="text-[10px] text-slate-900 font-extrabold select-none">
 																ترحيل جدول الأعمال لمحضر الاجتماع وتأكيد الأجندة للانتقال لمحضر الاجتماع
 															</span>
 														</label>
-														{evt.agendaTransferred ? (
+														{isAutoFillingMinutes[evt.id] ? (
+                                                            <span className="text-[9px] text-emerald-600 font-extrabold flex items-center gap-1 shrink-0"><Loader2 className="w-3.5 h-3.5 animate-spin" /> جاري التعبئة التلقائية...</span>
+                                                        ) : evt.agendaTransferred ? (
 															<span className="text-[9px] text-emerald-600 font-extrabold flex items-center gap-1 shrink-0"><Check className="w-3.5 h-3.5" /> تم الترحيل للمحضر</span>
 														) : (
 															<span className="text-[9.5px] text-amber-600 font-extrabold shrink-0">بانتظار تفعيل خيار الترحيل</span>
@@ -2971,106 +3537,8 @@ ${formattedItems}
                                           </div>
                                         );
                                       }
-                                      case 7: { // Step 8: Attachments and Evidences
-                                        const isComplete = evt.attendanceListUrl && evt.approvedMinutesUrl;
-                                        
-                                        return (
-                                          <div className="space-y-4">
-                                            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                                              <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                                                <BookOpen className="w-4 h-4 text-brand" />
-                                                المرفقات والشواهد الختامية
-                                              </h3>
-                                              <span className="text-[9px] text-gray-500 font-bold">مرحلة 8 من 8</span>
-                                            </div>
-
-                                            <p className="text-[10px] text-gray-550 leading-relaxed font-bold">
-                                              يرجى إرفاق روابط المستندات المطلوبة عبر جوجل درايف. (كشف الحضور ومحضر الاجتماع إلزامية).
-                                            </p>
-
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                              <div className="space-y-1.5">
-                                                <label className="text-[9.5px] font-bold text-gray-700">كشف الحضور (إلزامي) *</label>
-                                                <input
-                                                  type="url"
-                                                  value={evt.attendanceListUrl || ""}
-                                                  onChange={e => updateEventWorkflow(evt.id, { attendanceListUrl: e.target.value })}
-                                                  placeholder="رابط جوجل درايف..."
-                                                  className="w-full text-[10px] p-2 border border-gray-200 rounded-lg focus:ring-brand"
-                                                />
-                                              </div>
-                                              <div className="space-y-1.5">
-                                                <label className="text-[9.5px] font-bold text-gray-700">محضر الاجتماع المعتمد (إلزامي) *</label>
-                                                <input
-                                                  type="url"
-                                                  value={evt.approvedMinutesUrl || ""}
-                                                  onChange={e => updateEventWorkflow(evt.id, { approvedMinutesUrl: e.target.value })}
-                                                  placeholder="رابط جوجل درايف..."
-                                                  className="w-full text-[10px] p-2 border border-gray-200 rounded-lg focus:ring-brand"
-                                                />
-                                              </div>
-                                              <div className="space-y-1.5">
-                                                <label className="text-[9.5px] font-bold text-gray-700">رابط منصة X (اختياري)</label>
-                                                <input
-                                                  type="url"
-                                                  value={evt.xLink || ""}
-                                                  onChange={e => updateEventWorkflow(evt.id, { xLink: e.target.value })}
-                                                  placeholder="https://x.com/..."
-                                                  className="w-full text-[10px] p-2 border border-gray-200 rounded-lg focus:ring-brand"
-                                                />
-                                              </div>
-                                              <div className="space-y-1.5">
-                                                <label className="text-[9.5px] font-bold text-gray-700">رابط منصة Linkedin (اختياري)</label>
-                                                <input
-                                                  type="url"
-                                                  value={evt.linkedinLink || ""}
-                                                  onChange={e => updateEventWorkflow(evt.id, { linkedinLink: e.target.value })}
-                                                  placeholder="https://linkedin.com/..."
-                                                  className="w-full text-[10px] p-2 border border-gray-200 rounded-lg focus:ring-brand"
-                                                />
-                                              </div>
-                                              <div className="space-y-1.5">
-                                                <label className="text-[9.5px] font-bold text-gray-700">رابط منصة Instagram (اختياري)</label>
-                                                <input
-                                                  type="url"
-                                                  value={evt.instagramLink || ""}
-                                                  onChange={e => updateEventWorkflow(evt.id, { instagramLink: e.target.value })}
-                                                  placeholder="https://instagram.com/..."
-                                                  className="w-full text-[10px] p-2 border border-gray-200 rounded-lg focus:ring-brand"
-                                                />
-                                              </div>
-                                              <div className="space-y-1.5">
-                                                <label className="text-[9.5px] font-bold text-gray-700">مرفقات أخرى (اختياري)</label>
-                                                <input
-                                                  type="url"
-                                                  value={evt.otherAttachmentsUrl || ""}
-                                                  onChange={e => updateEventWorkflow(evt.id, { otherAttachmentsUrl: e.target.value })}
-                                                  placeholder="رابط إضافي..."
-                                                  className="w-full text-[10px] p-2 border border-gray-200 rounded-lg focus:ring-brand"
-                                                />
-                                              </div>
-                                            </div>
-
-                                            <div className="pt-4 border-t border-gray-100 flex justify-end">
-                                              <button
-                                                type="button"
-                                                disabled={!isComplete}
-                                                onClick={() => {
-                                                  updateEventWorkflow(evt.id, { evidencesSaved: true, status: "منتهية" });
-                                                  showGlobalToast("تم حفظ المرفقات بنجاح! تم تحويل الفعالية إلى منجزة.", "success");
-                                                }}
-                                                className={`px-5 py-2.5 rounded-lg text-[10.5px] font-black flex items-center gap-2 transition-all ${
-                                                  isComplete 
-                                                    ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md cursor-pointer" 
-                                                    : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                                }`}
-                                              >
-                                                <CheckCircle className="w-4 h-4" />
-                                                حفظ وإحالة إلى منجز
-                                              </button>
-                                            </div>
-                                          </div>
-                                        );
+                                                                            case 7: { // Step 8: Attachments and Evidences
+                                        return <Step8Attachments evt={evt} updateEventWorkflow={updateEventWorkflow} />;
                                       }
 
                                       default: return null;

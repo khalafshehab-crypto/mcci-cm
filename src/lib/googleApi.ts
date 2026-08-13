@@ -734,7 +734,7 @@ export async function autoCreateEventDriveFolders(evt: any, recommendations: any
     let token = await getSharedAccessToken();
     if (!token) {
       token = await triggerAuthModal();
-      if (!token) return false;
+      if (!token) return null;
     }
 
     let eventTitle = evt.eventName || evt.title || "بدون عنوان";
@@ -773,9 +773,66 @@ export async function autoCreateEventDriveFolders(evt: any, recommendations: any
       }
     }
 
-    return true;
+    return eventFolderId;
   } catch(err) {
     console.error("Failed to auto create event folders", err);
-    return false;
+    return null;
   }
+}
+
+
+export async function downloadDriveFileBase64(fileIdOrUrl: string): Promise<{ base64: string, mimeType: string }> {
+  let fileId = fileIdOrUrl;
+  const match = fileIdOrUrl.match(/[-\w]{25,}/);
+  if (match) fileId = match[0];
+  
+  const token = await getSharedAccessToken();
+  if (!token) throw new Error("No Google token found");
+  
+  const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=mimeType`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!metaRes.ok) {
+    const errText = await metaRes.text();
+    console.error("Drive metadata fetch failed:", errText);
+    throw new Error("Failed to fetch file metadata: " + errText);
+  }
+  const meta = await metaRes.json();
+  const mimeType = meta.mimeType;
+  
+  let downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+  let finalMimeType = mimeType;
+  
+  if (mimeType.includes('application/vnd.google-apps.')) {
+     if (mimeType === 'application/vnd.google-apps.spreadsheet') {
+         downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/csv`;
+         finalMimeType = 'text/csv';
+     } else if (mimeType === 'application/vnd.google-apps.presentation') {
+         downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=application/pdf`;
+         finalMimeType = 'application/pdf';
+     } else if (mimeType === 'application/vnd.google-apps.document') {
+         downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=application/pdf`;
+         finalMimeType = 'application/pdf';
+     } else {
+         throw new Error("Cannot download this type of Google Workspace file: " + mimeType);
+     }
+  }
+  
+  const res = await fetch(downloadUrl, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error("Drive download failed:", errText);
+    throw new Error("Failed to download file: " + errText);
+  }
+  const blob = await res.blob();
+  
+  const base64 = await new Promise<string>((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
+    reader.readAsDataURL(blob);
+  });
+  
+  return { base64, mimeType: finalMimeType };
 }
