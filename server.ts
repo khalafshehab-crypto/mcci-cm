@@ -202,7 +202,7 @@ const executeWithRetry = async (operation: any, maxRetries = 5) => {
       contents.push(finalPrompt);
 
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-2.5-flash", // use pro since it could be reading a pdf/image reply
+        model: "gemini-3.5-flash", // use pro since it could be reading a pdf/image reply
         contents: contents,
       }));
 
@@ -249,7 +249,7 @@ Output ONLY the final Arabic text of the letter, ready to be printed or used. Do
 `;
 
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.5-flash",
         contents: fullPrompt,
       }));
 
@@ -285,7 +285,7 @@ Output ONLY the final Arabic text of the letter, ready to be printed or used. Do
       }
       
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.5-flash",
         contents: contents,
       }));
       
@@ -353,7 +353,7 @@ ${incomingLetter || "مرفق في الملف"}
       }
 
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.5-flash",
         contents: contents,
       }));
 
@@ -393,7 +393,7 @@ ${incomingLetter || "مرفق في الملف"}
 ${text}`;
 
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.5-flash",
         contents: fullPrompt,
       }));
 
