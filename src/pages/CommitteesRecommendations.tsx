@@ -263,15 +263,16 @@ const confirmAddLinkAttachment = () => {
   const [selectedClassificationForCards, setSelectedClassificationForCards] = useState<string | null>(null);
   const [selectedEventIdForCards, setSelectedEventIdForCards] = useState<number | null>(null);
 
-  const canUserEditCommittee = (committeeName: string): boolean => {
+    const canUserEditCommittee = (committeeName: string): boolean => {
     try {
       const stored = localStorage.getItem("current_user");
       if (!stored) return true;
       const user = JSON.parse(stored);
       if (!user) return true;
-      if (user.role === "SYS_ADMIN") return true;
+      const mgmtRoles = ["SYS_ADMIN", "MANAGER", "DEPT_HEAD", "MANAG_DIR", "EXECUTIVE_OFFICE", "ASSISTANT_SEC_GEN", "SECRETARY_GENERAL"];
+      if (mgmtRoles.includes(user.role)) return true;
       if (user.committees && Array.isArray(user.committees)) {
-        return user.committees.includes(committeeName);
+        return user.committees.includes(committeeName) || user.committees.includes("عام") || committeeName === "عام" || committeeName === "الجميع";
       }
       return false;
     } catch (e) {
@@ -2899,7 +2900,7 @@ ${formattedItems}
                             <button
                               type="button"
                               onClick={() => setActiveGearMenuId(activeGearMenuId === evt.id ? null : evt.id)}
-                              style={{ display: canUserEditCommittee(evt.committeeName) ? 'flex' : 'none' }}
+                              
                               className="p-1.5 hover:bg-[#d6cfcf] text-gray-700 hover:text-gray-950 rounded-lg border border-transparent hover:border-gray-350 transition-all cursor-pointer"
                               title="الإجراءات"
                             >
@@ -2960,9 +2961,12 @@ ${formattedItems}
                               initial={{ opacity: 0, height: 0 }} 
                               animate={{ opacity: 1, height: "auto" }} 
                               exit={{ opacity: 0, height: 0 }}
-                              className="px-6 py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-y border-gray-200 text-right font-sans"
+                              className="px-6 py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-y border-gray-200 text-right font-sans relative"
                             >
-                              <div className="flex flex-col md:flex-row gap-6">
+                              {!canUserEditCommittee(evt.committeeName) && (
+                                <div className="absolute inset-0 z-[60] bg-slate-50/40 cursor-not-allowed rounded-lg" title="ليس لديك صلاحية لتعديل هذه التوصية" />
+                              )}
+                              <div className={`flex flex-col md:flex-row gap-6 relative ${!canUserEditCommittee(evt.committeeName) ? "opacity-80 pointer-events-none grayscale-[10%]" : ""}`}>
                                 {/* Right Column: Steps Stepper / Timeline Sidebar */}
                                 <div className="w-full md:w-1/3 flex flex-col gap-2.5 bg-white p-4 rounded-xl border border-gray-200 shadow-sm shrink-0">
                                   <div className="pb-3 border-b border-gray-100 flex items-center justify-between">

@@ -533,15 +533,16 @@ export default function Events() {
   const [selectedEventKindForCards, setSelectedEventKindForCards] = useState<string | null>(null);
   const [selectedClassificationForCards, setSelectedClassificationForCards] = useState<string | null>(null);
 
-  const canUserEditCommittee = (committeeName: string): boolean => {
+    const canUserEditCommittee = (committeeName: string): boolean => {
     try {
       const stored = localStorage.getItem("current_user");
       if (!stored) return true;
       const user = JSON.parse(stored);
       if (!user) return true;
-      if (user.role === "SYS_ADMIN") return true;
+      const mgmtRoles = ["SYS_ADMIN", "MANAGER", "DEPT_HEAD", "MANAG_DIR", "EXECUTIVE_OFFICE", "ASSISTANT_SEC_GEN", "SECRETARY_GENERAL"];
+      if (mgmtRoles.includes(user.role)) return true;
       if (user.committees && Array.isArray(user.committees)) {
-        return user.committees.includes(committeeName);
+        return user.committees.includes(committeeName) || user.committees.includes("عام") || committeeName === "عام" || committeeName === "الجميع";
       }
       return false;
     } catch (e) {
@@ -746,8 +747,17 @@ export default function Events() {
             body: JSON.stringify({ prompt, fileBase64, mimeType })
         });
 
+        const textRes = await response.text();
+        let errData, responseData;
+        try {
+            errData = textRes ? JSON.parse(textRes) : {};
+            responseData = errData;
+        } catch(e) {
+            if (!response.ok) throw new Error("خطأ في الخادم (حجم الملف كبير جداً أو مشكلة في الشبكة)");
+            responseData = {};
+        }
+
         if (!response.ok) {
-            const errData = await response.json();
             const errMsg = errData.details || errData.error || "خطأ مجهول";
             if (errMsg.includes("429") || errMsg.includes("Quota") || errMsg.includes("exceeded")) {
                 throw new Error("عذراً، لقد تم استنفاذ الحد الأقصى للطلبات المجانية.");
@@ -755,8 +765,6 @@ export default function Events() {
                 throw new Error(errMsg);
             }
         }
-        
-        const responseData = await response.json();
         const aiText = responseData.result || "";
         const jsonMatch = aiText.match(/\[.*\]/s);
         if (jsonMatch) {
@@ -2325,9 +2333,12 @@ ${formattedItems}
                               initial={{ opacity: 0, height: 0 }} 
                               animate={{ opacity: 1, height: "auto" }} 
                               exit={{ opacity: 0, height: 0 }}
-                              className="px-6 py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-y border-gray-200 text-right font-sans"
+                              className="px-6 py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-y border-gray-200 text-right font-sans relative"
                             >
-                              <div className="flex flex-col md:flex-row gap-6">
+                              {!canUserEditCommittee(evt.committeeName) && (
+                                <div className="absolute inset-0 z-[60] bg-slate-50/40 cursor-not-allowed rounded-lg" title="ليس لديك صلاحية لتعديل هذه الفعالية" />
+                              )}
+                              <div className={`flex flex-col md:flex-row gap-6 relative ${!canUserEditCommittee(evt.committeeName) ? "opacity-80 pointer-events-none grayscale-[10%]" : ""}`}>
                                 
                                 {/* Right Column: Steps Stepper / Timeline Sidebar */}
                                 <div className="w-full md:w-1/3 flex flex-col gap-2.5 bg-white p-4 rounded-xl border border-gray-200 shadow-sm shrink-0">
@@ -2933,7 +2944,7 @@ ${formattedItems}
 																				})
 																			});
                                                                             if (!response.ok) {
-                                                                                const errData = await response.json();
+                                                                                const textErr = await response.text(); const errData = textErr ? JSON.parse(textErr) : {};
                                                                                 const errMsg = errData.details || errData.error || "خطأ مجهول";
                                                                                 if (errMsg.includes("429") || errMsg.includes("Quota") || errMsg.includes("exceeded")) {
                                                                                     throw new Error("عذراً، لقد تم استنفاذ الحد الأقصى للطلبات المجانية من الذكاء الاصطناعي (Quota Exceeded). يرجى المحاولة لاحقاً.");
@@ -2965,7 +2976,7 @@ ${formattedItems}
                                                                                 }
                                                                             }
                                                                             
-                                                                            const responseData = await response.json();
+                                                                            const textRes = await response.text(); const responseData = textRes ? JSON.parse(textRes) : {};
                                                                             const aiText = responseData.result || "";
 																			try {
 																				const jsonMatch = aiText.match(/\[.*\]/s);

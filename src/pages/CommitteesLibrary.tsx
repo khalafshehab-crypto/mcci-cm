@@ -315,7 +315,7 @@ export default function CommitteesLibrary() {
           templateContent: aiTemplate?.templateText || (aiTemplate?.title + " - " + (aiTemplate?.description || ""))
         })
       });
-      const data = await response.json();
+      const data = (await response.text().then(t => t ? JSON.parse(t) : {}));
       if (response.ok) {
         setAiResult(data.result);
       } else {
@@ -577,7 +577,7 @@ ${aiPrompt}
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.text().then(t => t ? JSON.parse(t) : {}));
         const text = data.result || "";
         setAiGenGeneratedText(text);
         if (workspaceService === "circular") {
@@ -592,7 +592,7 @@ ${aiPrompt}
         }
         setAiGenStep(3); // التحديث: النقل للخطوة الثالثة (المعاينة)
       } else {
-        const errData = await response.json().catch(() => null);
+        const errData = await response.text().then(t => t ? JSON.parse(t) : null).catch(() => null);
         alert("عذراً، الخادم يواجه ضغطاً حالياً (أو حدث خطأ). الرجاء المحاولة مرة أخرى بعد قليل.\n" + (errData?.error || ""));
       }
     } catch (e) {

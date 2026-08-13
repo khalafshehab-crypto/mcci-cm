@@ -76,15 +76,16 @@ export default function Committees() {
 
   const committees = dbCommittees;
 
-  const canUserEditCommittee = (committeeName: string): boolean => {
+    const canUserEditCommittee = (committeeName: string): boolean => {
     try {
       const stored = localStorage.getItem("current_user");
       if (!stored) return true;
       const user = JSON.parse(stored);
       if (!user) return true;
-      if (user.role === "SYS_ADMIN") return true;
+      const mgmtRoles = ["SYS_ADMIN", "MANAGER", "DEPT_HEAD", "MANAG_DIR", "EXECUTIVE_OFFICE", "ASSISTANT_SEC_GEN", "SECRETARY_GENERAL"];
+      if (mgmtRoles.includes(user.role)) return true;
       if (user.committees && Array.isArray(user.committees)) {
-        return user.committees.includes(committeeName);
+        return user.committees.includes(committeeName) || user.committees.includes("عام") || committeeName === "عام" || committeeName === "الجميع";
       }
       return false;
     } catch (e) {

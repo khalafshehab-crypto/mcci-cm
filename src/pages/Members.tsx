@@ -230,15 +230,16 @@ export default function CommitteesMembers() {
   const allCommittees = dbCommittees.length > 0 ? dbCommittees.map(c => ({ id: c.id, name: c.name })) : [
   ];
 
-  const canUserEditCommittee = (committeeName: string): boolean => {
+    const canUserEditCommittee = (committeeName: string): boolean => {
     try {
       const stored = localStorage.getItem("current_user");
       if (!stored) return true;
       const user = JSON.parse(stored);
       if (!user) return true;
-      if (user.role === "SYS_ADMIN") return true;
+      const mgmtRoles = ["SYS_ADMIN", "MANAGER", "DEPT_HEAD", "MANAG_DIR", "EXECUTIVE_OFFICE", "ASSISTANT_SEC_GEN", "SECRETARY_GENERAL"];
+      if (mgmtRoles.includes(user.role)) return true;
       if (user.committees && Array.isArray(user.committees)) {
-        return user.committees.includes(committeeName);
+        return user.committees.includes(committeeName) || user.committees.includes("عام") || committeeName === "عام" || committeeName === "الجميع";
       }
       return false;
     } catch (e) {
@@ -1324,7 +1325,7 @@ export default function CommitteesMembers() {
                 <div className="relative dropdown-container">
                   <button
                     onClick={() => setActiveGearMenuId(activeGearMenuId === m.id ? null : m.id)}
-                    style={{ display: canUserEditCommittee(m.committeeName) ? 'flex' : 'none' }}
+                    
                     className="p-1.5 hover:bg-white text-gray-650 hover:text-gray-900 rounded-lg border border-transparent hover:border-gray-300 transition-all cursor-pointer"
                     title="التحكم بالإجراءات"
                   >
@@ -1574,7 +1575,7 @@ export default function CommitteesMembers() {
                       <div className="flex items-center justify-center gap-1.5 relative dropdown-container">
                         <button
                           onClick={() => setActiveGearMenuId(activeGearMenuId === m.id ? null : m.id)}
-                    style={{ display: canUserEditCommittee(m.committeeName) ? 'flex' : 'none' }}
+                    
                           className="p-1.5 hover:bg-gray-150 text-gray-650 hover:text-gray-900 rounded-lg border border-transparent hover:border-gray-350 transition-all cursor-pointer"
                           title="الإجراءات"
                         >

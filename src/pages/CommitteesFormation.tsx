@@ -690,15 +690,16 @@ export default function CommitteesFormation() {
     }
   };
 
-  const canUserEditCommittee = (committeeName: string): boolean => {
+    const canUserEditCommittee = (committeeName: string): boolean => {
     try {
       const stored = localStorage.getItem("current_user");
       if (!stored) return true;
       const user = JSON.parse(stored);
       if (!user) return true;
-      if (user.role === "SYS_ADMIN") return true;
+      const mgmtRoles = ["SYS_ADMIN", "MANAGER", "DEPT_HEAD", "MANAG_DIR", "EXECUTIVE_OFFICE", "ASSISTANT_SEC_GEN", "SECRETARY_GENERAL"];
+      if (mgmtRoles.includes(user.role)) return true;
       if (user.committees && Array.isArray(user.committees)) {
-        return user.committees.includes(committeeName);
+        return user.committees.includes(committeeName) || user.committees.includes("عام") || committeeName === "عام" || committeeName === "الجميع";
       }
       return false;
     } catch (e) {
@@ -1975,7 +1976,7 @@ export default function CommitteesFormation() {
                   </button>
                   <button
                     onClick={() => setActiveGearMenuId(activeGearMenuId === comm.id ? null : comm.id)}
-                    style={{ display: canUserEditCommittee(comm.name) ? 'flex' : 'none' }}
+                    
                     className="p-1.5 bg-white/80 hover:bg-white text-gray-600 hover:text-gray-950 rounded-lg border border-gray-200/80 shadow-sm transition-all cursor-pointer"
                     title="التحكم باللجنة"
                   >
@@ -2316,7 +2317,7 @@ export default function CommitteesFormation() {
                         </button>
                         <button
                           onClick={() => setActiveGearMenuId(activeGearMenuId === comm.id ? null : comm.id)}
-                    style={{ display: canUserEditCommittee(comm.name) ? 'flex' : 'none' }}
+                    
                           className="p-1.5 hover:bg-gray-150 text-gray-650 hover:text-gray-900 rounded-lg border border-transparent hover:border-gray-350 transition-all cursor-pointer"
                           title="الإجراءات"
                         >

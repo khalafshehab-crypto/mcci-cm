@@ -211,7 +211,7 @@ export default function Library() {
           templateContent: aiTemplate?.templateText || (aiTemplate?.title + " - " + (aiTemplate?.description || ""))
         })
       });
-      const data = await response.json();
+      const data = (await response.text().then(t => t ? JSON.parse(t) : {}));
       if (response.ok) {
         setAiResult(data.result);
       } else {
@@ -426,11 +426,11 @@ ${aiPrompt || 'صغ تعميماً احترافياً يلخص المعاملة 
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.text().then(t => t ? JSON.parse(t) : {}));
         setAiGenGeneratedText(data.result || "");
         setAiGenStep(3);
       } else {
-        const errData = await response.json().catch(() => null);
+        const errData = await response.text().then(t => t ? JSON.parse(t) : null).catch(() => null);
         alert("عذراً، الخادم يواجه ضغطاً حالياً. الرجاء المحاولة مرة أخرى.\n" + (errData?.error || ""));
       }
     } catch (e) {
