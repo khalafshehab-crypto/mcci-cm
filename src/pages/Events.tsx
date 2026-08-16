@@ -726,17 +726,60 @@ export default function Events() {
     try {
         let fileBase64 = null;
         let mimeType = null;
+        let fileId = null;
+        let accessToken = null;
+        
+        try {
+            accessToken = await getSharedAccessToken();
+        } catch(e) {}
+        
         if (typeof agendaMinutesFile === 'string') {
-            const driveData = await downloadDriveFileBase64(agendaMinutesFile);
-            fileBase64 = driveData.base64;
-            mimeType = driveData.mimeType;
+            const match = agendaMinutesFile.match(/[-\w]{25,}/);
+            if (match) {
+                fileId = match[0];
+                showGlobalToast("جاري جلب المحضر من جوجل درايف...", "success");
+            } else {
+                showGlobalToast("جاري تنزيل المحضر من جوجل درايف...", "success");
+                const driveData = await downloadDriveFileBase64(agendaMinutesFile);
+                fileBase64 = driveData.base64;
+                mimeType = driveData.mimeType;
+            }
         } else {
-            const reader = new FileReader();
-            fileBase64 = await new Promise((resolve) => {
-                reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
-                reader.readAsDataURL(agendaMinutesFile as File);
-            });
-            mimeType = (agendaMinutesFile as File).type;
+            let uploadedToDrive = false;
+            let docName = "محضر_مستورد_" + (agendaMinutesFile as File).name;
+            if (accessToken) {
+                try {
+                    const folderId = await autoCreateEventDriveFolders(evt, []);
+                    if (folderId) {
+                        const reader = new FileReader();
+                        const b64 = await new Promise((resolve) => {
+                            reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
+                            reader.readAsDataURL(agendaMinutesFile as File);
+                        });
+                        mimeType = (agendaMinutesFile as File).type;
+                        const res = await uploadBinaryFileToDrive(docName, b64 as string, mimeType, folderId);
+                        if (res && res.id) {
+                            fileId = res.id;
+                            uploadedToDrive = true;
+                            const fileUrl = `https://drive.google.com/file/d/${res.id}/view`;
+                            updateEventWorkflow(evt.id, { approvedMinutesUrl: fileUrl });
+                            showGlobalToast("تم جلب الملف وأرشفته في جوجل درايف بنجاح", "success");
+                        } else {
+                            fileBase64 = b64;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Drive auto-archive failed:", e);
+                }
+            }
+            if (!uploadedToDrive) {
+                const reader = new FileReader();
+                fileBase64 = await new Promise((resolve) => {
+                    reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
+                    reader.readAsDataURL(agendaMinutesFile as File);
+                });
+                mimeType = (agendaMinutesFile as File).type;
+            }
         }
 
         const prompt = "استخرج المناقشة (discussion)، التوصية (recommendation)، المسؤول (assignee)، ومدة التنفيذ (durationRec) لكل بند من بنود جدول الأعمال التالية من المحضر المرفق.\nقائمة البنود الحالية:\n" + JSON.stringify(agenda.map((a) => ({ id: a.id, title: a.title }))) + "\nأرجع النتيجة كـ JSON Array بهذا الشكل بالضبط:\n[{\"id\": \"id-1\", \"title\": \"عنوان البند\", \"discussion\": \"نص المناقشة\", \"recommendation\": \"نص التوصية\", \"assignee\": \"اسم المسؤول\", \"durationRec\": \"يومين\"}]\nيجب أن تتطابق الـ id و الـ title مع المرسل. إذا لم تجد مناقشة أو توصية اتركها فارغة.";
@@ -744,7 +787,7 @@ export default function Events() {
         const response = await fetch('/api/gemini/extract-agenda', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, fileBase64, mimeType })
+            body: JSON.stringify({ prompt, fileBase64, mimeType, fileId, accessToken })
         });
         
         if (!response.ok) {
@@ -2911,38 +2954,81 @@ ${formattedItems}
 																		setIsReadingMinutes(true);
 																		try {
 																			let fileBase64 = null;
-																			let mimeType = null;
-																			let docName = "محضر_مستورد.pdf";
-																			if (typeof agendaMinutesFile === 'string') {
-																				try {
-																					showGlobalToast("جاري تنزيل المحضر من جوجل درايف...", "success");
-																					const driveData = await downloadDriveFileBase64(agendaMinutesFile);
-																					fileBase64 = driveData.base64;
-																					mimeType = driveData.mimeType;
-																					docName = "محضر_مستورد_من_رابط.pdf";
-																				} catch (e) {
-																					console.error(e);
-																					showGlobalToast("خطأ: " + (e as Error).message, "error");
-																					setIsReadingMinutes(false);
-																					return;
-																				}
-																			} else {
-																				const reader = new FileReader();
-																				fileBase64 = await new Promise((resolve) => {
-																					reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
-																					reader.readAsDataURL(agendaMinutesFile as File);
-																				});
-																				mimeType = (agendaMinutesFile as File).type;
-																				docName = "محضر_مستورد_" + (agendaMinutesFile as File).name;
-																			}
-																			
-																			const response = await fetch('/api/gemini/extract-agenda', {
+        let mimeType = null;
+        let docName = "محضر_مستورد.pdf";
+        let fileId = null;
+        let accessToken = null;
+        
+        try {
+            accessToken = await getSharedAccessToken();
+        } catch(e) {}
+        
+        if (typeof agendaMinutesFile === 'string') {
+            docName = "محضر_مستورد_من_رابط.pdf";
+            const match = agendaMinutesFile.match(/[-\w]{25,}/);
+            if (match) {
+                fileId = match[0];
+                showGlobalToast("جاري جلب المحضر من جوجل درايف...", "success");
+            } else {
+                try {
+                    showGlobalToast("جاري تنزيل المحضر من جوجل درايف...", "success");
+                    const driveData = await downloadDriveFileBase64(agendaMinutesFile);
+                    fileBase64 = driveData.base64;
+                    mimeType = driveData.mimeType;
+                } catch (e) {
+                    console.error(e);
+                    showGlobalToast("خطأ: " + (e as Error).message, "error");
+                    setIsReadingMinutes(false);
+                    return;
+                }
+            }
+        } else {
+            let uploadedToDrive = false;
+            docName = "محضر_مستورد_" + (agendaMinutesFile as File).name;
+            if (accessToken) {
+                try {
+                    const folderId = await autoCreateEventDriveFolders(evt, []);
+                    if (folderId) {
+                        const reader = new FileReader();
+                        const b64 = await new Promise((resolve) => {
+                            reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
+                            reader.readAsDataURL(agendaMinutesFile as File);
+                        });
+                        mimeType = (agendaMinutesFile as File).type;
+                        const res = await uploadBinaryFileToDrive(docName, b64 as string, mimeType, folderId);
+                        if (res && res.id) {
+                            fileId = res.id;
+                            uploadedToDrive = true;
+                            const fileUrl = `https://drive.google.com/file/d/${res.id}/view`;
+                            updateEventWorkflow(evt.id, { approvedMinutesUrl: fileUrl });
+                            showGlobalToast("تم جلب الملف وأرشفته في جوجل درايف بنجاح", "success");
+                        } else {
+                            fileBase64 = b64;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Drive auto-archive failed:", e);
+                }
+            }
+            if (!uploadedToDrive) {
+                const reader = new FileReader();
+                fileBase64 = await new Promise((resolve) => {
+                    reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
+                    reader.readAsDataURL(agendaMinutesFile as File);
+                });
+                mimeType = (agendaMinutesFile as File).type;
+            }
+        }
+
+        const response = await fetch('/api/gemini/extract-agenda', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 prompt: "استخرج بنود جدول الأعمال كقائمة JSON Array: [{title: string, duration: number, specialist: string}] من هذا المحضر، اذا لم يوجد مدد ضعها 15",
                 fileBase64,
-                mimeType
+                mimeType,
+                fileId,
+                accessToken
             })
         });
 
@@ -2965,27 +3051,7 @@ ${formattedItems}
             throw new Error(errMsg);
         }
 
-        // Auto-archive in Google Drive
-        if (typeof agendaMinutesFile !== 'string') {
-            try {
-                const folderId = await autoCreateEventDriveFolders(evt, []);
-                if (folderId) {
-                    const res = await uploadBinaryFileToDrive(
-                        docName,
-                        fileBase64,
-                        mimeType || "application/pdf",
-                        folderId
-                    );
-                    if (res && res.id) {
-                        const fileUrl = `https://drive.google.com/file/d/${res.id}/view`;
-                        updateEventWorkflow(evt.id, { approvedMinutesUrl: fileUrl });
-                    }
-                    showGlobalToast("تم استيراد المحضر وأرشفته واعتماده في المرفقات بنجاح", "success");
-                }
-            } catch (uploadErr) {
-                console.error("Drive auto-archive failed:", uploadErr);
-            }
-        }
+        // Auto-archive already done before fetch
 
         const responseData = await response.json();
         const aiText = responseData.result || "";
