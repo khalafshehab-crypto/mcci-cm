@@ -793,6 +793,9 @@ export default function CommitteesEvents() {
                 }
             }
             if (!uploadedToDrive) {
+                if ((agendaMinutesFile as File).size > 15 * 1024 * 1024) {
+                    throw new Error("حجم الملف كبير جداً للاستخراج المباشر (أكثر من 15 ميجا). يرجى التأكد من تسجيل الدخول بحساب جوجل ليتم أرشفته أولاً.");
+                }
                 const reader = new FileReader();
                 fileBase64 = await new Promise((resolve) => {
                     reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
@@ -811,21 +814,26 @@ export default function CommitteesEvents() {
         });
         
         if (!response.ok) {
-            let errMsg = "خطأ مجهول";
+            let errMsg = `خطأ مجهول (كود: ${response.status})`;
             try {
                 const textErr = await response.text();
                 if (textErr) {
                     try {
                         const errObj = JSON.parse(textErr);
-                        errMsg = errObj.details || errObj.error || "خطأ مجهول";
+                        errMsg = errObj.details || errObj.error || errMsg;
+                        if (typeof errMsg === 'object') errMsg = JSON.stringify(errMsg);
                         if (errMsg.includes("429") || errMsg.includes("Quota") || errMsg.includes("exceeded")) {
                             errMsg = "عذراً، لقد تم استنفاذ الحد الأقصى للطلبات المجانية من الذكاء الاصطناعي (Quota Exceeded). يرجى المحاولة لاحقاً.";
                         }
                     } catch(e) {
-                        errMsg = "تعذر الاتصال بالخادم، قد يكون حجم الملف كبيراً جداً (حاول رفع ملف أقل من 1 ميجا) أو حدث خطأ في الشبكة";
+                        errMsg = `تعذر الاتصال بالخادم أو حجم الملف كبير جداً (كود: ${response.status})`;
                     }
+                } else {
+                    errMsg = `استجابة فارغة من الخادم (كود: ${response.status})`;
                 }
-            } catch(e) {}
+            } catch(e) {
+                errMsg = `انقطع الاتصال أثناء القراءة (كود: ${response.status})`;
+            }
             throw new Error(errMsg);
         }
         
@@ -3025,6 +3033,9 @@ ${formattedItems}
                 }
             }
             if (!uploadedToDrive) {
+                if ((agendaMinutesFile as File).size > 15 * 1024 * 1024) {
+                    throw new Error("حجم الملف كبير جداً للاستخراج المباشر (أكثر من 15 ميجا). يرجى التأكد من تسجيل الدخول بحساب جوجل ليتم أرشفته أولاً.");
+                }
                 const reader = new FileReader();
                 fileBase64 = await new Promise((resolve) => {
                     reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
@@ -3047,21 +3058,26 @@ ${formattedItems}
         });
 
         if (!response.ok) {
-            let errMsg = "خطأ مجهول";
+            let errMsg = `خطأ مجهول (كود: ${response.status})`;
             try {
                 const textErr = await response.text();
                 if (textErr) {
                     try {
                         const errObj = JSON.parse(textErr);
-                        errMsg = errObj.details || errObj.error || "خطأ مجهول";
+                        errMsg = errObj.details || errObj.error || errMsg;
+                        if (typeof errMsg === 'object') errMsg = JSON.stringify(errMsg);
                         if (errMsg.includes("429") || errMsg.includes("Quota") || errMsg.includes("exceeded")) {
                             errMsg = "عذراً، لقد تم استنفاذ الحد الأقصى للطلبات المجانية من الذكاء الاصطناعي (Quota Exceeded). يرجى المحاولة لاحقاً.";
                         }
                     } catch(e) {
-                        errMsg = "تعذر الاتصال بالخادم، قد يكون حجم الملف كبيراً جداً (حاول رفع ملف أقل من 1 ميجا) أو حدث خطأ في الشبكة";
+                        errMsg = `تعذر الاتصال بالخادم أو حجم الملف كبير جداً (كود: ${response.status})`;
                     }
+                } else {
+                    errMsg = `استجابة فارغة من الخادم (كود: ${response.status})`;
                 }
-            } catch(e) {}
+            } catch(e) {
+                errMsg = `انقطع الاتصال أثناء القراءة (كود: ${response.status})`;
+            }
             throw new Error(errMsg);
         }
 
