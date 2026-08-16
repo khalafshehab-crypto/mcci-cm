@@ -179,7 +179,7 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
     url = `https://chat.googleapis.com/${endpoint.substring(5)}`;
   }
 
-  const response = await fetch("/api/google-proxy", {
+  const response = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "google-proxy", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -199,7 +199,7 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
         const newAccessToken = await triggerAuthModal();
         if (newAccessToken) {
           setCachedAccessToken(newAccessToken);
-          const retryResponse = await fetch("/api/google-proxy", {
+          const retryResponse = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "google-proxy", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -298,7 +298,7 @@ export async function uploadBinaryFileToDrive(name: string, base64Content: strin
     `${base64Content}\r\n` +
     `--${boundary}--`;
     
-  const response = await fetch("/api/google-proxy", {
+  const response = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "google-proxy", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -321,7 +321,7 @@ export async function uploadBinaryFileToDrive(name: string, base64Content: strin
         if (newAccessToken) {
           setCachedAccessToken(newAccessToken);
           // Retry
-          const retryResponse = await fetch("/api/google-proxy", {
+          const retryResponse = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "google-proxy", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -406,7 +406,7 @@ export async function sendGmailMessage(to: string, subject: string, bodyHtml: st
     throw new Error("Authentication required: No active Google Workspace connection.");
   }
 
-  const response = await fetch("/api/google-proxy", {
+  const response = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "google-proxy", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -427,7 +427,7 @@ export async function sendGmailMessage(to: string, subject: string, bodyHtml: st
         if (newAccessToken) {
           setCachedAccessToken(newAccessToken);
           // Retry
-          const retryResponse = await fetch("/api/google-proxy", {
+          const retryResponse = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "google-proxy", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

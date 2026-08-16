@@ -1,10 +1,30 @@
 import * as fs from "fs";
 import express from "express";
+import cors from "cors";
 import path from "path";
 import { GoogleGenAI } from "@google/genai";
 
 const app = express();
+app.use(cors({ origin: true }));
 export default app;
+
+
+const osMod = require('os');
+const pathMod = require('path');
+const fsMod = require('fs');
+
+async function uploadBase64ToGemini(ai, fileBase64, mimeType) {
+    let base64Data = fileBase64;
+    if (base64Data.includes('base64,')) {
+        base64Data = base64Data.split('base64,')[1];
+    }
+    const ext = mimeType === 'application/pdf' ? '.pdf' : '.tmp';
+    const tmpPath = pathMod.join(osMod.tmpdir(), 'gemini_upload_' + Date.now() + Math.floor(Math.random() * 1000) + ext);
+    fsMod.writeFileSync(tmpPath, Buffer.from(base64Data, 'base64'));
+    const upload = await ai.files.upload({ file: tmpPath, config: { mimeType: mimeType } });
+    fsMod.unlinkSync(tmpPath);
+    return upload.uri;
+}
 
 const executeWithRetry = async (operation: any, maxRetries = 5) => {
   for (let i = 0; i < maxRetries; i++) {
@@ -305,18 +325,19 @@ Output ONLY the final Arabic text of the letter, ready to be printed or used. Do
                       const arrayBuffer = await fileRes.arrayBuffer();
                       fsMod.writeFileSync(tmpPath, Buffer.from(arrayBuffer));
                       
-                      const upload = await ai.files.upload({ file: tmpPath, mimeType: mimeType });
+                      const upload = await ai.files.upload({ file: tmpPath, config: { mimeType: mimeType } });
                       uploadedFileUri = upload.uri;
                       uploadedFileMime = mimeType;
                       
                       fsMod.unlinkSync(tmpPath);
-                  } else {
-                      console.error("Failed to download from Drive:", await fileRes.text());
                   }
               }
           } catch (e) {
               console.error("Drive fetch error in extract-agenda:", e);
           }
+      } else if (fileBase64 && mimeType) {
+          uploadedFileUri = await uploadBase64ToGemini(ai, fileBase64, mimeType);
+          uploadedFileMime = mimeType;
       }
       
       if (!process.env.GEMINI_API_KEY) {
@@ -327,11 +348,6 @@ Output ONLY the final Arabic text of the letter, ready to be printed or used. Do
       if (uploadedFileUri) {
           contents = [
               { fileData: { fileUri: uploadedFileUri, mimeType: uploadedFileMime } },
-              { text: prompt }
-          ];
-      } else if (fileBase64 && mimeType) {
-          contents = [
-              { inlineData: { data: fileBase64, mimeType: mimeType } },
               { text: prompt }
           ];
       }
@@ -395,11 +411,12 @@ ${incomingLetter || "مرفق في الملف"}
 
 أعد نص قالب الخطاب فقط بدون أي شروحات إضافية وبدون استخدام markdown (فقط النص).`;
 
-      let contents: any[] = [fullPrompt];
+      let contents: any[] = [{ text: fullPrompt }];
       if (fileBase64 && mimeType) {
+        let uri = await uploadBase64ToGemini(ai, fileBase64, mimeType);
         contents = [
-          { inlineData: { data: fileBase64, mimeType: mimeType } },
-          fullPrompt
+          { fileData: { fileUri: uri, mimeType: mimeType } },
+          { text: fullPrompt }
         ];
       }
 
