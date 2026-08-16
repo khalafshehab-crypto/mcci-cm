@@ -1,20 +1,25 @@
 const fs = require('fs');
-let code = fs.readFileSync('server.ts', 'utf8');
+const path = require('path');
 
-const regex = /let contents = \[\{ text: prompt \}\];\s*if \(uploadedFileUri\) \{\s*contents = \[\s*\{ fileData: \{ fileUri: uploadedFileUri, mimeType: uploadedFileMime \} \},\s*\{ text: prompt \}\s*\];\s*\} \},\s*\{ text: prompt \}\s*\];\s*\}/g;
+function walk(dir) {
+    const files = fs.readdirSync(dir);
+    for (const file of files) {
+        const fullPath = path.join(dir, file);
+        if (fs.statSync(fullPath).isDirectory()) {
+            walk(fullPath);
+        } else if (fullPath.endsWith('.ts') || fullPath.endsWith('.tsx')) {
+            let content = fs.readFileSync(fullPath, 'utf8');
+            let originalContent = content;
+            
+            content = content.replace(/fetch\(\(\(window/g, 'fetch((window');
 
-const newStr = `let contents = [{ text: prompt }];
-      if (uploadedFileUri) {
-          contents = [
-              { fileData: { fileUri: uploadedFileUri, mimeType: uploadedFileMime } },
-              { text: prompt }
-          ];
-      }`;
+            if (content !== originalContent) {
+                fs.writeFileSync(fullPath, content);
+                console.log(`Updated syntax in ${fullPath}`);
+            }
+        }
+    }
+}
 
-code = code.replace(regex, newStr);
-
-// Let's do a more robust fix in case the regex doesn't match perfectly.
-// I will just replace the bad part.
-code = code.replace(/\} \},\s*\{ text: prompt \}\s*\];\s*\}/g, '}');
-
-fs.writeFileSync('server.ts', code);
+walk(path.join(__dirname, 'src'));
+console.log('Done');
