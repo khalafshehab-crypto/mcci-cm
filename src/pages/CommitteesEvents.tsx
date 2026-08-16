@@ -807,7 +807,7 @@ export default function CommitteesEvents() {
 
         const prompt = "استخرج المناقشة (discussion)، التوصية (recommendation)، المسؤول (assignee)، ومدة التنفيذ (durationRec) لكل بند من بنود جدول الأعمال التالية من المحضر المرفق.\nقائمة البنود الحالية:\n" + JSON.stringify(agenda.map((a) => ({ id: a.id, title: a.title }))) + "\nأرجع النتيجة كـ JSON Array بهذا الشكل بالضبط:\n[{\"id\": \"id-1\", \"title\": \"عنوان البند\", \"discussion\": \"نص المناقشة\", \"recommendation\": \"نص التوصية\", \"assignee\": \"اسم المسؤول\", \"durationRec\": \"يومين\"}]\nيجب أن تتطابق الـ id و الـ title مع المرسل. إذا لم تجد مناقشة أو توصية اتركها فارغة.";
 
-        const response = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "gemini/extract-agenda", {
+        const response = await fetch("/api/gemini/extract-agenda", {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt, fileBase64, mimeType, fileId, accessToken })
@@ -3045,7 +3045,7 @@ ${formattedItems}
             }
         }
 
-        const response = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "gemini/extract-agenda", {
+        const response = await fetch("/api/gemini/extract-agenda", {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

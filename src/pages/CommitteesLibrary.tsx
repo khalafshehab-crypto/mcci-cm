@@ -307,7 +307,7 @@ export default function CommitteesLibrary() {
     if (!aiPrompt.trim()) return;
     setIsAiLoading(true);
     try {
-      const response = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "gemini/generate-letter", {
+      const response = await fetch("/api/gemini/generate-letter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -556,7 +556,7 @@ ${aiPrompt}
 ملاحظة هامة: أخرج الخطاب فقط بدون أي شروحات إضافية وبدون استخدام علامات Markdown مثل \`\`\` ، وتأكد من محاكاة التنسيق بدقة، فقط النص الجاهز الصافي للخطاب.`;
       }
 
-      const response = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "gemini/generate-new-letter", {
+      const response = await fetch("/api/gemini/generate-new-letter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

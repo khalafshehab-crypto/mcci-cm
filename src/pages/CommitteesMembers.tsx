@@ -394,7 +394,7 @@ export default function CommitteesMembers() {
     setImportError("");
     try {
       const exportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx`;
-      const res = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "fetch-public-sheet", {
+      const res = await fetch("/api/fetch-public-sheet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: exportUrl })
