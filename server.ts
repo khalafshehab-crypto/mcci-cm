@@ -1,11 +1,10 @@
 import * as fs from "fs";
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 
-async function startServer() {
-  const app = express();
+const app = express();
+export default app;
 
 const executeWithRetry = async (operation: any, maxRetries = 5) => {
   for (let i = 0; i < maxRetries; i++) {
@@ -517,24 +516,26 @@ ${text}`;
     res.json({ status: "ok" });
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
+    // Vite middleware for development
+  if (process.env.NODE_ENV !== "production" && process.env.VERCEL !== "1") {
+    import("vite").then(({ createServer }) => {
+        createServer({
+            server: { middlewareMode: true },
+            appType: "spa",
+        }).then((vite) => {
+            app.use(vite.middlewares);
+            app.listen(PORT, "0.0.0.0", () => {
+                console.log(`Server running on http://localhost:${PORT}`);
+            });
+        });
     });
-    app.use(vite.middlewares);
-  } else {
+  } else if (process.env.VERCEL !== "1") {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+        res.sendFile(path.join(distPath, "index.html"));
+    });
+    app.listen(PORT, "0.0.0.0", () => {
+        console.log(`Server running on http://localhost:${PORT}`);
     });
   }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
-}
-
-startServer();
