@@ -3094,18 +3094,13 @@ ${formattedItems}
                                                         type="button"
                                                         onClick={() => {
                                                           
-const textBody = evt.preparationsText || "";
-let mailSubject = "تفعيل توصية قطاعية دائرية";
-let mailBody = textBody;
-
-if (textBody.startsWith("الموضوع: ")) {
-  const firstLineEnd = textBody.indexOf("\n");
-  if (firstLineEnd !== -1) {
-    mailSubject = textBody.substring("الموضوع: ".length, firstLineEnd).trim();
-    mailBody = textBody.substring(firstLineEnd + 1).trim();
-  }
-}
-window.location.href = `mailto:?subject=${encodeURIComponent(mailSubject)}&body=${encodeURIComponent(mailBody)}`;
+const mailSubject = evt.title || "توصية قطاعية";
+                                                          const mailBody = evt.preparationsText || "";
+                                                          const a = document.createElement('a');
+                                                          a.href = `https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent(mailSubject)}&body=${encodeURIComponent(mailBody)}`;
+                                                          a.target = '_blank';
+                                                          a.rel = 'noopener noreferrer';
+                                                          a.click();
                                                         }}
                                                         className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[8.5px] font-black rounded-lg cursor-pointer flex items-center gap-1 transition-all border border-gray-200 font-sans"
                                                       >
