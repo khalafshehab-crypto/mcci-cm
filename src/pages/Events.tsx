@@ -788,7 +788,17 @@ export default function Events() {
 
         const prompt = "استخرج المناقشة (discussion)، التوصية (recommendation)، المسؤول (assignee)، ومدة التنفيذ (durationRec) لكل بند من بنود جدول الأعمال التالية من المحضر المرفق.\nقائمة البنود الحالية:\n" + JSON.stringify(agenda.map((a) => ({ id: a.id, title: a.title }))) + "\nأرجع النتيجة كـ JSON Array بهذا الشكل بالضبط:\n[{\"id\": \"id-1\", \"title\": \"عنوان البند\", \"discussion\": \"نص المناقشة\", \"recommendation\": \"نص التوصية\", \"assignee\": \"اسم المسؤول\", \"durationRec\": \"يومين\"}]\nيجب أن تتطابق الـ id و الـ title مع المرسل. إذا لم تجد مناقشة أو توصية اتركها فارغة.";
 
-        const aiText = await extractAgendaClient(prompt, fileBase64, mimeType, fileId, accessToken);
+        
+        let aiText = "";
+        try {
+            aiText = await extractAgendaClient(prompt, fileBase64, mimeType, fileId, accessToken);
+        } catch (e) {
+            console.error(e);
+            showGlobalToast("خطأ في قراءة المحضر: " + (e.message || "فشل غير معروف"), "error");
+            setIsReadingMinutes(false);
+            return;
+        }
+    
         const jsonMatch = aiText.match(/\[.*\]/s);
         if (jsonMatch) {
             const parsedItems = JSON.parse(jsonMatch[0]);
@@ -3001,7 +3011,17 @@ ${formattedItems}
             }
         }
 
-        const aiText = await extractAgendaClient(prompt, fileBase64, mimeType, fileId, accessToken);
+        
+        let aiText = "";
+        try {
+            aiText = await extractAgendaClient(prompt, fileBase64, mimeType, fileId, accessToken);
+        } catch (e) {
+            console.error(e);
+            showGlobalToast("خطأ في قراءة المحضر: " + (e.message || "فشل غير معروف"), "error");
+            setIsReadingMinutes(false);
+            return;
+        }
+    
 																			try {
 																				const jsonMatch = aiText.match(/\[.*\]/s);
 																				let parsedItems = [];
