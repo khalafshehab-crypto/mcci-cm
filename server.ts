@@ -1,3 +1,4 @@
+import os from "os";
 import * as fs from "fs";
 import express from "express";
 import cors from "cors";
@@ -9,9 +10,6 @@ app.use(cors({ origin: true }));
 export default app;
 
 
-const osMod = require('os');
-const pathMod = require('path');
-const fsMod = require('fs');
 
 async function uploadBase64ToGemini(ai, fileBase64, mimeType) {
     let base64Data = fileBase64;
@@ -19,10 +17,10 @@ async function uploadBase64ToGemini(ai, fileBase64, mimeType) {
         base64Data = base64Data.split('base64,')[1];
     }
     const ext = mimeType === 'application/pdf' ? '.pdf' : '.tmp';
-    const tmpPath = pathMod.join(osMod.tmpdir(), 'gemini_upload_' + Date.now() + Math.floor(Math.random() * 1000) + ext);
-    fsMod.writeFileSync(tmpPath, Buffer.from(base64Data, 'base64'));
+    const tmpPath = path.join(os.tmpdir(), 'gemini_upload_' + Date.now() + Math.floor(Math.random() * 1000) + ext);
+    fs.writeFileSync(tmpPath, Buffer.from(base64Data, 'base64'));
     const upload = await ai.files.upload({ file: tmpPath, config: { mimeType: mimeType } });
-    fsMod.unlinkSync(tmpPath);
+    fs.unlinkSync(tmpPath);
     return upload.uri;
 }
 
@@ -320,16 +318,16 @@ Output ONLY the final Arabic text of the letter, ready to be printed or used. Do
                       headers: { Authorization: `Bearer ${accessToken}` }
                   });
                   if (fileRes.ok) {
-                      const tmpPath = require('path').join(require('os').tmpdir(), 'gemini_upload_' + Date.now() + ext);
-                      const fsMod = require('fs');
+                      const tmpPath = path.join(os.tmpdir(), 'gemini_upload_' + Date.now() + ext);
+                      
                       const arrayBuffer = await fileRes.arrayBuffer();
-                      fsMod.writeFileSync(tmpPath, Buffer.from(arrayBuffer));
+                      fs.writeFileSync(tmpPath, Buffer.from(arrayBuffer));
                       
                       const upload = await ai.files.upload({ file: tmpPath, config: { mimeType: mimeType } });
                       uploadedFileUri = upload.uri;
                       uploadedFileMime = mimeType;
                       
-                      fsMod.unlinkSync(tmpPath);
+                      fs.unlinkSync(tmpPath);
                   }
               }
           } catch (e) {
