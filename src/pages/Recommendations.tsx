@@ -2748,13 +2748,45 @@ ${formattedItems}
                                                       <button
                                                         type="button"
                                                         onClick={() => {
-                                                          const mailSubject = evt.title || "توصية قطاعية";
-                                                          const mailBody = evt.preparationsText || "";
-                                                          const a = document.createElement('a');
-                                                          a.href = `https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent(mailSubject)}&body=${encodeURIComponent(mailBody)}`;
-                                                          a.target = '_blank';
-                                                          a.rel = 'noopener noreferrer';
-                                                          a.click();
+                                                          let mailSubject = `تفعيل ${evt.title || "توصية قطاعية"}`;
+                                                          let mailBody = evt.preparationsText || "";
+                                                          if (mailBody.includes("سعادة")) {
+                                                              mailBody = mailBody.substring(mailBody.indexOf("سعادة"));
+                                                          } else if (mailBody.startsWith("الموضوع: ")) {
+                                                              const firstLineEnd = mailBody.indexOf("\n");
+                                                              if (firstLineEnd !== -1) {
+                                                                  mailBody = mailBody.substring(firstLineEnd + 1).trim();
+                                                              }
+                                                          }
+                                                          
+                                                          const atts = evt.attachments || [];
+                                                          if (atts.length > 0) {
+                                                              mailBody += "\n\nالمرفقات:\n";
+                                                              atts.forEach((a, idx) => {
+                                                                  mailBody += `${idx + 1}- ${a.name}: ${a.url}\n`;
+                                                              });
+                                                          }
+
+                                                          const fullUrl = `https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent(mailSubject)}&body=${encodeURIComponent(mailBody)}`;
+                                                          
+                                                          if (fullUrl.length > 2000) {
+                                                              navigator.clipboard.writeText(mailBody).then(() => {
+                                                                  showGlobalToast("نظراً لطول محتوى الرسالة، تم نسخ المحتوى للحافظة. يرجى الضغط على لصق (Ctrl+V) في مساحة النص بالبريد.", "success");
+                                                                  setTimeout(() => {
+                                                                      const a = document.createElement('a');
+                                                                      a.href = `https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent(mailSubject)}&body=`;
+                                                                      a.target = '_blank';
+                                                                      a.rel = 'noopener noreferrer';
+                                                                      a.click();
+                                                                  }, 2000);
+                                                              });
+                                                          } else {
+                                                              const a = document.createElement('a');
+                                                              a.href = fullUrl;
+                                                              a.target = '_blank';
+                                                              a.rel = 'noopener noreferrer';
+                                                              a.click();
+                                                          }
                                                         }}
                                                         className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[8.5px] font-black rounded-lg cursor-pointer flex items-center gap-1 transition-all border border-gray-200 font-sans"
                                                       >
