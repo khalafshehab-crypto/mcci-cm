@@ -342,7 +342,7 @@ Output ONLY the final Arabic text of the letter, ready to be printed or used. Do
         return res.status(500).json({ error: "GEMINI_API_KEY is missing from environment variables." });
       }
       
-      let contents = [{ text: prompt }];
+      let contents: any[] = [{ text: prompt }];
       if (uploadedFileUri) {
           contents = [
               { fileData: { fileUri: uploadedFileUri, mimeType: uploadedFileMime } },

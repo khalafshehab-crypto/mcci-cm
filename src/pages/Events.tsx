@@ -1,6 +1,6 @@
 import { extractAgendaClient } from "../lib/geminiClient";
 import { showGlobalToast } from "../lib/toastUtils";
-import { autoCreateEventDriveFolders, getOrCreateFolder, uploadBinaryFileToDrive, downloadDriveFileBase64 } from "../lib/googleApi";
+import { autoCreateEventDriveFolders, getOrCreateFolder, uploadBinaryFileToDrive, downloadDriveFileBase64, getCachedAccessToken } from "../lib/googleApi";
 import React, { useState, useEffect, FormEvent } from "react";
 import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
@@ -330,9 +330,9 @@ function Step8Attachments({ evt, updateEventWorkflow }: { evt: any, updateEventW
       if (hasFilesToUpload) {
         showGlobalToast("جاري معالجة ورفع المرفقات إلى Google Drive...", "loading");
         
-        const { getOrCreateFolder, getSharedAccessToken, triggerAuthModal } = await import("../lib/googleApi");
+        const { getOrCreateFolder, getCachedAccessToken, triggerAuthModal } = await import("../lib/googleApi");
         
-        let token = await getSharedAccessToken();
+        let token = await getCachedAccessToken();
         if (!token) {
           token = await triggerAuthModal();
           if (!token) {
@@ -722,7 +722,7 @@ export default function Events() {
     if (!agendaMinutesFile) return;
 
     setIsAutoFillingMinutes(prev => ({ ...prev, [evt.id]: true }));
-    showGlobalToast("جاري استخراج المناقشات والتوصيات تلقائياً...", "info");
+    showGlobalToast("جاري استخراج المناقشات والتوصيات تلقائياً...", "success");
 
     try {
         let fileBase64 = null;
@@ -731,7 +731,7 @@ export default function Events() {
         let accessToken = null;
         
         try {
-            accessToken = await getSharedAccessToken();
+            accessToken = await getCachedAccessToken();
         } catch(e) {}
         
         if (typeof agendaMinutesFile === 'string') {
@@ -2948,7 +2948,7 @@ ${formattedItems}
         let accessToken = null;
         
         try {
-            accessToken = await getSharedAccessToken();
+            accessToken = await getCachedAccessToken();
         } catch(e) {}
         
         if (typeof agendaMinutesFile === 'string') {
@@ -3012,6 +3012,7 @@ ${formattedItems}
         }
 
         
+        const prompt = "استخرج المناقشة (discussion)، التوصية (recommendation)، المسؤول (assignee)، ومدة التنفيذ (durationRec) لكل بند من بنود جدول الأعمال التالية من المحضر المرفق.\nقائمة البنود الحالية:\n" + JSON.stringify(agenda.map((a) => ({ id: a.id, title: a.title }))) + "\nأرجع النتيجة كـ JSON Array بهذا الشكل بالضبط:\n[{\"id\": \"id-1\", \"title\": \"عنوان البند\", \"discussion\": \"نص المناقشة\", \"recommendation\": \"نص التوصية\", \"assignee\": \"اسم المسؤول\", \"durationRec\": \"يومين\"}]\nيجب أن تتطابق الـ id و الـ title مع المرسل. إذا لم تجد مناقشة أو توصية اتركها فارغة.";
         let aiText = "";
         try {
             aiText = await extractAgendaClient(prompt, fileBase64, mimeType, fileId, accessToken);
