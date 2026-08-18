@@ -4,6 +4,18 @@ import { GoogleGenAI } from "@google/genai";
 export const config = {
   api: {
     bodyParser: {
+      sizeLimit: "10mb",
+    },
+    responseLimit: false,
+  },
+};
+
+export const maxDuration = 60;
+
+
+export const config = {
+  api: {
+    bodyParser: {
       sizeLimit: '10mb',
     },
   },

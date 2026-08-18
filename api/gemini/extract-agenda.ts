@@ -3,6 +3,18 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "10mb",
+    },
+    responseLimit: false,
+  },
+};
+
+export const maxDuration = 60;
+
+
 async function uploadBase64ToGemini(ai: GoogleGenAI, base64Data: string, mimeType: string) {
     const tmpPath = path.join(os.tmpdir(), 'gemini_upload_' + Date.now() + '.pdf');
     const buffer = Buffer.from(base64Data, 'base64');
