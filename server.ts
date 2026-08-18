@@ -527,6 +527,15 @@ ${text}`;
     res.json({ ok: true });
   });
 
+  app.get("/api/cron", (req, res) => {
+    const authHeader = req.headers["authorization"];
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+      return res.status(401).end("Unauthorized");
+    }
+    res.json({ ok: true });
+  });
+
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
   });
