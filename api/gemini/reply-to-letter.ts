@@ -29,12 +29,12 @@ export default async function handler(req: any, res: any) {
   try {
     const { incomingLetter, fileBase64, mimeType } = req.body;
     
-    if (!process.env.GEMINI_API_KEY) {
+    if (!(process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY)) {
       return res.status(500).json({ error: "GEMINI_API_KEY is missing from environment variables." });
     }
 
     const ai = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY,
+      apiKey: (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY),
     });
 
     const fullPrompt = `أنت خبير في صياغة الخطابات الرسمية في المملكة العربية السعودية (وتحديداً غرفة مكة المكرمة).

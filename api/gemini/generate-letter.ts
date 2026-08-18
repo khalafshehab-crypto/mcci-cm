@@ -17,9 +17,9 @@ export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return res.status(405).json({ error: "Method Not Allowed" });
   try {
     const { prompt, templateContent } = req.body;
-    if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: "GEMINI_API_KEY is missing." });
+    if (!(process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY)) return res.status(500).json({ error: "مفتاح الذكاء الاصطناعي (GEMINI_API_KEY) غير موجود في إعدادات Vercel. يرجى إضافته في قسم Environment Variables." });
     
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY) });
     const fullPrompt = `You are an expert Arabic official letter writer.
 You have been given a template for an official letter. The user will provide instructions on how to fill in the variables.
 Maintain the exact structure, formatting, and formal tone of the template.

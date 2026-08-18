@@ -32,12 +32,12 @@ export default async function handler(req: any, res: any) {
     let uploadedFileUri = null;
     let uploadedFileMime = null;
 
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(500).json({ error: "GEMINI_API_KEY is missing." });
+    if (!(process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY)) {
+      return res.status(500).json({ error: "مفتاح الذكاء الاصطناعي (GEMINI_API_KEY) غير موجود في إعدادات Vercel. يرجى إضافته في قسم Environment Variables." });
     }
 
     const ai = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY,
+      apiKey: (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY),
       httpOptions: {
         headers: { 'User-Agent': 'aistudio-build' }
       }

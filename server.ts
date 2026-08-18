@@ -154,12 +154,12 @@ const executeWithRetry = async (operation: any, maxRetries = 5) => {
   app.post("/api/gemini/generate-new-letter", async (req, res) => {
     try {
       const { mode, prompt, replyFileBase64, replyFileMimeType, committeeName, recipientName, recipientPosition, subject, details, contact, attachments, signatory, workspaceService } = req.body;
-      if (!process.env.GEMINI_API_KEY) {
-        return res.status(500).json({ error: "GEMINI_API_KEY is missing from environment variables." });
+      if (!(process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY)) {
+        return res.status(500).json({ error: "مفتاح الذكاء الاصطناعي (GEMINI_API_KEY) غير موجود في إعدادات Vercel. يرجى إضافته في قسم Environment Variables." });
       }
 
       const ai = new GoogleGenAI({
-        apiKey: process.env.GEMINI_API_KEY,
+        apiKey: (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY),
         httpOptions: {
           headers: { 'User-Agent': 'aistudio-build' }
         }
@@ -237,12 +237,12 @@ const executeWithRetry = async (operation: any, maxRetries = 5) => {
         return res.status(400).json({ error: "Missing prompt or templateContent" });
       }
 
-      if (!process.env.GEMINI_API_KEY) {
-        return res.status(500).json({ error: "GEMINI_API_KEY is missing from environment variables." });
+      if (!(process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY)) {
+        return res.status(500).json({ error: "مفتاح الذكاء الاصطناعي (GEMINI_API_KEY) غير موجود في إعدادات Vercel. يرجى إضافته في قسم Environment Variables." });
       }
 
       const ai = new GoogleGenAI({
-        apiKey: process.env.GEMINI_API_KEY,
+        apiKey: (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY),
         httpOptions: {
           headers: {
             'User-Agent': 'aistudio-build',
@@ -285,7 +285,7 @@ Output ONLY the final Arabic text of the letter, ready to be printed or used. Do
       let uploadedFileMime = null;
       
       const ai = new GoogleGenAI({
-        apiKey: process.env.GEMINI_API_KEY,
+        apiKey: (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY),
         httpOptions: {
           headers: { 'User-Agent': 'aistudio-build' }
         }
@@ -338,8 +338,8 @@ Output ONLY the final Arabic text of the letter, ready to be printed or used. Do
           uploadedFileMime = mimeType;
       }
       
-      if (!process.env.GEMINI_API_KEY) {
-        return res.status(500).json({ error: "GEMINI_API_KEY is missing from environment variables." });
+      if (!(process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY)) {
+        return res.status(500).json({ error: "مفتاح الذكاء الاصطناعي (GEMINI_API_KEY) غير موجود في إعدادات Vercel. يرجى إضافته في قسم Environment Variables." });
       }
       
       let contents: any[] = [{ text: prompt }];
@@ -369,12 +369,12 @@ Output ONLY the final Arabic text of the letter, ready to be printed or used. Do
         return res.status(400).json({ error: "Missing incomingLetter text or file" });
       }
 
-      if (!process.env.GEMINI_API_KEY) {
-        return res.status(500).json({ error: "GEMINI_API_KEY is missing from environment variables." });
+      if (!(process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY)) {
+        return res.status(500).json({ error: "مفتاح الذكاء الاصطناعي (GEMINI_API_KEY) غير موجود في إعدادات Vercel. يرجى إضافته في قسم Environment Variables." });
       }
 
       const ai = new GoogleGenAI({
-        apiKey: process.env.GEMINI_API_KEY,
+        apiKey: (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY),
         httpOptions: {
           headers: {
             'User-Agent': 'aistudio-build',
@@ -437,12 +437,12 @@ ${incomingLetter || "مرفق في الملف"}
       if (!text) {
         return res.status(400).json({ error: "Missing text" });
       }
-      if (!process.env.GEMINI_API_KEY) {
-        return res.status(500).json({ error: "GEMINI_API_KEY is missing from environment variables." });
+      if (!(process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY)) {
+        return res.status(500).json({ error: "مفتاح الذكاء الاصطناعي (GEMINI_API_KEY) غير موجود في إعدادات Vercel. يرجى إضافته في قسم Environment Variables." });
       }
 
       const ai = new GoogleGenAI({
-        apiKey: process.env.GEMINI_API_KEY,
+        apiKey: (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY),
         httpOptions: {
           headers: {
             'User-Agent': 'aistudio-build',
