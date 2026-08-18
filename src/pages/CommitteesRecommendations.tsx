@@ -3106,16 +3106,29 @@ let mailSubject = `تفعيل ${evt.title || "توصية قطاعية"}`;
                                                           }
                                                           
                                                           const atts = evt.attachments || [];
-                                                          if (atts.length > 0) {
+                                                          
+                                                          let allAtts = [...atts];
+                                                          if (evt.approvedMinutesUrl && typeof evt.approvedMinutesUrl === 'string') {
+                                                              if (!allAtts.some(a => a.url === evt.approvedMinutesUrl)) {
+                                                                   allAtts.push({ name: 'محضر الاجتماع المعتمد', url: evt.approvedMinutesUrl });
+                                                              }
+                                                          }
+                                                          if (evt.agendaMinutes && typeof evt.agendaMinutes === 'string') {
+                                                              if (!allAtts.some(a => a.url === evt.agendaMinutes)) {
+                                                                   allAtts.push({ name: 'محضر الاجتماع المعتمد', url: evt.agendaMinutes });
+                                                              }
+                                                          }
+
+                                                          if (allAtts.length > 0) {
                                                               mailBody += "\n\nالمرفقات:\n";
-                                                              atts.forEach((a, idx) => {
-                                                                  mailBody += `${idx + 1}- ${a.name}: ${a.url}\n`;
+                                                              allAtts.forEach((a, idx) => {
+                                                                  mailBody += `${idx + 1}- ${a.name || "مرفق"}: ${a.url || ""}\n`;
                                                               });
                                                           }
 
                                                           const fullUrl = `https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent(mailSubject)}&body=${encodeURIComponent(mailBody)}`;
                                                           
-                                                          if (fullUrl.length > 2000) {
+                                                          if (fullUrl.length > 7500) {
                                                               navigator.clipboard.writeText(mailBody).then(() => {
                                                                   showGlobalToast("نظراً لطول محتوى الرسالة، تم نسخ المحتوى للحافظة. يرجى الضغط على لصق (Ctrl+V) في مساحة النص بالبريد.", "success");
                                                                   setTimeout(() => {
