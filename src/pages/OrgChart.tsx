@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
+  Settings,
   Users, 
   Search, 
   Plus, 
@@ -188,7 +189,7 @@ export default function OrgChart() {
   const [customCardBg, setCustomCardBg] = useState(theme.cardBg || '#ffffff');
   const [customHeaderBg, setCustomHeaderBg] = useState(theme.headerBg || '#ffffff');
   const [customTextColor, setCustomTextColor] = useState(theme.textColor || '#111827');
-  const [activeTab, setActiveTab] = useState<"hierarchy" | "org_chart" | "transfer" | "approvals" | "logs" | "permissions" | "master_data" | "design_settings">("hierarchy");
+  const [activeTab, setActiveTab] = useState<"hierarchy" | "org_chart" | "transfer" | "approvals" | "logs" | "permissions" | "master_data" | "design_settings" | "account_settings">("hierarchy");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
   // Local state for administrative master data console
@@ -1410,6 +1411,15 @@ export default function OrgChart() {
         </button>
 
         <button
+          onClick={() => setActiveTab("account_settings")}
+          className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+            activeTab === "account_settings" ? "border-brand text-brand font-black" : "border-transparent text-gray-500 hover:text-gray-900"
+          }`}
+        >
+          <Settings className="w-4 h-4 shrink-0" />
+          <span>إعدادات الحساب</span>
+        </button>
+        <button
           onClick={() => setActiveTab("org_chart")}
           className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
             activeTab === "org_chart" ? "border-brand text-brand font-black" : "border-transparent text-gray-500 hover:text-gray-900"
@@ -1481,6 +1491,46 @@ export default function OrgChart() {
       {/* 3. PRESENTATION OF ACTIVE VIEWPORT */}
       <div className="space-y-6">
         
+        
+        {/* TAB: ACCOUNT SETTINGS */}
+        {activeTab === "account_settings" && (
+          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-6 max-w-3xl">
+            <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <Settings className="w-5 h-5 text-gray-800" />
+              <span>إعدادات الحساب الشخصي</span>
+            </h2>
+            
+            <div className="space-y-4">
+              <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
+                  مفتاح الذكاء الاصطناعي (BYOK)
+                </h3>
+                <p className="text-xs text-gray-600 mb-4 leading-relaxed">
+                  أدخل مفتاح Gemini API الخاص بك لتفعيل ميزات الذكاء الاصطناعي باستخدام حصتك المجانية الخاصة، دون الاعتماد على مفتاح مدير النظام.
+                </p>
+                <input
+                  type="password"
+                  placeholder="AIzaSy..."
+                  value={localStorage.getItem('BYOK_GEMINI_API_KEY') || ''}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      localStorage.setItem('BYOK_GEMINI_API_KEY', e.target.value);
+                    } else {
+                      localStorage.removeItem('BYOK_GEMINI_API_KEY');
+                    }
+                    // Force re-render to show updated value
+                    setMasterSearchQuery(masterSearchQuery + ' ');
+                    setTimeout(() => setMasterSearchQuery(masterSearchQuery.trim()), 0);
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm font-mono dir-ltr focus:border-brand outline-none"
+                  dir="ltr"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* TAB 1: EMPLOYEES */}
         {activeTab === "hierarchy" && (
           

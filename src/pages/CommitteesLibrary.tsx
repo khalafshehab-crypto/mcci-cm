@@ -540,8 +540,7 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
       const response = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "gemini/generate-new-letter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: aiGenMode,
+        body: JSON.stringify({ userApiKey: localStorage.getItem('BYOK_GEMINI_API_KEY') || undefined, mode: aiGenMode,
           prompt: systemPrompt,
           replyFileBase64,
           replyFileMimeType,
@@ -2557,6 +2556,15 @@ ${t.description}
                     </button>
                   )}
                 </div>
+
+                {aiGenStep === 2 && !isAIGenGenerating && (
+                  <button
+                    onClick={() => setAiGenStep(3)}
+                    className="px-6 py-2.5 bg-white border border-gray-200 text-[#133E87] rounded-xl text-sm font-bold hover:bg-gray-50 transition-colors flex items-center gap-2 shadow-sm"
+                  >
+                    التالي (تعبئة يدوية) <ChevronLeft className="w-4 h-4" />
+                  </button>
+                )}
                 
                 {aiGenStep === 3 && workspaceService === "circular" && (
                   <button
