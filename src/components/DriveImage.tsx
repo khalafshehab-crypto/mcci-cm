@@ -11,14 +11,16 @@ interface DriveImageProps {
 export const DriveImage: React.FC<DriveImageProps> = ({ fileId, className, fallbackInitials, fallbackClassName }) => {
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [usePublicFallback, setUsePublicFallback] = useState(false);
 
   useEffect(() => {
     let active = true;
+
     const loadImg = async () => {
       try {
         const token = await getSharedAccessToken();
         if (!token) {
-          setFailed(true);
+          if (active) setUsePublicFallback(true);
           return;
         }
         
@@ -26,7 +28,7 @@ export const DriveImage: React.FC<DriveImageProps> = ({ fileId, className, fallb
           setSrc(`/api/drive-file/${fileId}?token=${token}`);
         }
       } catch (err) {
-        if (active) setFailed(true);
+        if (active) setUsePublicFallback(true);
       }
     };
     
@@ -37,7 +39,27 @@ export const DriveImage: React.FC<DriveImageProps> = ({ fileId, className, fallb
     };
   }, [fileId]);
 
-  if (failed || !src) {
+  if (failed) {
+    return (
+      <div className={fallbackClassName || className}>
+        {fallbackInitials}
+      </div>
+    );
+  }
+
+  if (usePublicFallback) {
+    return (
+      <img 
+        src={`https://drive.google.com/uc?export=view&id=${fileId}`}
+        className={className} 
+        referrerPolicy="no-referrer"
+        alt="User"
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+
+  if (!src) {
     return (
       <div className={fallbackClassName || className}>
         {fallbackInitials}
@@ -51,7 +73,13 @@ export const DriveImage: React.FC<DriveImageProps> = ({ fileId, className, fallb
       className={className} 
       referrerPolicy="no-referrer"
       alt="User"
-      onError={() => setFailed(true)}
+      onError={() => {
+        if (!usePublicFallback) {
+          setUsePublicFallback(true);
+        } else {
+          setFailed(true);
+        }
+      }}
     />
   );
 };

@@ -116,6 +116,7 @@ const CustomModernBar = (props: any) => {
           L ${x + width},${y + height}
           L ${x},${y + height}
           Z
+        
         `}
         fill={fill}
         opacity={isActive ? 1.0 : 0.8}
@@ -132,6 +133,7 @@ const CustomModernBar = (props: any) => {
           L ${x + width - 1}, ${y + (height / 2)}
           L ${x + 1}, ${y + (height / 2)}
           Z
+        
         `}
         fill={`url(#${highlightGradId})`}
         className="pointer-events-none"
@@ -563,6 +565,9 @@ export default function Home() {
 
     let eventsCount = 0;
     let meetingsCount = 0;
+    let gatheringsCount = 0;
+    let workshopsCount = 0;
+    let visitsCount = 0;
     let apprecCases = 0;
 
     try {
@@ -582,7 +587,10 @@ export default function Home() {
       if (Array.isArray(evts)) {
         const realEvents = evts.filter((e: any) => !e.recommendationClassification);
         eventsCount = realEvents.length;
-        meetingsCount = realEvents.filter((e: any) => e.type === "اجتماع" || e.type === "لقاء" || e.category === "event").length;
+        meetingsCount = realEvents.filter((e: any) => e.type === "اجتماع" || e.title?.includes("اجتماع")).length;
+        let gatheringsCount = realEvents.filter((e: any) => e.type === "لقاء" || e.title?.includes("لقاء")).length;
+        let workshopsCount = realEvents.filter((e: any) => e.type === "ورشة عمل" || e.title?.includes("ورشة")).length;
+        let visitsCount = realEvents.filter((e: any) => e.type === "زيارة" || e.title?.includes("زيارة")).length;
       }
 
       // 3. Members
@@ -609,8 +617,8 @@ export default function Home() {
         totalRecommendations = recs.length;
         completedRecommendations = recs.filter((r: any) => r.status === "منجزة" || r.approvalStage === "مكتملة").length;
         activeRecommendations = recs.filter((r: any) => r.status === "جاري العمل عليها").length;
-        inactiveRecommendations = recs.filter((r: any) => r.status === "متأخرة" || r.status === "جديدة").length;
-        impactRecommendations = recs.filter((r: any) => r.duration || r.attachments?.length > 0).length || 2;
+        inactiveRecommendations = totalRecommendations - completedRecommendations - activeRecommendations;
+        impactRecommendations = recs.filter((r: any) => r.duration || r.attachments?.length > 0).length;
       }
 
       // 5. Tasks
@@ -641,29 +649,34 @@ export default function Home() {
       activeTsks: activeTasks,
       totalEvts: eventsCount,
       meetingsEvts: meetingsCount,
+      gatheringsEvts: gatheringsCount,
+      workshopsEvts: workshopsCount,
+      visitsEvts: visitsCount,
       apprecCases: apprecCases
     };
 
     const calculatedChartData = [
-      { name: "المهام غير منجزة", value: totalTasks - completedTasks, color: "#4f46e5", icon: ListTodo },
+      { name: "المهام جاري العمل عليها", value: activeTasks, color: "#4f46e5", icon: ListTodo },
       { name: "المهام المنجزة", value: completedTasks, color: "#f87171", icon: ClipboardCheck },
       { name: "إجمالي المهام", value: totalTasks, color: "#22c55e", icon: Briefcase },
-      { name: "الخطط الإستراتيجية", value: approvedPlans, color: "#6366f1", icon: Target },
+      { name: "الخطط الاستراتيجية", value: approvedPlans, color: "#6366f1", icon: Target },
       { name: "قضايا التقدير", value: apprecCases, color: "#475569", icon: Gavel },
-      { name: "الفعاليات", value: eventsCount, color: "#eab308", icon: Zap },
+      { name: "إجمالي الفعاليات", value: eventsCount, color: "#eab308", icon: Zap },
       { name: "الاجتماعات", value: meetingsCount, color: "#22c55e", icon: Calendar },
-      { name: "التوصيات ذات الأثر", value: impactRecommendations, color: "#1e293b", icon: Sparkles },
-      { name: "غير فعالة", value: inactiveRecommendations, color: "#eab308", icon: AlertTriangle },
-      { name: "تحت الإجراء", value: activeRecommendations, color: "#ec4899", icon: Clock },
-      { name: "التوصيات الفعالة", value: completedRecommendations, color: "#22c55e", icon: Trophy },
-      { name: "التوصيات", value: totalRecommendations, color: "#3b82f6", icon: MessageSquare },
-      { name: "الأعضاء", value: totalMembers, color: "#f59e0b", icon: User },
-      { name: "اللجان غير الفعالة", value: inactiveCommittees, color: "#ef4444", icon: XCircle },
-      { name: "اللجان الفعالة", value: activeCommittees, color: "#22c55e", icon: CheckCircle2 },
-      { name: "إجمالي اللجان", value: committeesTotal, color: "#3b82f6", icon: LayoutDashboard },
+      { name: "اللقاءات", value: gatheringsCount, color: "#8b5cf6", icon: Users2 },
+      { name: "ورش العمل", value: workshopsCount, color: "#f59e0b", icon: Briefcase },
+      { name: "الزيارات", value: visitsCount, color: "#06b6d4", icon: Target },
+      { name: "التوصيات المتأخرة", value: inactiveRecommendations, color: "#eab308", icon: AlertTriangle },
+      { name: "التوصيات جاري العمل عليها", value: activeRecommendations, color: "#ec4899", icon: Clock },
+      { name: "التوصيات المنجزة", value: completedRecommendations, color: "#22c55e", icon: Trophy },
+      { name: "إجمالي التوصيات", value: totalRecommendations, color: "#3b82f6", icon: MessageSquare },
+      { name: "إجمالي الأعضاء", value: totalMembers, color: "#f59e0b", icon: User },
       { name: "عدد السيدات", value: womenCount, color: "#ec4899", icon: Users2 },
       { name: "عدد الرجال", value: menCount, color: "#6366f1", icon: Users2 },
-      { name: "الأعضاء النشطون", value: activeMembers, color: "#22c55e", icon: UserCheck }
+      { name: "الأعضاء النشطون", value: activeMembers, color: "#22c55e", icon: UserCheck },
+      { name: "اللجان غير الفعالة", value: inactiveCommittees, color: "#ef4444", icon: XCircle },
+      { name: "اللجان الفعالة", value: activeCommittees, color: "#22c55e", icon: CheckCircle2 },
+      { name: "إجمالي اللجان", value: committeesTotal, color: "#3b82f6", icon: LayoutDashboard }
     ];
 
     return { liveDb: calculatedLiveDb, chartData: calculatedChartData };
@@ -694,6 +707,22 @@ export default function Home() {
   // Active alarms list dynamic generator
   const [alarms, setAlarms] = useState<Alarm[]>([]);
 
+  
+  // Helper to check if a date string (YYYY-MM-DD) is within 2 days (urgent) or overdue
+  const isDateUrgent = (dateStr: string) => {
+    if (!dateStr) return false;
+    try {
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const targetDate = new Date(dateStr);
+      targetDate.setHours(0,0,0,0);
+      const diffTime = targetDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      // Overdue (diffDays < 0) or approaching (diffDays <= 2)
+      return diffDays <= 2;
+    } catch(e) { return false; }
+  };
+
   useEffect(() => {
     const list: Alarm[] = [];
 
@@ -706,7 +735,7 @@ export default function Home() {
         activeRecs.forEach((r: any) => {
           const alarmId = r.id || `rec-${Math.random()}`;
           // Default is normal (false) unless manually marked urgent
-          const isUrgent = !!manuallyUrgentAlarms[alarmId];
+          const isUrgent = !!manuallyUrgentAlarms[alarmId] || isDateUrgent(r.date || "");
 
           const normalStatus = r.status === "متأخرة" ? "متأخر" : r.status === "منجزة" ? "تمت الإحالة" : r.status === "جاري العمل عليها" ? "قيد الانتظار" : "جديد";
 
@@ -736,7 +765,7 @@ export default function Home() {
         activeTasks.forEach((t: any) => {
           const alarmId = t.id || `task-${Math.random()}`;
           // Default is normal (false) unless manually marked urgent
-          const isUrgent = !!manuallyUrgentAlarms[alarmId];
+          const isUrgent = !!manuallyUrgentAlarms[alarmId] || isDateUrgent(t.dueDate || t.date || "");
 
           const normalStatus = t.status === "متأخرة" ? "متأخر" : t.status === "منجزة" ? "تمت الإحالة" : t.status === "جاري العمل عليها" ? "قيد الانتظار" : "جديد";
 
@@ -772,7 +801,7 @@ export default function Home() {
         activeEvts.forEach((evt: any) => {
           const alarmId = `evt-${evt.id || Math.random()}`;
           // Default is normal (false) unless manually marked urgent
-          const isUrgent = !!manuallyUrgentAlarms[alarmId];
+          const isUrgent = !!manuallyUrgentAlarms[alarmId] || isDateUrgent(evt.date || "");
 
           const currentPreps = evt.preparationsChecklist !== undefined ? evt.preparationsChecklist : [];
           let prepStatus: "جديد" | "قيد الانتظار" | "تمت الإحالة" | "متأخر" = "جديد";
@@ -1496,7 +1525,7 @@ export default function Home() {
           #printable-meetings-table { position: absolute; left: 0; top: 0; width: 100% !important; margin: 0 !important; padding: 0 !important; }
           .print-hidden, .print\\:hidden { display: none !important; }
         }
-      `}} />
+      } />
 
 
       {/* -------------------- مركز الإشعارات والموظفين المتصلين -------------------- */}
@@ -1582,7 +1611,7 @@ export default function Home() {
                 return (
                   <motion.div
                     key={a.id}
-                    layoutId={`alarm-card-${a.id}`}
+                    
                     onClick={() => {
                       if (a.type === "event") {
                         const rawId = a.id.replace("evt-", "");
@@ -1651,7 +1680,7 @@ export default function Home() {
                                       navigate("/events", { state: { selectedEventId: evtObj.id, selectedStepIndex: step.stepIndex } });
                                     }}
                                     className={`px-2 py-1.5 rounded-lg text-[9px] font-bold text-center border transition-all flex items-center justify-center gap-1 cursor-pointer select-none ${statusColor}`}
-                                    title={`انتقل مباشرة إلى خطوة: ${displayText}`}
+                                    title={`انتقل مباشرة إلى خطوة: ${displayText}
                                   >
                                     {step.isDone ? (
                                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />

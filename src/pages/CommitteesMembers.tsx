@@ -1218,14 +1218,18 @@ export default function CommitteesMembers() {
 
   const renderAvatar = (name: string, photo?: string, className: string = "w-12 h-12 rounded-2xl") => {
     let driveFileId = "";
-    if (photo && photo.includes("drive.google.com/file/d/")) {
-      const match = photo.match(/d\/([a-zA-Z0-9_-]+)/);
-      if (match && match[1]) {
-        driveFileId = match[1];
+    if (photo) {
+      const matchD = photo.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+      const matchId = photo.match(/id=([a-zA-Z0-9_-]+)/);
+      if (matchD && matchD[1]) {
+        driveFileId = matchD[1];
+      } else if (photo.includes("drive.google.com") && matchId && matchId[1]) {
+        driveFileId = matchId[1];
       }
     }
     
     const fallbackClass = `${className} bg-gradient-to-br from-brand/90 to-[#4ea0b0]/90 text-white flex items-center justify-center font-black text-sm tracking-wide shadow-md shadow-brand/15 group-hover:scale-105 transition-transform`;
+
     
     if (driveFileId) {
       return (
@@ -1678,7 +1682,6 @@ export default function CommitteesMembers() {
           {filteredMembers.map((m) => (
             <motion.div
               key={m.id}
-              layout
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.25 }}

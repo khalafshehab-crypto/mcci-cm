@@ -119,6 +119,7 @@ const CustomModernBar = (props: any) => {
           L ${x + width},${y + height}
           L ${x},${y + height}
           Z
+        
         `}
         fill={fill}
         opacity={isActive ? 1.0 : 0.8}
@@ -135,6 +136,7 @@ const CustomModernBar = (props: any) => {
           L ${x + width - 1}, ${y + (height / 2)}
           L ${x + 1}, ${y + (height / 2)}
           Z
+        
         `}
         fill={`url(#${highlightGradId})`}
         className="pointer-events-none"
@@ -585,6 +587,9 @@ export default function CommitteesHome() {
 
     let eventsCount = 0;
     let meetingsCount = 0;
+    let gatheringsCount = 0;
+    let workshopsCount = 0;
+    let visitsCount = 0;
     let apprecCases = 0;
 
     try {
@@ -604,7 +609,10 @@ export default function CommitteesHome() {
       if (Array.isArray(evts)) {
         const realEvents = evts.filter((e: any) => !e.recommendationType && !e.recommendationClassification);
         eventsCount = realEvents.length;
-        meetingsCount = realEvents.filter((e: any) => e.type === "اجتماع" || e.type === "لقاء" || e.category === "event").length;
+        meetingsCount = realEvents.filter((e: any) => e.type === "اجتماع" || e.title?.includes("اجتماع")).length;
+        let gatheringsCount = realEvents.filter((e: any) => e.type === "لقاء" || e.title?.includes("لقاء")).length;
+        let workshopsCount = realEvents.filter((e: any) => e.type === "ورشة عمل" || e.title?.includes("ورشة")).length;
+        let visitsCount = realEvents.filter((e: any) => e.type === "زيارة" || e.title?.includes("زيارة")).length;
       }
 
       // 3. Members
@@ -631,8 +639,8 @@ export default function CommitteesHome() {
         totalRecommendations = recs.length;
         completedRecommendations = recs.filter((r: any) => r.status === "منجزة" || r.approvalStage === "مكتملة").length;
         activeRecommendations = recs.filter((r: any) => r.status === "جاري العمل عليها").length;
-        inactiveRecommendations = recs.filter((r: any) => r.status === "متأخرة" || r.status === "جديدة").length;
-        impactRecommendations = recs.filter((r: any) => r.duration || r.attachments?.length > 0).length || 2;
+        inactiveRecommendations = totalRecommendations - completedRecommendations - activeRecommendations;
+        impactRecommendations = recs.filter((r: any) => r.duration || r.attachments?.length > 0).length;
       }
 
       // 5. Tasks
@@ -663,29 +671,34 @@ export default function CommitteesHome() {
       activeTsks: activeTasks,
       totalEvts: eventsCount,
       meetingsEvts: meetingsCount,
+      gatheringsEvts: gatheringsCount,
+      workshopsEvts: workshopsCount,
+      visitsEvts: visitsCount,
       apprecCases: apprecCases
     };
 
     const calculatedChartData = [
-      { name: "المهام غير منجزة", value: totalTasks - completedTasks, color: "#4f46e5", icon: ListTodo },
+      { name: "المهام جاري العمل عليها", value: activeTasks, color: "#4f46e5", icon: ListTodo },
       { name: "المهام المنجزة", value: completedTasks, color: "#f87171", icon: ClipboardCheck },
       { name: "إجمالي المهام", value: totalTasks, color: "#22c55e", icon: Briefcase },
-      { name: "الخطط الإستراتيجية", value: approvedPlans, color: "#6366f1", icon: Target },
+      { name: "الخطط الاستراتيجية", value: approvedPlans, color: "#6366f1", icon: Target },
       { name: "قضايا التقدير", value: apprecCases, color: "#475569", icon: Gavel },
-      { name: "الفعاليات", value: eventsCount, color: "#eab308", icon: Zap },
+      { name: "إجمالي الفعاليات", value: eventsCount, color: "#eab308", icon: Zap },
       { name: "الاجتماعات", value: meetingsCount, color: "#22c55e", icon: Calendar },
-      { name: "التوصيات ذات الأثر", value: impactRecommendations, color: "#1e293b", icon: Sparkles },
-      { name: "غير فعالة", value: inactiveRecommendations, color: "#eab308", icon: AlertTriangle },
-      { name: "تحت الإجراء", value: activeRecommendations, color: "#ec4899", icon: Clock },
-      { name: "التوصيات الفعالة", value: completedRecommendations, color: "#22c55e", icon: Trophy },
-      { name: "التوصيات", value: totalRecommendations, color: "#3b82f6", icon: MessageSquare },
-      { name: "الأعضاء", value: totalMembers, color: "#f59e0b", icon: User },
-      { name: "اللجان غير الفعالة", value: inactiveCommittees, color: "#ef4444", icon: XCircle },
-      { name: "اللجان الفعالة", value: activeCommittees, color: "#22c55e", icon: CheckCircle2 },
-      { name: "إجمالي اللجان", value: committeesTotal, color: "#3b82f6", icon: LayoutDashboard },
+      { name: "اللقاءات", value: gatheringsCount, color: "#8b5cf6", icon: Users2 },
+      { name: "ورش العمل", value: workshopsCount, color: "#f59e0b", icon: Briefcase },
+      { name: "الزيارات", value: visitsCount, color: "#06b6d4", icon: Target },
+      { name: "التوصيات المتأخرة", value: inactiveRecommendations, color: "#eab308", icon: AlertTriangle },
+      { name: "التوصيات جاري العمل عليها", value: activeRecommendations, color: "#ec4899", icon: Clock },
+      { name: "التوصيات المنجزة", value: completedRecommendations, color: "#22c55e", icon: Trophy },
+      { name: "إجمالي التوصيات", value: totalRecommendations, color: "#3b82f6", icon: MessageSquare },
+      { name: "إجمالي الأعضاء", value: totalMembers, color: "#f59e0b", icon: User },
       { name: "عدد السيدات", value: womenCount, color: "#ec4899", icon: Users2 },
       { name: "عدد الرجال", value: menCount, color: "#6366f1", icon: Users2 },
-      { name: "الأعضاء النشطون", value: activeMembers, color: "#22c55e", icon: UserCheck }
+      { name: "الأعضاء النشطون", value: activeMembers, color: "#22c55e", icon: UserCheck },
+      { name: "اللجان غير الفعالة", value: inactiveCommittees, color: "#ef4444", icon: XCircle },
+      { name: "اللجان الفعالة", value: activeCommittees, color: "#22c55e", icon: CheckCircle2 },
+      { name: "إجمالي اللجان", value: committeesTotal, color: "#3b82f6", icon: LayoutDashboard }
     ];
 
     return { liveDb: calculatedLiveDb, chartData: calculatedChartData };
@@ -716,6 +729,22 @@ export default function CommitteesHome() {
   // Active alarms list dynamic generator
   const [alarms, setAlarms] = useState<Alarm[]>([]);
 
+  
+  // Helper to check if a date string (YYYY-MM-DD) is within 2 days (urgent) or overdue
+  const isDateUrgent = (dateStr: string) => {
+    if (!dateStr) return false;
+    try {
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const targetDate = new Date(dateStr);
+      targetDate.setHours(0,0,0,0);
+      const diffTime = targetDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      // Overdue (diffDays < 0) or approaching (diffDays <= 2)
+      return diffDays <= 2;
+    } catch(e) { return false; }
+  };
+
   useEffect(() => {
     const list: Alarm[] = [];
 
@@ -728,7 +757,7 @@ export default function CommitteesHome() {
         activeRecs.forEach((r: any) => {
           const alarmId = r.id || `rec-${Math.random()}`;
           // Default is normal (false) unless manually marked urgent
-          const isUrgent = !!manuallyUrgentAlarms[alarmId];
+          const isUrgent = !!manuallyUrgentAlarms[alarmId] || isDateUrgent(r.date || "");
 
           const normalStatus = r.status === "متأخرة" ? "متأخر" : r.status === "منجزة" ? "تمت الإحالة" : r.status === "جاري العمل عليها" ? "قيد الانتظار" : "جديد";
 
@@ -758,7 +787,7 @@ export default function CommitteesHome() {
         activeTasks.forEach((t: any) => {
           const alarmId = t.id || `task-${Math.random()}`;
           // Default is normal (false) unless manually marked urgent
-          const isUrgent = !!manuallyUrgentAlarms[alarmId];
+          const isUrgent = !!manuallyUrgentAlarms[alarmId] || isDateUrgent(t.dueDate || t.date || "");
 
           const normalStatus = t.status === "متأخرة" ? "متأخر" : t.status === "منجزة" ? "تمت الإحالة" : t.status === "جاري العمل عليها" ? "قيد الانتظار" : "جديد";
 
@@ -794,7 +823,7 @@ export default function CommitteesHome() {
         activeEvts.forEach((evt: any) => {
           const alarmId = `evt-${evt.id || Math.random()}`;
           // Default is normal (false) unless manually marked urgent
-          const isUrgent = !!manuallyUrgentAlarms[alarmId];
+          const isUrgent = !!manuallyUrgentAlarms[alarmId] || isDateUrgent(evt.date || "");
 
           const currentPreps = evt.preparationsChecklist !== undefined ? evt.preparationsChecklist : [];
           let prepStatus: "جديد" | "قيد الانتظار" | "تمت الإحالة" | "متأخر" = "جديد";
@@ -876,7 +905,7 @@ export default function CommitteesHome() {
           const nameStr = emp.name || "";
           const words = nameStr.split(" ");
           const avatar = words.length >= 2 ? (words[0][0] + " " + (words[1][0] || "")) : ((words[0] && words[0][0]) || "م");
-          const colors = ["bg-blue-600", "bg-teal-600", "bg-indigo-600", "bg-purple-600", "bg-amber-500", "bg-rose-500", "bg-emerald-600"];
+          const colors = ["bg-blue-600", "bg-teal-650", "bg-indigo-600", "bg-purple-600", "bg-amber-500", "bg-rose-500", "bg-emerald-600"];
           const color = colors[index % colors.length];
           
           let status = "خارج المكتب";
@@ -1042,6 +1071,7 @@ export default function CommitteesHome() {
     }
     
     return {
+      eventId,
       committeeName,
       meetingSeq,
       meetingDate,
@@ -1210,7 +1240,7 @@ export default function CommitteesHome() {
       let isTask = false;
       let collectionName = "";
       
-            if (selectedAlarm.type === "task" || selectedAlarm.type === "recommendation") {
+      if (selectedAlarm.type === "task" || selectedAlarm.type === "recommendation") {
         isTask = true;
         collectionName = "assistant_sec_gen_tasks";
       } else {
@@ -1478,7 +1508,7 @@ export default function CommitteesHome() {
           #printable-meetings-table { position: absolute; left: 0; top: 0; width: 100% !important; margin: 0 !important; padding: 0 !important; }
           .print-hidden, .print\\:hidden { display: none !important; }
         }
-      `}} />
+      ` }} />
 
 
       {/* -------------------- مركز الإشعارات والموظفين المتصلين -------------------- */}
@@ -1536,7 +1566,7 @@ export default function CommitteesHome() {
                 className={`text-[10px] sm:text-xs font-black px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 cursor-pointer select-none ${
                   notifUrgentFilter 
                     ? "bg-red-600 text-white border-red-600 shadow-sm" 
-                    : "bg-white text-gray-700 border-gray-300 hover:bg-slate-50"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-slate-55"
                 }`}
               >
                 <AlertCircle className="w-3 h-3" />
@@ -1564,7 +1594,7 @@ export default function CommitteesHome() {
                 return (
                   <motion.div
                     key={a.id}
-                    layoutId={`alarm-card-${a.id}`}
+                    
                     onClick={() => {
                       if (a.type === "event") {
                         const rawId = a.id.replace("evt-", "");
@@ -1670,7 +1700,7 @@ export default function CommitteesHome() {
                             </div>
                           </div>
                         ) : (
-                          <p className="text-[10px] text-gray-500 leading-normal font-bold line-clamp-1">{a.description}</p>
+                          <p className="text-[10px] text-gray-505 leading-normal font-bold line-clamp-1">{a.description}</p>
                         )}
                       </div>
                     </div>
@@ -1719,7 +1749,7 @@ export default function CommitteesHome() {
                               <button onClick={() => { setSelectedAlarm(a); setActiveGearMenuId(null); setShowReferralSelect(false); }} className="px-2 py-1.5 bg-brand hover:bg-brand/90 text-white rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap">
                                 <Eye className="w-3.5 h-3.5" /><span>عرض التفاصيل والتوجيه</span>
                               </button>
-                              <button onClick={(e) => { handleMarkUrgent(a, e); setActiveGearMenuId(null); }} className={`px-2 py-1.5 rounded-lg text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 border whitespace-nowrap ${manuallyUrgentAlarms[a.id] ? "bg-red-600 text-white border-red-650" : "bg-red-50 hover:bg-red-100 text-red-700 border-red-200"}`}>
+                              <button onClick={(e) => { handleMarkUrgent(a, e); setActiveGearMenuId(null); }} className={`px-2 py-1.5 rounded-lg text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 border whitespace-nowrap ${manuallyUrgentAlarms[a.id] ? "bg-red-600 text-white border-red-650" : "bg-red-50 hover:bg-red-105 text-red-700 border-red-200"}`}>
                                 <AlertCircle className="w-3.5 h-3.5 shrink-0" /><span>عاجل جداً</span>
                               </button>
                               <button onClick={(e) => { e.stopPropagation(); setSnoozeAlarmId(a.id); setSnoozeHours(24); setActiveGearMenuId(null); }} className="px-2 py-1.5 bg-slate-200 hover:bg-amber-100 hover:text-amber-800 text-gray-600 rounded-lg text-[10px] font-black transition-all cursor-pointer whitespace-nowrap">
@@ -1818,7 +1848,7 @@ export default function CommitteesHome() {
                           src={staff.photo} 
                           alt={staff.name} 
                           referrerPolicy="no-referrer"
-                          className="w-8 h-8 rounded-full object-cover border border-gray-250 select-none shadow-sm"
+                          className="w-8 h-8 rounded-full object-cover border border-gray-255 select-none shadow-sm"
                         />
                       ) : (
                         <div className={`w-8 h-8 rounded-full ${staff.color} text-white font-black text-xs flex items-center justify-center select-none shadow-sm`}>
@@ -1930,101 +1960,100 @@ export default function CommitteesHome() {
                   <span>فرز</span>
                 </button>
 
-              <AnimatePresence>
-                {isFilterOpen && (
-                  
-<div key="filter-popover-1784704070969-1">
-                    <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
-                    <motion.div
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      transition={{ duration: 0.12 }}
-                      className="absolute top-full left-0 mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-3.5 space-y-3.5 text-right font-sans"
-                      style={{ transformOrigin: "top left" }}
-                    >
-                      {/* الفلتر: الفترة الزمنية */}
-                      <div className="space-y-2 text-right">
-                        <div className="flex items-center gap-1.5 text-gray-800 justify-start">
-                          <span className="w-1.5 h-3 bg-indigo-600 rounded-full" />
-                          <span className="text-[11px] font-black">الفترة الزمنية:</span>
-                        </div>
-                        <div className="space-y-0.5">
-                          {[
-                            {
-                              id: "all",
-                              label: "الكل",
-                              checkboxActive: "bg-gray-800 border-gray-800 text-white",
-                              checkboxInactive: "border-gray-300 text-transparent",
-                              textColor: "text-gray-800",
-                              isSelected: activeTimeframes.length === 2,
-                            },
-                            {
-                              id: "current",
-                              label: "الأسبوع الحالي",
-                              checkboxActive: "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-600/10",
-                              checkboxInactive: "border-indigo-300 text-transparent",
-                              textColor: "text-indigo-600",
-                              isSelected: activeTimeframes.includes("current"),
-                            },
-                            {
-                              id: "next",
-                              label: "الأسبوع القادم",
-                              checkboxActive: "bg-indigo-800 border-indigo-800 text-white shadow-sm shadow-indigo-800/10",
-                              checkboxInactive: "border-indigo-300 text-transparent",
-                              textColor: "text-indigo-850",
-                              isSelected: activeTimeframes.includes("next"),
-                            }
-                          ].map((item) => {
-                            const handleToggle = () => {
-                              if (item.id === "all") {
-                                if (activeTimeframes.length === 2) {
-                                  setActiveTimeframes([]);
-                                } else {
-                                  setActiveTimeframes(["current", "next"]);
-                                }
-                              } else {
-                                setActiveTimeframes(prev => {
-                                  if (prev.includes(item.id)) {
-                                    return prev.filter(x => x !== item.id);
-                                  } else {
-                                    return [...prev, item.id];
-                                  }
-                                });
+                <AnimatePresence>
+                  {isFilterOpen && (
+                    <div key="filter-popover-1784704070969-1">
+                      <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        transition={{ duration: 0.12 }}
+                        className="absolute top-full left-0 mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-3.5 space-y-3.5 text-right font-sans"
+                        style={{ transformOrigin: "top left" }}
+                      >
+                        {/* الفلتر: الفترة الزمنية */}
+                        <div className="space-y-2 text-right">
+                          <div className="flex items-center gap-1.5 text-gray-800 justify-start">
+                            <span className="w-1.5 h-3 bg-indigo-600 rounded-full" />
+                            <span className="text-[11px] font-black">الفترة الزمنية:</span>
+                          </div>
+                          <div className="space-y-0.5">
+                            {[
+                              {
+                                id: "all",
+                                label: "الكل",
+                                checkboxActive: "bg-gray-800 border-gray-800 text-white",
+                                checkboxInactive: "border-gray-300 text-transparent",
+                                textColor: "text-gray-800",
+                                isSelected: activeTimeframes.length === 2,
+                              },
+                              {
+                                id: "current",
+                                label: "الأسبوع الحالي",
+                                checkboxActive: "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-600/10",
+                                checkboxInactive: "border-indigo-300 text-transparent",
+                                textColor: "text-indigo-600",
+                                isSelected: activeTimeframes.includes("current"),
+                              },
+                              {
+                                id: "next",
+                                label: "الأسبوع القادم",
+                                checkboxActive: "bg-indigo-800 border-indigo-800 text-white shadow-sm shadow-indigo-800/10",
+                                checkboxInactive: "border-indigo-300 text-transparent",
+                                textColor: "text-indigo-850",
+                                isSelected: activeTimeframes.includes("next"),
                               }
-                            };
+                            ].map((item) => {
+                              const handleToggle = () => {
+                                if (item.id === "all") {
+                                  if (activeTimeframes.length === 2) {
+                                    setActiveTimeframes([]);
+                                  } else {
+                                    setActiveTimeframes(["current", "next"]);
+                                  }
+                                } else {
+                                  setActiveTimeframes(prev => {
+                                    if (prev.includes(item.id)) {
+                                      return prev.filter(x => x !== item.id);
+                                    } else {
+                                      return [...prev, item.id];
+                                    }
+                                  });
+                                }
+                              };
 
-                            return (
-                              <button
-                                key={item.id}
-                                onClick={handleToggle}
-                                className="w-full flex items-center justify-between text-right px-2 py-1.5 rounded-lg hover:bg-gray-50 transition-all cursor-pointer group select-none"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <div className={`w-4 h-4 rounded flex items-center justify-center border transition-all shrink-0 ${
-                                    item.isSelected ? item.checkboxActive : item.checkboxInactive
-                                  }`}>
-                                    {item.isSelected && <Check className="w-2.5 h-2.5 stroke-[4.5]" />}
+                              return (
+                                <button
+                                  key={item.id}
+                                  onClick={handleToggle}
+                                  className="w-full flex items-center justify-between text-right px-2 py-1.5 rounded-lg hover:bg-gray-50 transition-all cursor-pointer group select-none"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <div className={`w-4 h-4 rounded flex items-center justify-center border transition-all shrink-0 ${
+                                      item.isSelected ? item.checkboxActive : item.checkboxInactive
+                                    }`}>
+                                      {item.isSelected && <Check className="w-2.5 h-2.5 stroke-[4.5]" />}
+                                    </div>
+                                    <span className={`text-[11px] font-black transition-colors ${
+                                      item.isSelected ? item.textColor : "text-gray-500 group-hover:text-gray-700"
+                                    }`}>
+                                      {item.label}
+                                    </span>
                                   </div>
-                                  <span className={`text-[11px] font-black transition-colors ${
-                                    item.isSelected ? item.textColor : "text-gray-500 group-hover:text-gray-700"
-                                  }`}>
-                                    {item.label}
-                                  </span>
-                                </div>
-                              </button>
-                            );
-                          })}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    </motion.div>
-                  </div>
-                )}
-              </AnimatePresence>
-            </div>
+                      </motion.div>
+                    </div>
+                  )}
+                </AnimatePresence>
+              </div> {/* Close relative */}
+            </div> {/* Close relative flex bg-white... */}
           </div>
         </div>
-      </div>
 
         <AnimatePresence>
           {openCards.meetings && (
@@ -2055,13 +2084,13 @@ export default function CommitteesHome() {
                         <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
                           <tr className="divide-x divide-x-reverse divide-gray-300">
                             <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">اليوم والتاريخ</th>
-                            <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">الوقت</th>
-                            <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">اللجنة / الجهة القطاعية</th>
-                            <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs max-w-sm">الموضوع / الفعالية</th>
-                            <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-850 tracking-tight text-xs">المسؤول</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-855 tracking-tight text-xs">الوقت</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-855 tracking-tight text-xs">اللجنة / الجهة القطاعية</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-855 tracking-tight text-xs max-w-sm">الموضوع / الفعالية</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-right text-gray-855 tracking-tight text-xs">المسؤول</th>
                             <th className="whitespace-nowrap px-4 py-3 font-black text-center text-gray-800 tracking-tight text-xs">الموقع والقاعة</th>
-                            <th className="whitespace-nowrap px-4 py-3 font-black text-center text-gray-850 tracking-tight text-xs">الحالة</th>
-                            <th className="whitespace-nowrap px-4 py-3 font-black text-center text-gray-850 tracking-tight text-xs">تجهيزات الاجتماع</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-center text-gray-855 tracking-tight text-xs">الحالة</th>
+                            <th className="whitespace-nowrap px-4 py-3 font-black text-center text-gray-855 tracking-tight text-xs">تجهيزات الاجتماع</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200 bg-[#e8e4e4]/85">
@@ -2069,20 +2098,20 @@ export default function CommitteesHome() {
                             <tr key={i} className="hover:bg-[#e2dede] transition-colors text-right divide-x divide-x-reverse divide-gray-200 text-[11px] font-bold text-gray-700">
                               
                               {/* 2. اليوم والتاريخ */}
-                              <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap">
+                              <td className="whitespace-nowrap px-4 py-3.5">
                                 <span className="font-black text-gray-900 block">{mtg.day}</span>
-                                <span className="text-[10px] text-gray-500 font-mono block mt-0.5">{mtg.date}</span>
+                                <span className="text-[10px] text-gray-505 font-mono block mt-0.5">{mtg.date}</span>
                               </td>
 
                               {/* 3. الوقت */}
-                              <td className="whitespace-nowrap px-4 py-3.5 font-mono text-gray-800 whitespace-nowrap">{mtg.time}</td>
+                              <td className="whitespace-nowrap px-4 py-3.5 font-mono text-gray-800">{mtg.time}</td>
                               
                               {/* 4. اللجنة / الجهة */}
                               <td className="whitespace-nowrap px-4 py-3.5">
                                 <span className="font-black text-brand bg-brand/10 px-2 py-0.5 rounded text-[10px] block w-fit">
                                   {mtg.section}
                                 </span>
-                                <span className="text-[10px] text-gray-500 block mt-0.5">{mtg.dept}</span>
+                                <span className="text-[10px] text-gray-505 block mt-0.5">{mtg.dept}</span>
                               </td>
 
                               {/* 5. الموضوع / الفعالية */}
@@ -2105,14 +2134,14 @@ export default function CommitteesHome() {
                               </td>
 
                               {/* 6. المسؤول */}
-                              <td className="whitespace-nowrap px-4 py-3.5 text-gray-800 font-bold whitespace-nowrap">{mtg.responsible}</td>
+                              <td className="whitespace-nowrap px-4 py-3.5 text-gray-800 font-bold">{mtg.responsible}</td>
                               
                               {/* 7. الموقع والقاعة */}
-                              <td className="whitespace-nowrap px-4 py-3.5 text-red-700 font-black text-center whitespace-nowrap">{mtg.room}</td>
+                              <td className="whitespace-nowrap px-4 py-3.5 text-red-700 font-black text-center">{mtg.room}</td>
                               
                               {/* 8. الحالة */}
-                              <td className="whitespace-nowrap px-4 py-3.5 text-center whitespace-nowrap">
-                                <span className={`px-2 py-0.5 rounded text-[9px] font-black border ${mtg.status === 'مؤكد' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'}`}>
+                              <td className="whitespace-nowrap px-4 py-3.5 text-center">
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-black border ${mtg.status === 'مؤكد' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-805 border-amber-200'}`}>
                                   {mtg.status}
                                 </span>
                               </td>
@@ -2120,7 +2149,7 @@ export default function CommitteesHome() {
                               {/* 9. تجهيزات الاجتماع */}
                               <td className="whitespace-nowrap px-4 py-3.5 text-center">
                                 <div className="flex flex-col items-center gap-1.5 justify-center w-full min-w-[100px]">
-                                  <span className="text-[10px] text-gray-600 font-extrabold whitespace-nowrap">
+                                  <span className="text-[10px] text-gray-600 font-extrabold">
                                     {mtg.checklist.filter(c => c.completed).length} من {mtg.checklist.length} جهزت
                                   </span>
                                   <div className="flex gap-1">
@@ -2144,7 +2173,7 @@ export default function CommitteesHome() {
                 ) : (
                   /* 3. عرض البطائق العادي (Cards Layout) - للوضعين: "cards" أو "sorting" */
                   filteredMeetings.map((mtg, i) => (
-                    <div key={i} className="group relative bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-brand/20 transition-all duration-300 overflow-hidden">
+                    <div key={i} className="group relative bg-white rounded-2xl border border-gray-101 shadow-sm hover:shadow-md hover:border-brand/20 transition-all duration-300 overflow-hidden">
                       <div className="flex flex-col lg:flex-row items-stretch min-h-[100px]">
                         
                         {/* القسم الأول: الفعالية والوقت (50%) - في أقصى اليمين */}
@@ -2175,7 +2204,7 @@ export default function CommitteesHome() {
                                 <span>{mtg.event}</span>
                               )}
                             </h4>
-                            <div className="flex items-center gap-2 text-gray-400">
+                            <div className="flex items-center gap-2 text-gray-405">
                                <Clock className="w-5 h-5 text-brand/40" style={{ fontSize: '20px' }} />
                                <span className="text-base font-black text-gray-600 font-mono tracking-tight" style={{ fontSize: '16px' }}>{mtg.time}</span>
                             </div>
@@ -2183,9 +2212,9 @@ export default function CommitteesHome() {
                         </div>
 
                         {/* القسم الثاني: بيانات وحالة الاجتماع (25%) - في المنتصف */}
-                        <div className="lg:w-1/4 p-4 border-l border-gray-100 flex flex-col justify-center gap-3 bg-white text-right">
+                        <div className="lg:w-1/4 p-4 border-l border-gray-101 flex flex-col justify-center gap-3 bg-white text-right">
                           <div className="flex items-center gap-2">
-                             <span className={`px-2 py-0.5 text-[8px] font-black rounded border ${mtg.status === 'مؤكد' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                             <span className={`px-2 py-0.5 text-[8px] font-black rounded border ${mtg.status === 'مؤكد' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-amber-50 text-amber-600 border-amber-101'}`}>
                                 {mtg.status}
                              </span>
                           </div>
@@ -2195,8 +2224,8 @@ export default function CommitteesHome() {
                                <span className="text-[11px] font-bold text-gray-700 truncate">{mtg.responsible}</span>
                             </div>
                             <div className="flex items-center gap-2">
-                               <MapPin className="w-3.5 h-3.5 text-red-300" />
-                               <span className="text-[11px] font-black text-gray-500">{mtg.room}</span>
+                               <MapPin className="w-3.5 h-3.5 text-red-305" />
+                               <span className="text-[11px] font-black text-gray-505">{mtg.room}</span>
                             </div>
                           </div>
                         </div>
@@ -2403,7 +2432,7 @@ export default function CommitteesHome() {
                       <h3 className="font-extrabold text-gray-900 text-lg leading-tight">
                         {selectedAlarm.type === "task" ? "متابعة مسار المهمة" :
                          selectedAlarm.type === "recommendation" ? "متابعة مسار التوصية" :
-                         `متابعة الفعالية`}
+                         "متابعة الفعالية"}
                       </h3>
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black ${
                         selectedAlarm.status === "متأخر" ? "bg-rose-100 text-rose-800" :
@@ -2425,7 +2454,7 @@ export default function CommitteesHome() {
                 </div>
                 <button 
                   onClick={handleCloseDetails}
-                  className="p-1.5 hover:bg-gray-200/50 text-gray-500 rounded-lg transition-colors cursor-pointer text-gray-500 hover:text-black"
+                  className="p-1.5 hover:bg-gray-200/50 text-gray-500 rounded-lg transition-colors cursor-pointer text-gray-505 hover:text-black"
                 >
                   <XCircle className="w-6 h-6" />
                 </button>
@@ -2439,8 +2468,7 @@ export default function CommitteesHome() {
                   {selectedAlarm.type === "task" ? (() => {
                     const matchedTask = dbTasks.find((t: any) => String(t.id) === String(selectedAlarm.id).replace("task-", ""));
                     return (
-                      
-<div key="filter-popover-1784704070969-2">
+                      <div key="filter-popover-1784704070969-2">
                         <h4 className="text-xs font-black text-gray-400 tracking-wider">تفاصيل مسار المهمة</h4>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium">
@@ -2489,8 +2517,7 @@ export default function CommitteesHome() {
                   })() : selectedAlarm.type === "recommendation" ? (() => {
                     const matchedRec = allRecommendations.find((r: any) => String(r.id) === String(selectedAlarm.id).replace(/^rec-/, ""));
                     return (
-                      
-<div key="filter-popover-1784704070969-3">
+                      <div key="filter-popover-1784704070969-3">
                         <h4 className="text-xs font-black text-gray-400 tracking-wider">تفاصيل مسار التوصية</h4>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium">
@@ -2537,8 +2564,7 @@ export default function CommitteesHome() {
                       </div>
                     );
                   })() : (
-                    
-<div key="filter-popover-1784704070969-4">
+                    <div key="filter-popover-1784704070969-4">
                       <h4 className="text-xs font-black text-gray-400 tracking-wider">البيانات الإدارية والتنظيمية</h4>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium">
@@ -2593,23 +2619,22 @@ export default function CommitteesHome() {
                     {selectedAlarm.type === "task" ? (
                       <div>
                         <span className="text-[10px] text-gray-400 font-black block mb-1">وصف المهمة:</span>
-                        <p className="text-xs font-extrabold text-blue-900 bg-blue-50/50 p-2.5 rounded-lg border border-blue-100">
+                        <p className="text-xs font-extrabold text-blue-900 bg-blue-50/50 p-2.5 rounded-lg border border-blue-101">
                           {selectedAlarm.description || resolvedDetails.itemTitle}
                         </p>
                       </div>
                     ) : selectedAlarm.type === "event" ? (
                       <div>
                         <span className="text-[10px] text-gray-400 font-black block mb-1">تفاصيل الفعالية:</span>
-                        <p className="text-xs font-extrabold text-blue-900 bg-blue-50/50 p-2.5 rounded-lg border border-blue-100">
+                        <p className="text-xs font-extrabold text-blue-900 bg-blue-50/50 p-2.5 rounded-lg border border-blue-101">
                           {selectedAlarm.description || resolvedDetails.itemTitle}
                         </p>
                       </div>
                     ) : (
-                      
-<div key="filter-popover-1784704070969-5">
+                      <div key="filter-popover-1784704070969-5">
                         <div>
                           <span className="text-[10px] text-gray-400 font-black block mb-1">موضوع البند:</span>
-                          <p className="text-xs font-extrabold text-blue-900 bg-blue-50/50 p-2.5 rounded-lg border border-blue-100">
+                          <p className="text-xs font-extrabold text-blue-900 bg-blue-50/50 p-2.5 rounded-lg border border-blue-101">
                             {resolvedDetails.itemTitle}
                           </p>
                         </div>
@@ -2638,7 +2663,7 @@ export default function CommitteesHome() {
                           <div className="space-y-2 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
                             {matchedTask.historyLog.slice().reverse().map((log: any) => (
                               <div key={log.id} className="bg-white border border-gray-200 rounded-lg p-2.5 shadow-sm text-[11px]">
-                                <div className="flex justify-between items-center mb-1 text-gray-500">
+                                <div className="flex justify-between items-center mb-1 text-gray-550">
                                   <span className="font-bold text-blue-600">{log.action} ({log.by})</span>
                                   <span className="font-mono text-[9px] font-bold" dir="ltr">{log.date} {log.time}</span>
                                 </div>
@@ -2657,7 +2682,7 @@ export default function CommitteesHome() {
                           <div className="space-y-2 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
                             {matchedRec.auditLogs.slice().reverse().map((log: any, index: number) => (
                               <div key={index} className="bg-white border border-gray-200 rounded-lg p-2.5 shadow-sm text-[11px]">
-                                <div className="flex justify-between items-center mb-1 text-gray-500">
+                                <div className="flex justify-between items-center mb-1 text-gray-550">
                                   <span className="font-bold text-blue-600">{log.action} ({log.user})</span>
                                   <span className="font-mono text-[9px] font-bold" dir="ltr">{log.timestamp}</span>
                                 </div>
@@ -2671,7 +2696,7 @@ export default function CommitteesHome() {
                 </div>
 
                 {/* 3. Operational Update Form */}
-                <div className="border-t border-gray-150 pt-4 space-y-4 text-right">
+                <div className="border-t border-gray-155 pt-4 space-y-4 text-right">
                   <h4 className="text-sm font-black text-slate-800 flex items-center gap-1.5">
                     <Send className="w-4 h-4 text-brand" />
                     <span>المستجدات</span>
@@ -2700,7 +2725,7 @@ export default function CommitteesHome() {
                           setAlarms(prev => prev.map(a => a.id === selectedAlarm.id ? { ...a, status: val } : a));
                           setSelectedAlarm(prev => prev ? { ...prev, status: val } : null);
                         }}
-                        className="w-full bg-slate-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-950 focus:bg-white focus:border-brand focus:ring-1 focus:ring-brand outline-none"
+                        className="w-full bg-slate-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-955 focus:bg-white focus:border-brand focus:ring-1 focus:ring-brand outline-none"
                       >
                         <option value="جديد">جديد - بانتظار الإجراء</option>
                         <option value="قيد الانتظار">قيد الانتظار - جاري التنفيذ</option>
@@ -2715,10 +2740,10 @@ export default function CommitteesHome() {
                       </label>
                       <textarea
                         value={referNotes}
-                      onChange={(e) => setReferNotes(e.target.value)}
-                      placeholder="اكتب هنا الشرح التفصيلي للمستجدات..."
+                        onChange={(e) => setReferNotes(e.target.value)}
+                        placeholder="اكتب هنا الشرح التفصيلي للمستجدات..."
                         rows={3}
-                        className="w-full bg-slate-50 border border-gray-300 rounded-xl p-3 text-xs font-medium text-gray-950 focus:bg-white focus:border-brand focus:ring-1 focus:ring-brand outline-none resize-none placeholder:text-gray-400"
+                        className="w-full bg-slate-50 border border-gray-300 rounded-xl p-3 text-xs font-medium text-gray-955 focus:bg-white focus:border-brand focus:ring-1 focus:ring-brand outline-none resize-none placeholder:text-gray-400"
                       />
                     </div>
                   </div>
@@ -2744,7 +2769,7 @@ export default function CommitteesHome() {
                               setReferStaff("");
                             }
                           }}
-                          className="w-full bg-slate-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-950 focus:bg-white focus:border-brand focus:ring-1 focus:ring-brand outline-none"
+                          className="w-full bg-slate-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-955 focus:bg-white focus:border-brand focus:ring-1 focus:ring-brand outline-none"
                         >
                           <option value="">-- عرض جميع الموظفين --</option>
                           {Array.from(new Set((dbEmployees || []).map((e: any) => e.orgLevel3 || e.orgLevel2 || e.orgLevel1).filter(Boolean))).map((dept: any, i) => (
@@ -2760,7 +2785,7 @@ export default function CommitteesHome() {
                         <select
                           value={referStaff}
                           onChange={(e) => setReferStaff(e.target.value)}
-                          className="w-full bg-slate-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-950 focus:bg-white focus:border-brand focus:ring-1 focus:ring-brand outline-none"
+                          className="w-full bg-slate-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-955 focus:bg-white focus:border-brand focus:ring-1 focus:ring-brand outline-none"
                         >
                           <option value="">-- اختر الموظف --</option>
                           {(dbEmployees || []).filter((emp: any) => referDept ? (emp.orgLevel3 === referDept || emp.orgLevel2 === referDept || emp.orgLevel1 === referDept) : true).map((staff: any, sIdx: number) => (
@@ -2871,7 +2896,7 @@ export default function CommitteesHome() {
                 </div>
                 <button 
                   onClick={() => setChatTarget(null)}
-                  className="text-yellow-100 hover:text-white transition-colors cursor-pointer"
+                  className="text-yellow-101 hover:text-white transition-colors cursor-pointer"
                 >
                   <XCircle className="w-5 h-5" />
                 </button>
@@ -2887,11 +2912,11 @@ export default function CommitteesHome() {
 
                 {/* Received message simulation */}
                 <div className="flex items-start gap-2.5">
-                  <span className="w-6 h-6 rounded-full bg-slate-300 text-slate-700 font-black text-[9px] flex items-center justify-center shrink-0">
+                  <span className="w-6 h-6 rounded-full bg-slate-300 text-slate-707 font-black text-[9px] flex items-center justify-center shrink-0">
                     م س
                   </span>
-                  <div className="bg-white border border-gray-150 p-2.5 rounded-2xl rounded-tr-none text-xs text-slate-800 leading-snug shadow-sm max-w-[80%]">
-                    <p className="font-extrabold mb-0.5 text-slate-500 text-[9px]">أخصائي النظام المعاون:</p>
+                  <div className="bg-white border border-gray-150 p-2.5 rounded-2xl rounded-tr-none text-xs text-slate-808 leading-snug shadow-sm max-w-[80%]">
+                    <p className="font-extrabold mb-0.5 text-slate-505 text-[9px]">أخصائي النظام المعاون:</p>
                     السلام عليكم، حياكم الله أستاذ باسم. نأمل العمل والتواصل بشأن المعاملات وتوصيات اللجان المعلقة بالنظام والمحالة اليوم.
                   </div>
                 </div>
@@ -2917,7 +2942,7 @@ export default function CommitteesHome() {
                     onChange={(e) => setChatMsg(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
                     placeholder="اكتب المعاملة أو الرسالة الداخلية الفورية هنا..."
-                    className="flex-1 bg-slate-100 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-950 focus:bg-white focus:border-[#b59410] focus:ring-1 focus:ring-[#b59410] outline-none"
+                    className="flex-1 bg-slate-101 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-955 focus:bg-white focus:border-[#b59410] focus:ring-1 focus:ring-[#b59410] outline-none"
                   />
                   <button
                     onClick={handleSendChat}

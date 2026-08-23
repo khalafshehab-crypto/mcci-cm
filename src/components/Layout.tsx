@@ -207,10 +207,10 @@ export default function Layout({ children }: LayoutProps) {
     },
     {
       id: "admin",
-      nameAr: "الهيكل الإداري",
+      nameAr: "الموظفين",
       icon: <Settings className="w-4 h-4" />,
       pages: [
-        { name: "System Admin", nameAr: "الهيكل الإداري", path: "/org-chart", icon: <Settings className="w-4 h-4" /> },
+        { name: "System Admin", nameAr: "الموظفين", path: "/org-chart", icon: <Settings className="w-4 h-4" /> },
       ]
     }
   ];

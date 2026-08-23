@@ -165,10 +165,10 @@ const executeWithRetry = async (operation: any, maxRetries = 5) => {
         }
       });
 
-      const contents = [];
+      const userParts: any[] = [];
       
-      if (replyFileBase64 && replyFileMimeType) {
-        contents.push({
+      if (replyFileBase64 && typeof replyFileBase64 === "string" && replyFileMimeType) {
+        userParts.push({
           inlineData: {
             data: replyFileBase64,
             mimeType: replyFileMimeType
@@ -216,11 +216,11 @@ const executeWithRetry = async (operation: any, maxRetries = 5) => {
           }
       }
       
-      contents.push(finalPrompt);
+      userParts.push(finalPrompt);
 
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-3.5-flash", // use pro since it could be reading a pdf/image reply
-        contents: contents,
+        model: "gemini-1.5-flash", // use pro since it could be reading a pdf/image reply
+        contents: userParts,
       }));
 
       return res.json({ result: response.text });
@@ -266,7 +266,7 @@ Output ONLY the final Arabic text of the letter, ready to be printed or used. Do
 `;
 
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-1.5-flash",
         contents: fullPrompt,
       }));
 
@@ -351,7 +351,7 @@ Output ONLY the final Arabic text of the letter, ready to be printed or used. Do
       }
       
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-1.5-flash",
         contents: [{ role: "user", parts: contents }],
       }));
       
@@ -419,7 +419,7 @@ ${incomingLetter || "مرفق في الملف"}
       }
 
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-1.5-flash",
         contents: contents,
       }));
 
@@ -459,7 +459,7 @@ ${incomingLetter || "مرفق في الملف"}
 ${text}`;
 
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-1.5-flash",
         contents: fullPrompt,
       }));
 

@@ -12,6 +12,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { connectGoogleWorkspace, resolveAuthModal, rejectAuthModal } from "./lib/googleApi";
 import { AlertCircle, RefreshCw, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { useThemeSettings } from "./hooks/useThemeSettings";
 
 function GoogleSyncModal() {
   const [isOpen, setIsOpen] = useState(false);
@@ -115,6 +116,7 @@ const AssistantSecGenEvents = React.lazy(() => import("./pages/AssistantSecGenEv
 
 
 export default function App() {
+  useThemeSettings();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 

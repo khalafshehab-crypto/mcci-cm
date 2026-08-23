@@ -39,6 +39,9 @@ interface EventItem {
     assignee?: string;
     durationRec?: string;
     hasImpact?: boolean;
+    impactType?: "عادية" | "آجل" | "ذات أثر";
+    isUrgent?: boolean;
+    isImportant?: boolean;
     workDays?: number;
   }>;
   minutesSaved?: boolean;
@@ -77,7 +80,7 @@ const EMPLOYEES = [
 
 const ROOMS = ["G2", "G3", "G4", "المركاز", "رؤساء الغرفة", "سالم بن لادن", "مشعل الزايدي", "مصطفى رضا", "عادل كعكي", "يوسف الأحمدي", "المساندة", "مسرح صالح كامل", "خارج مقر الغرفة", "عن بعد", "مكتب مساعد الأمين العام", "مكتب الأمين"];
 const EVENT_KINDS = ["اجتماع", "لقاء", "زيارة", "استضافة", "ورشة عمل", "ندوة", "حفل", "تدشين", "إطلاق مبادرة", "توقيع اتفاقية", "معرض", "دورة تدريبية", "ملتقى", "منتدى", "محاضرة"];
-const CLASSIFICATIONS = ["دوري", "استثنائي", "فريق عمل", "طارئ"];
+const CLASSIFICATIONS = ["دوري", "طارئ"];
 const isWeekend = (dateStr: string) => {
   if (!dateStr) return false;
   const d = new Date(dateStr);
@@ -107,7 +110,7 @@ const exportRecommendationsToLocalStorage = async (evt: EventItem, selectedAgend
       title: `توصية البند: ${rec.title}`,
       description: rec.recommendation || "",
       dept: evt.committeeName,
-      isUrgent: true,
+      isUrgent: !!rec.isUrgent,
       committee: evt.committeeName,
       dateStr: evt.date,
       status: "جديدة",
@@ -139,7 +142,9 @@ const exportRecommendationsToLocalStorage = async (evt: EventItem, selectedAgend
         approvalStage: "أخصائي",
         assignedTo: rec.assignee || "غير محدد",
         duration: rec.durationRec || "أسبوعين",
-        attachments: [],
+        attachments: (evt.approvedMinutesUrl && typeof evt.approvedMinutesUrl === 'string') 
+          ? [{ id: "1", name: 'محضر الاجتماع المعتمد', url: evt.approvedMinutesUrl }] 
+          : [],
         auditLogs: [
           {
             timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
@@ -147,7 +152,10 @@ const exportRecommendationsToLocalStorage = async (evt: EventItem, selectedAgend
             user: "نظام حوكمة اللجان"
           }
         ],
-        hasImpact: !!rec.hasImpact
+        hasImpact: !!rec.hasImpact,
+        isUrgent: !!rec.isUrgent,
+        isImportant: !!rec.isImportant,
+        impactType: rec.impactType || "عادية"
       };
     });
     
@@ -480,7 +488,19 @@ function Step8Attachments({ evt, updateEventWorkflow }: { evt: any, updateEventW
 
 export default function Events() {
   const location = useLocation();
-  const { data: events, addDocument: addFirebaseEvent, updateDocument: updateFirebaseEvent, deleteDocument: deleteFirebaseEvent } = useFirestoreCollection<EventItem>("events", []);
+  const { data: rawEvents, addDocument: addFirebaseEvent, updateDocument: updateFirebaseEvent, deleteDocument: deleteFirebaseEvent } = useFirestoreCollection<EventItem>("events", []);
+  const { data: rawCentersEvents } = useFirestoreCollection<EventItem>("centers_events", []);
+  const { data: rawAssistantEvents } = useFirestoreCollection<EventItem>("assistant_sec_gen_events", []);
+  const { data: rawAffiliatesEvents } = useFirestoreCollection<EventItem>("affiliates_events", []);
+  
+  const events = React.useMemo(() => {
+    return [
+      ...rawEvents,
+      ...rawAffiliatesEvents,
+      ...rawCentersEvents,
+      ...rawAssistantEvents
+    ];
+  }, [rawEvents, rawAffiliatesEvents, rawCentersEvents, rawAssistantEvents]);
   const { data: rawCommittees } = useFirestoreCollection<any>("committees", []);
   const { data: allMembers } = useFirestoreCollection<Member>("members", []);
   const { data: dbEmployees } = useFirestoreCollection<any>("employees", []);
@@ -1653,7 +1673,7 @@ ${formattedItems}
       ) : viewMode === "grid" ? (
         <div className="space-y-6 text-right">
           {/* Elegant Breadcrumbs Navigator */}
-          <div className="bg-white border border-gray-150 rounded-2xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-4">
+          <div className="bg-white border border-gray-150 rounded-2xl p-4 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4 font-sans">
             <div className="flex flex-wrap items-center gap-2 text-xs font-black text-gray-700">
               <button
                 onClick={() => {
@@ -1673,7 +1693,7 @@ ${formattedItems}
 
               {selectedCommIdForCards !== null && (
                 
-<div key="filter-popover-1784704070979-1">
+<React.Fragment>
                   <span className="text-gray-400 font-bold font-mono">/</span>
                   <button
                     onClick={() => {
@@ -1691,12 +1711,12 @@ ${formattedItems}
                       {rawCommittees.find((c) => c.id === selectedCommIdForCards)?.name || "اللجنة المحددة"}
                     </span>
                   </button>
-                </div>
+                </React.Fragment>
               )}
 
               {selectedEventKindForCards !== null && (
                 
-<div key="filter-popover-1784704070979-2">
+<React.Fragment>
                   <span className="text-gray-400 font-bold font-mono">/</span>
                   <button
                     onClick={() => {
@@ -1711,18 +1731,18 @@ ${formattedItems}
                     <Calendar className="w-3.5 h-3.5" />
                     <span>نوع الفعالية: {selectedEventKindForCards}</span>
                   </button>
-                </div>
+                </React.Fragment>
               )}
 
               {selectedClassificationForCards !== null && (
                 
-<div key="filter-popover-1784704070979-3">
+<React.Fragment>
                   <span className="text-gray-400 font-bold font-mono">/</span>
                   <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white shadow-sm font-black">
                     <Sliders className="w-3.5 h-3.5 animate-pulse" />
                     <span>تصنيف الفعالية: {selectedClassificationForCards}</span>
                   </div>
-                </div>
+                </React.Fragment>
               )}
             </div>
 
@@ -2001,7 +2021,6 @@ ${formattedItems}
                         <motion.div
                           key={evt.id}
                           id={`event-card-${evt.id}`}
-                          layout
                           initial={{ opacity: 0, scale: 0.95 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.9 }}
@@ -3297,7 +3316,7 @@ ${formattedItems}
 
                                                     <div className="grid grid-cols-1 md:grid-cols-12 gap-3 text-right pt-2.5 border-t border-dashed border-gray-200 font-sans items-end">
                                                       <div className="md:col-span-5 flex flex-col gap-1">
-                                                        <label className="text-[8.5px] font-bold text-gray-750">المكلف برصد ومتابعة تنفيذ التوصية</label>
+                                                        <label className="text-[8.5px] font-bold text-gray-750">المكلف بالتوصية</label>
                                                         <select
                                                           value={(item.assignee === "الأخصائي" && evt.employees?.[0]) ? `${evt.employees[0]} (أخصائي اللجنة)` : (item.assignee === "الأخصائي" ? "أخصائي اللجنة" : (item.assignee || ""))}
                                                           onChange={(e) => handleUpdateAgendaMinutes(item.id, { assignee: e.target.value })}
@@ -3310,7 +3329,7 @@ ${formattedItems}
                                                           {allMembers.filter(m => String(m.committeeId) === String(evt.committeeId) || String(m.secondaryCommitteeId) === String(evt.committeeId)).map(m => (
                                                             <option key={m.id} value={`${m.title} ${m.name}`}>{m.title} {m.name} ({m.role})</option>
                                                           ))}
-                                                          <option value="برنامج التطوير">فريق العمل الفني (موظف أخر)</option>
+                                                          
                                                         </select>
                                                       </div>
 
@@ -3333,18 +3352,40 @@ ${formattedItems}
                                                         />
                                                       </div>
 
-                                                      <div className="md:col-span-3 flex items-center justify-end h-8.5 pb-1">
-                                                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                                                          <input 
-                                                            type="checkbox"
-                                                            checked={!!item.hasImpact}
-                                                            onChange={(e) => handleUpdateAgendaMinutes(item.id, { hasImpact: e.target.checked })}
-                                                            className="w-4 h-4 rounded border-gray-300 text-brand focus:ring-brand cursor-pointer"
-                                                          />
-                                                          <span className="text-[9.5px] text-slate-900 font-extrabold">
-                                                            توصية ذات أثر (مهمة ومؤثرة)
-                                                          </span>
-                                                        </label>
+                                                      <div className="md:col-span-3 flex flex-col gap-1 min-h-[34px]">
+                                                        <label className="text-[8.5px] font-bold text-gray-750">نوع التوصية</label>
+                                                        <select
+                                                          value={item.impactType || ""}
+                                                          onChange={(e) => handleUpdateAgendaMinutes(item.id, { impactType: e.target.value as any })}
+                                                          className={`w-full text-[10px] font-bold p-1.5 border border-gray-200 rounded bg-white text-right focus:outline-none focus:border-brand h-8.5 ${!item.impactType ? 'text-gray-400' : 'text-slate-800'}`}
+                                                        >
+                                                          <option value="" disabled className="text-gray-400">اختر نوع التوصية</option>
+                                                          <option value="عادية" className="text-slate-800">توصية عادية</option>
+                                                          <option value="آجل" className="text-slate-800">توصية آجلة</option>
+                                                          <option value="ذات أثر" className="text-slate-800">توصية ذات أثر</option>
+                                                        </select>
+                                                        {item.impactType === "ذات أثر" && (
+                                                          <div className="flex items-center gap-3 mt-1 px-1">
+                                                            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                                              <input
+                                                                type="checkbox"
+                                                                checked={!!item.isUrgent}
+                                                                onChange={(e) => handleUpdateAgendaMinutes(item.id, { isUrgent: e.target.checked })}
+                                                                className="w-3.5 h-3.5 rounded border-gray-300 text-brand focus:ring-brand cursor-pointer"
+                                                              />
+                                                              <span className="text-[9px] text-slate-900 font-extrabold">عاجل</span>
+                                                            </label>
+                                                            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                                              <input
+                                                                type="checkbox"
+                                                                checked={!!item.isImportant}
+                                                                onChange={(e) => handleUpdateAgendaMinutes(item.id, { isImportant: e.target.checked })}
+                                                                className="w-3.5 h-3.5 rounded border-gray-300 text-brand focus:ring-brand cursor-pointer"
+                                                              />
+                                                              <span className="text-[9px] text-slate-900 font-extrabold">مهم</span>
+                                                            </label>
+                                                          </div>
+                                                        )}
                                                       </div>
 
                                                       {item.durationRec && (

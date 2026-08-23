@@ -2,7 +2,7 @@ import React, { useState, useEffect, FormEvent } from "react";
 import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { 
-  Calendar, CheckCircle, Search, Plus, X, Users2, Trash2, Edit2, LayoutGrid, List, AlertTriangle, Check, BookOpen, Clock, Presentation, MapPin, AlignLeft, Send, PlayCircle, Filter, Users, Settings, Copy, ChevronDown, ChevronUp, CheckSquare, Sparkles, Activity, Sliders, Lock, Loader2, Paperclip, Mail, UploadCloud, Upload
+  Calendar, CheckCircle, RotateCcw, Search, Plus, X, Users2, Trash2, Edit2, LayoutGrid, List, AlertTriangle, Check, BookOpen, Clock, Presentation, MapPin, AlignLeft, Send, PlayCircle, Filter, Users, Settings, Copy, ChevronDown, ChevronUp, CheckSquare, Sparkles, Activity, Sliders, Lock, Loader2, Paperclip, Mail, UploadCloud, Upload
 } from "lucide-react";
 import { Member } from "../data/initialMembers";
 import { formatCommitteeNameArabic } from "../lib/arabicUtils";
@@ -85,8 +85,6 @@ const DEFAULT_PREPARATIONS = [
 const EMPLOYEES = [
   "مدير النظام"
 ];
-
-
 
 const ROOMS = ["G2", "G3", "G4", "المركاز", "رؤساء الغرفة", "سالم بن لادن", "مشعل الزايدي", "مصطفى رضا", "عادل كعكي", "يوسف الأحمدي", "المساندة", "مسرح صالح كامل", "خارج مقر الغرفة", "عن بعد", "مكتب مساعد الأمين العام", "مكتب الأمين"];
 const EVENT_KINDS = ["اجتماع", "لقاء", "زيارة", "استضافة", "ورشة عمل", "ندوة", "حفل", "تدشين", "إطلاق مبادرة", "توقيع اتفاقية", "معرض", "دورة تدريبية", "ملتقى", "منتدى", "محاضرة"];
@@ -185,6 +183,61 @@ import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc, setDo
 import { db } from '../lib/firebase';
 import { useFirestoreCollection } from '../lib/firebaseUtils';
 
+const ordinalsToNumGlobal: Record<string, string> = {
+  "التأسيسي": "1", "الأول": "1", "الثاني": "2", "الثالث": "3", "الرابع": "4", "الخامس": "5",
+  "السادس": "6", "السابع": "7", "الثامن": "8", "التاسع": "9", "العاشر": "10",
+  "الحادي عشر": "11", "الثاني عشر": "12", "الثالث عشر": "13", "الرابع عشر": "14", "الخامس عشر": "15",
+  "السادس عشر": "16", "السابع عشر": "17", "الثامن عشر": "18", "التاسع عشر": "19", "العشرون": "20"
+};
+
+const getMeetingNumber = (title: string) => {
+  if (!title) return "1";
+  for (const [key, val] of Object.entries(ordinalsToNumGlobal)) {
+    if (title.includes(` ${key} `) || title.endsWith(` ${key}`) || title.includes(`(${key})`) || title.includes(` ${key}`)) {
+      return val;
+    }
+  }
+  const match = title.match(/(\d+)/);
+  if (match) return match[1];
+  return "1";
+};
+
+const getCommitteeAbbrev = (name: string) => {
+  if (!name) return "عام";
+  const words = name.replace(/و/g, ' ').split(/\s+/).filter(w => w.trim() !== '' && !['في', 'من', 'عبر', 'على', 'لجنة', 'اللجنة', 'قطاع'].includes(w));
+  return 'ل ' + words.map(w => w.replace(/^ال/, '')[0]).join(' ');
+};
+
+const getItemNumber = (recTitle: string) => {
+    const match = recTitle.match(/توصية البند (.*?) "/);
+    if (match && match[1]) {
+        return ordinalsToNumGlobal[match[1]] || "1";
+    }
+    return "1";
+};
+
+const getYearStr = (dateStr: string) => {
+    if (!dateStr) return "26";
+    const year = new Date(dateStr).getFullYear();
+    if (isNaN(year)) return "26";
+    return year.toString().slice(-2);
+};
+
+const generateRecommendationRefNumber = (evt: any) => {
+    // Check if it's already generated and stored, otherwise generate dynamically
+    if (evt.refNumber) return evt.refNumber;
+    
+    // For manual/standalone recommendations without an eventName, fallback to a simple hash
+    if (!evt.eventName || !String(evt.id).startsWith("custom-rec-")) {
+        return `REC-${String(evt.id || "").substring(0, 5).toUpperCase()}`;
+    }
+    
+    const cAbbrev = getCommitteeAbbrev(evt.committeeName || "");
+    const mNum = getMeetingNumber(evt.eventName || "");
+    const iNum = getItemNumber(evt.title || "");
+    const yr = getYearStr(evt.date);
+    return `${cAbbrev}-${mNum}-${iNum}-${yr}`;
+};
 
 const getArabicOrdinalGlobal = (n: number | string): string => {
   const num = typeof n === "string" ? parseInt(n, 10) : n;
@@ -193,6 +246,7 @@ const getArabicOrdinalGlobal = (n: number | string): string => {
   if (num >= 0 && num <= 20) return ordinals[num];
   return num.toString();
 };
+
 export default function Events() {
   const location = useLocation();
   const { data: events, addDocument: addFirebaseEvent, updateDocument: updateFirebaseEvent, deleteDocument: deleteFirebaseEvent } = useFirestoreCollection<EventItem>("events", []);
@@ -211,7 +265,6 @@ export default function Events() {
   }).filter(c => c && c.active !== false);
 
   const dynamicEmployees = React.useMemo(() => {
-     // Unconditionally hide sys admin and root users from all employee lists, regardless of current user role
      const sourceList = dbEmployees.filter(e => 
         e && 
         e.role !== "SYS_ADMIN" &&
@@ -222,8 +275,6 @@ export default function Events() {
      );
      return sourceList.map(e => e.name).filter(Boolean);
   }, [dbEmployees]);
-
-
 
   const setEvents = (action: React.SetStateAction<EventItem[]>) => {
     let nextEvents = typeof action === 'function' ? action(events) : action;
@@ -236,7 +287,7 @@ export default function Events() {
     nextEvents.forEach(nextT => {
        const existing = events.find(e => String(e.id) === String(nextT.id));
        if (!existing) {
-          updateFirebaseEvent(String(nextT.id), nextT); // Update actually creates if passing the explicit string ID using setDoc if we modify the helper. Let me modify useFirestoreCollection first!
+          updateFirebaseEvent(String(nextT.id), nextT);
        } else if (JSON.stringify(existing) !== JSON.stringify(nextT)) {
           updateFirebaseEvent(String(nextT.id), nextT);
        }
@@ -252,7 +303,7 @@ export default function Events() {
   const [selectedClassificationForCards, setSelectedClassificationForCards] = useState<string | null>(null);
   const [selectedEventIdForCards, setSelectedEventIdForCards] = useState<number | null>(null);
 
-    const canUserEditCommittee = (committeeName: string): boolean => {
+  const canUserEditCommittee = (committeeName: string): boolean => {
     try {
       const stored = localStorage.getItem("current_user");
       if (!stored) return true;
@@ -279,10 +330,9 @@ export default function Events() {
   const [activeGearMenuId, setActiveGearMenuId] = useState<number | null>(null);
   const [detailsEvent, setDetailsEvent] = useState<EventItem | null>(null);
 
-  // New States for Checklist & Workflow Management
   const [expandedEventId, setExpandedEventId] = useState<number | null>(null);
   const [selectedAgendaRecsExport, setSelectedAgendaRecsExport] = useState<Record<string, boolean>>({});
-  const [activeStepTab, setActiveStepTab] = useState<Record<number, number>>({}); // Maps eventId -> step tab index
+  const [activeStepTab, setActiveStepTab] = useState<Record<number, number>>({});
   const [agendaFormTitle, setAgendaFormTitle] = useState("");
   const [agendaFormDuration, setAgendaFormDuration] = useState(15);
   const [agendaFormSpecialistId, setAgendaFormSpecialistId] = useState("");
@@ -291,7 +341,6 @@ export default function Events() {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [exportModalEvent, setExportModalEvent] = useState<EventItem | null>(null);
 
-  // Helper date-to-day name
   const getDayNameFromDate = (dateStr: string) => {
     try {
       const days = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
@@ -302,7 +351,6 @@ export default function Events() {
     }
   };
 
-  // Format date in Arabic (e.g. 14 يونيو 2026م)
   const formatDateArabicStyle = (dateStr?: string) => {
     if (!dateStr) return "غير محدد";
     try {
@@ -343,15 +391,14 @@ export default function Events() {
     let count = 0;
     while (count < workingDays) {
       curr.setDate(curr.getDate() + 1);
-      const day = curr.getDay(); // 0 = Sunday, 1 = Monday, 2 = Tuesday, 3 = Wednesday, 4 = Thursday, 5 = Friday, 6 = Saturday
-      if (day !== 5 && day !== 6) { // Exclude Friday (5) and Saturday (6)
+      const day = curr.getDay();
+      if (day !== 5 && day !== 6) {
         count++;
       }
     }
     return curr.toISOString().split('T')[0];
   };
 
-  // Helper to determine active next step (3-step workflow: 1. تجهيز التوصية والمسودة, 2. إحالة التوصية, 3. مراجعة الاعتمادات)
   const getCalculatedNextStep = (evt: EventItem) => {
     if (!evt.preparationsConfirmed) {
       return "تجهيز التوصية والمسودة";
@@ -384,7 +431,6 @@ export default function Events() {
     return { text: "توصية جديدة", colorClass: "text-blue-700 bg-blue-50 ring-1 ring-blue-200 border-blue-200" };
   };
 
-  // Helper to update specific event workflow fields and commit to parent and localStorage
   const updateEventWorkflow = (eventId: number, updates: Partial<EventItem>) => {
     const targetEvent = events.find(e => String(e.id) === String(eventId));
     if (targetEvent && !canUserEditCommittee(targetEvent.committeeName)) {
@@ -395,7 +441,6 @@ export default function Events() {
       if (String(evt.id) === String(eventId)) {
         const updated = { ...evt, ...updates };
         
-        // Dynamic Quorum side-effect: automatically check if quorum is met and update status
         if ('confirmedAttendees' in updates) {
           const commMems = allMembers.filter(m => (String(m.committeeId) === String(updated.committeeId) || String(m.secondaryCommitteeId) === String(updated.committeeId)) && m.active !== false);
           const presentIds = updates.confirmedAttendees || [];
@@ -416,7 +461,6 @@ export default function Events() {
     }));
   };
 
-  // Generate dynamic invitation template text
   const getGeneratedInvitation = (e: EventItem) => {
     if (e.invitationText) return e.invitationText;
     const day = getDayNameFromDate(e.date);
@@ -441,7 +485,6 @@ export default function Events() {
 شاكرين ومقدرين لكم حرصكم`;
   };
 
-  // Generate dynamic preparations template text
   const getGeneratedPreparations = (e: EventItem) => {
     if (e.preparationsText) return e.preparationsText;
     
@@ -458,7 +501,6 @@ export default function Events() {
 
     const currentPreps = e.preparationsChecklist !== undefined ? e.preparationsChecklist : DEFAULT_PREPARATIONS;
     
-    // Format the items list dynamically
     let formattedItems = currentPreps.map(item => `- ${item}`).join("\n");
     
     if (e.preparationsAdditional && e.preparationsAdditional.trim() !== "") {
@@ -494,7 +536,6 @@ ${formattedItems}
 وتفضلوا بقبول وافر التحية والتقدير،،،`;
   };
 
-  // Form state
   const [newTitle, setNewTitle] = useState("");
   const [isTitleManuallyEdited, setIsTitleManuallyEdited] = useState(false);
   const [newType, setNewType] = useState<"مفردة" | "متسلسلة">("مفردة");
@@ -523,7 +564,6 @@ ${formattedItems}
   const [newMembers, setNewMembers] = useState<number[]>([]);
   const [newNotes, setNewNotes] = useState("");
 
-  // Single specific form state
   const [singleKind, setSingleKind] = useState("");
   const [singleClassification, setSingleClassification] = useState("");
   const [singleEventNumber, setSingleEventNumber] = useState("الأول");
@@ -545,7 +585,7 @@ ${formattedItems}
   };
 
   useEffect(() => {
-    if (isSeqManuallyEdited) return; // skip auto-calculating if user manually changed it
+    if (isSeqManuallyEdited) return;
     if (newType === "مفردة" && newCommitteeId > 0) {
       const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
       const classifStr = singleClassification === "دوري" ? "الدوري" : singleClassification === "استثنائي" ? "الاستثنائي" : singleClassification === "طارئ" ? "الطارئ" : singleClassification === "فريق عمل" ? "فريق العمل" : singleClassification;
@@ -590,7 +630,6 @@ ${formattedItems}
     }
   }, [location.state, events]);
 
-  // Series specific form state
   const [seriesKind, setSeriesKind] = useState("");
   const [seriesClassification, setSeriesClassification] = useState("");
   const [seriesAssignedEmployee, setSeriesAssignedEmployee] = useState(dynamicEmployees[0] || "");
@@ -602,24 +641,19 @@ ${formattedItems}
   const [seriesRooms, setSeriesRooms] = useState<string[]>([]);
   const [selectedRoom, setSelectedRoom] = useState("");
   
-  // Series generation state
   const [generatedSchedules, setGeneratedSchedules] = useState<{id: number, date: string, title: string, time: string}[]>([]);
   const [selectedSchedules, setSelectedSchedules] = useState<number[]>([]);
   const [isConfirmingSeries, setIsConfirmingSeries] = useState(false);
   const [showSuccessMsg, setShowSuccessMsg] = useState(false);
 
-  // Import recommendations states
   const [importCommitteeId, setImportCommitteeId] = useState<number | string>(0);
   const [importSearchResults, setImportSearchResults] = useState<any[]>([]);
   const [selectedImportRecs, setSelectedImportRecs] = useState<string[]>([]);
   const [isImportSearched, setIsImportSearched] = useState(false);
 
-
-  
   const handleSearchImport = () => {
     if (!importCommitteeId) return;
     
-    // Find events for the selected committee
     const committeeEvents = events.filter(e => e.committeeId === importCommitteeId);
     let results: any[] = [];
     
@@ -664,7 +698,7 @@ ${formattedItems}
     const commName = committees.find(c => c.id === importCommitteeId)?.name || "";
     
     for (const rec of selectedRecs) {
-      if (rec.isAdded) continue; // Skip if already added
+      if (rec.isAdded) continue;
       
       const newRec: any = {
         id: Date.now() + Math.floor(Math.random() * 1000),
@@ -706,7 +740,7 @@ ${formattedItems}
     setTimeout(() => setShowSuccessMsg(false), 3000);
   };
 
-    const handleDrag = (e: React.DragEvent) => {
+  const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (e.type === "dragenter" || e.type === "dragover") {
@@ -754,7 +788,6 @@ ${formattedItems}
   };
 
   const filteredEvents = events.filter((e) => {
-    // Only show events that have exported recommendations (independent Recommendations page)
     if (!e.exportedRecommendationsToPage) return false;
 
     const term = filterQuery.trim().toLowerCase();
@@ -800,11 +833,9 @@ ${formattedItems}
     return "دوري";
   };
 
-  
-    const tableRecommendations = React.useMemo(() => {
+  const tableRecommendations = React.useMemo(() => {
     const term = filterQuery.trim().toLowerCase();
     
-    // 1. Gather all agenda items from all events to act as recommendations
     let agendaRecs: any[] = [];
     events.forEach(evt => {
       if (evt.agenda && Array.isArray(evt.agenda)) {
@@ -829,7 +860,6 @@ ${formattedItems}
       }
     });
 
-    // 2. Map existing DB recommendations, and merge with agenda items
     let mappedDbMap = new Map();
     [...allDbRecommendations].forEach((rec: any) => {
       mappedDbMap.set(String(rec.id), {
@@ -845,11 +875,9 @@ ${formattedItems}
       });
     });
 
-    // Patch DB recs using agenda recs (fix missing titles, assignees) and add unexported ones
     agendaRecs.forEach(ar => {
       if (mappedDbMap.has(ar.id)) {
         let existing = mappedDbMap.get(ar.id);
-        // Patch bad titles
         if (!existing.title || existing.title.includes("غير مسماة") || existing.title === existing.description) {
            existing.title = ar.title;
         }
@@ -857,7 +885,6 @@ ${formattedItems}
            existing.recommendationAssignee = ar.assignedTo;
         }
       } else {
-        // Not exported to DB yet! Add it to the table view anyway.
         mappedDbMap.set(ar.id, {
           ...ar,
           recommendationAssignee: ar.assignedTo,
@@ -869,7 +896,6 @@ ${formattedItems}
 
     let mappedDb = Array.from(mappedDbMap.values());
 
-    // Get standalone recommendations from events (they have recommendationType)
     let mappedStandalone = events
        .filter(e => !!e.recommendationType)
        .map(e => ({
@@ -899,7 +925,6 @@ ${formattedItems}
        );
     }
     
-    // Sort by date (descending)
     return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [allDbRecommendations, events, filterQuery]);
 
@@ -911,7 +936,6 @@ ${formattedItems}
       const timeValA = getEventTimeValue(a);
       const timeValB = getEventTimeValue(b);
       
-      // Determine if event is past (before beginning of today for strictness, but exact time is fine too)
       const aIsPast = timeValA > 0 && timeValA < nowTimestamp;
       const bIsPast = timeValB > 0 && timeValB < nowTimestamp;
       
@@ -925,11 +949,9 @@ ${formattedItems}
       if (!aDone && bDone) return -1;
       
       if (aDone && bDone) {
-        // Both are past or completed, sort most recent first
         return timeValB - timeValA;
       }
       
-      // Both are future, sort closest to now first
       return timeValA - timeValB;
     });
   }, [filteredEvents]);
@@ -946,7 +968,6 @@ ${formattedItems}
     setNewMembers([]);
     setNewNotes("");
     
-    // reset single
     setSingleKind("");
     setSingleClassification("");
     setSingleEventNumber("الأول");
@@ -954,7 +975,6 @@ ${formattedItems}
     setSingleRoom("");
     setSingleEmployee(dynamicEmployees[0] || "");
     
-    // reset series
     setSeriesKind("");
     setSeriesClassification("");
     setSeriesAssignedEmployee(dynamicEmployees[0] || "");
@@ -1040,7 +1060,6 @@ ${formattedItems}
     let tempId = 1;
     while (current <= end) {
       if (current.getDay() === targetDay) {
-        // Occurrence is 0-indexed in month
         const dateNo = current.getDate();
         const occurrence = Math.floor((dateNo - 1) / 7);
         if (occurrence === targetWeek) {
@@ -1072,7 +1091,7 @@ ${formattedItems}
     for (const evt of events) {
       if (excludeId && evt.id === excludeId) continue;
       if (evt.date === date && evt.time === time) {
-        const evtRooms = evt.location.split('،').map(r => r.trim());
+        const evtRooms = evt.location.split('、').map(r => r.trim());
         const overlappingRooms = rooms.filter(r => evtRooms.includes(r));
         if (overlappingRooms.length > 0) {
           return { message: `يوجد تعارض في القاعة (${overlappingRooms.join('، ')}) مع فعالية: ${evt.title}`, conflictingEventId: evt.id };
@@ -1090,7 +1109,6 @@ ${formattedItems}
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
     const selectedGen = generatedSchedules.filter(s => selectedSchedules.includes(s.id));
     
-    // Check conflicts
     for (const gen of selectedGen) {
       const conflict = checkConflict(gen.date, gen.time, seriesRooms, [seriesAssignedEmployee].filter(Boolean));
       if (conflict) {
@@ -1100,9 +1118,9 @@ ${formattedItems}
     }
 
     const newEventsList: EventItem[] = selectedGen.map((gen, idx) => ({
-      id: Date.now() + idx, // unique ID
+      id: Date.now() + idx,
       title: gen.title,
-      type: "م مفردة",
+      type: "مفردة",
       date: gen.date,
       time: gen.time,
       committeeId: newCommitteeId,
@@ -1114,8 +1132,6 @@ ${formattedItems}
       notes: newNotes,
       exportedRecommendationsToPage: true,
     }));
-    // fix previously set wrong type
-    newEventsList.forEach(e => e.type = "مفردة");
 
     setEvents([...newEventsList, ...events]);
     setIsConfirmingSeries(false);
@@ -1130,14 +1146,12 @@ ${formattedItems}
     setConflictWarning(null);
     
     if (newType === "متسلسلة") {
-      // This is handled by handleImportSelected now, but just in case
       return;
     }
 
     if (!newRecTitle.trim() || !newCommitteeId) return;
 
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
-    const eventName = events.find(ev => ev.id === Number(newRecEventId))?.title || "توصية بالتمرير";
 
     if (editingEvent) {
       const updatedRec = {
@@ -1156,7 +1170,7 @@ ${formattedItems}
         recommendationText: newRecText,
         recommendationAssignee: newRecAssignee,
         recommendationDuration: newRecDuration,
-        recommendationAttachments: newRecAttachments,
+        recommendationAttachments: newRecAttachments as any,
         
         preparationsText: newRecText,
         preparationsAttachments: newRecAttachments.length > 0 ? newRecAttachments.map((att, index) => ({ id: String(index + 1), name: att.name, url: att.url })) : (editingEvent.preparationsAttachments || [])
@@ -1196,7 +1210,6 @@ ${formattedItems}
       setEvents([newRec, ...events]);
     }
     
-    // Clear form
     setNewRecTitle("");
     setNewRecDiscussion("");
     setNewRecText("");
@@ -1208,7 +1221,6 @@ ${formattedItems}
     setIsAddOpen(false);
     setShowSuccessMsg(true);
     setTimeout(() => setShowSuccessMsg(false), 3000);
-    setIsAddOpen(false);
   };
 
   const handleDelete = async () => {
@@ -1325,7 +1337,6 @@ ${formattedItems}
     }
   };
 
-  // Direct card-view recommendation operations states and helper handlers
   const [directAddRecOpen, setDirectAddRecOpen] = useState(false);
   const [directRecTitle, setDirectRecTitle] = useState("");
   const [directRecDesc, setDirectRecDesc] = useState("");
@@ -1338,7 +1349,6 @@ ${formattedItems}
   const handleUpdateRecommendationStatus = async (recId: string, newStatus: string, newStage?: string) => {
     if (!recId) return;
 
-    // Check if transient agenda item
     if (recId.startsWith("agenda-rec-")) {
       const parts = recId.split("-");
       const eventId = Number(parts[2]);
@@ -1354,7 +1364,7 @@ ${formattedItems}
         id: realId,
         title: agendaItem.title,
         description: agendaItem.recommendation || "",
-        committeeName: chosenEvent.committeeName || "غير محدد",
+        committeeName: chosenEvent.committeeName || "غير حدد",
         eventName: chosenEvent.title || "توصية غير محددة",
         date: chosenEvent.date || new Date().toISOString().split("T")[0],
         status: newStatus,
@@ -1385,7 +1395,6 @@ ${formattedItems}
       return;
     }
 
-    // Update standard database recommendation
     const rec = allDbRecommendations.find((r: any) => r.id === recId);
     let auditLogs = rec?.auditLogs || [];
     if (!Array.isArray(auditLogs)) auditLogs = [];
@@ -1474,8 +1483,6 @@ ${formattedItems}
   };
 
   const handleFileUploads = async (files: File[], evt: any, existingAtts: any[]) => {
-    
-    // Auto-generate the path based on user requirements
     let eventTitle = evt.eventName || evt.title || "بدون عنوان";
     let eventKind = "فعاليات أخرى";
     if (eventTitle.includes("اجتماع")) eventKind = "الاجتماعات";
@@ -1554,2203 +1561,236 @@ ${formattedItems}
     }
   };
 
-  return (
-    <div className="space-y-6 pb-16 text-right" dir="rtl">
-      {/* Dynamic Header Toolbar */}
-      <div className="bg-[#e8e4e4] rounded-2xl p-6 border border-gray-200 shadow-sm flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-        <div className="flex items-center gap-4.5">
-          <div className="w-13 h-13 rounded-2.5xl bg-brand/10 border border-[#dfba6b]/30 flex items-center justify-center text-brand shrink-0">
-            <Sliders className="w-6.5 h-6.5" />
-          </div>
-          <div className="space-y-1">
-            <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">
-              <span>سجل وتصنيف التوصيات القطاعية</span>
-            </h2>
-            <p className="text-gray-650 text-xs font-semibold">
-              حوكمة وتصنيف التوصيات الصادرة من اللجان والفعاليات والاجتماعات.
-            </p>
-          </div>
-        </div>
-
-        {/* Actions & Stats Group Controls */}
-        <div className="flex flex-wrap items-center gap-3 justify-center md:justify-end">
-          
-          {/* 1. Toggleable Search with Input */}
-          <div className="flex items-center gap-2 relative">
-            <AnimatePresence>
-              {showSuccessMsg && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute left-0 -top-12 bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap shadow-md z-10 flex items-center gap-2"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  تم إضافة التوصية بنجاح
-                </motion.div>
-              )}
-            </AnimatePresence>
-            <AnimatePresence>
-              {isSearchExpanded && (
-                <motion.form
-                  initial={{ width: 0, opacity: 0 }}
-                  animate={{ width: 170, opacity: 1 }}
-                  exit={{ width: 0, opacity: 0 }}
-                  onSubmit={handleSearchCommit}
-                  className="relative overflow-hidden"
-                >
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => {
-                      setSearchQuery(e.target.value);
-                      if (e.target.value === "") {
-                        setFilterQuery("");
-                      }
-                    }}
-                    placeholder="ابحث عن توصية..."
-                    autoFocus
-                    className="w-full h-10 pr-3 pl-8 bg-white border border-gray-300 rounded-xl text-xs font-bold placeholder-gray-400 text-right focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm"
-                  />
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={handleResetSearch}
-                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-650 cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </motion.form>
-              )}
-            </AnimatePresence>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (isSearchExpanded) {
-                  setFilterQuery(searchQuery);
-                  setIsSearchExpanded(false);
-                } else {
-                  setIsSearchExpanded(true);
-                }
-              }}
-              className={`p-2.5 rounded-xl transition-all duration-200 cursor-pointer border ${
-                isSearchExpanded || filterQuery
-                  ? "bg-blue-50 text-blue-600 border-blue-200 shadow-sm"
-                  : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-              }`}
-              title="البحث عن اللجان"
-            >
-              <Search className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* View Mode Switcher */}
-          <div className="flex bg-white p-1 rounded-xl border border-gray-250 select-none" style={{ borderWidth: '0px' }}>
-            <button
-              type="button"
-              onClick={() => setViewMode("grid")}
-              className={`px-3 py-1.5 rounded-lg font-black text-xs transition-all flex items-center gap-1 cursor-pointer ${
-                viewMode === "grid"
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              <span>بطائق</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("table")}
-              className={`px-3 py-1.5 rounded-lg font-black text-xs transition-all flex items-center gap-1 cursor-pointer ${
-                viewMode === "table"
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "text-gray-550 hover:text-gray-750"
-              }`}
-            >
-              <List className="w-3.5 h-3.5" />
-              <span>سجل</span>
-            </button>
-          </div>
-          
-          {/* Add Event Button */}
-          <button
-            type="button"
-            onClick={handleOpenAdd}
-            className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer shrink-0"
-          >
-            <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
-            <span>إضافة توصية</span>
-          </button>
-
-          {selectedEventIds.length > 0 && viewMode === "table" && (
-            <button
-              type="button"
-              onClick={() => setIsBulkDeleting(true)}
-              className="h-10 px-4 bg-red-650 hover:bg-red-750 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer shrink-0"
-            >
-              <Trash2 className="w-4.5 h-4.5 stroke-[2.5]" />
-              <span>حذف المحدد ({selectedEventIds.length})</span>
-            </button>
-          )}
-
-          {/* Vertical divider */}
-          <div className="h-8 w-px bg-gray-300 hidden sm:block mx-1"></div>
-
-          {/* Brief Quick Statistic Badge */}
-          <div className="flex gap-2">
-            <div className="bg-white px-3.5 py-1.5 rounded-xl text-center shadow-inner" style={{ borderWidth: '0px' }}>
-              <span className="text-[10px] font-black text-gray-400 block leading-tight">إجمالي التوصيات</span>
-              <span className="text-lg font-black text-brand leading-none font-mono">{events.length}</span>
-            </div>
-            <div className="bg-white px-3.5 py-1.5 rounded-xl text-center shadow-inner" style={{ borderWidth: '0px' }}>
-              <span className="text-[10px] font-black text-gray-400 block leading-tight">منتهية</span>
-              <span className="text-lg font-black text-emerald-600 leading-none font-mono">
-                {events.filter(e => e.status === "منتهية").length}
+  const renderPreparationPlatform = (evt: any) => {
+    const nextStep = getCalculatedNextStep(evt);
+    return (
+      <motion.div 
+        initial={{ opacity: 0, height: 0 }} 
+        animate={{ opacity: 1, height: "auto" }} 
+        exit={{ opacity: 0, height: 0 }}
+        className="px-6 py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-y border-gray-200 text-right font-sans relative"
+      >
+        {!canUserEditCommittee(evt.committeeName) && (
+          <div className="absolute inset-0 z-[60] bg-slate-50/40 cursor-not-allowed rounded-lg" title="ليس لديك صلاحية لتعديل هذه التوصية" />
+        )}
+        <div className={`flex flex-col md:flex-row gap-6 relative ${!canUserEditCommittee(evt.committeeName) ? "opacity-80 pointer-events-none grayscale-[10%]" : ""}`}>
+          {/* Right Column: Steps Stepper / Timeline Sidebar */}
+          <div className="w-full md:w-1/3 flex flex-col gap-2.5 bg-white p-4 rounded-xl border border-gray-200 shadow-sm shrink-0">
+            <div className="pb-3 border-b border-gray-100 flex items-center justify-between">
+              <span className="text-xs font-extrabold text-[#111] flex items-center gap-2">
+                <Activity className="w-4 h-4 text-brand" />
+                مراحل الإجراءات وتفعيل التوصية
+              </span>
+              <span className="text-[9px] px-2 py-0.5 rounded bg-brand/10 text-brand font-black">
+                خطوة {getStepIndex(nextStep) + 1} من 3
               </span>
             </div>
-          </div>
+            
+            {/* 3 recommendation timeline steps */}
+            {(() => {
+              const isStep0Unlocked = true;
+              const isStep1Unlocked = !!evt.preparationsConfirmed;
+              const isStep2Unlocked = isStep1Unlocked && !!evt.agendaTransferred;
+              
+              const isUnlockedByStepIndex = [
+                isStep0Unlocked,
+                isStep1Unlocked,
+                isStep2Unlocked
+              ];
 
-        </div>
-      </div>
+              const stepList = [
+                { title: "تجهيز التوصية والمسودة", desc: "المولد الذكي للمحتوى وإرفاق المرفقات الرسمية", done: !!evt.preparationsConfirmed },
+                { title: "إحالة التوصية واعتماداتها", desc: "إضافة الشروحات وصياغة قرار تفعيل التوصية", done: !!evt.agendaTransferred },
+                { title: "مراجعة الاعتمادات والقرار الهيكلي", desc: "تسجيل الملاحظات وحفظ التوصية غير مفعلة أو تفعيلها كلياً", done: !!evt.minutesSaved },
+              ];
 
-      {filteredEvents.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center space-y-3">
-          <div className="w-16 h-16 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mx-auto">
-            <Search className="w-7 h-7" />
-          </div>
-          <p className="text-gray-500 font-extrabold text-base">لم يعثر على أية نتائج مخصصة لعملية البحث الحالية.</p>
-          <button
-            onClick={handleResetSearch}
-            className="text-brand font-black text-xs hover:underline"
-          >
-            عرض كافة التوصيات المسجلة
-          </button>
-        </div>
-      ) : viewMode === "grid" ? (
-        <div className="space-y-6 text-right">
-          {/* Intelligent Breadcrumbs Navigator */}
-          <div className="bg-[#e8e4e4] border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-4 font-sans">
-            <div className="flex flex-wrap items-center gap-2 text-xs font-black text-gray-700">
-              <button
-                onClick={() => {
-                  setSelectedCommIdForCards(null);
-                  setSelectedEventIdForCards(null);
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  selectedCommIdForCards === null
-                    ? "bg-brand text-white shadow-sm"
-                    : "bg-white/80 text-gray-700 hover:bg-white border border-gray-300/65"
-                }`}
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>الرئيسية (لوحة اللجان)</span>
-              </button>
-
-              {selectedCommIdForCards !== null && (
+              return stepList.map((step, idx) => {
+                const isCurrent = getStepIndex(nextStep) === idx;
+                const isSelected = (activeStepTab[evt.id] ?? getStepIndex(nextStep)) === idx;
+                const isUnlocked = isUnlockedByStepIndex[idx];
                 
-<div key="filter-popover-1784704070989-1">
-                  <span className="text-gray-400 font-bold font-mono">/</span>
+                return (
                   <button
+                    key={idx}
+                    type="button"
+                    disabled={!isUnlocked}
                     onClick={() => {
-                      setSelectedEventIdForCards(null);
+                      setActiveStepTab(prev => ({
+                        ...prev,
+                        [evt.id]: idx
+                      }));
                     }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                      selectedEventIdForCards === null
-                        ? "bg-[#dfba6b] text-[#1e293b] shadow-sm font-black animate-pulse"
-                        : "bg-white/80 text-gray-705 hover:bg-white border border-gray-300/65"
+                    className={`w-full p-2.5 rounded-xl border text-right transition-all flex items-start gap-2.5 cursor-pointer relative overflow-hidden ${
+                      isSelected 
+                        ? "bg-slate-900 border-transparent text-white shadow-md font-extrabold" 
+                        : isUnlocked 
+                          ? "bg-slate-50 border-gray-200 text-slate-800 hover:bg-slate-100" 
+                          : "bg-slate-50/50 border-slate-100/50 text-slate-400 opacity-60 cursor-not-allowed"
                     }`}
                   >
-                    <Users2 className="w-3.5 h-3.5" />
-                    <span>
-                      {committees.find((c) => c.id === selectedCommIdForCards)?.name || "التحميل..."}
-                    </span>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-black ${
+                      step.done 
+                        ? "bg-emerald-500 text-white" 
+                        : isSelected 
+                          ? "bg-brand text-slate-900" 
+                          : "bg-gray-200 text-gray-600"
+                    }`}>
+                      {step.done ? <Check className="w-3.5 h-3.5" /> : idx + 1}
+                    </div>
+                    <div className="flex-1 text-right">
+                      <div className="text-[10.5px] font-black leading-tight flex items-center gap-1.5 justify-start">
+                        {step.title}
+                        {isCurrent && (
+                          <span className={`text-[8px] px-1 py-0.5 rounded font-black ${isSelected ? "bg-brand text-slate-900 animate-pulse" : "bg-blue-100 text-blue-600"}`}>
+                            الحالي
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-[8.5px] leading-normal font-bold mt-0.5 ${isSelected ? "text-gray-300" : "text-gray-550"}`}>
+                        {step.desc}
+                      </p>
+                    </div>
                   </button>
-                </div>
-              )}
-
-              {selectedCommIdForCards !== null && selectedEventIdForCards !== null && (
-                
-<div key="filter-popover-1784704070989-2">
-                  <span className="text-gray-400 font-bold font-mono">/</span>
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white shadow-sm font-black animate-bounce">
-                    <Sliders className="w-3.5 h-3.5" />
-                    <span>
-                      {(() => {
-                        const recEvt = events.find((e) => e.id === selectedEventIdForCards);
-                        return recEvt ? recEvt.title : "تفاصيل التوصيات";
-                      })()}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="text-[11px] text-gray-600 font-bold">
-              مجموع النتائج الحالية:{" "}
-              <span className="text-brand font-black">
-                {(() => {
-                  if (selectedCommIdForCards === null) {
-                    return committees.length;
-                  }
-                  if (selectedEventIdForCards === null) {
-                    return filteredEvents.filter((e) => e.committeeId === selectedCommIdForCards).length;
-                  }
-                  const chosenEvent = events.find((e) => e.id === selectedEventIdForCards);
-                  const dbRecommendationsCount = allDbRecommendations.filter((rec: any) =>
-                    String(rec.id).startsWith(`custom-rec-${selectedEventIdForCards}-`) ||
-                    (rec.eventName && rec.eventName === chosenEvent?.title)
-                  ).length;
-                  const agendaCount = (chosenEvent?.agenda || []).filter(
-                    (g: any) => g.recommendation && g.recommendation.trim() !== ""
-                  ).length;
-                  return dbRecommendationsCount + agendaCount;
-                })()}
-              </span>{" "}
-              عنصر ضمن التصفح الحالي
-            </div>
+                );
+              });
+            })()}
           </div>
-          {/* Main 3-Screen Drill-down Container */}
-          {selectedCommIdForCards === null ? (
-            /* Screen 1: Committees Grid (الرئيسية - لوحة اللجان) */
-            <div className="space-y-6 text-right font-sans" dir="rtl">
-              <div className="bg-[#e8e4e4] p-5 rounded-3xl border border-gray-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
-                    <span className="w-2 h-5 bg-brand rounded-full inline-block animate-pulse"></span>
-                    <span>لوحة اللجان القطاعية</span>
-                  </h3>
-                  <p className="text-xs text-gray-600 font-bold mt-1">
-                    اختر أحد اللجان القطاعية التالية لاستعراض سجل اجتماعاتها وحصر التوصيات الصادرة عنها
-                  </p>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {committees.map((comm) => {
-                  // Count events/meetings under this committee
-                  const commSessions = events.filter((e) => String(e.committeeId) === String(comm.id));
-                  const sessionsCount = commSessions.length;
-
-                  // Count recommendations under this committee
-                  const commRecsCount = allDbRecommendations.filter((rec: any) => {
-                    const matchedEvent = events.find((e) => e.title === rec.eventName || String(rec.id).includes(`custom-rec-${e.id}-`));
-                    return matchedEvent?.committeeId === comm.id;
-                  }).length + commSessions.reduce((acc, evt) => {
-                    return acc + (evt.agenda || []).filter((g: any) => g.recommendation && g.recommendation.trim() !== "").length;
-                  }, 0);
-
-                  return (
-                    <motion.div
-                      key={comm.id}
-                      onClick={() => setSelectedCommIdForCards(comm.id)}
-                      className="bg-[#e8e4e4] hover:bg-[#e2dede] border border-gray-200 hover:border-brand/40 hover:shadow-md transition-all duration-300 rounded-3xl p-6 relative flex flex-col justify-between space-y-6 cursor-pointer group"
-                    >
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <span className="p-2.5 rounded-2xl bg-brand/10 text-brand group-hover:scale-110 transition-transform duration-200">
-                            <BookOpen className="w-6 h-6" />
-                          </span>
-                          <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full font-black border border-emerald-200">
-                            نشط
-                          </span>
-                        </div>
-
-                        <div className="space-y-2">
-                          <h4 className="text-sm font-black text-slate-800 leading-snug group-hover:text-brand transition-colors">
-                            {comm.name}
-                          </h4>
-                          <p className="text-xs text-slate-500 font-extrabold line-clamp-2 min-h-[32px] tracking-wide">
-                            {comm.description || "لا يوجد وصف إضافي متوفر لهذه اللجنة القطاعية."}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="pt-4 border-t border-gray-300/80 flex items-center justify-between text-xs font-bold text-gray-600">
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                          <span>الاجتماعات: {sessionsCount}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <Sliders className="w-3.5 h-3.5 text-gray-400" />
-                          <span className="text-brand font-black">التوصيات: {commRecsCount}</span>
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : selectedEventIdForCards === null ? (
-            /* Screen 2: List of Meetings/Events of the selected Committee */
-            <div className="space-y-6 text-right" dir="rtl">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#e8e4e4] p-5 rounded-3xl border border-gray-200 shadow-sm">
-                <div>
-                  <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
-                    <span className="w-2 h-5 bg-brand rounded-full inline-block animate-pulse"></span>
-                    <span>تصفح اجتماعات وفعاليات: </span>
-                    <span className="text-brand">
-                      {committees.find((c) => c.id === selectedCommIdForCards)?.name || "اللجنة المحددة"}
-                    </span>
-                  </h3>
-                  <p className="text-xs text-gray-600 font-bold mt-1">
-                    يرجى اختيار الاجتماع من السجل أدناه لعرض وبناء بطاقات التوصيات له
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    setSelectedCommIdForCards(null);
-                    setSelectedEventIdForCards(null);
-                  }}
-                  className="px-4 py-2 text-xs bg-white text-slate-800 hover:bg-slate-100 font-black rounded-xl transition duration-205 flex items-center gap-1.5 cursor-pointer shadow-sm border border-gray-300/80"
-                >
-                  <span>الرجوع للوحة اللجان الرئيسية ↑</span>
-                </button>
-              </div>
-
-              {(() => {
-                const commEvents = filteredEvents.filter((e) => e.committeeId === selectedCommIdForCards);
-
-                if (commEvents.length === 0) {
-                  return (
-                    <div className="bg-[#e8e4e4] border-2 border-dashed border-gray-300 rounded-3xl p-12 text-center text-gray-500 font-bold text-sm">
-                      <div className="w-16 h-16 rounded-full bg-white/70 border border-gray-300 flex items-center justify-center mx-auto mb-4 text-slate-400">
-                        <Calendar className="w-8 h-8" />
-                      </div>
-                      لا توجد أية اجتماعات مسجلة لهذه اللجنة حالياً تحتوي على توصيات.
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {commEvents.map((evt) => {
-                      // Calculate recommendation count for this meeting/event
-                      const dbRecommendationsCount = allDbRecommendations.filter((rec: any) =>
-                        String(rec.id).startsWith(`custom-rec-${evt.id}-`) ||
-                        (rec.eventName && rec.eventName === evt.title)
-                      ).length;
-
-                      const agendaCount = (evt.agenda || []).filter(
-                        (g: any) => g.recommendation && g.recommendation.trim() !== ""
-                      ).length;
-
-                      const totalRecs = dbRecommendationsCount + agendaCount;
-
-                      // Extract date and day details
-                      const dayName = evt.date ? getDayNameFromDate(evt.date) : "غير محدد";
-                      const dateStr = evt.date || "غير محدد";
-                      const timeStr = evt.time ? formatTime12h(evt.time) : "";
-
-                      return (
-                        <motion.div
-                          key={evt.id}
-                          layoutId={`meet-card-${evt.id}`}
-                          initial={{ opacity: 0, scale: 0.98 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="bg-[#e8e4e4] hover:bg-[#e2dede] border border-gray-200 hover:border-brand/40 hover:shadow-md transition-all duration-300 rounded-3xl p-6 relative flex flex-col justify-between space-y-5"
-                        >
-                          <div className="space-y-4">
-                            <div className="flex items-start justify-between gap-2">
-                              <span className="inline-block px-2.5 py-1 text-[10px] font-black rounded-lg bg-white/90 text-slate-700 border border-gray-305">
-                                {evt.type || "رسمي"}
-                              </span>
-                              <span className="inline-block px-2.5 py-1 text-[10px] font-black rounded-lg bg-brand/20 text-slate-900 border border-brand/25">
-                                {evt.status || "مؤكد"}
-                              </span>
-                            </div>
-
-                            <h4 className="text-sm font-black text-slate-850 leading-snug shrink-0 min-h-[40px]">
-                              {(() => {
-                                if (evt.recommendationClassification === "بالتمرير") return evt.title;
-                                if (evt.recommendationEventId && evt.recommendationEventId !== "unlinked") {
-                                    const linkedEvent = events.find(e => String(e.id) === String(evt.recommendationEventId));
-                                    if (linkedEvent) return linkedEvent.title;
-                                }
-                                return evt.title;
-                              })()}
-                            </h4>
-
-                            <div className="space-y-2 text-xs font-bold text-gray-700 bg-white/75 p-4 rounded-2xl border border-gray-300/60 shadow-sm">
-                              <div className="flex items-center gap-2">
-                                <Activity className="w-3.5 h-3.5 text-gray-500" />
-                                <span>اللجنة: {evt.committeeName}</span>
-                              </div>
-                              <div className="flex items-center gap-2 text-brand">
-                                <List className="w-3.5 h-3.5" />
-                                <span>الاجتماع: {evt.eventName || "توصية مباشرة"}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Calendar className="w-3.5 h-3.5 text-gray-500" />
-                                <span>يوم {dayName} الموافق {dateStr}</span>
-                              </div>
-                              {timeStr && (
-                                <div className="flex items-center gap-2">
-                                  <Clock className="w-3.5 h-3.5 text-gray-500" />
-                                  <span>الساعة {timeStr}</span>
-                                </div>
-                              )}
-                              <div className="flex items-center gap-2">
-                                <MapPin className="w-3.5 h-3.5 text-gray-500" />
-                                <span>{evt.location || "القاعة الرئيسية"}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="pt-2 border-t border-gray-300/85 flex items-center justify-between">
-                            <span className="text-xs font-extrabold text-blue-800 bg-blue-50/90 border border-blue-200 px-3 py-1 rounded-lg">
-                              {totalRecs} توصية مسجلة
-                            </span>
-                            <button
-                              onClick={() => {
-                                setSelectedEventIdForCards(evt.id);
-                              }}
-                              className="px-4 py-2 bg-brand text-white hover:bg-[#dfba6b] hover:text-[#1e293b] font-black text-xs rounded-xl transition duration-200 shadow-sm cursor-pointer flex items-center gap-1"
-                            >
-                              <span>تصفح التوصيات</span>
-                              <span>←</span>
-                            </button>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-            </div>
-          ) : (
-            /* Screen 3: List of Recommendations inside Selected Event */
-            <div className="space-y-6 text-right" dir="rtl">
-              {(() => {
-                const chosenEvent = events.find((e) => e.id === selectedEventIdForCards);
-                if (!chosenEvent) {
-                  return (
-                    <div className="bg-white p-8 text-center rounded-3xl border text-gray-500 font-bold">
-                      تعذر العثور على بيانات الفعالية المحددة.
-                    </div>
-                  );
-                }
-
-                // Gather recommendations
-                const dbRecommendations = allDbRecommendations.filter((rec: any) =>
-                  String(rec.id).startsWith(`custom-rec-${selectedEventIdForCards}-`) ||
-                  (rec.eventName && rec.eventName === chosenEvent.title)
-                );
-
-                const agendaRecsForCards = (chosenEvent.agenda || [])
-                  .filter((item: any) => item.recommendation && item.recommendation.trim() !== "")
-                  .map((item: any, index: number) => {
-                    return {
-                      id: `custom-rec-${chosenEvent.id}-${item.id || index}`,
-                      title: `توصية البند ${getArabicOrdinalGlobal(index + 1)} "${item.title}"`,
-                      description: item.recommendation,
-                      recommendationText: item.recommendation,
-                      committeeName: chosenEvent.committeeName || "لجنة غير محددة",
-                      eventName: chosenEvent.title,
-                      date: chosenEvent.date || "2026-06-11",
-                      status: "جديدة",
-                      approvalStage: "أخصائي",
-                      assignedTo: item.assignee || "غير محدد",
-                      duration: item.durationRec || "أسبوعين",
-                      isAgendaSource: true
-                    };
-                  });
-                
-                const combinedRecsMap = new Map();
-                dbRecommendations.forEach((dr: any) => combinedRecsMap.set(String(dr.id), { ...dr }));
-                
-                agendaRecsForCards.forEach((ar: any) => {
-                  if (!combinedRecsMap.has(String(ar.id))) {
-                    combinedRecsMap.set(String(ar.id), ar);
-                  } else {
-                    let existing = combinedRecsMap.get(String(ar.id));
-                    if (!existing.title || existing.title.includes("غير مسماة") || existing.title === existing.description) {
-                       existing.title = ar.title;
-                    }
-                    if (!existing.assignedTo || existing.assignedTo === "غير محدد") {
-                       existing.assignedTo = ar.assignedTo;
-                    }
-                  }
-                });
-                
-                const combinedRecs = Array.from(combinedRecsMap.values());
-
-                return (
-                  <div className="space-y-6">
-                    {/* Screen 3 Toolbar Header */}
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#e8e4e4] p-6 rounded-3xl border border-gray-200 shadow-sm">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-6 bg-brand rounded-full inline-block animate-pulse"></span>
-                          <h3 className="text-base font-black text-slate-800 leading-snug">
-                            توصيات: <span className="text-brand">{chosenEvent.title}</span>
-                          </h3>
-                        </div>
-                        <p className="text-xs text-gray-600 font-bold mt-1">
-                          يمكنك إضافة توصيات، تتبع مسارات الاعتماد، وتحديث الحالات مع تسجيل الأرشيف التاريخي لكل حالة
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2.5 shrink-0">
-                        <button
-                          onClick={() => setDirectAddRecOpen(true)}
-                          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl transition duration-200 shadow-sm cursor-pointer flex items-center gap-1 text-right"
-                        >
-                          <Plus className="w-4 h-4" />
-                          <span>إضافة توصية جديدة +</span>
-                        </button>
-                        <button
-                          onClick={() => setSelectedEventIdForCards(null)}
-                          className="px-4 py-2.5 bg-white text-slate-800 hover:bg-slate-100 font-black text-xs rounded-xl transition duration-200 shadow-sm cursor-pointer flex items-center gap-1.5 border border-gray-300/80"
-                        >
-                          <span>الرجوع لقائمة الاجتماعات ↑</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Inline Form to Add Recommendation */}
-                    {directAddRecOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-slate-50 border border-blue-200/60 rounded-3xl p-6 shadow-md"
-                      >
-                        <form onSubmit={handleAddRecSubmitDirect} className="space-y-4">
-                          <h4 className="text-sm font-black text-slate-800 border-b border-slate-200/60 pb-2">
-                            نموذج بناء وإضافة توصية جديدة للفعالية
-                          </h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-[11px] font-bold text-gray-600 mb-1">
-                                عنوان التوصية / بند جدول العمل
-                              </label>
-                              <input
-                                type="text"
-                                value={directRecTitle}
-                                onChange={(e) => setDirectRecTitle(e.target.value)}
-                                className="w-full text-xs font-semibold px-3 py-2 bg-white rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 text-right"
-                                required
-                                placeholder="مثال: زيادة طاقة التخزين المبرد بالمستودعات"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[11px] font-bold text-gray-600 mb-1">
-                                المسؤول المكلف بالتنفيذ
-                              </label>
-                              <input
-                                type="text"
-                                value={directRecAssignee}
-                                onChange={(e) => setDirectRecAssignee(e.target.value)}
-                                className="w-full text-xs font-semibold px-3 py-2 bg-white rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 text-right"
-                                placeholder="اسم العضو أو الموظف المسؤول"
-                              />
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block text-[11px] font-bold text-gray-600 mb-1">
-                              نص وتفاصيل التوصية بالكامل
-                            </label>
-                            <textarea
-                              rows={3}
-                              value={directRecDesc}
-                              onChange={(e) => setDirectRecDesc(e.target.value)}
-                              className="w-full text-xs font-semibold px-3 py-2 bg-white rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 text-right"
-                              required
-                              placeholder="كتابة نص التوصية الإجرائية بشكل دقيق..."
-                            />
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <div>
-                              <label className="block text-[11px] font-bold text-gray-600 mb-1">
-                                مدة التنفيذ المقترحة
-                              </label>
-                              <input
-                                type="text"
-                                value={directRecDuration}
-                                onChange={(e) => setDirectRecDuration(e.target.value)}
-                                className="w-full text-xs font-semibold px-3 py-2 bg-white rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 text-right"
-                                placeholder="مثال: أسبوعين، شهر"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[11px] font-bold text-gray-600 mb-1">
-                                حالة التوصية البدئية
-                              </label>
-                              <select
-                                value={directRecStatus}
-                                onChange={(e) => setDirectRecStatus(e.target.value)}
-                                className="w-full text-xs font-semibold px-2 py-2 bg-white rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 text-right"
-                              >
-                                <option value="جديدة">جديدة</option>
-                                <option value="جاري العمل عليها">جاري العمل عليها</option>
-                                <option value="توصية متأخرة">توصية متأخرة</option>
-                                <option value="منجزة">منجزة</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-[11px] font-bold text-gray-600 mb-1">
-                                مسار الاعتماد البدئي
-                              </label>
-                              <select
-                                value={directRecStage}
-                                onChange={(e) => setDirectRecStage(e.target.value)}
-                                className="w-full text-xs font-semibold px-2 py-2 bg-white rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 text-right"
-                              >
-                                <option value="أخصائي">أخصائي</option>
-                                <option value="رئيس قسم">رئيس قسم</option>
-                                <option value="مدير إدارة">مدير إدارة</option>
-                                <option value="مكتملة">مكتملة</option>
-                              </select>
-                            </div>
-                          </div>
-
-                          <div className="flex justify-end gap-2 pt-2">
-                            <button
-                              type="submit"
-                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-lg cursor-pointer transition shadow-sm"
-                            >
-                              حفظ التوصية في النظام
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDirectAddRecOpen(false)}
-                              className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg cursor-pointer transition"
-                            >
-                              إلغاء الأمر
-                            </button>
-                          </div>
-                        </form>
-                      </motion.div>
-                    )}
-
-                    {/* Recommendations Cards list */}
-                    {combinedRecs.length === 0 ? (
-                      <div className="bg-white border border-slate-150 rounded-3xl p-12 text-center text-gray-500 font-bold text-sm">
-                        لا توجد حتى الآن أية توصيات مسجلة لهذا اللقاء. يمكنك النقر على الزر أعلاه لإضافة أول توصية.
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {combinedRecs.map((rec: any, idx: number) => {
-                          const statusStr = rec.status || "جديدة";
-                          let badgeBg = "bg-blue-50 text-blue-700 border-blue-200";
-                          let borderAccent = "border-blue-100 shadow-blue-50/5";
-                          let statusTextLabel = "توصية جديدة";
-
-                          if (statusStr.includes("منجز") || statusStr.includes("مكتمل") || statusStr === "منجزة") {
-                            badgeBg = "bg-emerald-50 text-emerald-700 border-emerald-200";
-                            borderAccent = "border-emerald-100 shadow-emerald-50/5";
-                            statusTextLabel = "توصية منجزة";
-                          } else if (statusStr.includes("متأخر")) {
-                            badgeBg = "bg-rose-50 text-rose-700 border-rose-200";
-                            borderAccent = "border-rose-100 shadow-rose-100/5";
-                            statusTextLabel = "توصية متأخرة";
-                          } else if (statusStr.includes("جاري")) {
-                            badgeBg = "bg-amber-50 text-amber-700 border-amber-200";
-                            borderAccent = "border-amber-100 shadow-amber-50/5";
-                            statusTextLabel = "جاري العمل عليها";
-                          }
-
-                          // Tracker Stages
-                          const approvalStagesList = ["أخصائي", "رئيس قسم", "مدير الإدارة", "مكتملة"];
-                          const currentStageText = rec.approvalStage || "أخصائي";
-                          // Normalize stage word
-                          let mappedIdx = 0;
-                          if (currentStageText.includes("أخصائي")) mappedIdx = 0;
-                          else if (currentStageText.includes("رئيس")) mappedIdx = 1;
-                          else if (currentStageText.includes("مدير")) mappedIdx = 2;
-                          else if (currentStageText.includes("مكتمل") || currentStageText.includes("منجز")) mappedIdx = 3;
-
-                          return (
-                            <motion.div
-                              key={rec.id || idx}
-                              layout
-                              initial={{ opacity: 0, scale: 0.98 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              className={`bg-[#e8e4e4] hover:bg-[#e2dede] border border-gray-200 hover:border-brand/40 shadow-sm hover:shadow-md transition-all duration-300 rounded-3xl p-6 flex flex-col justify-between space-y-6 text-right relative`}
-                            >
-                              {/* Card Header & Badges */}
-                              <div className="space-y-4">
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex flex-col gap-1">
-                                    <span className={`inline-flex items-center justify-center px-2.5 py-1 text-[11px] font-black rounded-lg border ${badgeBg}`}>
-                                      {statusTextLabel}
-                                    </span>
-                                    <span className="text-[10px] text-gray-600 font-bold bg-white/50 px-2 py-0.5 rounded border border-gray-200 text-center">
-                                      المكلف: {rec.assignedTo || rec.recommendationAssignee || (rec.employees && rec.employees[0]) || "غير محدد"}
-                                    </span>
-                                  </div>
-                                  {rec.isAgendaSource && (
-                                    <span className="text-[10px] text-brand font-bold bg-[#dfba6b]/10 border border-[#dfba6b]/20 px-2 py-0.5 rounded-lg animate-pulse">
-                                      من جدول الأعمال
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div className="space-y-2">
-                                  <h4 className="text-sm font-black text-slate-850 leading-snug">
-                                    {rec.title}
-                                  </h4>
-                                  <p className="text-xs text-gray-700 font-semibold leading-relaxed bg-white/75 p-4 rounded-xl border border-gray-300/60 shadow-sm min-h-[50px]">
-                                    {rec.description}
-                                  </p>
-                                </div>
-
-                                {/* Assigned & Duration */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 text-xs">
-                                  <div className="flex items-center gap-1.5 font-extrabold text-gray-700 bg-white/75 px-2.5 py-1.5 rounded-lg border border-gray-300/50 shadow-sm">
-                                    <Users className="w-3.5 h-3.5 text-brand shrink-0" />
-                                    <span className="truncate">المسؤول: {rec.assignedTo}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 font-extrabold text-gray-700 bg-white/75 px-2.5 py-1.5 rounded-lg border border-gray-300/50 shadow-sm font-sans">
-                                    <Clock className="w-3.5 h-3.5 text-brand shrink-0" />
-                                    <span>المدة: {rec.duration}</span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Stepper Approval tracking */}
-                              <div className="bg-white/75 p-4 rounded-2.5xl border border-gray-300/60 shadow-sm space-y-3">
-                                <div className="text-[10px] text-gray-500 font-extrabold flex items-center justify-between">
-                                  <span>تتبع مسار الاعتماد الإداري للتوصية</span>
-                                  <span className="text-brand font-black bg-[#dfba6b]/10 px-2 py-0.5 rounded-md border border-[#dfba6b]/20">
-                                    المرحلة الحالية: {currentStageText}
-                                  </span>
-                                </div>
-
-                                <div className="flex items-center justify-between relative pt-1" dir="rtl">
-                                  {approvalStagesList.map((st, i) => {
-                                    const isPassed = i <= mappedIdx;
-                                    const isCurrent = i === mappedIdx;
-
-                                    return (
-                                      <div key={st} className="flex flex-col items-center flex-1 relative z-10">
-                                        <div
-                                          className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black transition-all ${
-                                            isPassed
-                                              ? "bg-brand text-[#1e293b] font-black scale-110 shadow-md ring-4 ring-brand/10"
-                                              : "bg-gray-300 text-gray-500"
-                                          }`}
-                                        >
-                                          {i + 1}
-                                        </div>
-                                        <span
-                                          className={`text-[9px] font-extrabold mt-1.5 transition-colors ${
-                                            isCurrent
-                                              ? "text-brand font-black"
-                                              : isPassed
-                                              ? "text-slate-800 font-semibold"
-                                              : "text-gray-500"
-                                          }`}
-                                        >
-                                          {st}
-                                        </span>
-
-                                        {/* Connector line */}
-                                        {i < approvalStagesList.length - 1 && (
-                                          <div
-                                            className={`absolute left-0 right-1/2 top-3 h-0.5 -translate-y-1/2 -z-10 ${
-                                              i < mappedIdx ? "bg-[#dfba6b]" : "bg-gray-300"
-                                            }`}
-                                            style={{ width: "100%" }}
-                                          />
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-
-                              {/* Interactive controls */}
-                              <div className="pt-3 border-t border-gray-300/85 space-y-3">
-                                <div className="flex flex-wrap items-center justify-between gap-2.5">
-                                  {/* Update status select */}
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-[10px] text-gray-600 font-bold whitespace-nowrap">تعديل الحالة:</span>
-                                    <select
-                                      value={statusStr}
-                                      onChange={(e) => handleUpdateRecommendationStatus(rec.id, e.target.value)}
-                                      className="text-[11px] font-black bg-white border border-gray-300 rounded-lg px-2 py-1 focus:outline-none cursor-pointer text-slate-800 shadow-sm"
-                                    >
-                                      <option value="جديدة">جديدة</option>
-                                      <option value="جاري العمل عليها">جاري العمل عليها</option>
-                                      <option value="توصية متأخرة">توصية متأخرة</option>
-                                      <option value="منجزة">منجزة</option>
-                                    </select>
-                                  </div>
-
-                                  {/* Advance stage button */}
-                                  {mappedIdx < 3 ? (
-                                    <button
-                                      onClick={() => {
-                                        const nextStage = approvalStagesList[mappedIdx + 1];
-                                        const nextStatus = nextStage === "مكتملة" ? "منجزة" : statusStr;
-                                        handleUpdateRecommendationStatus(rec.id, nextStatus, nextStage);
-                                      }}
-                                      className="px-3 py-1.5 bg-brand hover:bg-[#dfba6b] hover:text-[#1e293b] font-black text-[10px] rounded-lg transition text-white cursor-pointer shadow-sm"
-                                    >
-                                      ترقية مسار الاعتماد ←
-                                    </button>
-                                  ) : (
-                                    <span className="text-[10px] text-emerald-800 font-black bg-emerald-50 px-2 py-1 rounded-md border border-emerald-250">
-                                      ✓ معتمدة بالكامل
-                                    </span>
-                                  )}
-                                </div>
-
-                                {/* Audit logs trigger */}
-                                <div className="pt-2 border-t border-gray-300/85">
-                                  <button
-                                    type="button"
-                                    onClick={() => setExpandedRecLogsId(expandedRecLogsId === rec.id ? null : rec.id)}
-                                    className="text-[10px] text-gray-650 font-extrabold flex items-center gap-1 hover:text-brand"
-                                  >
-                                    <span>{expandedRecLogsId === rec.id ? "إخفاء السجل التاريخي" : "عرض السجل التاريخي لقنوات التتبع"}</span>
-                                    <Sliders className="w-3 h-3" />
-                                    <span>({rec.auditLogs?.length || 0})</span>
-                                  </button>
-
-                                  {expandedRecLogsId === rec.id && (
-                                    <motion.div
-                                      initial={{ opacity: 0, height: 0 }}
-                                      animate={{ opacity: 1, height: "auto" }}
-                                      className="bg-white border border-gray-300 rounded-xl p-3 mt-2 text-[10px] space-y-1.5 max-h-40 overflow-y-auto shadow-inner"
-                                    >
-                                      {(!rec.auditLogs || rec.auditLogs.length === 0) ? (
-                                        <div className="text-gray-400 italic">لا توجد سجلات أرشفة بعد.</div>
-                                      ) : (
-                                        rec.auditLogs.map((log: any, logI: number) => (
-                                          <div key={logI} className="border-b border-dashed border-gray-200 pb-1.5 last:border-0 last:pb-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                                            <div className="text-slate-800 font-bold">{log.action}</div>
-                                            <div className="text-gray-500 font-semibold">{log.timestamp} | {log.user}</div>
-                                          </div>
-                                        ))
-                                      )}
-                                    </motion.div>
-                                  )}
-                                </div>
-                              </div>
-                            </motion.div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-          )}
-        </div>
-      ) : (
-        /* TABLE REGISTER VIEW LAYOUT (سجل الفعاليات) */
-        <div className="bg-[#e8e4e4] rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-right">
-          <div className="overflow-x-auto custom-scrollbar font-sans pb-36">
-            <table className="w-full text-xs font-semibold text-gray-700 select-none border-collapse text-right">
-              <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
-                <tr className="divide-x divide-x-reverse divide-gray-300">
-                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-right w-16">
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="checkbox" 
-                        className="rounded text-brand"
-                        checked={selectedEventIds.length === tableRecommendations.length && tableRecommendations.length > 0} 
-                        onChange={toggleSelectAllEvents}
-                      />
-                      <span>م</span>
-                    </div>
-                  </th>
-                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-center w-36">رقم التوصية</th>
-                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-right">عنوان التوصية</th>
-                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-right">اللجنة</th>
-                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-center w-40">تاريخ التوصية</th>
-                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-center w-36">الحالة</th>
-                  <th className="whitespace-nowrap px-4 py-3 font-black text-xs text-center w-36">الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 bg-[#e8e4e4]/85">
-                {tableRecommendations.map((evt: any, idx) => {
-                  const isExpanded = expandedEventId === evt.id;
-                  const nextStep = getCalculatedNextStep(evt);
-                  return (
-                    <React.Fragment key={evt.id}>
-                      <tr 
-                        id={`event-row-${evt.id}`}
-                        onClick={() => setExpandedEventId(isExpanded ? null : evt.id)}
-                        className={`hover:bg-slate-100/80 transition-colors text-right divide-x divide-x-reverse divide-gray-200 text-[11px] font-bold text-gray-700 cursor-pointer ${isExpanded ? "bg-slate-50/90 border-r-2 border-r-brand shadow-inner" : ""}`}
-                      >
-                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-right text-gray-900 font-mono font-black" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-2">
-                            <input 
-                              type="checkbox" 
-                              className="rounded text-brand"
-                              checked={selectedEventIds.includes(evt.id)} 
-                              onChange={() => toggleSelectEvent(evt.id)}
-                            />
-                            <span>{idx + 1}</span>
-                          </div>
-                        </td>
-                        
-                        {/* رقم التوصية */}
-                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-center text-gray-900 font-mono font-black">
-                          <span className="inline-block px-2 py-1 select-all font-mono font-black text-brand bg-brand/5 border border-brand/10 rounded text-[10.5px]">
-                            REC-{String(evt.id || "").substring(0, 5).toUpperCase()}
-                          </span>
-                        </td>
-
-                        {/* عنوان التوصية */}
-                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap font-black text-gray-900 group/row" title="انقر لتشغيل منصة التحضير">
-                          <div className="flex flex-col text-right truncate">
-                            <span className="text-[11.5px] font-bold text-gray-900 leading-tight transition-colors group-hover/row:text-brand underline decoration-dotted decoration-brand/45 underline-offset-4 truncate mb-1">
-                              {(() => {
-                                if (evt.recommendationClassification === "بالتمرير") return evt.title;
-                                if (evt.recommendationEventId && evt.recommendationEventId !== "unlinked") {
-                                    const linkedEvent = events.find(e => String(e.id) === String(evt.recommendationEventId));
-                                    if (linkedEvent) return linkedEvent.title;
-                                }
-                                return evt.title;
-                              })()}
-                            </span>
-                            {evt.preparationsText ? (
-                              <div className="text-[9.5px] text-brand font-bold truncate max-w-sm">
-                                {(evt.preparationsText || "").substring(0, 65).replace(/[\r\n]+/g, " ")}...
-                              </div>
-                            ) : (
-                              <div className="text-[9px] text-gray-400 font-bold">
-                                (اضغط على الإجراءات لتجهيز صياغة التوصية والمسودة)
-                              </div>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* اللجنة */}
-                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-xs font-bold text-gray-800 text-right">
-                          <span className="block text-gray-900 font-bold mb-1">{evt.committeeName || (evt.committeeId ? committees.find(c => String(c.id) === String(evt.committeeId))?.name : "") || "لجنة غير محددة"}</span>
-                          <span className="block text-[9.5px] text-gray-500 font-bold">
-                            المكلف: {evt.recommendationAssignee || (evt.employees && evt.employees[0]) || "غير محدد"}
-                          </span>
-                        </td>
-
-                        {/* تاريخ التوصية */}
-                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-center">
-                          <span className="block text-gray-900 font-bold text-[11px] mb-0.5" dir="ltr">{getDayNameFromDate(evt.date)} {evt.date}</span>
-                          <span className="block text-gray-500 font-bold text-[10px]" dir="ltr">{formatTime12h(evt.time || "01:30")}</span>
-                        </td>
-
-                        {/* الحالة */}
-                        <td className="whitespace-nowrap px-4 py-3.5 whitespace-nowrap text-center">
-                          {(() => {
-                            const rStat = getRecommendationStatus(evt);
-                            return (
-                              <span className={`inline-block px-2.5 py-1 rounded-full text-[9px] font-extrabold ring-1 ${rStat.colorClass}`}>
-                                {rStat.text}
-                              </span>
-                            );
-                          })()}
-                        </td>
-
-                        {/* الإجراءات */}
-                        <td className="whitespace-nowrap px-4 py-3.5 text-center relative whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-center gap-1.5 relative dropdown-container">
-                            <button
-                              type="button"
-                              onClick={() => setActiveGearMenuId(activeGearMenuId === evt.id ? null : evt.id)}
-                              className="p-1.5 hover:bg-[#d6cfcf] text-gray-700 hover:text-gray-950 rounded-lg border border-transparent hover:border-gray-350 transition-all cursor-pointer"
-                              title="الإجراءات"
-                            >
-                              <Settings className="w-4 h-4" />
-                            </button>
-                            
-                            {activeGearMenuId === evt.id && (
-                              
-<div key="filter-popover-1784704070989-3">
-                                <div 
-                                  className="fixed inset-0 z-30" 
-                                  onClick={() => setActiveGearMenuId(null)} 
-                                />
-                                
-                                <div className="absolute left-2 top-full mt-1.5 w-48 bg-white rounded-xl shadow-xl border border-gray-200 py-1 z-40 text-right font-sans">
-                                  {!!evt.recommendationType && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenEdit(evt)}
-                                      className="w-full px-3 py-2 text-xs font-black text-gray-700 hover:bg-blue-50 hover:text-blue-650 flex items-center justify-end gap-2 transition-colors cursor-pointer"
-                                    >
-                                      <span>تعديل التوصية</span>
-                                      <Edit2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveGearMenuId(null);
-                                      setExpandedEventId(expandedEventId === evt.id ? null : evt.id);
-                                    }}
-                                    className="w-full px-3 py-2 text-xs font-black text-blue-600 hover:bg-blue-50 flex items-center justify-end gap-2 transition-colors cursor-pointer"
-                                  >
-                                    <span>تجهيز التوصية والمسودة</span>
-                                    <Activity className="w-3.5 h-3.5" />
-                                  </button>
-                                  {!!evt.recommendationType && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenDelete(evt)}
-                                      className="w-full px-3 py-2 text-xs font-black text-red-600 hover:bg-red-50 flex items-center justify-end gap-2 transition-colors cursor-pointer"
-                                    >
-                                      <span>حذف التوصية</span>
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                      
-                      {isExpanded && (
-                        <tr>
-                          <td colSpan={7} className="p-0 bg-slate-50 border-t border-b border-gray-200 text-right font-sans">
-                            <motion.div 
-                              initial={{ opacity: 0, height: 0 }} 
-                              animate={{ opacity: 1, height: "auto" }} 
-                              exit={{ opacity: 0, height: 0 }}
-                              className="px-6 py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-y border-gray-200 text-right font-sans relative"
-                            >
-                              {!canUserEditCommittee(evt.committeeName) && (
-                                <div className="absolute inset-0 z-[60] bg-slate-50/40 cursor-not-allowed rounded-lg" title="ليس لديك صلاحية لتعديل هذه التوصية" />
-                              )}
-                              <div className={`flex flex-col md:flex-row gap-6 relative ${!canUserEditCommittee(evt.committeeName) ? "opacity-80 pointer-events-none grayscale-[10%]" : ""}`}>
-                                {/* Right Column: Steps Stepper / Timeline Sidebar */}
-                                <div className="w-full md:w-1/3 flex flex-col gap-2.5 bg-white p-4 rounded-xl border border-gray-200 shadow-sm shrink-0">
-                                  <div className="pb-3 border-b border-gray-100 flex items-center justify-between">
-                                    <span className="text-xs font-extrabold text-[#111] flex items-center gap-2">
-                                      <Activity className="w-4 h-4 text-brand" />
-                                      مراحل الإجراءات وتفعيل التوصية
-                                    </span>
-                                    <span className="text-[9px] px-2 py-0.5 rounded bg-brand/10 text-brand font-black">
-                                      خطوة {getStepIndex(nextStep) + 1} من 3
-                                    </span>
-                                  </div>
-                                  
-                                  {/* 3 recommendation timeline steps */}
-                                  {(() => {
-                                    const isStep0Unlocked = true;
-                                    const isStep1Unlocked = !!evt.preparationsConfirmed;
-                                    const isStep2Unlocked = isStep1Unlocked && !!evt.agendaTransferred;
-                                    
-                                    const isUnlockedByStepIndex = [
-                                      isStep0Unlocked,
-                                      isStep1Unlocked,
-                                      isStep2Unlocked
-                                    ];
-
-                                    const stepList = [
-                                      { title: "تجهيز التوصية والمسودة", desc: "المولد الذكي للمحتوى وإرفاق المرفقات الرسمية", done: !!evt.preparationsConfirmed },
-                                      { title: "إحالة التوصية واعتماداتها", desc: "إضافة الشروحات وصياغة قرار تفعيل التوصية", done: !!evt.agendaTransferred },
-                                      { title: "مراجعة الاعتمادات والقرار الهيكلي", desc: "تسجيل الملاحظات وحفظ التوصية غير مفعلة أو تفعيلها كلياً", done: !!evt.minutesSaved },
-                                    ];
-
-                                    return stepList.map((step, idx) => {
-                                      const isCurrent = getStepIndex(nextStep) === idx;
-                                      const isSelected = (activeStepTab[evt.id] ?? getStepIndex(nextStep)) === idx;
-                                      const isUnlocked = isUnlockedByStepIndex[idx];
-                                      
-                                      return (
-                                        <button
-                                          key={idx}
-                                          type="button"
-                                          disabled={!isUnlocked}
-                                          onClick={() => {
-                                            setActiveStepTab(prev => ({
-                                              ...prev,
-                                              [evt.id]: idx
-                                            }));
-                                          }}
-                                          className={`w-full p-2.5 rounded-xl border text-right transition-all flex items-start gap-2.5 cursor-pointer relative overflow-hidden ${
-                                            isSelected 
-                                              ? "bg-slate-900 border-transparent text-white shadow-md font-extrabold" 
-                                              : isUnlocked 
-                                                ? "bg-slate-50 border-gray-200 text-slate-800 hover:bg-slate-100" 
-                                                : "bg-slate-50/50 border-slate-100/50 text-slate-400 opacity-60 cursor-not-allowed"
-                                          }`}
-                                        >
-                                          <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-black ${
-                                            step.done 
-                                              ? "bg-emerald-500 text-white" 
-                                              : isSelected 
-                                                ? "bg-brand text-slate-900" 
-                                                : "bg-gray-200 text-gray-600"
-                                          }`}>
-                                            {step.done ? <Check className="w-3.5 h-3.5" /> : idx + 1}
-                                          </div>
-                                          <div className="flex-1 text-right">
-                                            <div className="text-[10.5px] font-black leading-tight flex items-center gap-1.5 justify-start">
-                                              {step.title}
-                                              {isCurrent && (
-                                                <span className={`text-[8px] px-1 py-0.5 rounded font-black ${isSelected ? "bg-brand text-slate-900 animate-pulse" : "bg-blue-100 text-blue-600"}`}>
-                                                  الحالي
-                                                </span>
-                                              )}
-                                            </div>
-                                            <p className={`text-[8.5px] leading-normal font-bold mt-0.5 ${isSelected ? "text-gray-300" : "text-gray-550"}`}>
-                                              {step.desc}
-                                            </p>
-                                          </div>
-                                        </button>
-                                      );
-                                    });
-                                  })()}
-                                </div>
-
-                                {/* Left Column: Active Step Form Content */}
-                                <div className="flex-1 bg-white p-5 rounded-xl border border-gray-200 shadow-sm relative text-right min-h-[300px]">
-                                  {(() => {
-                                    const currentTab = activeStepTab[evt.id] ?? getStepIndex(nextStep);
-                                    switch (currentTab) {
-                                      case 0: { // Step 0: Prep Recommendation
-                                        const sampleFiles = ["موافقة_اللجنة_الفنية.pdf", "دراسة_الجدوى_المبدئية.pdf", "سجل_الاجتماع_التحضيري.pdf", "أدلة_القطاع_الداعم.jpg"];
-                                        const attachmentsList = evt.attachments || [];
-                                        
-                                        return (
-                                          <div className="space-y-4 animate-fade-in text-right">
-                                            <div className="flex items-center justify-between pb-2 border-b border-gray-100 font-sans">
-                                              <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5 font-sans">
-                                                <Sparkles className="w-4 h-4 text-brand animate-bounce" />
-                                                تجهيز التوصية وصياغتها الفنية مع المرفقات
-                                              </h3>
-                                              <span className="text-[9px] text-[#4ea0b0] font-extrabold px-2 py-0.5 rounded bg-[#4ea0b0]/5 font-sans">مرحلة 1 من 3</span>
-                                            </div>
-                                            
-                                            <p className="text-[10px] text-gray-550 leading-relaxed font-bold font-sans text-right">
-                                              صغ المسودة الفنية للتوصية في الصندوق أدناه، أو استخدم خيار التوليد الذكي المقرّن بمحتوى التوصية للتصحيح الهيكلي الموحد، ثم أرفق الوثائق الرسمية لدعم الموثوقية والأرشفة.
-                                            </p>
-                                            
-                                            <div className="space-y-3 font-sans">
-                                              <div className="flex justify-between items-center">
-                                                <label className="text-[9.5px] text-slate-900 font-extrabold font-sans">الصياغة الفنية المقترحة للتوصية:</label>
-                                                <div className="flex gap-1">
-                                                  {evt.preparationsText && (
-                                                    
-<div key="filter-popover-1784704070989-4">
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                          navigator.clipboard.writeText(evt.preparationsText || "");
-                                                          alert("تم نسخ الصياغة الفنية الذكية للتوصية للمحافظة بنجاح!");
-                                                        }}
-                                                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[8.5px] font-black rounded-lg cursor-pointer flex items-center gap-1 transition-all border border-gray-200 font-sans"
-                                                      >
-                                                        <Copy className="w-3.5 h-3.5" />
-                                                        نسخ القرار
-                                                      </button>
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                          let mailSubject = `تفعيل ${evt.title || "توصية قطاعية"}`;
-                                                          let mailBody = evt.preparationsText || "";
-                                                          if (mailBody.includes("سعادة")) {
-                                                              mailBody = mailBody.substring(mailBody.indexOf("سعادة"));
-                                                          } else if (mailBody.startsWith("الموضوع: ")) {
-                                                              const firstLineEnd = mailBody.indexOf("\n");
-                                                              if (firstLineEnd !== -1) {
-                                                                  mailBody = mailBody.substring(firstLineEnd + 1).trim();
-                                                              }
-                                                          }
-                                                          
-                                                          const atts = evt.attachments || [];
-                                                          
-                                                          let allAtts = [...atts];
-                                                          if (evt.approvedMinutesUrl && typeof evt.approvedMinutesUrl === 'string') {
-                                                              if (!allAtts.some(a => a.url === evt.approvedMinutesUrl)) {
-                                                                   allAtts.push({ name: 'محضر الاجتماع المعتمد', url: evt.approvedMinutesUrl });
-                                                              }
-                                                          }
-                                                          if (evt.agendaMinutes && typeof evt.agendaMinutes === 'string') {
-                                                              if (!allAtts.some(a => a.url === evt.agendaMinutes)) {
-                                                                   allAtts.push({ name: 'محضر الاجتماع المعتمد', url: evt.agendaMinutes });
-                                                              }
-                                                          }
-
-                                                          if (allAtts.length > 0) {
-                                                              mailBody += "\n\nالمرفقات:\n";
-                                                              allAtts.forEach((a, idx) => {
-                                                                  mailBody += `${idx + 1}- ${a.name || "مرفق"}: ${a.url || ""}\n`;
-                                                              });
-                                                          }
-
-                                                          const fullUrl = `https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent(mailSubject)}&body=${encodeURIComponent(mailBody)}`;
-                                                          
-                                                          if (fullUrl.length > 7500) {
-                                                              navigator.clipboard.writeText(mailBody).then(() => {
-                                                                  showGlobalToast("نظراً لطول محتوى الرسالة، تم نسخ المحتوى للحافظة. يرجى الضغط على لصق (Ctrl+V) في مساحة النص بالبريد.", "success");
-                                                                  setTimeout(() => {
-                                                                      const a = document.createElement('a');
-                                                                      a.href = `https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent(mailSubject)}&body=`;
-                                                                      a.target = '_blank';
-                                                                      a.rel = 'noopener noreferrer';
-                                                                      a.click();
-                                                                  }, 2000);
-                                                              });
-                                                          } else {
-                                                              const a = document.createElement('a');
-                                                              a.href = fullUrl;
-                                                              a.target = '_blank';
-                                                              a.rel = 'noopener noreferrer';
-                                                              a.click();
-                                                          }
-                                                        }}
-                                                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[8.5px] font-black rounded-lg cursor-pointer flex items-center gap-1 transition-all border border-gray-200 font-sans"
-                                                      >
-                                                        <Mail className="w-3.5 h-3.5" />
-                                                        إرسال بالإيميل
-                                                      </button>
-                                                    </div>
-                                                  )}
-
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                      const dayArabic = getDayNameFromDate(evt.date) || "الاثنين";
-                                                      const isPassing = evt.recommendationClassification === "بالتمرير";
-                                                      const rType = evt.recommendationType === "عاجلة" ? "عاجلة" : "عادية";
-                                                      const attachmentsText = attachmentsList && attachmentsList.length > 0 ? attachmentsList.map((a) => a.name).join(", ") : "لا يوجد مرفقات";
-                                                      
-const linkedEvent = events.find(e => String(e.id) === String(evt.recommendationEventId));
-const meetingName = linkedEvent ? linkedEvent.title : (evt.eventName && evt.eventName !== "توصية غير محددة" ? evt.eventName : (evt.title.includes("اجتماع") ? evt.title : `اجتماع ${evt.committeeName || "اللجنة"}`));
-const generatedProposal = evt.description || evt.recommendationText || evt.notes || "لا يوجد نص للتوصية";
-                                                      
-                                                      updateEventWorkflow(evt.id, { preparationsText: generatedProposal });
-                                                    }}
-                                                    className="px-2.5 py-1.5 bg-slate-900 border-transparent hover:bg-slate-800 text-brand text-[8.5px] font-black rounded-lg cursor-pointer flex items-center gap-1 shadow transition-all duration-200 animate-pulse font-sans"
-                                                  >
-                                                    <Sparkles className="w-3.5 h-3.5" />
-                                                    توليد الصياغة الفنية الذكية
-                                                  </button>
-                                                </div>
-                                              </div>
-                                              
-                                              <textarea
-                                                value={evt.preparationsText || evt.description || evt.recommendationText || ""}
-                                                onChange={(e) => updateEventWorkflow(evt.id, { preparationsText: e.target.value })}
-                                                placeholder="اكتب هنا النص التفصيلي للتوصية أو الصياغة الصادرة للهيكل التنفيذي..."
-                                                className="w-full h-32 p-3 text-[10px] font-bold text-slate-800 border border-gray-200 rounded-lg focus:ring-1 focus:ring-brand focus:border-brand resize-none bg-slate-50/70 leading-relaxed text-right font-sans"
-                                                dir="rtl"
-                                              />
-                                              
-                                              {/* Digital Library Drag & Drop Simulator */}
-                                              <div 
-                                                className="border-2 border-dashed border-gray-200 rounded-2xl p-3.5 text-center transition-all relative bg-gray-50/50 hover:bg-gray-100/70 font-sans"
-                                                onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-brand', 'bg-brand/5'); }}
-                                                onDragLeave={(e) => { e.preventDefault(); e.currentTarget.classList.remove('border-brand', 'bg-brand/5'); }}
-                                                onDrop={(e) => {
-                                                  e.preventDefault();
-                                                  e.currentTarget.classList.remove('border-brand', 'bg-brand/5');
-                                                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                                                    handleFileUploads(Array.from(e.dataTransfer.files), evt, attachmentsList || []);
-                                                  }
-                                                }}
-                                              >
-                                                <input
-                                                  type="file"
-                                                  id={`file-input-${evt.id}`}
-                                                  multiple
-                                                  className="hidden"
-                                                  onChange={(e) => {
-                                                    if (e.target.files && e.target.files.length > 0) {
-                                                      handleFileUploads(Array.from(e.target.files), evt, attachmentsList || []);
-                                                    }
-                                                  }}
-                                                />
-                                                <label htmlFor={`file-input-${evt.id}`} className="cursor-pointer block space-y-1">
-                                                  <div className="flex items-center justify-between">
-                                                    <span className="text-[11px] font-black text-gray-700">المكتبة الرقمية</span>
-                                                    <span className="text-[10px] text-gray-400 font-bold flex items-center gap-1 hover:text-brand">
-                                                      <Upload className="w-3.5 h-3.5" />
-                                                      <span>تحميل</span>
-                                                    </span>
-                                                  </div>
-                                                  <p className="text-[10px] text-gray-500 font-medium truncate text-right">
-                                                    اسحب الملفات هنا أو انقر للإدراج أو للربط بجوجل درايف
-                                                  </p>
-                                                </label>
-                                                
-                                                <div className="mt-2.5 flex flex-wrap justify-center gap-1.5 font-sans">
-                                                  {sampleFiles.map((fn, idx) => (
-                                                    <button
-                                                      key={idx}
-                                                      type="button"
-                                                      onClick={() => {
-                                                        const exists = attachmentsList.some((a: any) => a.name === fn);
-                                                        if (!exists) {
-                                                          const newAtt = { name: fn, size: "1.8 MB", date: new Date().toLocaleDateString('ar-SA') };
-                                                          updateEventWorkflow(evt.id, { attachments: [...attachmentsList, newAtt] });
-                                                        }
-                                                      }}
-                                                      className="px-2 py-1 bg-white hover:bg-gray-150 text-gray-700 text-[8px] font-bold border border-gray-200 rounded-lg shadow-sm transition-all flex items-center gap-1 cursor-pointer font-sans"
-                                                    >
-                                                      <Paperclip className="w-2.5 h-2.5 text-[#4ea0b0]" />
-                                                      إرفاق {fn}
-                                                    </button>
-                                                  ))}
-                                                </div>
-                                                
-                                                {attachmentsList.length > 0 && (
-                                                  <div className="mt-3.5 border-t border-slate-100 pt-2 text-right font-sans">
-                                                    <span className="text-[8px] text-[#4ea0b0] font-black block mb-1">المستندات المرفقة بالتوصية حتى الآن ({attachmentsList.length}):</span>
-                                                    <div className="space-y-1 font-sans">
-                                                      {attachmentsList.map((att: any, index: number) => (
-                                                        <div key={index} className="flex items-center justify-between bg-white px-2 py-1 rounded border border-gray-150 text-[8.5px] text-slate-800 font-extrabold animate-fade-in font-sans">
-                                                          <span className="flex items-center gap-1">
-                                                            <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
-                                                            {att.name}
-                                                          </span>
-                                                          <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                              const filtered = attachmentsList.filter((_: any, i: number) => i !== index);
-                                                              updateEventWorkflow(evt.id, { attachments: filtered });
-                                                            }}
-                                                            className="text-red-500 hover:text-red-700 font-bold px-1"
-                                                          >
-                                                            حذف
-                                                          </button>
-                                                        </div>
-                                                      ))}
-                                                    </div>
-                                                  </div>
-                                                )}
-                                              </div>
-                                            </div>
-                                            
-                                            <div className="pt-3 border-t border-gray-100 flex items-center justify-between font-sans">
-                                              <label className="flex items-center gap-2.5 cursor-pointer font-sans">
-                                                <input 
-                                                  type="checkbox"
-                                                  checked={!!evt.preparationsConfirmed}
-                                                  onChange={(e) => updateEventWorkflow(evt.id, { preparationsConfirmed: e.target.checked })}
-                                                  className="w-4.5 h-4.5 rounded border-gray-350 text-brand focus:ring-brand cursor-pointer focus:outline-none"
-                                                />
-                                                <span className="text-[10px] text-slate-900 font-extrabold select-none font-sans">
-                                                  تم الانتهاء من صياغة مسودة التوصية الفنية وإرفاق المستندات المرجعية والداعمة كلياً
-                                                </span>
-                                              </label>
-                                              
-                                              {evt.preparationsConfirmed ? (
-                                                <span className="text-[9px] text-emerald-600 font-black flex items-center gap-1 shrink-0 font-sans">
-                                                  <Check className="w-3.5 h-3.5" /> جاهز
-                                                </span>
-                                              ) : (
-                                                <span className="text-[9.5px] text-amber-600 font-bold shrink-0 font-sans">بانتظار تجهيز التوصية</span>
-                                              )}
-                                            </div>
-                                          </div>
-                                        );
-                                      }
-                                      case 1: { // Step 2: Refer Recommendation (إحالة التوصية)
-                                        return (
-                                          <div className="space-y-4 animate-fade-in text-right">
-                                            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                                              <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5 font-sans">
-                                                <Users className="w-4 h-4 text-brand" />
-                                                إحالة التوصية وشروحات سلسلة الاعتمادات
-                                              </h3>
-                                              <span className="text-[9px] text-[#4ea0b0] font-extrabold px-2 py-0.5 rounded bg-[#4ea0b0]/5">مرحلة 2 من 3</span>
-                                            </div>
-                                            
-                                            <p className="text-[10px] text-gray-550 leading-relaxed font-bold font-sans text-right">
-                                              وثق هنا الشروحات والتوجيهات المكتوبة لكل جهة بالهيكل الإداري لغرفة مكة؛ لدعم وتأطير قرار تفعيل التوصية رسمياً، ومزامنة مخرجات العمل:
-                                            </p>
-                                            
-                                            <div className="space-y-3 font-sans overflow-y-auto max-h-[220px] pr-1">
-                                              {/* Specialist Comment Box */}
-                                              <div className="p-2.5 bg-slate-50 rounded-lg border border-gray-150 text-right">
-                                                <div className="flex items-center justify-between mb-1">
-                                                  <span className="text-[9px] text-slate-800 font-black">1. أخصائي اللجنة المسؤول (توثيق المبررات الفنية)</span>
-                                                  <span className="text-[7.5px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-bold">الأخصائي</span>
-                                                </div>
-                                                <textarea 
-                                                  value={evt.specialistExplanation || ""}
-                                                  placeholder="يرجى كتابة شرح الأخصائي حول جدوى وصحة التوصية..."
-                                                  onChange={(e) => updateEventWorkflow(evt.id, { specialistExplanation: e.target.value })}
-                                                  className="w-full text-[9px] p-2 border border-gray-200 rounded text-right focus:ring-1 focus:ring-brand bg-white font-bold leading-normal resize-none h-10"
-                                                />
-                                              </div>
-
-                                              {/* President/Section President Comment Box */}
-                                              <div className="p-2.5 bg-slate-50 rounded-lg border border-gray-150 text-right">
-                                                <div className="flex items-center justify-between mb-1">
-                                                  <span className="text-[9px] text-slate-800 font-black">2. رئيس القسم اللجان القطاعية (الموافقة المبدئية)</span>
-                                                  <span className="text-[7.5px] bg-[#4ea0b0]/10 text-[#4ea0b0] px-1 py-0.5 rounded font-black">رئيس القسم</span>
-                                                </div>
-                                                <textarea 
-                                                  value={evt.presidentExplanation || ""}
-                                                  placeholder="يرجى كتابة مرئيات رئيس القسم تمهيداً للإرسال لمدير الإدارة..."
-                                                  onChange={(e) => updateEventWorkflow(evt.id, { presidentExplanation: e.target.value })}
-                                                  className="w-full text-[9px] p-2 border border-gray-200 rounded text-right focus:ring-1 focus:ring-brand bg-white font-bold leading-normal resize-none h-10"
-                                                />
-                                              </div>
-
-                                              {/* Director Comment Box */}
-                                              <div className="p-2.5 bg-slate-50 rounded-lg border border-gray-150 text-right">
-                                                <div className="flex items-center justify-between mb-1">
-                                                  <span className="text-[9px] text-slate-800 font-black">3. مدير إدارة اللجان والوفود القطاعية</span>
-                                                  <span className="text-[7.5px] bg-[#4ea0b0]/20 text-[#3d8391] px-1 py-0.5 rounded font-black">مدير الإدارة</span>
-                                                </div>
-                                                <textarea 
-                                                  value={evt.directorExplanation || ""}
-                                                  placeholder="يرجى تدوين توجيهات مدير الإدارة والأثر المتوقع لتسهيل الأرشفة..."
-                                                  onChange={(e) => updateEventWorkflow(evt.id, { directorExplanation: e.target.value })}
-                                                  className="w-full text-[9px] p-2 border border-gray-200 rounded text-right focus:ring-1 focus:ring-brand bg-white font-bold leading-normal resize-none h-10"
-                                                />
-                                              </div>
-
-                                              {/* Assistant Comment Box */}
-                                              <div className="p-2.5 bg-slate-50 rounded-lg border border-gray-150 text-right">
-                                                <div className="flex items-center justify-between mb-1">
-                                                  <span className="text-[9px] text-slate-800 font-black">4. مساعد الأمين العام لقطاع الأعمال</span>
-                                                  <span className="text-[7.5px] bg-brand/10 text-brand px-1 py-0.5 rounded font-black">مساعد الأمين</span>
-                                                </div>
-                                                <textarea 
-                                                  value={evt.assistantExplanation || ""}
-                                                  placeholder="تدوين توجيه أو شرح وتصديق مساعد الأمين العام للغرفة..."
-                                                  onChange={(e) => updateEventWorkflow(evt.id, { assistantExplanation: e.target.value })}
-                                                  className="w-full text-[9px] p-2 border border-gray-200 rounded text-right focus:ring-1 focus:ring-brand bg-white font-bold leading-normal resize-none h-10"
-                                                />
-                                              </div>
-
-                                              {/* Executive Comment Box */}
-                                              <div className="p-2.5 bg-slate-50 rounded-lg border border-gray-150 text-right">
-                                                <div className="flex items-center justify-between mb-1">
-                                                  <span className="text-[9px] text-slate-800 font-black">5. المكتب التنفيذي المتكامل (صاحب القرار الفاصل)</span>
-                                                  <span className="text-[7.5px] bg-indigo-50 text-indigo-600 px-1 py-0.5 rounded font-bold">المكتب التنفيذي</span>
-                                                </div>
-                                                <textarea 
-                                                  value={evt.executiveExplanation || ""}
-                                                  placeholder="قرار المكتب التنفيذي النهائي المعني..."
-                                                  onChange={(e) => updateEventWorkflow(evt.id, { executiveExplanation: e.target.value })}
-                                                  className="w-full text-[9px] p-2 border border-gray-200 rounded text-right focus:ring-1 focus:ring-indigo-500 bg-white font-bold leading-normal resize-none h-10"
-                                                />
-                                              </div>
-
-                                              {/* Approval Selector Buttons */}
-                                              <div className="bg-slate-50 p-2.5 rounded-lg border border-gray-200 text-right space-y-1.5">
-                                                <span className="block text-[8.5px] text-slate-800 font-black">حالة قرار تفعيل التوصية (اعتماد أو حفظ):</span>
-                                                <div className="flex items-center gap-1.5">
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => updateEventWorkflow(evt.id, { activationApproved: "approved" })}
-                                                    className={`flex-1 py-1.5 rounded-lg text-[9px] font-black border transition-all cursor-pointer ${
-                                                      evt.activationApproved === "approved"
-                                                        ? "bg-emerald-500 text-white border-transparent shadow-sm"
-                                                        : "bg-white border-gray-200 text-emerald-600 hover:bg-emerald-50/20"
-                                                    }`}
-                                                  >
-                                                    ✓ موافقة واعتماد التفعيل القطاعي
-                                                  </button>
-                                                  
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => updateEventWorkflow(evt.id, { activationApproved: "rejected" })}
-                                                    className={`flex-1 py-1.5 rounded-lg text-[9px] font-black border transition-all cursor-pointer ${
-                                                      evt.activationApproved === "rejected"
-                                                        ? "bg-amber-600 text-white border-transparent shadow-sm"
-                                                        : "bg-white border-gray-200 text-amber-700 hover:bg-amber-50/20"
-                                                    }`}
-                                                  >
-                                                    𐄂 رفض وحفظ التوصية غير مفعلة
-                                                  </button>
-                                                </div>
-                                              </div>
-                                            </div>
-
-                                            <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
-                                              <label className="flex items-center gap-2.5 cursor-pointer">
-                                                <input 
-                                                  type="checkbox"
-                                                  checked={!!evt.agendaTransferred}
-                                                  onChange={(e) => updateEventWorkflow(evt.id, { agendaTransferred: e.target.checked })}
-                                                  className="w-4.5 h-4.5 rounded border-gray-150 text-brand focus:ring-brand cursor-pointer focus:outline-none shrink-0"
-                                                />
-                                                <span className="text-[10px] text-slate-900 font-extrabold select-none">
-                                                  اعتماد الشروحات وصياغة قرار تفعيل التوصية وإحالتها للمستوى الإداري النهائي
-                                                </span>
-                                              </label>
-                                              {evt.agendaTransferred ? (
-                                                <span className="text-[9px] text-emerald-600 font-black flex items-center gap-1 shrink-0"><Check className="w-3.5 h-3.5" /> جاهز</span>
-                                              ) : (
-                                                <span className="text-[9.5px] text-amber-600 font-bold shrink-0">بانتظار الإحالة</span>
-                                              )}
-                                            </div>
-                                          </div>
-                                        );
-                                      }
-
-                                      /* COMPLETED DUMMY STAGE */
-                                      case 2: { // Step 3: Final Approvals Review (مراجعة الاعتمادات)
-                                        return (
-                                          <div className="space-y-4 text-right animate-fade-in font-sans">
-                                            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                                              <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5 font-sans">
-                                                <Presentation className="w-4 h-4 text-brand" />
-                                                مراجعة الاعتمادات وإصدار الإفادة والهيكل التنظيمي المكتمل
-                                              </h3>
-                                              <span className="text-[9px] text-[#4ea0b0] font-extrabold px-2 py-0.5 rounded bg-[#4ea0b0]/5">مرحلة 3 من 3</span>
-                                            </div>
-                                            
-                                            <p className="text-[10px] text-gray-550 leading-relaxed font-bold font-sans">
-                                              استعرض هنا حالة وحيثيات الاعتماد الإدارية الصادرة، حيث يتم تثبيت القرار بالتفعيل أو الحفظ والإلغاء تلبية للأعراف المنصوص بها في الغرفة:
-                                            </p>
-
-                                            {/* Final Status Display Block */}
-                                            <div className="rounded-xl p-3 border font-sans space-y-1.5 shadow-sm text-right bg-white">
-                                              <span className="text-[8px] text-brand font-black block">إفادتنا الإدارية النهائية:</span>
-                                              
-                                              {evt.activationApproved === 'approved' ? (
-                                                <div className="bg-emerald-50 border border-emerald-250 p-3 rounded-xl">
-                                                  <div className="flex items-center gap-1.5 font-black text-[10px] text-emerald-700">
-                                                    <CheckCircle className="w-4 h-4 text-emerald-600" />
-                                                    <span>موافق عليها قطاعياً وتم اعتماد التفعيل بنجاح!</span>
-                                                  </div>
-                                                  <p className="text-[9px] font-bold text-emerald-600 mt-1.5 leading-relaxed">
-                                                    بناءً على اعتمادات الهيكل الإداري والمكتب التنفيذي، تقرر تفعيل التوصية رقم <span className="underline font-black">REC-{String(evt.id || "").substring(0, 5).toUpperCase()}</span> رسمياً وتكليف اللجان بمتابعة الأداء مع تسكين مؤشرات الرصد المطلوبة وتحديث لوحة المؤشرات الذكية.
-                                                  </p>
-                                                </div>
-                                              ) : evt.activationApproved === 'rejected' ? (
-                                                <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl">
-                                                  <div className="flex items-center gap-1.5 font-black text-[10px] text-amber-500">
-                                                    <AlertTriangle className="w-4 h-4 text-amber-600" />
-                                                    <span>تقرر حفظ المعاملة غير مفعلة وإهمال تذكيراتها كلياً في مركز عمليات اللوحة كمسألة خاملة.</span>
-                                                  </div>
-                                                  <p className="text-[9px] font-bold text-amber-600 mt-1.5 leading-relaxed font-sans">
-                                                    تقرر حفظ المعاملة غير مفعلة بنظام اللجان؛ نتيجة لانتفاء جدواها الفنية بالمحيط التنفيذي الحالي أو للتكرارية مع عينات قطاعية موازية.
-                                                  </p>
-                                                </div>
-                                              ) : (
-                                                <div className="bg-blue-50 border border-blue-250 p-2.5 rounded-xl text-slate-800">
-                                                  <div className="flex items-center gap-1.5 font-bold text-[9.5px]">
-                                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-brand" />
-                                                    <span>القرار الإداري معلق حالياً بانتظار الإجراء في (الخطوة 2).</span>
-                                                  </div>
-                                                </div>
-                                              )}
-                                            </div>
-
-                                            {/* Final Decree Input Textarea */}
-                                            <div className="flex flex-col gap-1.5 pt-1">
-                                              <span className="block text-[10px] font-black text-slate-800">بيان مسودة قرار تفعيل/حفظ التوصية الرسمي الصادر:</span>
-                                              <textarea
-                                                value={evt.finalExecutiveDecision || ''}
-                                                onChange={(e) => updateEventWorkflow(evt.id, { finalExecutiveDecision: e.target.value })}
-                                                rows={4}
-                                                placeholder="اكتب هنا التوجيه الرسمي النهائي للتوثيق..."
-                                                className="w-full text-[9.5px] p-2.5 border border-gray-200 rounded-lg text-right font-sans bg-slate-50/70 text-slate-800 focus:ring-1 focus:ring-brand leading-relaxed resize-none font-bold"
-                                                dir="rtl"
-                                              />
-                                            </div>
-
-                                            {/* Confirmation Checkbox */}
-                                            <div className="p-3 bg-emerald-50/70 border border-emerald-250 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-right font-sans">
-                                              <label className="flex items-center gap-2.5 cursor-pointer">
-                                                <input 
-                                                  type="checkbox"
-                                                  checked={!!evt.minutesSaved}
-                                                  onChange={(e) => {
-                                                    updateEventWorkflow(evt.id, { minutesSaved: e.target.checked });
-                                                    // Automatically transition main event list status when fully completed
-                                                    if (e.target.checked) {
-                                                      const finalStatus = evt.activationApproved === 'rejected' ? 'غير فعالة' : 'مكتملة';
-                                                      updateEventWorkflow(evt.id, { status: finalStatus });
-                                                    }
-                                                  }}
-                                                  className="w-4.5 h-4.5 rounded border-gray-350 text-brand focus:ring-brand cursor-pointer focus:outline-none shrink-0"
-                                                />
-                                                <span className="text-[10px] text-slate-900 font-extrabold select-none">
-                                                  تثبيت وإقفال وإصدار الإفادة الرسمية وإدراج التوصية بنظام الغرفة بشكل نهائي
-                                                </span>
-                                              </label>
-                                              {evt.minutesSaved ? (
-                                                <span className="text-[9px] text-emerald-600 font-extrabold flex items-center gap-1 shrink-0"><Check className="w-3.5 h-3.5" /> جاهز</span>
-                                              ) : (
-                                                <span className="text-[9.5px] text-amber-600 font-extrabold shrink-0">بانتظار تثبيت القرار</span>
-                                              )}
-                                            </div>
-                                          </div>
-                                        );
-                                      }
-                                      
-                                      default: return null;
-                                    }
-                                  })()}
-                                </div>
-                              </div>
-                            </motion.div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Add / Edit Modal */}
-      <AnimatePresence>
-        {isAddOpen && (
-          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-              onClick={() => setIsAddOpen(false)}
-            />
-            
-            <motion.div 
-              initial={{ scale: 0.9, y: 15, opacity: 0 }}
-              animate={{ scale: 1, y: 0, opacity: 1 }}
-              exit={{ scale: 0.9, y: 15, opacity: 0 }}
-              transition={{ type: "spring", damping: 20, stiffness: 280 }}
-              className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right flex flex-col max-h-[90vh]"
-            >
-              <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-600 text-white rounded-xl">
-                    {editingEvent ? <Edit2 className="w-5 h-5 stroke-[2.5]" /> : <Plus className="w-5 h-5 stroke-[2.5]" />}
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-gray-900 text-base leading-tight">
-                      {editingEvent ? `تعديل توصية: ${editingEvent.title}` : "إضافة توصية جديدة"}
-                    </h3>
-                    <p className="text-xs text-gray-500 font-medium">سجل بيانات التوصية بدقة لربط وتحديث مؤشرات الأداء والمهام</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsAddOpen(false)}
-                  className="p-1.5 hover:bg-gray-200/50 text-gray-500 rounded-lg transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="overflow-y-auto p-6">
-                <form onSubmit={handleSubmit} className="space-y-4">
-                
-                <AnimatePresence>
-                  {conflictWarning && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-xl text-right flex flex-col gap-3"
-                      dir="rtl"
-                    >
-                      <div className="flex items-center gap-2 font-bold">
-                        <AlertTriangle className="w-5 h-5 text-red-600" />
-                        <span>تنبيه: تعارض في الجدول</span>
-                      </div>
-                      <p className="text-sm font-medium">{conflictWarning.message}</p>
-                      <div className="flex justify-end gap-2 mt-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const confEvt = events.find(e => e.id === conflictWarning.conflictingEventId);
-                            if (confEvt) {
-                               setConflictWarning(null);
-                               setIsConfirmingSeries(false);
-                               handleOpenEdit(confEvt);
-                            }
-                          }}
-                          className="px-4 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-black hover:bg-red-200 transition-colors"
-                        >
-                          تعديل الفعالية المتعارضة
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConflictWarning(null)}
-                          className="px-4 py-1.5 bg-white text-gray-600 rounded-lg text-xs font-black hover:bg-gray-50 border border-gray-200 transition-colors"
-                        >
-                          تجاهل ورجوع
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {isConfirmingSeries ? (
-                  <div className="space-y-4 text-right" dir="rtl">
-                    <h4 className="text-sm font-black text-gray-800 border-b border-gray-200 pb-2">
-                      استعراض وإقرار جدول الفعاليات المتسلسلة ({generatedSchedules.length})
-                    </h4>
-                    
-                    {generatedSchedules.length === 0 ? (
-                      <div className="text-center p-8 bg-gray-50 rounded-xl border border-gray-200">
-                        <p className="text-sm font-bold text-gray-500">لا توجد فعاليات مطابقة ضمن النطاق الزمني المحدد.</p>
-                      </div>
-                    ) : (
-                      <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-xl bg-gray-50/50">
-                        <table className="w-full text-xs font-semibold text-gray-700 text-right">
-                          <thead className="bg-[#dfdada] border-b border-gray-300">
-                            <tr>
-                              <th className="whitespace-nowrap px-4 py-2 text-center w-12">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedSchedules.length === generatedSchedules.length}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSelectedSchedules(generatedSchedules.map(g => g.id));
-                                    } else {
-                                      setSelectedSchedules([]);
-                                    }
-                                  }}
-                                  className="rounded text-brand"
-                                />
-                              </th>
-                              <th className="whitespace-nowrap px-4 py-2 font-black">التاريخ</th>
-                              <th className="whitespace-nowrap px-4 py-2 font-black">الوقت</th>
-                              <th className="whitespace-nowrap px-4 py-2 font-black">عنوان السجل</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200 bg-white">
-                            {generatedSchedules.map((gen) => (
-                              <tr key={gen.id} className="hover:bg-blue-50/50 transition-colors">
-                                <td className="whitespace-nowrap px-4 py-2 text-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedSchedules.includes(gen.id)}
-                                    onChange={(e) => {
-                                      if (e.target.checked) setSelectedSchedules([...selectedSchedules, gen.id]);
-                                      else setSelectedSchedules(selectedSchedules.filter(id => id !== gen.id));
-                                    }}
-                                    className="rounded text-brand"
-                                  />
-                                </td>
-                                <td className="whitespace-nowrap px-4 py-2 font-mono" dir="ltr">{gen.date}</td>
-                                <td className="whitespace-nowrap px-4 py-2">{gen.time || "-"}</td>
-                                <td className="whitespace-nowrap px-4 py-2">{gen.title}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                    
-                    <div className="mt-8 pt-5 border-t border-gray-100 flex items-center justify-end flex-row-reverse gap-3">
-                      <button
-                        type="button"
-                        onClick={handleInsertSeries}
-                        disabled={selectedSchedules.length === 0}
-                        className="px-6 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand/90 transition-colors shadow-lg shadow-brand/20 disabled:opacity-50"
-                      >
-                        إدراج ({selectedSchedules.length}) سجل
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsConfirmingSeries(false)}
-                        className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors"
-                      >
-                        تراجع للتعديل
-                      </button>
-                    </div>
-                  </div>
-                ) : (
+          {/* Left Column: Active Step Form Content */}
+          <div className="flex-1 bg-white p-5 rounded-xl border border-gray-200 shadow-sm relative text-right min-h-[300px]">
+            {(() => {
+              const currentTab = activeStepTab[evt.id] ?? getStepIndex(nextStep);
+              switch (currentTab) {
+                case 0: { // Step 0: Prep Recommendation
+                  const sampleFiles = ["موافقة_اللجنة_الفنية.pdf", "دراسة_الجدوى_المبدئية.pdf", "سجل_الاجتماع_التحضيري.pdf", "أدلة_القطاع_الداعم.jpg"];
+                  const attachmentsList = evt.attachments || [];
                   
-<div key="filter-popover-1784704070989-5">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-right mb-6" dir="rtl">
-                      <div className="md:col-span-full flex justify-end">
-                        <div className="bg-gray-100 p-1 rounded-xl flex shadow-inner">
-                          <button
-                            type="button"
-                            onClick={() => setNewType("مفردة")}
-                            className={`px-6 py-2 rounded-lg font-black text-xs transition-all ${
-                              newType === "مفردة" ? "bg-blue-600 text-white shadow" : "text-gray-500 hover:text-gray-700"
-                            }`}
-                          >
-                            توصية جديدة
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setNewType("متسلسلة")}
-                            className={`px-6 py-2 rounded-lg font-black text-xs transition-all ${
-                              newType === "متسلسلة" ? "bg-blue-600 text-white shadow" : "text-gray-500 hover:text-gray-700"
-                            }`}
-                          >
-                            استيراد التوصيات
-                          </button>
-                        </div>
+                  return (
+                    <div className="space-y-4 animate-fade-in text-right">
+                      <div className="flex items-center justify-between pb-2 border-b border-gray-100 font-sans">
+                        <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5 font-sans">
+                          <Sparkles className="w-4 h-4 text-brand animate-bounce" />
+                          تجهيز التوصية وصياغتها الفنية مع المرفقات
+                        </h3>
+                        <span className="text-[9px] text-[#4ea0b0] font-extrabold px-2 py-0.5 rounded bg-[#4ea0b0]/5 font-sans">مرحلة 1 من 3</span>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-right" dir="rtl">
                       
-                      {newType === "مفردة" && (
-                        
-<div key="filter-popover-fixed" className="contents">
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">اللجنة *</label>
-                            <select
-                              value={newCommitteeId}
-                              onChange={(e) => setNewCommitteeId(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                            >
-                              <option value={0} disabled>اختر اللجنة</option>
-                              {committees.map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">النوع *</label>
-                            <select
-                              value={newRecType}
-                              onChange={(e) => setNewRecType(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                            >
-                              <option value="" disabled>اختر النوع</option>
-                              <option value="عادية">عادية</option>
-                              <option value="عاجلة">عاجلة</option>
-                            </select>
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">التصنيف *</label>
-                            <select
-                              value={newRecClassification}
-                              onChange={(e) => setNewRecClassification(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                            >
-                              <option value="" disabled>اختر التصنيف</option>
-                              <option value="عادية">عادية</option>
-                              <option value="بالتمرير">بالتمرير</option>
-                            </select>
-                          </div>
+                      <p className="text-[10px] text-gray-550 leading-relaxed font-bold font-sans text-right">
+                        صغ المسودة الفنية للتوصية في الصندوق أدناه، أو استخدم خيار التوليد الذكي المقرّن بمحتوى التوصية للتصحيح الهيكلي الموحد، ثم أرفق الوثائق الرسمية لدعم الموثوقية والأرشفة.
+                      </p>
+                      
+                      <div className="space-y-3 font-sans">
+                        <div className="flex justify-between items-center">
+                          <label className="text-[9.5px] text-slate-900 font-extrabold font-sans">الصياغة الفنية المقترحة للتوصية:</label>
+                          <div className="flex gap-1">
+                            {evt.preparationsText && (
+                              <div key="filter-popover-1784704070989-4">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(evt.preparationsText || "");
+                                    alert("تم نسخ الصياغة الفنية الذكية للتوصية للمحافظة بنجاح!");
+                                  }}
+                                  className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[8.5px] font-black rounded-lg cursor-pointer flex items-center gap-1 transition-all border border-gray-200 font-sans"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                  <span>نسخ القرار</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    let mailSubject = `تفعيل ${evt.title || "توصية قطاعية"}`;
+                                    let mailBody = evt.preparationsText || "";
+                                    if (mailBody.includes("سعادة")) {
+                                        mailBody = mailBody.substring(mailBody.indexOf("سعادة"));
+                                    } else if (mailBody.startsWith("الموضوع: ")) {
+                                        const firstLineEnd = mailBody.indexOf("\n");
+                                        if (firstLineEnd !== -1) {
+                                            mailBody = mailBody.substring(firstLineEnd + 1).trim();
+                                        }
+                                    }
+                                    
+                                    const atts = evt.attachments || [];
+                                    
+                                    let allAtts = [...atts];
+                                    if (evt.approvedMinutesUrl && typeof evt.approvedMinutesUrl === 'string') {
+                                        if (!allAtts.some(a => a.url === evt.approvedMinutesUrl)) {
+                                             allAtts.push({ name: 'محضر الاجتماع المعتمد', url: evt.approvedMinutesUrl });
+                                        }
+                                    }
+                                    if (evt.agendaMinutes && typeof evt.agendaMinutes === 'string') {
+                                        if (!allAtts.some(a => a.url === evt.agendaMinutes)) {
+                                             allAtts.push({ name: 'محضر الاجتماع المعتمد', url: evt.agendaMinutes });
+                                        }
+                                    }
 
-                          {newRecClassification === "عادية" ? (
-                            <div className="md:col-span-full space-y-1">
-                              <label className="text-[11px] font-black text-gray-500 block">ارتباط التوصية بالمحضر (الاجتماع)</label>
-                              <select
-                                value={newRecEventId}
-                                onChange={(e) => setNewRecEventId(e.target.value)}
-                                className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                              >
-                                <option value="" disabled>اختر الاجتماع...</option>
-                                {events.filter(e => e.committeeId === newCommitteeId && e.type !== "متسلسلة").map(ev => (
-                                  <option key={ev.id} value={ev.id}>{ev.title} ({ev.date})</option>
-                                ))}
-                                <option value="unlinked">بدون ارتباط (تسجيل التوصية يدوياً)</option>
-                              </select>
-                            </div>
-                          ) : (
-                            <div className="md:col-span-full space-y-1">
-                              <label className="text-[11px] font-black text-gray-500 block">طريقة التمرير</label>
-                              <select
-                                value={newRecPassMethod}
-                                onChange={(e) => setNewRecPassMethod(e.target.value)}
-                                className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                              >
-                                <option value="عبر البريد الإلكتروني">عبر البريد الإلكتروني</option>
-                                <option value="الواتس آب">الواتس آب</option>
-                                <option value="غير ذلك">غير ذلك (أذكرها في الملاحظات)</option>
-                              </select>
-                            </div>
-                          )}
+                                    if (allAtts.length > 0) {
+                                        mailBody += "\n\nالمرفقات:\n";
+                                        allAtts.forEach((a, idx) => {
+                                            mailBody += `${idx + 1}- ${a.name || "مرفق"}: ${a.url || ""}\n`;
+                                        });
+                                    }
 
-                          <div className="md:col-span-2 space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">عنوان التوصية *</label>
-                            <input
-                              type="text"
-                              value={newRecTitle}
-                              onChange={(e) => setNewRecTitle(e.target.value)}
-                              className="w-full bg-gray-50 text-gray-900 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                              placeholder="أدخل عنوان التوصية..."
-                            />
-                          </div>
-                          <div className="md:col-span-1 space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">المكلف *</label>
-                            <select
-                              value={newRecAssignee}
-                              onChange={(e) => setNewRecAssignee(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                            >
-                              <option value="">اختر المكلف</option>
-                              {availableAssignees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
-                            </select>
-                          </div>
-
-                          <div className="md:col-span-full space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">المناقشة</label>
-                            <textarea
-                              value={newRecDiscussion}
-                              onChange={(e) => setNewRecDiscussion(e.target.value)}
-                              rows={2}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand resize-none"
-                              placeholder="تفاصيل المناقشة..."
-                            ></textarea>
-                          </div>
-
-                          <div className="md:col-span-2 space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">نص التوصية</label>
-                            <textarea
-                              value={newRecText}
-                              onChange={(e) => setNewRecText(e.target.value)}
-                              rows={2}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand resize-none"
-                              placeholder="نص التوصية هنا..."
-                            ></textarea>
-                          </div>
-                          
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-black text-gray-500 block">مدة التنفيذ</label>
-                            <input
-                              type="text"
-                              value={newRecDuration}
-                              onChange={(e) => setNewRecDuration(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                              placeholder="مثال: أسبوعين، 5 أيام..."
-                            />
-                          </div>
-
-                                                    <div className="md:col-span-full space-y-1">
-                            <label className="block text-xs font-black text-gray-750">المرفقات</label>
-                            <div
-                              onDragEnter={handleDrag}
-                              onDragOver={handleDrag}
-                              onDragLeave={handleDrag}
-                              onDrop={handleDrop}
-                              className={`border-2 border-dashed p-4 rounded-xl text-center flex flex-col items-center justify-center transition-all ${
-                                dragActive ? "border-blue-600 bg-blue-50" : "border-gray-200 bg-slate-50"
-                              }`}
-                            >
-                              <Paperclip className="w-5 h-5 text-blue-600 mb-1 animate-bounce" />
-                              <p className="text-[10px] font-bold text-gray-500">مرفقات تكميلية بالملفات أو رابط Google Drive</p>
-                              <button
-                                type="button"
-                                onClick={handleAddLinkAttachment}
-                                className="mt-2.5 px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-[9px] font-black"
-                              >
-                                أو الصق رابط جوجل درايف يدوياً
-                              </button>
-                            </div>
-                            {newRecAttachments.length > 0 && (
-                              <div className="pt-2 text-[10px] text-gray-600 font-bold space-y-1">
-                                {newRecAttachments.map((f: any, idx: number) => (
-                                  <div key={idx} className="flex items-center justify-between py-1 bg-slate-50 px-2 rounded">
-                                    <div className="flex items-center gap-2">
-                                      <Paperclip className="w-3 h-3 text-blue-500" />
-                                      <span>{f.name}</span>
-                                    </div>
-                                    <button 
-                                      type="button" 
-                                      onClick={() => setNewRecAttachments(newRecAttachments.filter((_, i) => i !== idx))}
-                                      className="text-red-500 hover:text-red-700"
-                                    >
-                                      <X className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                ))}
+                                    const fullUrl = `https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent(mailSubject)}&body=${encodeURIComponent(mailBody)}`;
+                                    
+                                    const a = document.createElement('a');
+                                    a.href = fullUrl;
+                                    a.target = '_blank';
+                                    a.rel = 'noopener noreferrer';
+                                    a.click();
+                                  }}
+                                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg cursor-pointer flex items-center justify-center transition-all border border-gray-200 w-8 h-8"
+                                  title="إرسال بالإيميل"
+                                >
+                                  <Mail className="w-4 h-4" />
+                                </button>
                               </div>
                             )}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const generatedProposal = evt.description || evt.recommendationText || evt.notes || "لا يوجد نص للتوصية";
+                                updateEventWorkflow(evt.id, { preparationsText: generatedProposal });
+                                try { navigator.clipboard.writeText(generatedProposal); } catch(e) {}
+                              }}
+                              className="px-2.5 py-1.5 bg-slate-900 border-transparent hover:bg-slate-800 text-brand text-[8.5px] font-black rounded-lg cursor-pointer flex items-center gap-1 shadow transition-all duration-200 animate-pulse font-sans"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>توليد الصياغة الفنية الذكية</span>
+                            </button>
                           </div>
                         </div>
-                      )}
+                        
+                        <textarea
+                          value={evt.preparationsText || evt.description || evt.recommendationText || ""}
+                          onChange={(e) => updateEventWorkflow(evt.id, { preparationsText: e.target.value })}
+                          placeholder="اكتب هنا النص التفصيلي للتوصية أو الصياغة الصادرة للهيكل التنفيذي..."
+                          className="w-full h-32 p-3 text-[10px] font-bold text-slate-800 border border-gray-200 rounded-lg focus:ring-1 focus:ring-brand focus:border-brand resize-none bg-slate-50/70 leading-relaxed text-right font-sans"
+                          dir="rtl"
+                        />
+                        
+                        {/* Digital Library Drag & Drop Selector */}
 
-                      {newType === "متسلسلة" && (
-                        <div className="md:col-span-full">
-                           <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200">
-                             <div className="flex gap-4 items-end">
-                               <div className="flex-1 space-y-1">
-                                 <label className="text-[11px] font-black text-gray-500 block">اختر اللجنة *</label>
-                                 <select
-                                   value={importCommitteeId}
-                                   onChange={(e) => setImportCommitteeId(e.target.value)}
-                                   className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
-                                 >
-                                   <option value={0} disabled>اختر اللجنة لاستيراد التوصيات</option>
-                                   {committees.map(c => (
-                                     <option key={c.id} value={c.id}>{c.name}</option>
-                                   ))}
-                                 </select>
-                               </div>
-                               <button
-                                 type="button"
-                                 onClick={handleSearchImport}
-                                 className="px-8 py-2.5 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-gray-800 transition-colors shadow-lg shadow-gray-900/20"
-                               >
-                                 البحث في المحاضر
-                               </button>
-                             </div>
 
-                             {isImportSearched && (
-                               <div className="mt-6">
-                                 {importSearchResults.length === 0 ? (
-                                   <div className="text-center py-8">
-                                      <p className="text-sm font-bold text-gray-500">لا توجد توصيات متاحة للاستيراد من اجتماعات هذه اللجنة.</p>
-                                   </div>
-                                 ) : (
-                                   <div className="space-y-3 mt-4 max-h-[300px] overflow-y-auto pl-2">
-                                     <p className="text-[11px] font-black text-gray-500 mb-3">نتائج البحث ({importSearchResults.length} توصية):</p>
-                                     {importSearchResults.map((rec, idx) => {
-                                       const uniqueId = rec.eventId + "-" + rec.agendaId;
-                                       const isSelected = selectedImportRecs.includes(uniqueId);
-                                       return (
-                                         <div 
-                                           key={uniqueId} 
-                                           onClick={() => !rec.isAdded && toggleImportRecSelection(uniqueId)}
-                                           className={`p-4 rounded-xl border-2 transition-all flex items-start gap-4 ${rec.isAdded ? 'border-gray-200 bg-gray-100 opacity-60 cursor-not-allowed' : isSelected ? 'border-blue-500 bg-blue-50 cursor-pointer' : 'border-gray-200 bg-white cursor-pointer hover:border-blue-300'}`}
-                                         >
-                                           <div className={`w-5 h-5 mt-0.5 rounded border flex items-center justify-center shrink-0 ${rec.isAdded ? 'bg-gray-300 border-gray-400' : isSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
-                                             {(isSelected || rec.isAdded) && <Check className="w-3.5 h-3.5 text-white" />}
-                                           </div>
-                                           <div className="flex-1 space-y-1">
-                                             <div className="flex items-center gap-2">
-                                               <h4 className="text-sm font-bold text-gray-900">{rec.title}</h4>
-                                               {rec.isAdded && <span className="px-2 py-0.5 bg-gray-200 text-gray-600 text-[10px] font-black rounded-full">مضافة مسبقاً</span>}
-                                             </div>
-                                             <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">{rec.recommendationText}</p>
-                                             <div className="flex items-center gap-4 mt-2">
-                                               <div className="flex items-center gap-1.5 text-[10px] text-gray-500 font-bold bg-white px-2 py-1 rounded border border-gray-100">
-                                                 <Calendar className="w-3 h-3" />
-                                                 <span>محضر: {rec.eventTitle}</span>
-                                               </div>
-                                               {rec.assignee && (
-                                                 <div className="flex items-center gap-1.5 text-[10px] text-gray-500 font-bold bg-white px-2 py-1 rounded border border-gray-100">
-                                                   <Users2 className="w-3 h-3" />
-                                                   <span>المكلف: {rec.assignee}</span>
-                                                 </div>
-                                               )}
-                                             </div>
-                                           </div>
-                                         </div>
-                                       );
-                                     })}
-                                   </div>
-                                 )}
-                               </div>
-                             )}
-                           </div>
-                        </div>
-                      )}
+                      </div>
                     </div>
-
-                <div className="mt-8 pt-5 border-t border-gray-100 flex items-center justify-end flex-row-reverse gap-3">
-                  {newType === "متسلسلة" ? (
-                    <button
-                      type="button"
-                      onClick={handleImportSelected}
-                      disabled={selectedImportRecs.length === 0}
-                      className="px-6 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand/90 transition-colors shadow-lg shadow-brand/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      إدراج ({selectedImportRecs.length}) توصية
-                    </button>
-                  ) : (
-                    <button
-                      type="submit"
-                      className="px-6 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand/90 transition-colors shadow-lg shadow-brand/20 active:scale-95"
-                    >
-                      {editingEvent ? "حفظ التعديلات" : "إضافة التوصية"}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setIsAddOpen(false)}
-                    className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors"
-                  >
-                    إلغاء
-                  </button>
-                </div>
-              </div>
-            )}
-          </form>
-              </div>
-            </motion.div>
+                  );
+                } // End case 0
+                default:
+                  return null;
+              }
+            })()}
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      </motion.div>
+    );
+  }; // end renderPreparationPlatform
 
-      <AnimatePresence>
-        {isBulkDeleting && (
-           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-             <motion.div 
-               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-               className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
-               onClick={() => setIsBulkDeleting(false)}
-             />
-             <motion.div 
-               initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-               className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-sm relative z-10 text-center border border-gray-100"
-             >
-               <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                 <AlertTriangle className="w-8 h-8" />
-               </div>
-               <h3 className="text-xl font-black text-gray-900 mb-2">تأكيد الحذف</h3>
-               <p className="text-sm font-bold text-gray-500 mb-6">
-                 هل أنت متأكد من حذف {selectedEventIds.length} فعالية؟
-               </p>
-               <div className="flex gap-3">
-                 <button
-                   onClick={handleBulkDelete}
-                   disabled={isBulkDeletingLoading}
-                   className="flex-1 bg-rose-600 text-white rounded-xl py-3 font-bold text-sm hover:bg-rose-700 transition-colors shadow-lg shadow-rose-200 flex items-center justify-center"
-                 >
-                   {isBulkDeletingLoading ? (
-                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                   ) : (
-                      "نعم، احذف"
-                   )}
-                 </button>
-                 <button
-                   onClick={() => setIsBulkDeleting(false)}
-                   className="flex-1 bg-gray-100 text-gray-700 rounded-xl py-3 font-bold text-sm hover:bg-gray-200 transition-colors"
-                 >
-                   إلغاء
-                 </button>
-               </div>
-             </motion.div>
-           </div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {deletingEvent && (
-           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-             <motion.div 
-               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-               className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
-               onClick={() => setDeletingEvent(null)}
-             />
-             <motion.div 
-               initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-               className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-sm relative z-10 text-center border border-gray-100"
-             >
-               <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                 <AlertTriangle className="w-8 h-8" />
-               </div>
-               <h3 className="text-xl font-black text-gray-900 mb-2">تأكيد الحذف</h3>
-               <p className="text-sm font-bold text-gray-500 mb-6">
-                 هل أنت متأكد من حذف التوصية "{deletingEvent.title}"؟ 
-                 لن يتم حذف الفعالية الأصلية.
-               </p>
-               <div className="flex gap-3">
-                 <button
-                   onClick={handleDelete}
-                   className="flex-1 bg-rose-600 text-white rounded-xl py-3 font-bold text-sm hover:bg-rose-700 transition-colors shadow-lg shadow-rose-200"
-                 >
-                   نعم، احذف
-                 </button>
-                 <button
-                   onClick={() => setDeletingEvent(null)}
-                   className="flex-1 bg-gray-100 text-gray-700 rounded-xl py-3 font-bold text-sm hover:bg-gray-200 transition-colors"
-                 >
-                   تراجع
-                 </button>
-               </div>
-             </motion.div>
-           </div>
-        )}
-      </AnimatePresence>
+  // The main component render ends here:
+  return (
+    <div className="w-full text-center p-10 text-xl font-bold">
+      حدث خطأ في النظام. يرجى التحديث.
     </div>
   );
 }

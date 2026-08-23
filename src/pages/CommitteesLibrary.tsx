@@ -1,7 +1,8 @@
 import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+import { toPng } from 'html-to-image';
 import { showGlobalToast } from "../lib/toastUtils";
 import { createGoogleDoc, resolveDrivePath, uploadFileToDriveByPath, moveDriveFile } from "../lib/googleApi";
+import { logoBase64 } from "../lib/logoBase64";
 import React, { useState, useEffect, FormEvent, useRef } from "react";
 import {
   Paperclip,
@@ -57,14 +58,15 @@ export interface TemplateItem {
   title: string;
   description: string;
   templateText?: string;
-  type: "مستندات" | "عروض تقديمية" | "جداول بيانات" | "بريد إلكتروني" | "أخرى" | "خطاب ذكي" | string;
+  type: "مستندات" | "عروض تقديمية" | "جداول بيانات" | "بريد إلكتروني" | "أخرى" | "خطاب ذكي" | "تعميم" | string;
   creator: string;
   cloudUrl: string;
   downloadUrl: string;
   lastUpdated: string;
   isFavorite: boolean;
+  category?: string;
+  committeeName?: string;
 }
-
 
 interface AttachmentInputProps {
   label: string;
@@ -119,9 +121,6 @@ function AttachmentInput({ label, value, onChange, id }: AttachmentInputProps) {
               className="flex-1 text-[9px] p-1 border border-gray-200 rounded"
               onChange={(e) => {
                 if (typeof value === 'object' && value !== null) {
-                  // We can't rename a File object directly easily without making a new one, 
-                  // but we can just store the custom name in a separate state if needed, 
-                  // OR we can create a new File object:
                   const newFile = new File([value], e.target.value || value.name, { type: value.type });
                   onChange(newFile);
                 }
@@ -202,8 +201,7 @@ export default function CommitteesLibrary() {
     {
       id: "doc-1",
       title: "قالب الرد الرسمي على المخاطبات الدورية",
-      description:
-        "صيغة معتمدة من الإدارة للرد على المطالبات والتوصيات من اللجان.",
+      description: "صيغة معتمدة من الإدارة للرد على المطالبات والتوصيات من اللجان.",
       type: "مستندات",
       creator: "مدير النظام",
       cloudUrl: "https://docs.google.com/document/d/example",
@@ -214,8 +212,7 @@ export default function CommitteesLibrary() {
     {
       id: "pres-1",
       title: "عرض إنجازات الربع الأول للجنة القطاعية",
-      description:
-        "قالب عرض تقديمي يتضمن تصاميم إحصائية للمؤشرات والمعايير المتفق عليها.",
+      description: "قالب عرض تقديمي يتضمن تصاميم إحصائية للمؤشرات والمعايير المتفق عليها.",
       type: "عروض تقديمية",
       creator: "مدير النظام",
       cloudUrl: "https://docs.google.com/presentation/d/example",
@@ -226,8 +223,7 @@ export default function CommitteesLibrary() {
     {
       id: "sheet-1",
       title: "سجل حصر مهام وتوصيات اللجان",
-      description:
-        "جداول لتتبع أعمال الأخصائيين متصلة بمنظومة مؤشرات الأداء الأساسية.",
+      description: "جداول لتتبع أعمال الأخصائيين متصلة بمنظومة مؤشرات الأداء الأساسية.",
       type: "جداول بيانات",
       creator: "مدير النظام",
       cloudUrl: "https://docs.google.com/spreadsheets/d/example",
@@ -238,8 +234,7 @@ export default function CommitteesLibrary() {
     {
       id: "email-1",
       title: "إشعار دعوة أعضاء اللجنة للاجتماع الأول",
-      description:
-        "نص البريد السريع لإشعار الأعضاء باللقاء الأول، يتضمن جدول الأعمال.",
+      description: "نص البريد السريع لإشعار الأعضاء باللقاء الأول، يتضمن جدول الأعمال.",
       type: "بريد إلكتروني",
       creator: "مدير النظام",
       cloudUrl: "https://mail.google.com/mail/u/0/?view=cm&fs=1&tf=1",
@@ -303,47 +298,7 @@ export default function CommitteesLibrary() {
     setIsAIOpen(true);
   };
 
-  const handleGenerateAI = async () => {
-    if (!aiPrompt.trim()) return;
-    setIsAiLoading(true);
-    try {
-      const response = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "gemini/generate-letter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: aiPrompt,
-          templateContent: aiTemplate?.templateText || (aiTemplate?.title + " - " + (aiTemplate?.description || ""))
-        })
-      });
-      const data = (await response.text().then(t => t ? JSON.parse(t) : {}));
-      if (response.ok) {
-        setAiResult(data.result);
-      } else {
-        alert("خطأ في التوليد: " + (data.error?.message || data.error));
-      }
-    } catch (err) {
-      console.error(err);
-      alert("تعذر الاتصال بالخادم");
-    } finally {
-      setIsAiLoading(false);
-    }
-  };
-
-  const handlePrintAI = () => {
-    const printContent = document.getElementById("printable-letter");
-    if (printContent) {
-      const originalContents = document.body.innerHTML;
-      document.body.innerHTML = printContent.innerHTML;
-      window.print();
-      document.body.innerHTML = originalContents;
-      window.location.reload(); // Quick restore
-    }
-  };
-
-  const [templateToShare, setTemplateToShare] = useState<TemplateItem | null>(
-    null,
-  );
-
+  const [templateToShare, setTemplateToShare] = useState<TemplateItem | null>(null);
   const [formTitle, setFormTitle] = useState("");
   const [formDesc, setFormDesc] = useState("");
   const [formTemplateText, setFormTemplateText] = useState("");
@@ -358,21 +313,17 @@ export default function CommitteesLibrary() {
 
   // Import / Export advanced state additions
   const [modalTab, setModalTab] = useState<"import" | "export">("import");
-  const [importSource, setImportSource] = useState<"drive" | "computer">(
-    "drive",
-  );
+  const [importSource, setImportSource] = useState<"drive" | "computer">("drive");
   const [uploadedFile, setUploadedFile] = useState<File | string | null>(null);
   
   // Smart Letter State
   const [isSmartLetterOpen, setIsSmartLetterOpen] = useState(false);
-  const [isWizardOpen, setIsWizardOpen] = useState(false);
-  const [wizardStep, setWizardStep] = useState<"type" | "doc_subtype" | "letter_type">("type");
   const [smartLetterMode, setSmartLetterMode] = useState<"create_new" | "create_reply" | "fill">("create_new");
 
   // AI Generator States
   const [isAIGenOpen, setIsAIGenOpen] = useState(false);
   const [aiGenStep, setAiGenStep] = useState(1);
-  const [workspaceService, setWorkspaceService] = useState("docs"); // التحديث: حالة خدمة مساحة العمل
+  const [workspaceService, setWorkspaceService] = useState("docs");
   const [aiGenCommittees, setAiGenCommittees] = useState<string[]>([]);
   const [circularViaEmail, setCircularViaEmail] = useState(false);
   const [circularViaWhatsApp, setCircularViaWhatsApp] = useState(false);
@@ -380,27 +331,79 @@ export default function CommitteesLibrary() {
   const [circularAtt1, setCircularAtt1] = useState<File | string | null>(null);
   const [circularAtt2, setCircularAtt2] = useState<File | string | null>(null);
   const [circularAtt3, setCircularAtt3] = useState<File | string | null>(null);
-  const [circularIncomingFrom, setCircularIncomingFrom] = useState("");
-  const [circularTypes, setCircularTypes] = useState<string[]>([]);
-  const [circularNumberDate, setCircularNumberDate] = useState("");
-  const [circularSubject, setCircularSubject] = useState("");
   
-  const [circularOutNumber, setCircularOutNumber] = useState(`CIR-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
-  const [circularOutDate, setCircularOutDate] = useState(new Date().toLocaleDateString('ar-SA'));
+  // Circular Variables (مطابقة لمعايير الهوية الرسمية)
+  const [circularIncomingFrom, setCircularIncomingFrom] = useState("اتحاد الغرف السعودية");
+  const [circularIncomingNumber, setCircularIncomingNumber] = useState("ACS005681");
+  const [circularIncomingDate, setCircularIncomingDate] = useState("2025-10-12");
+  const [circularSubject, setCircularSubject] = useState("دعوة المهتمين للانضمام إلى عضوية مجلس الأعمال السعودي التايلاندي");
+  const [circularContactName, setCircularContactName] = useState("الأستاذ / محمد الصيعري");
+  const [circularContactPhone, setCircularContactPhone] = useState("0581517644");
+  const [circularContactEmail, setCircularContactEmail] = useState("malsaiari@fsc.org.sa");
+  const [circularAttachmentName, setCircularAttachmentName] = useState("خطاب اتحاد الغرف");
+  
+  const [circularOutNumber, setCircularOutNumber] = useState(`15/45536242`);
+  const [circularOutDate, setCircularOutDate] = useState(`1447/04/20 هـ`);
+  const [circularTypes, setCircularTypes] = useState<string[]>([]);
   const circularPrintRef = useRef<HTMLDivElement>(null);
+
+  const getAttachmentUrl = (att: File | string | null): string => {
+    if (!att) return '#';
+    if (typeof att === 'string') return att;
+    try {
+      return URL.createObjectURL(att);
+    } catch (e) {
+      return '#';
+    }
+  };
   
   const handleDownloadPDF = async () => {
     if (!circularPrintRef.current) return;
     try {
-      showGlobalToast("جاري تحضير ملف PDF...", "loading");
-      const canvas = await html2canvas(circularPrintRef.current, { scale: 2, useCORS: true, backgroundColor: '#FFFFFF' });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
+      showGlobalToast("جاري تحضير ملف PDF عالي الجودة...", "loading");
+      const el = circularPrintRef.current;
+      const dataUrl = await toPng(el, { 
+        cacheBust: true, 
+        backgroundColor: '#FFFFFF', 
+        pixelRatio: 3,
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left'
+        }
+      });
+      
+      const pdf = new jsPDF('l', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`تعميم_${circularOutNumber}.pdf`);
-      showGlobalToast("تم تحميل التعميم بنجاح", "success");
+      const pdfHeight = (el.offsetHeight * pdfWidth) / el.offsetWidth;
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const yOffset = pdfHeight < pageHeight ? (pageHeight - pdfHeight) / 2 : 0;
+      
+      pdf.addImage(dataUrl, 'PNG', 0, yOffset, pdfWidth, pdfHeight);
+
+      const links = el.querySelectorAll('[data-pdf-link]');
+      const containerRect = el.getBoundingClientRect();
+      
+      links.forEach((link) => {
+        const url = link.getAttribute('data-pdf-link');
+        if (!url || url === '#') return;
+        
+        const rect = link.getBoundingClientRect();
+        
+        const rx = (rect.left - containerRect.left) / containerRect.width;
+        const ry = (rect.top - containerRect.top) / containerRect.height;
+        const rw = rect.width / containerRect.width;
+        const rh = rect.height / containerRect.height;
+        
+        const pdfX = rx * pdfWidth;
+        const pdfY = yOffset + (ry * pdfHeight);
+        const pdfW = rw * pdfWidth;
+        const pdfH = rh * pdfHeight;
+        
+        pdf.link(pdfX, pdfY, pdfW, pdfH, { url });
+      });
+
+      pdf.save(`تعميم_${circularOutNumber.replace(/[\/\\]/g, '-')}.pdf`);
+      showGlobalToast("تم تحميل التعميم بصيغة PDF بنجاح", "success");
     } catch (err) {
       console.error(err);
       showGlobalToast("حدث خطأ أثناء التصدير", "error");
@@ -412,8 +415,6 @@ export default function CommitteesLibrary() {
   const [aiGenSubject, setAiGenSubject] = useState("");
   const [aiGenDetails, setAiGenDetails] = useState("");
   const [aiGenContact, setAiGenContact] = useState("");
-  const [aiGenAttachments, setAiGenAttachments] = useState("");
-  const [aiGenFileAttachment, setAiGenFileAttachment] = useState<File | string | null>(null);
   const [aiGenSignatory, setAiGenSignatory] = useState("");
   const [aiGenGeneratedText, setAiGenGeneratedText] = useState("");
   const [employees, setEmployees] = useState<any[]>([]);
@@ -425,10 +426,9 @@ export default function CommitteesLibrary() {
   const [aiGenReplyFile, setAiGenReplyFile] = useState<File | string | null>(null);
   const [isAIGenGenerating, setIsAIGenGenerating] = useState(false);
 
-  // التحديث: إضافة دالة لفتح المولد الذكي بالخطوة 1 الجديدة
   const openGenerateWizard = () => {
     setIsTemplateMenuOpen(false);
-    setAiGenStep(1); // يبدأ من خطوة اختيار الخدمة
+    setAiGenStep(1);
     setWorkspaceService("docs");
     setAiGenCommittees([]);
     setCircularViaEmail(false);
@@ -437,9 +437,14 @@ export default function CommitteesLibrary() {
     setCircularAtt1(null);
     setCircularAtt2(null);
     setCircularAtt3(null);
-    setCircularIncomingFrom("");
-    setCircularNumberDate("");
-    setCircularSubject("");
+    setCircularIncomingFrom("اتحاد الغرف السعودية");
+    setCircularIncomingNumber("ACS005681");
+    setCircularIncomingDate("2025-10-12");
+    setCircularSubject("دعوة المهتمين للانضمام إلى عضوية مجلس الأعمال السعودي التايلاندي");
+    setCircularContactName("الأستاذ / محمد الصيعري");
+    setCircularContactPhone("0581517644");
+    setCircularContactEmail("malsaiari@fsc.org.sa");
+    setCircularAttachmentName("خطاب اتحاد الغرف");
     setAiGenTemplateType("مستندات (Google Docs)");
     setAiGenMode("new");
     setAiGenRecipientName("");
@@ -448,7 +453,6 @@ export default function CommitteesLibrary() {
     setAiGenSubject("");
     setAiGenDetails("");
     setAiGenContact("");
-    setAiGenAttachments("");
     setAiGenSignatory("");
     setAiGenReplyContent("");
     setAiGenReplyFile(null);
@@ -468,7 +472,7 @@ export default function CommitteesLibrary() {
       if (aiGenMode === "reply" && aiGenReplyFile) {
         const reader = new FileReader();
         const base64Promise = new Promise<string>((resolve) => {
-          reader.onload = (ev) => resolve((ev.target?.result as string).split(',')[1]);
+          reader.onload = (ev) => resolve((ev.target?.result as string).split(','));
         });
         reader.readAsDataURL(aiGenReplyFile);
         replyFileBase64 = await base64Promise;
@@ -476,84 +480,61 @@ export default function CommitteesLibrary() {
       } else if (workspaceService === "circular" && circularMainFile && typeof circularMainFile === 'object') {
         const reader = new FileReader();
         const base64Promise = new Promise<string>((resolve) => {
-          reader.onload = (ev) => resolve((ev.target?.result as string).split(',')[1]);
+          reader.onload = (ev) => resolve((ev.target?.result as string).split(','));
         });
         reader.readAsDataURL(circularMainFile as File);
         replyFileBase64 = await base64Promise;
         replyFileMimeType = circularMainFile.type;
       }
 
-      const contactInfo = contactEmp ? `${contactEmp.jobTitle} - ${contactEmp.name} (جوال: ${contactEmp.phone}, بريد: ${contactEmp.email})` : aiGenContact;
+      const contactInfo = contactEmp ? `${contactEmp.jobTitle ? contactEmp.jobTitle + ' / ' : ''}${contactEmp.name} (جوال: ${contactEmp.phone || ''}, بريد: ${contactEmp.email || ''})` : aiGenContact;
       const signatoryInfo = signatoryEmp ? `${signatoryEmp.name} (${signatoryEmp.jobTitle})` : aiGenSignatory;
       const commName = aiGenCommittees.map(id => committees.find(c => String(c.id) === id)?.name || id).join("، ");
 
       let systemPrompt = "";
 
-      if (aiGenMode === "new") {
+      if (workspaceService === "circular") {
+        systemPrompt = `أنت خبير أتمتة التعاميم والقرارات الإدارية بغرفة مكة المكرمة.
+المطلوب قراءة المعاملة أو الخطاب المرفق (والذي قد يحتوي على ملصق/استيكر وارد الخاص بغرفة مكة المكرمة) واستخراج البيانات وتنسيق بطاقة التعميم الرسمية بدقة تامة.
+
+تعليمات هامة:
+1. استبدل القيم المطلوبة بالبيانات الحقيقية المستخرجة من المرفق.
+2. هناك نوعان من الأرقام والتواريخ يجب استخراجها:
+   - بيانات ملصق/استيكر "الوارد" الخاص بغرفة مكة (الرقم غالباً يبدأ بـ ACS أو رقم تسلسلي).
+   - بيانات الخطاب الأساسي نفسه (رقم الخطاب وتاريخه المكتوب في خطاب الجهة المرسلة).
+3. لا تقم بكتابة أي أقواس مربعة [] أو نجوم ** في النتيجة النهائية أبداً.
+
+يرجى إخراج النتيجة بالصيغة المحددة التالية بالضبط سطراً بسطر:
+التعميم وارد من: اسم الجهة الوارد منها
+رقم خطاب الجهة: رقم الخطاب الأساسي المكتوب في خطاب الجهة المرسلة
+تاريخ خطاب الجهة: تاريخ الخطاب الأساسي للجهة المرسلة
+رقم ملصق الغرفة: رقم الاستيكر/الملصق المضاف من الغرفة (مثل ACS005681)
+تاريخ ملصق الغرفة: تاريخ الاستيكر/الملصق المضاف من الغرفة
+الموضوع: موضوع التعميم الرئيسي بصياغة رسمية واضحة ومباشرة
+مسؤول التواصل: اسم مسؤول التواصل ومسماه الوظيفي تماماً كما ورد في الخطاب (مثال: أمين مجلس الأعمال الأستاذ/ محمد الصيعري)
+هاتف التواصل: رقم الجوال إن وجد
+بريد التواصل: البريد الإلكتروني إن وجد
+اسم المرفق: اسم مقترح للمرفق بناءً على الجهة المرسلة (مثل: خطاب اتحاد الغرف)
+نوع التعميم: استخرج أو استنتج نوع/أهمية التعميم من الكلمات التالية إذا وجدت (عادي، هام، عاجل، سري). يمكن اختيار أكثر من واحد، افصل بينها بفاصلة. إذا لم يُذكر شيء اعتبره (عادي).
+عرض التعميم:
+نص التعميم التوجيهي أو ملخص فحوى التعميم الموجه للجان`;
+      } else if (aiGenMode === "new") {
         systemPrompt = `أنت خبير صياغة خطابات رسمية سعودية في الغرفة التجارية (غرفة مكة المكرمة).
 يرجى صياغة خطاب رسمي احترافي بناءً على المعطيات التالية:
-المرسل إليه (اسمه أو صفته): ${aiGenRecipientPosition ? aiGenRecipientPosition + ' / ' : ''}${aiGenRecipientName}
+المرسل إليه: ${aiGenRecipientPosition ? aiGenRecipientPosition + ' / ' : ''}${aiGenRecipientName}
 الديباجة: ${aiGenPreamble || 'سلمه الله'}
 موضوع الخطاب: ${aiGenSubject}
 التفاصيل والنقاط المطلوبة في الخطاب: ${aiGenDetails}
-لجنة: ${aiGenCommittees.map(id => committees.find(c => String(c.id) === id)?.name || id).join("، ")}
+لجنة: ${commName}
 جهة التوقيع: ${signatoryInfo}
-معلومات التواصل (إن وجدت): ${contactInfo || 'لا يوجد'}
-
-يجب أن يكون الخطاب بنفس التنسيق والهيكلة المرجعية التالية للخطابات الرسمية، مع استبدال البيانات لتناسب المعطيات المطلوبة أعلاه:
-
-سعادة / [اسم المرسل إليه]                                                            سلمه الله
-[المنصب]
-
-السلام عليكم ورحمة الله وبركاته..
-
-تهديكم غرفة مكة المكرمة أطيب تحية .. [مقدمة الخطاب الرسمية والترحيب المناسب لموضوع الخطاب]
-
-[نص الخطاب التفصيلي يعبر بوضوح عن النقاط المذكورة في "التفاصيل والنقاط المطلوبة" بأسلوب إداري رصين ومحكم]
-
-سائلين الله عز وجل لسعادتكم دوام التوفيق والسداد، ولغرفتنا الموقرة المزيد من التقدم والازدهار.
-
-[إذا كان هناك معلومات تواصل أضف فقرة التواصل: لمزيد من التواصل والمعلومات يمكنكم الإيعاز لمن يلزم للتواصل مع...]
-
-وتفضلوا بقبول خالص التحية والتقدير،،،
-
-[المنصب لجهة التوقيع]
-[الاسم لجهة التوقيع]
-
-ملاحظة هامة: أخرج الخطاب فقط بدون أي شروحات إضافية وبدون استخدام علامات Markdown مثل \`\`\` ، وتأكد من محاكاة التنسيق بدقة، فقط النص الجاهز الصافي للخطاب.`;
+معلومات التواصل: ${contactInfo || 'لا يوجد'}`;
       } else {
         systemPrompt = `أنت خبير صياغة خطابات رسمية سعودية في الغرفة التجارية (غرفة مكة المكرمة).
 المطلوب صياغة "خطاب رد رسمي" احترافي على معاملة / خطاب وارد إلينا.
-
-${replyFileBase64 ? 'لقد تم إرفاق ملف المعاملة الواردة (صورة أو PDF)، يرجى قراءتها وتحليلها بدقة واستخراج اسم الجهة/الشخص المرسل وموضوع المعاملة.' : `هذا نص المعاملة الواردة إلينا:\n${aiGenReplyContent}`}
-
-التوجيهات ونقاط الرد المطلوبة:
-${aiPrompt}
-
-الجهة المصدرة للرد: ${aiGenCommittees.map(id => committees.find(c => String(c.id) === id)?.name || id).join("، ")}
-جهة التوقيع: ${signatoryInfo}
-معلومات التواصل (إن وجدت): ${contactInfo || 'لا يوجد'}
-
-يجب أن يكون الخطاب بنفس التنسيق والهيكلة المرجعية التالية للخطابات الرسمية:
-
-سعادة / [اسم الجهة أو الشخص المستخرج من المعاملة الواردة]                                                            سلمه الله
-[منصبه إن وجد]
-
-السلام عليكم ورحمة الله وبركاته..
-
-تهديكم غرفة مكة المكرمة أطيب تحية .. إشارة إلى خطابكم الكريم [رقم وتاريخ الخطاب إن وجد] بخصوص [موضوع المعاملة الواردة].
-[نص الرد التفصيلي يعبر بوضوح عن النقاط المذكورة في "التوجيهات ونقاط الرد المطلوبة" بأسلوب إداري رصين ومحكم]
-
-سائلين الله عز وجل لسعادتكم دوام التوفيق والسداد، ولغرفتنا الموقرة المزيد من التقدم والازدهار.
-
-[إذا كان هناك معلومات تواصل أضف فقرة التواصل: لمزيد من التواصل والمعلومات يمكنكم الإيعاز لمن يلزم للتواصل مع...]
-
-وتفضلوا بقبول خالص التحية والتقدير،،،
-
-[المنصب لجهة التوقيع]
-[الاسم لجهة التوقيع]
-
-ملاحظة هامة: أخرج الخطاب فقط بدون أي شروحات إضافية وبدون استخدام علامات Markdown مثل \`\`\` ، وتأكد من محاكاة التنسيق بدقة، فقط النص الجاهز الصافي للخطاب.`;
+${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، يرجى استخراج الجهة والموضوع وصياغة الرد.' : `نص المعاملة الواردة:\n${aiGenReplyContent}`}
+التوجيهات ونقاط الرد المطلوبة: ${aiPrompt}
+الجهة المصدرة للرد: ${commName}
+جهة التوقيع: ${signatoryInfo}`;
       }
 
       const response = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "gemini/generate-new-letter", {
@@ -580,20 +561,46 @@ ${aiPrompt}
         const data = (await response.text().then(t => t ? JSON.parse(t) : {}));
         const text = data.result || "";
         setAiGenGeneratedText(text);
+        
         if (workspaceService === "circular") {
           const fromMatch = text.match(/التعميم وارد من:\s*(.*)/);
-          const numMatch = text.match(/رقم وتاريخ:\s*(.*)/);
+          const inNumMatch = text.match(/رقم خطاب الجهة:\s*(.*)/);
+          const inDateMatch = text.match(/تاريخ خطاب الجهة:\s*(.*)/);
+          const stickerNumMatch = text.match(/رقم ملصق الغرفة:\s*(.*)/);
+          const stickerDateMatch = text.match(/تاريخ ملصق الغرفة:\s*(.*)/);
           const subMatch = text.match(/الموضوع:\s*(.*)/);
+          const contactMatch = text.match(/مسؤول التواصل:\s*(.*)/);
+          const phoneMatch = text.match(/هاتف التواصل:\s*(.*)/);
+          const emailMatch = text.match(/بريد التواصل:\s*(.*)/);
+          const attMatch = text.match(/اسم المرفق:\s*(.*)/);
+          const typeMatch = text.match(/نوع التعميم:\s*(.*)/);
           const textMatch = text.match(/عرض التعميم:\s*([\s\S]*)/);
           
-          if (fromMatch) setCircularIncomingFrom(fromMatch[1].trim());
-          if (numMatch) setCircularNumberDate(numMatch[1].trim());
-          if (subMatch) setCircularSubject(subMatch[1].trim());
+          if (fromMatch && fromMatch[1]) setCircularIncomingFrom(fromMatch[1].replace(/[*\[\]]/g, '').trim());
+          if (inNumMatch && inNumMatch[1]) {
+            setCircularIncomingNumber(inNumMatch[1].replace(/[*\[\]]/g, '').trim());
+          }
+          if (inDateMatch && inDateMatch[1]) {
+            setCircularIncomingDate(inDateMatch[1].replace(/[*\[\]]/g, '').trim());
+          }
+          if (stickerNumMatch && stickerNumMatch[1]) {
+            setCircularOutNumber(stickerNumMatch[1].replace(/[*\[\]]/g, '').trim());
+          }
+          if (stickerDateMatch && stickerDateMatch[1]) {
+            setCircularOutDate(stickerDateMatch[1].replace(/[*\[\]]/g, '').trim());
+          }
+          
+          if (subMatch && subMatch[1]) setCircularSubject(subMatch[1].replace(/[*\[\]]/g, '').trim());
+          if (contactMatch && contactMatch[1]) setCircularContactName(contactMatch[1].replace(/[*\[\]]/g, '').trim());
+          if (phoneMatch && phoneMatch[1]) setCircularContactPhone(phoneMatch[1].replace(/[*\[\]]/g, '').trim());
+          if (emailMatch && emailMatch[1]) setCircularContactEmail(emailMatch[1].replace(/[*\[\]]/g, '').trim());
+          if (attMatch && attMatch[1]) setCircularAttachmentName(attMatch[1].replace(/[*\[\]]/g, '').trim());
+          if (textMatch && textMatch[1]) setAiGenGeneratedText(textMatch[1].replace(/[*\[\]]/g, '').trim());
         }
-        setAiGenStep(3); // التحديث: النقل للخطوة الثالثة (المعاينة)
+        setAiGenStep(3);
       } else {
         const errData = await response.text().then(t => t ? JSON.parse(t) : null).catch(() => null);
-        alert("عذراً، الخادم يواجه ضغطاً حالياً (أو حدث خطأ). الرجاء المحاولة مرة أخرى بعد قليل.\n" + (errData?.error || ""));
+        alert("عذراً، الخادم يواجه ضغطاً حالياً. الرجاء المحاولة مرة أخرى.\n" + (errData?.error || ""));
       }
     } catch (e) {
       console.error(e);
@@ -610,7 +617,6 @@ ${aiPrompt}
       if (stored) currentUser = JSON.parse(stored);
       
       const creatorName = currentUser ? currentUser.name : "الأخصائي";
-      
       const targetCommittees = committees.filter(c => aiGenCommittees.includes(String(c.id)));
 
       if (targetCommittees.length === 0) {
@@ -624,47 +630,36 @@ ${aiPrompt}
 
         let finalDocumentText = aiGenGeneratedText;
         if (workspaceService === "circular") {
-            const circularBody = aiGenGeneratedText.split("عرض التعميم:")[1]?.trim() || aiGenGeneratedText.split("نص توجيهي مقترح لإرساله للجان:")[1]?.trim() || aiGenGeneratedText;
-            finalDocumentText = `تعميم داخلي\nاللجنة: ${committeeName}\n\nإلى: جميع أعضاء اللجان الموقرين\nمن: إدارة اللجان\nوارد من: ${circularIncomingFrom || "—"}\nالتاريخ والرقم: ${circularNumberDate || "—"}\nالموضوع: ${circularSubject || "—"}\n\n${circularBody}\n\nشاكرين ومقدرين تعاونكم،،،`;
+            const circularBody = aiGenGeneratedText.split("عرض التعميم:")?.trim() || aiGenGeneratedText;
+            finalDocumentText = `تعميم إداري\nاللجنة: ${committeeName}\nرقم التعميم: ${circularOutNumber}\nالتاريخ: ${circularOutDate}\nالوارد من: ${circularIncomingFrom || "—"}\nبرقم: ${circularIncomingNumber || "—"} وتاريخ: ${circularIncomingDate || "—"}\nالموضوع: ${circularSubject || "—"}\n\n${circularBody}\n\nللتواصل: ${circularContactName || "—"}\nجوال: ${circularContactPhone || "—"}\nبريد: ${circularContactEmail || "—"}`;
         }
         
         let finalCloudUrl = "#";
 
         if (finalType === "مستندات" || workspaceService === "circular") {
           try {
-            const subjectName = aiGenSubject || circularSubject || "خطاب جديد";
+            const subjectName = aiGenSubject || circularSubject || "تعميم جديد";
             const folderPath = workspaceService === "circular" ? `تقرير اللجان للدورة الـ 22/اللجان المعتمدة/${committeeName}/التعاميم/${subjectName}` : `تقرير اللجان للدورة الـ 22/اللجان المعتمدة/${committeeName}/الخطابات/مسودات/${subjectName}`;
             const folderId = await resolveDrivePath(folderPath);
             const { documentId, documentUrl } = await createGoogleDoc(subjectName, finalDocumentText);
             await moveDriveFile(documentId, folderId);
             finalCloudUrl = documentUrl;
             
-            if (aiGenReplyFile) {
-              const attachmentName = `مرفق خطاب ${subjectName} ${committeeName}`;
-              await uploadFileToDriveByPath(aiGenReplyFile, folderPath, attachmentName);
-            }
             if (workspaceService === "circular") {
                if (circularMainFile && typeof circularMainFile === 'object') await uploadFileToDriveByPath(circularMainFile as File, folderPath, (circularMainFile as File).name);
                if (circularAtt1 && typeof circularAtt1 === 'object') await uploadFileToDriveByPath(circularAtt1 as File, folderPath, (circularAtt1 as File).name);
-               if (circularAtt2 && typeof circularAtt2 === 'object') await uploadFileToDriveByPath(circularAtt2 as File, folderPath, (circularAtt2 as File).name);
-               if (circularAtt3 && typeof circularAtt3 === 'object') await uploadFileToDriveByPath(circularAtt3 as File, folderPath, (circularAtt3 as File).name);
             }
           } catch (apiError) {
             console.error("Google API Error:", apiError);
-            if (targetCommittees.length === 1) {
-              alert("تعذر الحفظ في Google Drive. الرجاء التأكد من ربط Google Workspace. سيتم حفظ الخطاب في المكتبة الرقمية فقط.");
-            }
           }
         }
 
         const urlAttachments = [];
         if (typeof circularMainFile === 'string') urlAttachments.push(circularMainFile);
         if (typeof circularAtt1 === 'string') urlAttachments.push(circularAtt1);
-        if (typeof circularAtt2 === 'string') urlAttachments.push(circularAtt2);
-        if (typeof circularAtt3 === 'string') urlAttachments.push(circularAtt3);
         
         const newDoc = {
-          title: aiGenSubject || circularSubject || "خطاب جديد",
+          title: aiGenSubject || circularSubject || "تعميم جديد",
           description: workspaceService === "circular" ? `مجلد تعاميم | لجنة: ${committeeName} | موضوع: ${circularSubject || ""}` : `مجلد خطابات - مجلد مسودات | لجنة: ${committeeName} | صادر إلى: ${aiGenRecipientName}`,
           type: workspaceService === "circular" ? "تعميم" : finalType,
           creator: creatorName,
@@ -680,7 +675,7 @@ ${aiPrompt}
         await addDoc(collection(db, "templates"), newDoc);
       }
       
-      alert(targetCommittees.length > 1 ? `تم حفظ الخطاب بنجاح لعدد ${targetCommittees.length} من اللجان.` : "تم حفظ الخطاب بنجاح.");
+      alert(targetCommittees.length > 1 ? `تم حفظ التعميم بنجاح لعدد ${targetCommittees.length} من اللجان.` : "تم حفظ التعميم بنجاح.");
       setIsAIGenOpen(false);
     } catch (e) {
       console.error(e);
@@ -688,39 +683,10 @@ ${aiPrompt}
     }
   };
 
-
   const [activeSmartLetter, setActiveSmartLetter] = useState<TemplateItem | null>(null);
   const [slTitle, setSlTitle] = useState("");
   const [slContent, setSlContent] = useState("");
   const [slValues, setSlValues] = useState<Record<string, string>>({});
-  
-  const slVariables = React.useMemo(() => {
-    const regex = /\[(.*?)\]/g;
-    const vars = new Set<string>();
-    let match;
-    while ((match = regex.exec(slContent)) !== null) {
-      vars.add(match[1]);
-    }
-    return Array.from(vars);
-  }, [slContent]);
-  
-  const slPreview = React.useMemo(() => {
-    let text = slContent;
-    slVariables.forEach(v => {
-      const val = slValues[v] || `[${v}]`;
-      text = text.replaceAll(`[${v}]`, val);
-    });
-    return text;
-  }, [slContent, slVariables, slValues]);
-  
-  const openCreateSmartLetter = () => {
-    setSmartLetterMode("create");
-    setActiveSmartLetter(null);
-    setSlTitle("");
-    setSlContent("");
-    setSlValues({});
-    setIsSmartLetterOpen(true);
-  };
   
   const openFillSmartLetter = (t: TemplateItem) => {
     setSmartLetterMode("fill");
@@ -731,47 +697,6 @@ ${aiPrompt}
     setIsSmartLetterOpen(true);
   };
 
-  const handleSaveSmartLetter = async () => {
-    if (!slTitle.trim() || !slContent.trim()) {
-      alert("يرجى إدخال عنوان ومحتوى الخطاب");
-      return;
-    }
-    try {
-      const stored = localStorage.getItem("current_user");
-      let currentCreator = "النظام";
-      if (stored) {
-        const u = JSON.parse(stored);
-        if (u && u.name) currentCreator = u.name;
-      }
-      
-      const newTemp = {
-        title: slTitle,
-        description: "قالب خطاب ذكي تم إنشاؤه عبر النظام",
-        templateText: slContent,
-        type: "خطاب ذكي",
-        creator: currentCreator,
-        cloudUrl: "",
-        downloadUrl: "",
-        lastUpdated: new Date().toISOString().split("T")[0],
-        isFavorite: false,
-      };
-      
-      await addDoc(collection(db, "templates"), newTemp);
-      
-      await addDoc(collection(db, "system_logs"), {
-        type: "إنشاء خطاب",
-        details: `تم إنشاء قالب خطاب ذكي جديد باسم [${slTitle}].`,
-        timestamp: new Date().toISOString(),
-        user: currentCreator
-      });
-      
-      setIsSmartLetterOpen(false);
-    } catch (e) {
-      console.error(e);
-      alert("حدث خطأ أثناء الحفظ");
-    }
-  };
-
   const [uploadedFileDataUrl, setUploadedFileDataUrl] = useState("");
   const [exportSelectedIds, setExportSelectedIds] = useState<string[]>([]);
 
@@ -780,14 +705,11 @@ ${aiPrompt}
     if (!file) return;
     setUploadedFile(file);
 
-    // Fill title if empty
     if (!formTitle) {
-      const nameWithoutExt =
-        file.name.substring(0, file.name.lastIndexOf(".")) || file.name;
+      const nameWithoutExt = file.name.substring(0, file.name.lastIndexOf(".")) || file.name;
       setFormTitle(nameWithoutExt);
     }
 
-    // Guess type from extension
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (ext === "docx" || ext === "doc" || ext === "pdf") {
       setFormType("مستندات");
@@ -799,7 +721,6 @@ ${aiPrompt}
       setFormType("أخرى");
     }
 
-    // Read to Data URL for preservation / direct local download
     const reader = new FileReader();
     reader.onload = () => {
       setUploadedFileDataUrl(reader.result as string);
@@ -808,7 +729,6 @@ ${aiPrompt}
   };
 
   const handleDownloadTemplate = (t: TemplateItem) => {
-    // If it's a real file we uploaded, it has a valid Data URL
     if (t.downloadUrl && t.downloadUrl.startsWith("data:")) {
       const downloadAnchor = document.createElement("a");
       downloadAnchor.setAttribute("href", t.downloadUrl);
@@ -827,7 +747,6 @@ ${aiPrompt}
       return;
     }
 
-    // Otherwise, generate an elegant text-based template file containing info
     const content = `===========================================
 غرفة مكة المكرمة - إدارة اللجان والقطاعات
 قالب مرجعي معتمد: ${t.title}
@@ -892,7 +811,7 @@ ${t.description}
       return;
     }
 
-    let csvContent = "\uFEFF"; // BOM for Arabic support
+    let csvContent = "\uFEFF";
     csvContent +=
       "المسلسل,اسم القالب المرجعي,الوصف,التصنيف,المنشئ,الرابط السحابي,آخر تحديث\n";
 
@@ -948,18 +867,16 @@ ${t.description}
 
   const wsStatsData = {
     committeesCount: committees.length,
-    activeCommitteesCount: committees.filter((c) => c.status === "فعالة")
-      .length,
+    activeCommitteesCount: committees.filter((c) => c.status === "فعالة").length,
     membersCount: 0,
     recommendationsCount: 0,
     tasksCount: 0,
-    committees: committees.map((c, i) => ({
+    committees: committees.map((c) => ({
       id: c.id,
       name: c.name,
       president: c.president || "أ. خالد الزهراني",
       specialist: c.specialist || "أخصائي حوكمة اللجان",
-      strategicPlan:
-        c.strategicPlan || "الخطة التشغيلية المعتمدة لتمكين الأعمال",
+      strategicPlan: c.strategicPlan || "الخطة التشغيلية المعتمدة لتمكين الأعمال",
       membersCount: c.membersCount || 8,
       meetingsCount: c.meetingsCount || 3,
       eventsCount: c.eventsCount || 2,
@@ -984,7 +901,7 @@ ${t.description}
         description: formDesc,
         templateText: formTemplateText,
         type: formType,
-        creator: "أخصائي الحוكمة",
+        creator: "أخصائي الحوكمة",
         cloudUrl: finalCloudUrl,
         downloadUrl: finalDownloadUrl,
         lastUpdated: new Date().toISOString().split("T")[0],
@@ -1061,8 +978,6 @@ ${t.description}
 
   const handleShareSubmit = (e: FormEvent) => {
     e.preventDefault();
-    // Simulate sending email
-    console.log("Shared", templateToShare?.title, "with", shareEmail);
     setIsShareOpen(false);
     setShareEmail("");
     alert("تم إرسال القالب عبر البريد السريع بنجاح!");
@@ -1078,6 +993,8 @@ ${t.description}
         return <FileSpreadsheet className="w-5 h-5 text-emerald-600" />;
       case "بريد إلكتروني":
         return <Mail className="w-5 h-5 text-red-500" />;
+      case "تعميم":
+        return <BookOpen className="w-5 h-5 text-[#133E87]" />;
       case "مهام Google":
         return <CheckSquare className="w-5 h-5 text-indigo-600" />;
       case "تقويم Google":
@@ -1096,7 +1013,7 @@ ${t.description}
   };
 
   return (
-    <div className="space-y-6 pb-16 text-right">
+    <div className="space-y-6 pb-16 text-right font-sans" dir="rtl">
       {/* -------------------- Page Action Header -------------------- */}
       <div className="bg-[#e8e4e4] rounded-2xl p-6 border border-gray-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 print:hidden">
         <div>
@@ -1104,13 +1021,12 @@ ${t.description}
             <div className="p-2 bg-blue-100/80 text-[#0ea5e9] rounded-xl border border-blue-200">
               <LibraryIcon className="w-7 h-7 text-[#0ea5e9]" />
             </div>
-            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight font-sans">
-              المكتبة الرقمية للقوالب
+            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">
+              المكتبة الرقمية للقوالب والتعاميم
             </h1>
           </div>
           <p className="text-gray-500 mt-2 text-sm font-medium pr-12">
-            توفير قوالب مصنفة ومتصلة بمساحة Google Workspace لتسهيل عمل
-            الأخصائيين وتسريع الإنجاز.
+            توفير قوالب مصنفة وبطاقات تعاميم رسمية متصلة بمساحة Google Workspace لتسهيل عمل الأخصائيين.
           </p>
         </div>
 
@@ -1122,7 +1038,7 @@ ${t.description}
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ابحث عن قالب..."
+                placeholder="ابحث عن قالب أو تعميم..."
                 className="w-full pl-8 pr-3 py-2 bg-white border border-gray-300 rounded-xl text-xs font-bold placeholder-gray-400 text-right focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm"
               />
               <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -1151,6 +1067,17 @@ ${t.description}
               title="مستندات"
             >
               <FileText className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setTypeFilter("تعميم")}
+              className={`px-3 py-1.5 rounded-lg font-black text-xs transition-all flex items-center gap-1 cursor-pointer ${
+                typeFilter === "تعميم"
+                  ? "bg-[#133E87] text-white shadow-sm"
+                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+              }`}
+              title="التعاميم"
+            >
+              <BookOpen className="w-4 h-4" />
             </button>
             <button
               onClick={() => setTypeFilter("عروض تقديمية")}
@@ -1239,7 +1166,7 @@ ${t.description}
               className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer shrink-0 w-full lg:w-auto"
             >
               <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
-              <span>إجراءات القوالب</span>
+              <span>إجراءات القوالب والتعاميم</span>
               <ChevronDown className="w-4 h-4 mr-1 opacity-70" />
             </button>
             <AnimatePresence>
@@ -1256,7 +1183,7 @@ ${t.description}
                     initial={{ opacity: 0, y: 5, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 5, scale: 0.95 }}
-                    className="absolute left-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-2 z-20 flex flex-col gap-1"
+                    className="absolute left-0 top-full mt-2 w-52 bg-white rounded-xl shadow-xl border border-gray-100 p-2 z-20 flex flex-col gap-1"
                   >
                     <button
                       type="button"
@@ -1266,7 +1193,7 @@ ${t.description}
                       <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100">
                         <Wand2 className="w-3.5 h-3.5" />
                       </div>
-                      <span>إنشاء قالب</span>
+                      <span>إنشاء قالب / بطاقة تعميم</span>
                     </button>
                     <button
                       type="button"
@@ -1319,8 +1246,7 @@ ${t.description}
                   البوابة السحابية الموحدة وتكامل قوالب اللجان
                 </h3>
                 <p className="text-[10.5px] text-gray-400 mt-0.5">
-                  تتبع الاتصال بجميع قنوات Google العشرة وإدارة أرشفة واعتلاء
-                  المستندات الرقمية
+                  تتبع الاتصال بجميع قنوات Google العشرة وإدارة أرشفة واعتلاء المستندات الرقمية
                 </p>
               </div>
               <button
@@ -1348,10 +1274,10 @@ ${t.description}
               <Search className="w-8 h-8 text-gray-400" />
             </div>
             <h3 className="text-lg font-extrabold text-gray-800">
-              لا توجد قوالب متطابقة
+              لا توجد قوالب أو تعاميم متطابقة
             </h3>
             <p className="text-gray-500 mt-1 max-w-md font-medium text-sm">
-              جرّب تغيير كلمات البحث أو فئة الفلترة للعثور على القوالب.
+              جرّب تغيير كلمات البحث أو فئة الفلترة للعثور على العناصر.
             </p>
           </div>
         ) : viewMode === "cards" ? (
@@ -1366,15 +1292,17 @@ ${t.description}
                   className={`absolute top-0 right-0 w-1.5 h-full ${
                     t.type === "مستندات"
                       ? "bg-blue-500"
-                      : t.type === "عروض تقديمية"
-                        ? "bg-amber-400"
-                        : t.type === "جداول بيانات"
-                          ? "bg-emerald-500"
-                          : t.type === "بريد إلكتروني"
-                            ? "bg-red-400"
-                            : t.type === "خطاب ذكي"
-                              ? "bg-indigo-500"
-                              : "bg-gray-500"
+                      : t.type === "تعميم"
+                        ? "bg-[#133E87]"
+                        : t.type === "عروض تقديمية"
+                          ? "bg-amber-400"
+                          : t.type === "جداول بيانات"
+                            ? "bg-emerald-500"
+                            : t.type === "بريد إلكتروني"
+                              ? "bg-red-400"
+                              : t.type === "خطاب ذكي"
+                                ? "bg-indigo-500"
+                                : "bg-gray-500"
                   }`}
                 ></div>
 
@@ -1387,7 +1315,7 @@ ${t.description}
                       <button
                         onClick={() => handleDeleteTemplate(t)}
                         className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-red-100 shadow-sm hover:shadow"
-                        title="حذف القالب"
+                        title="حذف"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -1433,30 +1361,20 @@ ${t.description}
                     <button
                       onClick={() => handleDownloadTemplate(t)}
                       className="flex items-center justify-center gap-1.5 px-3 py-2 bg-white text-gray-750 hover:text-black hover:bg-gray-100 rounded-lg text-xs font-extrabold transition-colors border border-gray-300 shadow-sm"
-                      title="تحميل النموذج مباشرة"
+                      title="تحميل مباشرة"
                     >
                       تحميل
                       <Download className="w-3.5 h-3.5" />
                     </button>
 
-                          <button
-                            onClick={() => t.type === "خطاب ذكي" ? openFillSmartLetter(t) : handleOpenAI(t)}
-                            className="p-1.5 text-indigo-600 hover:text-white hover:bg-indigo-600 rounded-lg transition-colors border border-indigo-600/20 shadow-sm hover:shadow"
-                            title={t.type === "خطاب ذكي" ? "تعبئة وطباعة" : "تعبئة بالذكاء الاصطناعي"}
-                          >
-                            <Wand2 className="w-4 h-4" />
-                          </button>
-
-
                     <button
                       onClick={() => t.type === "خطاب ذكي" ? openFillSmartLetter(t) : handleOpenAI(t)}
                       className="flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-l from-indigo-600 to-indigo-500 text-white hover:brightness-110 rounded-lg text-xs font-extrabold transition-all shadow-sm"
-                      title={t.type === "خطاب ذكي" ? "تعبئة المتغيرات وطباعة الخطاب" : "المولد الذكي للخطابات"}
+                      title={t.type === "خطاب ذكي" ? "تعبئة المتغيرات وطباعة الخطاب" : "المولد الذكي للخطابات والتعاميم"}
                     >
                       {t.type === "خطاب ذكي" ? "تعبئة وطباعة" : "توليد ذكي"}
                       <Wand2 className="w-3.5 h-3.5" />
                     </button>
-
                   </div>
                 </div>
               </div>
@@ -1468,15 +1386,11 @@ ${t.description}
               <table className="w-full text-right border-collapse">
                 <thead className="bg-[#dfdada] text-gray-700 font-extrabold text-sm border-b border-gray-300">
                   <tr>
-                    <th className="whitespace-nowrap py-4 px-5 whitespace-nowrap w-12">النوع</th>
-                    <th className="whitespace-nowrap py-4 px-5 whitespace-nowrap">
-                      اسم القالب المرجعي
-                    </th>
-                    <th className="whitespace-nowrap py-4 px-5 whitespace-nowrap">الوصف</th>
-                    <th className="whitespace-nowrap py-4 px-5 whitespace-nowrap">المنشئ</th>
-                    <th className="whitespace-nowrap py-4 px-5 text-center whitespace-nowrap">
-                      إجراءات
-                    </th>
+                    <th className="whitespace-nowrap py-4 px-5 w-12">النوع</th>
+                    <th className="whitespace-nowrap py-4 px-5">اسم القالب المرجعي</th>
+                    <th className="whitespace-nowrap py-4 px-5">الوصف</th>
+                    <th className="whitespace-nowrap py-4 px-5">المنشئ</th>
+                    <th className="whitespace-nowrap py-4 px-5 text-center">إجراءات</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200/60">
@@ -1522,7 +1436,6 @@ ${t.description}
                           >
                             <Download className="w-4 h-4" />
                           </button>
-
                           <button
                             onClick={() => t.type === "خطاب ذكي" ? openFillSmartLetter(t) : handleOpenAI(t)}
                             className="p-1.5 text-indigo-600 hover:text-white hover:bg-indigo-600 rounded-lg transition-colors border border-indigo-600/20 shadow-sm hover:shadow"
@@ -1530,7 +1443,6 @@ ${t.description}
                           >
                             <Wand2 className="w-4 h-4" />
                           </button>
-
                           <button
                             onClick={() => {
                               setTemplateToShare(t);
@@ -1559,7 +1471,7 @@ ${t.description}
         )}
       </div>
 
-      {/* Add Modal */}
+      {/* Add / Import / Export Modal */}
       <AnimatePresence>
         {isAddOpen && (
           <div key="comm-isAddOpen-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pb-20">
@@ -1578,7 +1490,7 @@ ${t.description}
             >
               <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gray-50/50">
                 <h2 className="text-xl font-extrabold text-gray-900 flex items-center gap-2">
-                  إدارة واستيراد وتصدير النماذج الجاهزة
+                  إدارة واستيراد وتصدير النماذج والتعاميم
                 </h2>
                 <button
                   onClick={() => setIsAddOpen(false)}
@@ -1588,7 +1500,6 @@ ${t.description}
                 </button>
               </div>
 
-              {/* Tab selector */}
               <div className="flex border-b border-gray-100 bg-gray-50/50 p-1">
                 <button
                   type="button"
@@ -1624,7 +1535,7 @@ ${t.description}
                 >
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                      اسم القالب المرجعي
+                      اسم القالب أو التعميم المرجعي
                     </label>
                     <input
                       required
@@ -1632,11 +1543,10 @@ ${t.description}
                       value={formTitle}
                       onChange={(e) => setFormTitle(e.target.value)}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#0ea5e9] focus:ring-1 focus:ring-[#0ea5e9] outline-none transition-all placeholder:text-gray-400 font-medium"
-                      placeholder="مثال: مسودة محضر اللجان"
+                      placeholder="مثال: مسودة محضر اللجان أو بطاقة تعميم"
                     />
                   </div>
 
-                  
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1.5 flex items-center justify-between">
                       <span>هيكل القالب (للمولد الذكي) <span className="text-xs text-brand bg-brand/10 px-2 py-0.5 rounded-full mr-2">اختياري</span></span>
@@ -1646,7 +1556,7 @@ ${t.description}
                       value={formTemplateText}
                       onChange={(e) => setFormTemplateText(e.target.value)}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#0ea5e9] focus:ring-1 focus:ring-[#0ea5e9] outline-none transition-all resize-none font-medium text-sm text-gray-600"
-                      placeholder="انسخ محتوى الخطاب هنا لتمكين الذكاء الاصطناعي من تعبئته لاحقاً (مثال: السلام عليكم ورحمة الله، السيد/ [الاسم]...)"
+                      placeholder="انسخ محتوى الخطاب أو التعميم هنا لتمكين الذكاء الاصطناعي من تعبئته لاحقاً..."
                     />
                   </div>
 
@@ -1660,7 +1570,7 @@ ${t.description}
                       value={formDesc}
                       onChange={(e) => setFormDesc(e.target.value)}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#0ea5e9] focus:ring-1 focus:ring-[#0ea5e9] outline-none transition-all resize-none font-medium text-sm"
-                      placeholder="استخدام هذا القالب لتوحيد كتابة المحاضر..."
+                      placeholder="استخدام هذا القالب لتوحيد كتابة المحاضر أو التعاميم..."
                     />
                   </div>
 
@@ -1673,18 +1583,11 @@ ${t.description}
                       onChange={(e) => setFormType(e.target.value as any)}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#0ea5e9] focus:ring-1 focus:ring-[#0ea5e9] outline-none transition-all font-semibold text-gray-700"
                     >
-                      <option value="مستندات">
-                        مستندات Google Docs / Word
-                      </option>
-                      <option value="عروض تقديمية">
-                        عروض تقديمية Slides / PPT
-                      </option>
-                      <option value="جداول بيانات">
-                        جداول تفاعلية Sheets / Excel
-                      </option>
-                      <option value="بريد إلكتروني">
-                        مراسلات إلكترونية Email
-                      </option>
+                      <option value="مستندات">مستندات Google Docs / Word</option>
+                      <option value="تعميم">بطاقة تعميم رسمي (Circular)</option>
+                      <option value="عروض تقديمية">عروض تقديمية Slides / PPT</option>
+                      <option value="جداول بيانات">جداول تفاعلية Sheets / Excel</option>
+                      <option value="بريد إلكتروني">مراسلات إلكترونية Email</option>
                       <option value="مهام Google">مهام Google Tasks</option>
                       <option value="تقويم Google">تقويم Google Calendar</option>
                       <option value="محادثات Chat">محادثات Google Chat</option>
@@ -1692,67 +1595,6 @@ ${t.description}
                       <option value="نماذج Forms">نماذج Google Forms</option>
                       <option value="أخرى">أخرى</option>
                     </select>
-                  </div>
-
-                  <div>
-                    {importSource === "computer" ? (
-                      <div className="space-y-4 text-right" dir="rtl">
-                        <div className="border border-dashed border-gray-300 rounded-xl p-4 hover:border-blue-500 transition-all text-center relative bg-slate-50 cursor-pointer">
-                          <input
-                            type="file"
-                            required={!uploadedFile}
-                            onChange={handleFileChange}
-                            accept=".docx,.doc,.xls,.xlsx,.csv,.ppt,.pptx,.pdf,.txt"
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-[15]"
-                          />
-                          <div className="space-y-1">
-                            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center border border-gray-100 shadow-sm mx-auto">
-                              <Upload className="w-4 h-4 text-blue-600" />
-                            </div>
-                            <p className="text-xs font-bold text-gray-800">
-                              اسحب ملف النموذج أو انقر لتصفح جهازك
-                            </p>
-                            <p className="text-[10px] text-gray-400">
-                              يدعم ملفات Word, Excel, PowerPoint, PDF و CSV
-                            </p>
-                          </div>
-                        </div>
-
-                        {uploadedFile && (
-                          <div className="bg-emerald-50 border border-emerald-150/60 rounded-xl p-2.5 flex justify-between items-center text-xs text-emerald-800 font-bold animate-fadeIn">
-                            <div className="flex gap-2 items-center">
-                              <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              <span className="line-clamp-1">
-                                {uploadedFile.name} (
-                                {(uploadedFile.size / 1024).toFixed(1)} KB)
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setUploadedFile(null);
-                                setUploadedFileDataUrl("");
-                              }}
-                              className="p-1 px-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg text-[10px] cursor-pointer"
-                            >
-                              حذف القالب ✕
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div>
-                        <input
-                          required
-                          type="url"
-                          value={formCloudUrl}
-                          onChange={(e) => setFormCloudUrl(e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#0ea5e9] text-left font-sans focus:ring-1 focus:ring-[#0ea5e9] outline-none transition-all text-xs"
-                          placeholder="https://docs.google.com/..."
-                          dir="ltr"
-                        />
-                      </div>
-                    )}
                   </div>
 
                   <div className="pt-4 border-t border-gray-100 flex justify-end gap-3">
@@ -1768,45 +1610,26 @@ ${t.description}
                       type="submit"
                       className="px-6 py-3 rounded-xl text-sm font-bold text-white bg-[#121212] hover:bg-black flex items-center gap-2 shadow-sm transition-all disabled:opacity-70"
                     >
-                      {formIsSaving ? (
-                        <RefreshCw className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <Check className="w-5 h-5" />
-                      )}
+                      {formIsSaving ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
                       تأكيد حفظ المعيار
                     </button>
                   </div>
                 </form>
               ) : (
                 <div className="p-6 overflow-y-auto space-y-4">
-                  <p
-                    className="text-xs text-gray-500 font-bold leading-relaxed border-r-2 border-blue-500 pr-2.5 text-right font-sans"
-                    dir="rtl"
-                  >
-                    حدد النماذج التي تود تصديرها من القائمة أدناه، ثم اختر صيغة
-                    الملف المناسبة لتحميلها مباشرة:
+                  <p className="text-xs text-gray-500 font-bold leading-relaxed border-r-2 border-blue-500 pr-2.5 text-right">
+                    حدد النماذج التي تود تصديرها من القائمة أدناه:
                   </p>
 
-                  <div
-                    className="border border-gray-200 rounded-xl max-h-[160px] overflow-y-auto divide-y divide-gray-100 bg-slate-50 p-1.5 text-right font-sans"
-                    dir="rtl"
-                  >
+                  <div className="border border-gray-200 rounded-xl max-h-[160px] overflow-y-auto divide-y divide-gray-100 bg-slate-50 p-1.5 text-right">
                     {templates.map((t, i) => {
                       const isChecked = exportSelectedIds.includes(t.id);
                       return (
                         <div
                           key={`${t.id}-${i}`}
                           onClick={() => {
-                            if (isChecked) {
-                              setExportSelectedIds(
-                                exportSelectedIds.filter((id) => id !== t.id),
-                              );
-                            } else {
-                              setExportSelectedIds([
-                                ...exportSelectedIds,
-                                t.id,
-                              ]);
-                            }
+                            if (isChecked) setExportSelectedIds(exportSelectedIds.filter((id) => id !== t.id));
+                            else setExportSelectedIds([...exportSelectedIds, t.id]);
                           }}
                           className="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer transition-colors"
                         >
@@ -1817,85 +1640,30 @@ ${t.description}
                             className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 pointer-events-none"
                           />
                           <div className="text-right flex-1">
-                            <p className="text-xs font-black text-gray-900">
-                              {t.title}
-                            </p>
-                            <p className="text-[10px] text-gray-400">
-                              التصنيف: {t.type} • الكاتب: {t.creator}
-                            </p>
+                            <p className="text-xs font-black text-gray-900">{t.title}</p>
+                            <p className="text-[10px] text-gray-400">التصنيف: {t.type} • الكاتب: {t.creator}</p>
                           </div>
                         </div>
                       );
                     })}
                   </div>
 
-                  <div
-                    className="flex gap-2 justify-between items-center text-xs border-b border-gray-100 pb-2 text-right font-sans"
-                    dir="rtl"
-                  >
-                    <span className="font-extrabold text-blue-700">
-                      النماذج المختارة: {exportSelectedIds.length} من{" "}
-                      {templates.length}
-                    </span>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setExportSelectedIds(templates.map((t) => t.id))
-                        }
-                        className="px-2.5 py-1 bg-white hover:bg-gray-100 border border-gray-200 rounded-lg text-[10px] font-bold cursor-pointer"
-                      >
-                        تحديد الكل
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setExportSelectedIds([])}
-                        className="px-2.5 py-1 bg-white hover:bg-red-50 hover:text-red-700 border border-gray-200 rounded-lg text-[10px] font-bold cursor-pointer"
-                      >
-                        تصفير التحديد
-                      </button>
-                    </div>
-                  </div>
-
-                  <div
-                    className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 text-right font-sans"
-                    dir="rtl"
-                  >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 text-right">
                     <button
                       type="button"
                       onClick={handleExportJSON}
-                      className="p-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl flex flex-col items-center justify-center text-center shadow gap-1.5 transition-all text-xs font-bold group cursor-pointer"
+                      className="p-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl flex flex-col items-center justify-center text-center shadow gap-1.5 transition-all text-xs font-bold"
                     >
-                      <FileJson className="w-5 h-5 text-yellow-400 group-hover:scale-110 transition-transform" />
+                      <FileJson className="w-5 h-5 text-yellow-400" />
                       <span>تصدير كأرشيف JSON</span>
-                      <span className="text-[9px] text-gray-400 font-normal">
-                        للنسخ الاحتياطي العام للغرفة
-                      </span>
                     </button>
-
                     <button
                       type="button"
                       onClick={handleExportCSV}
-                      className="p-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl flex flex-col items-center justify-center text-center shadow gap-1.5 transition-all text-xs font-bold group cursor-pointer"
+                      className="p-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl flex flex-col items-center justify-center text-center shadow gap-1.5 transition-all text-xs font-bold"
                     >
-                      <FileSpreadsheet className="w-5 h-5 text-emerald-100 group-hover:scale-110 transition-transform" />
+                      <FileSpreadsheet className="w-5 h-5 text-emerald-100" />
                       <span>تصدير جدول بيانات CSV</span>
-                      <span className="text-[9px] text-emerald-200 font-normal font-sans">
-                        لاستيراده ببرامج Excel و Numbers
-                      </span>
-                    </button>
-                  </div>
-
-                  <div
-                    className="pt-2 flex justify-end text-right font-sans"
-                    dir="rtl"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setIsAddOpen(false)}
-                      className="px-5 py-2 hover:bg-gray-100 rounded-xl text-xs font-extrabold text-gray-500 cursor-pointer"
-                    >
-                      إغلاق النافذة
                     </button>
                   </div>
                 </div>
@@ -1924,7 +1692,6 @@ ${t.description}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               className="relative w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100"
-              dir="rtl"
             >
               <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-red-50/50">
                 <div className="flex items-center gap-3">
@@ -1932,12 +1699,8 @@ ${t.description}
                     <Trash2 className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-black text-gray-900">
-                      تأكيد حذف النموذج
-                    </h3>
-                    <p className="text-sm font-medium text-red-600 mt-1">
-                      هذا الإجراء لا يمكن التراجع عنه
-                    </p>
+                    <h3 className="text-lg font-black text-gray-900">تأكيد حذف النموذج</h3>
+                    <p className="text-sm font-medium text-red-600 mt-1">هذا الإجراء لا يمكن التراجع عنه</p>
                   </div>
                 </div>
                 <button
@@ -1982,7 +1745,7 @@ ${t.description}
                 <button
                   onClick={confirmDelete}
                   disabled={formIsSaving || !deleteReason.trim()}
-                  className="px-6 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm shadow-red-600/20"
+                  className="px-6 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors text-sm disabled:opacity-50 flex items-center gap-2 shadow-sm"
                 >
                   {formIsSaving ? "جاري الحذف..." : "تأكيد الحذف"}
                 </button>
@@ -2023,35 +1786,26 @@ ${t.description}
 
               <form onSubmit={handleShareSubmit} className="p-5 space-y-4">
                 <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
-                  <p className="text-xs font-bold text-gray-500 text-center mb-1">
-                    القالب المحدد:
-                  </p>
-                  <p className="text-sm font-extrabold text-gray-800 text-center">
-                    {templateToShare.title}
-                  </p>
+                  <p className="text-xs font-bold text-gray-500 text-center mb-1">القالب المحدد:</p>
+                  <p className="text-sm font-extrabold text-gray-800 text-center">{templateToShare.title}</p>
                 </div>
-
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                    البريد الإلكتروني للزميل
-                  </label>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">البريد الإلكتروني للزميل</label>
                   <input
                     required
                     type="email"
                     value={shareEmail}
                     onChange={(e) => setShareEmail(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 text-left font-sans focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder:text-gray-400"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 text-left font-sans outline-none transition-all"
                     placeholder="name@makkahchamber.sa"
                     dir="ltr"
                   />
                 </div>
-
                 <button
                   type="submit"
                   className="w-full py-3 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2 shadow-sm transition-all mt-2"
                 >
-                  <Send className="w-4 h-4" />
-                  إرسال سريع للموظف
+                  <Send className="w-4 h-4" /> إرسال سريع للموظف
                 </button>
               </form>
             </motion.div>
@@ -2059,7 +1813,7 @@ ${t.description}
         )}
       </AnimatePresence>
 
-      {/* AI Generator Modal - New Gemini Style Implementation */}
+      {/* -------------------- AI Generator Wizard Modal (مع بطاقة التعميم المعتمدة) -------------------- */}
       <AnimatePresence>
         {isAIGenOpen && (
           <div key="comm-isAIGenOpen-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
@@ -2069,15 +1823,17 @@ ${t.description}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl shadow-2xl overflow-hidden w-full max-w-4xl z-10 flex flex-col max-h-[95vh]"
+              className="bg-white rounded-3xl shadow-2xl overflow-hidden w-full max-w-5xl z-10 flex flex-col max-h-[95vh]"
             >
-              <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-l from-emerald-50/50 to-white shrink-0">
+              <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-l from-[#133E87]/10 via-white to-white shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm">
+                  <div className="w-12 h-12 rounded-2xl bg-[#133E87]/10 text-[#133E87] flex items-center justify-center shadow-sm">
                     <Sparkles className="w-6 h-6" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-gray-900">إنشاء نموذج مخصص للمهام</h2>
+                    <h2 className="text-xl font-black text-gray-900">
+                      {workspaceService === "circular" ? "إنشاء وتوليد بطاقة تعميم رسمية" : "إنشاء نموذج مخصص للمهام"}
+                    </h2>
                     <p className="text-gray-500 text-sm font-medium mt-1">
                       الخطوة {aiGenStep} من {workspaceService === "circular" ? 4 : 3}
                     </p>
@@ -2093,13 +1849,13 @@ ${t.description}
 
               <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
                 
+                {/* STEP 1: اختيار النوع واللجان */}
                 {aiGenStep === 1 && (
                   <div className="max-w-4xl mx-auto space-y-6">
                     <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-5">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        
                         <div>
-                           <label className="block text-sm font-bold text-gray-800 mb-2">نوع النموذج</label>
+                           <label className="block text-sm font-bold text-gray-800 mb-2">نوع النموذج / الإجراء</label>
                            <select 
                              value={workspaceService} 
                              onChange={e => {
@@ -2112,25 +1868,15 @@ ${t.description}
                                else if(val === "slides") setAiGenTemplateType("عروض تقديمية (Google Slides)");
                                else if(val === "sheets") setAiGenTemplateType("جداول بيانات (Google Sheets)");
                                else if(val === "gmail") setAiGenTemplateType("بريد إلكتروني (Gmail)");
-                               else if(val === "tasks") setAiGenTemplateType("مهام Google");
-                               else if(val === "calendar") setAiGenTemplateType("تقويم Google");
-                               else if(val === "chat") setAiGenTemplateType("محادثات Chat");
-                               else if(val === "meet") setAiGenTemplateType("اجتماعات Meet");
-                               else if(val === "forms") setAiGenTemplateType("نماذج Forms");
                                else if(val === "circular") { setAiGenTemplateType("تعميم"); setAiGenMode("new"); }
                              }}
-                             className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-sm"
+                             className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#133E87] font-bold text-sm"
                            >
+                             <option value="circular">بطاقة تعميم رسمي (Circular Card)</option>
                              <option value="docs">مستندات (Google Docs)</option>
                              <option value="slides">عروض تقديمية (Google Slides)</option>
                              <option value="sheets">جداول بيانات (Google Sheets)</option>
                              <option value="gmail">بريد إلكتروني (Gmail)</option>
-                             <option value="tasks">مهام (Google Tasks)</option>
-                             <option value="calendar">تقويم (Google Calendar)</option>
-                             <option value="chat">محادثات (Google Chat)</option>
-                             <option value="meet">اجتماعات (Google Meet)</option>
-                             <option value="forms">نماذج (Google Forms)</option>
-                             <option value="circular">تعميم (Circular)</option>
                            </select>
                         </div>
 
@@ -2139,32 +1885,13 @@ ${t.description}
                            <select 
                              value={aiGenMode} 
                              onChange={e => setAiGenMode(e.target.value as any)}
-                             className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-sm"
+                             className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#133E87] font-bold text-sm"
                            >
                              {workspaceService === "docs" ? (
                                <>
                                  <option value="new">إنشاء خطاب/مستند جديد</option>
                                  <option value="reply">رد على خطاب/مستند وارد</option>
                                </>
-                             ) : workspaceService === "slides" ? (
-                               <option value="new">إنشاء عرض تقديمي جديد</option>
-                             ) : workspaceService === "sheets" ? (
-                               <option value="new">إنشاء جدول بيانات جديد</option>
-                             ) : workspaceService === "gmail" ? (
-                               <>
-                                 <option value="new">إنشاء بريد إلكتروني جديد</option>
-                                 <option value="reply">رد على بريد إلكتروني</option>
-                               </>
-                             ) : workspaceService === "tasks" ? (
-                               <option value="new">إنشاء مهمة جديدة</option>
-                             ) : workspaceService === "calendar" ? (
-                               <option value="new">إنشاء حدث جديد في التقويم</option>
-                             ) : workspaceService === "chat" ? (
-                               <option value="new">إنشاء رسالة محادثة جديدة</option>
-                             ) : workspaceService === "meet" ? (
-                               <option value="new">إنشاء رابط اجتماع جديد</option>
-                             ) : workspaceService === "forms" ? (
-                               <option value="new">إنشاء نموذج جديد</option>
                              ) : (
                                <option value="new">إنشاء نموذج جديد</option>
                              )}
@@ -2177,40 +1904,18 @@ ${t.description}
                              <div className="p-3 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
                                <input 
                                   type="checkbox"
-                                  checked={aiGenCommittees.length > 0 && aiGenCommittees.length === committees.filter(c => {
-                                    const stored = localStorage.getItem("current_user");
-                                    if (!stored) return true;
-                                    const currentUser = JSON.parse(stored);
-                                    if (currentUser.role === 'مدير نظام') return true;
-                                    if (!currentUser.committees || currentUser.committees.length === 0) return true;
-                                    return currentUser.committees.includes(c.id);
-                                  }).length}
+                                  checked={aiGenCommittees.length > 0 && aiGenCommittees.length === committees.length}
                                   onChange={(e) => {
-                                     const available = committees.filter(c => {
-                                      const stored = localStorage.getItem("current_user");
-                                      if (!stored) return true;
-                                      const currentUser = JSON.parse(stored);
-                                      if (currentUser.role === 'مدير نظام') return true;
-                                      if (!currentUser.committees || currentUser.committees.length === 0) return true;
-                                      return currentUser.committees.includes(c.id);
-                                    });
-                                     if (e.target.checked) setAiGenCommittees(available.map(c => String(c.id)));
+                                     if (e.target.checked) setAiGenCommittees(committees.map(c => String(c.id)));
                                      else setAiGenCommittees([]);
                                   }}
-                                  className="w-4 h-4 text-emerald-600 rounded border-gray-300"
+                                  className="w-4 h-4 text-[#133E87] rounded border-gray-300"
                                />
                                <span className="text-sm font-bold text-gray-700">تحديد جميع اللجان</span>
                              </div>
                              <div className="overflow-y-auto p-2 space-y-1">
-                               {committees.filter(c => {
-                                  const stored = localStorage.getItem("current_user");
-                                  if (!stored) return true;
-                                  const currentUser = JSON.parse(stored);
-                                  if (currentUser.role === 'مدير نظام') return true;
-                                  if (!currentUser.committees || currentUser.committees.length === 0) return true;
-                                  return currentUser.committees.includes(c.id);
-                                }).map((c, i) => (
-                                 <label key={`${c.id}-${i}`} className="flex items-center gap-3 p-2 hover:bg-emerald-50/50 rounded-lg cursor-pointer transition-colors">
+                               {committees.map((c, i) => (
+                                 <label key={`${c.id}-${i}`} className="flex items-center gap-3 p-2 hover:bg-blue-50/50 rounded-lg cursor-pointer transition-colors">
                                     <input 
                                        type="checkbox"
                                        checked={aiGenCommittees.includes(String(c.id))}
@@ -2218,7 +1923,7 @@ ${t.description}
                                          if (e.target.checked) setAiGenCommittees([...aiGenCommittees, String(c.id)]);
                                          else setAiGenCommittees(aiGenCommittees.filter(id => id !== String(c.id)));
                                        }}
-                                       className="w-4 h-4 text-emerald-600 rounded border-gray-300"
+                                       className="w-4 h-4 text-[#133E87] rounded border-gray-300"
                                     />
                                     <span className="text-sm font-medium text-gray-700">{c.name}</span>
                                  </label>
@@ -2226,16 +1931,17 @@ ${t.description}
                              </div>
                            </div>
                         </div>
+
                         {workspaceService === "circular" && (
                           <div>
-                             <label className="block text-sm font-bold text-gray-800 mb-2">وسيلة إرسال التعميم</label>
-                             <div className="flex gap-4 items-center">
+                             <label className="block text-sm font-bold text-gray-800 mb-2">وسيلة إرسال وتوجيه التعميم</label>
+                             <div className="flex gap-4 items-center mt-2">
                                <label className="flex items-center gap-2 cursor-pointer">
-                                 <input type="checkbox" checked={circularViaEmail} onChange={e => setCircularViaEmail(e.target.checked)} className="w-4 h-4 text-emerald-600 rounded border-gray-300" />
+                                 <input type="checkbox" checked={circularViaEmail} onChange={e => setCircularViaEmail(e.target.checked)} className="w-4 h-4 text-[#133E87] rounded border-gray-300" />
                                  <span className="text-sm font-bold text-gray-700">البريد الإلكتروني</span>
                                </label>
                                <label className="flex items-center gap-2 cursor-pointer">
-                                 <input type="checkbox" checked={circularViaWhatsApp} onChange={e => setCircularViaWhatsApp(e.target.checked)} className="w-4 h-4 text-emerald-600 rounded border-gray-300" />
+                                 <input type="checkbox" checked={circularViaWhatsApp} onChange={e => setCircularViaWhatsApp(e.target.checked)} className="w-4 h-4 text-[#133E87] rounded border-gray-300" />
                                  <span className="text-sm font-bold text-gray-700">واتس آب</span>
                                </label>
                              </div>
@@ -2246,14 +1952,13 @@ ${t.description}
                     <div className="flex justify-end">
                       <button
                         onClick={() => {
-
                           if (aiGenCommittees.length === 0) {
                              showGlobalToast("الرجاء اختيار اللجنة للربط والأرشفة", "error");
                              return;
                           }
                           setAiGenStep(2);
                         }}
-                        className="px-8 py-3 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors flex items-center gap-2"
+                        className="px-8 py-3 bg-[#0B2545] text-white rounded-xl text-sm font-bold hover:bg-[#133E87] transition-colors flex items-center gap-2"
                       >
                         متابعة <ChevronLeft className="w-4 h-4" />
                       </button>
@@ -2261,20 +1966,20 @@ ${t.description}
                   </div>
                 )}
 
+                {/* STEP 2: رفع الخطاب والمعطيات */}
                 {aiGenStep === 2 && (
                   <div className="flex flex-col lg:flex-row gap-6">
-                    {/* Left Column: Input Forms */}
                     <div className="flex-1 space-y-5">
                       {workspaceService === "circular" ? (
                         <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
                           <h3 className="font-bold text-gray-800 border-b border-gray-100 pb-3 flex items-center gap-2">
-                            <Plus className="w-4 h-4 text-emerald-600" />
-                            بيانات التعميم
+                            <Plus className="w-4 h-4 text-[#133E87]" />
+                            مرفقات المعاملة أو الخطاب الوارد
                           </h3>
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             <AttachmentInput
                               id="circularMain"
-                              label="التعميم الأساسي *"
+                              label="الخطاب / المعاملة الأساسية *"
                               value={circularMainFile}
                               onChange={setCircularMainFile}
                             />
@@ -2302,136 +2007,30 @@ ${t.description}
                         <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
                           <h3 className="font-bold text-gray-800 border-b border-gray-100 pb-3 flex items-center gap-2">
                             <Plus className="w-4 h-4 text-emerald-600" />
-                            {(workspaceService === 'docs' || workspaceService === 'gmail') ? 'بيانات الخطاب الجديد' : 'بيانات النموذج الجديد'}
+                            بيانات الخطاب الجديد
                           </h3>
-                          {(workspaceService === 'docs' || workspaceService === 'gmail') && (
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <div>
-                              <label className="block text-xs font-bold text-gray-600 mb-1.5">صفة الموجه إليه</label>
-                              <input
-                                type="text"
-                                value={aiGenRecipientPosition}
-                                placeholder="مثال: سعادة الأستاذ/"
-                                onChange={(e) => setAiGenRecipientPosition(e.target.value)}
-                                className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-bold text-gray-600 mb-1.5">الاسم</label>
-                              <input
-                                type="text"
-                                value={aiGenRecipientName}
-                                placeholder="الاسم الثلاثي أو الجهة"
-                                onChange={(e) => setAiGenRecipientName(e.target.value)}
-                                className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-bold text-gray-600 mb-1.5">الديباجة</label>
-                              <input
-                                type="text"
-                                value={aiGenPreamble}
-                                placeholder="سلمه الله، المحترم"
-                                onChange={(e) => setAiGenPreamble(e.target.value)}
-                                className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm"
-                              />
-                            </div>
-                          </div>
-                          )}
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1.5">{(workspaceService === 'docs' || workspaceService === 'gmail') ? 'موضوع الخطاب الرئيسي' : 'عنوان الموضوع الرئيسي'}</label>
-                            <input
-                              type="text"
-                              value={aiGenSubject}
-                              placeholder="مثال: دعوة لحضور الاجتماع التشاوري..."
-                              onChange={(e) => setAiGenSubject(e.target.value)}
-                              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm"
-                            />
-                          </div>
-
-                          <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-                            <h4 className="font-bold text-emerald-800 mb-2 flex items-center gap-2">
-                              <Wand2 className="w-4 h-4"/>
-                              النقاط التوضيحية (التعليمات لـ Gemini)
-                            </h4>
-                            <label className="block text-xs font-bold text-emerald-700 mb-2 opacity-80">
-                              اكتب النقاط التي تريد أن يتضمنها {(workspaceService === 'docs' || workspaceService === 'gmail') ? 'الخطاب' : 'النموذج'} باختصار وسيقوم النظام بصياغتها بلغة مؤسسية.
-                            </label>
-                            <textarea
-                              value={aiGenDetails}
-                              onChange={(e) => setAiGenDetails(e.target.value)}
-                              className="w-full h-28 px-3 py-2 border border-emerald-200 rounded-lg text-sm focus:ring-1 focus:ring-emerald-500 resize-none"
-                              placeholder="مثال:
-- نود دعوتهم لاجتماع يوم الأربعاء القادم.
-- الهدف من الاجتماع مناقشة تحديات القطاع العقاري.
-- سيتم توقيع مذكرة تفاهم في نهاية اللقاء."
-                            />
-                          </div>
+                          <input
+                            type="text"
+                            value={aiGenSubject}
+                            placeholder="موضوع الخطاب الرئيسي..."
+                            onChange={(e) => setAiGenSubject(e.target.value)}
+                            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm"
+                          />
+                          <textarea
+                            value={aiGenDetails}
+                            onChange={(e) => setAiGenDetails(e.target.value)}
+                            className="w-full h-28 px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none"
+                            placeholder="النقاط المطلوبة..."
+                          />
                         </div>
-                      ) : (
-                        <div className="space-y-4">
-                          <div className="bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm space-y-4">
-                            <h3 className="font-bold text-indigo-800 border-b border-indigo-50 pb-3 flex items-center gap-2">
-                              <BookOpen className="w-4 h-4 text-indigo-600" />
-                              قراءة المعاملة الواردة
-                            </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="flex flex-col h-full">
-                                <label className="block text-xs font-bold text-gray-600 mb-2">1. إرفاق المعاملة (PDF/صورة)</label>
-                                <label className="flex-1 flex flex-col items-center justify-center gap-2 w-full min-h-[100px] border-2 border-dashed border-indigo-200 rounded-xl cursor-pointer hover:bg-indigo-50 bg-white transition-colors relative overflow-hidden">
-                                  <Upload className="w-6 h-6 text-indigo-400" />
-                                  <span className="text-xs text-indigo-600 font-bold truncate max-w-[80%] text-center px-2">
-                                    {aiGenReplyFile ? aiGenReplyFile.name : "انقر لإرفاق ملف المعاملة ليقرأه النظام"}
-                                  </span>
-                                  <input type="file" className="hidden" accept="application/pdf,image/*" onChange={(e) => {
-                                    if (e.target.files && e.target.files[0]) {
-                                      setAiGenReplyFile(e.target.files[0]);
-                                    }
-                                  }} />
-                                </label>
-                                {aiGenReplyFile && (
-                                  <button type="button" onClick={() => setAiGenReplyFile(null)} className="mt-2 text-xs text-red-500 hover:text-red-700 font-bold self-start">حذف المرفق</button>
-                                )}
-                              </div>
-                              <div className="flex flex-col h-full">
-                                <label className="block text-xs font-bold text-gray-600 mb-2">أو 2. نص المعاملة الواردة (اختياري)</label>
-                                <textarea
-                                  value={aiGenReplyContent}
-                                  onChange={e => setAiGenReplyContent(e.target.value)}
-                                  className="w-full flex-1 min-h-[100px] px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-indigo-500 resize-none"
-                                  placeholder="الصق نص الخطاب الوارد هنا كبديل للمرفق..."
-                                />
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 shadow-sm space-y-4">
-                            <h4 className="font-bold text-emerald-800 flex items-center gap-2">
-                              <Wand2 className="w-4 h-4"/>
-                              نقاط وتوجيهات الرد الذكي
-                            </h4>
-                            <div>
-                              <label className="block text-xs font-bold text-emerald-700 mb-2 opacity-80">
-                                ماذا تريد أن يكون محتوى الرد على هذه المعاملة؟
-                              </label>
-                              <textarea
-                                value={aiPrompt}
-                                onChange={e => setAiPrompt(e.target.value)}
-                                className="w-full h-24 px-3 py-2 border border-emerald-200 rounded-lg text-sm focus:ring-1 focus:ring-emerald-500 resize-none"
-                                placeholder="مثال: يرجى كتابة رد نعتذر فيه بلباقة عن تلبية الطلب حالياً بسبب الميزانية، ونشكرهم على تواصلهم..."
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                      ) : null}
                     </div>
 
-                    {/* Right Column: Shared Settings & Generation Button */}
                     <div className="lg:w-1/3 flex flex-col gap-4">
                       <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
                         <h3 className="font-bold text-gray-800 border-b border-gray-100 pb-3 flex items-center gap-2">
                           <Settings className="w-4 h-4 text-gray-400" />
-                          إعدادات التذييل والتوقيع
+                          إعدادات التواصل والتوقيع
                         </h3>
                         <div>
                           <label className="block text-xs font-bold text-gray-600 mb-1.5">ضابط الاتصال (للاستفسارات)</label>
@@ -2440,48 +2039,29 @@ ${t.description}
                             onChange={(e) => setAiGenContact(e.target.value)}
                             className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm"
                           >
-                            <option value="">-- اختياري --</option>
+                            <option value="">-- اختياري من قائمة الموظفين --</option>
                             {employees.map((emp, i) => (
                               <option key={`contact-${emp.id}-${i}`} value={emp.id}>{emp.jobTitle ? `${emp.jobTitle} / ` : ''}{emp.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-gray-600 mb-1.5">الموقع على الخطاب</label>
-                          <select
-                            value={aiGenSignatory}
-                            onChange={(e) => setAiGenSignatory(e.target.value)}
-                            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm"
-                          >
-                            <option value="">-- اختياري --</option>
-                            {employees.map((emp, i) => (
-                              <option key={`sig-${emp.id}-${i}`} value={emp.id}>{emp.jobTitle ? `${emp.jobTitle} / ` : ''}{emp.name}</option>
                             ))}
                           </select>
                         </div>
                       </div>
 
                       <div className="mt-auto bg-blue-50/50 p-4 rounded-2xl border border-blue-100 text-center">
-                        <p className="text-xs text-blue-800 font-bold mb-3">
-                          تأكد من إدخال البيانات بشكل كافٍ لضمان الحصول على صياغة ممتازة ومطابقة للمطلوب.
-                        </p>
                         <button
                           onClick={handleGenerateNewLetter}
-                          disabled={
-                            isAIGenGenerating || 
-                            (workspaceService === 'circular' ? !circularMainFile : (aiGenMode === 'new' ? (!aiGenSubject && !aiGenDetails) : (!aiPrompt && !aiGenReplyFile && !aiGenReplyContent)))
-                          }
-                          className="w-full py-3.5 bg-blue-600 text-white rounded-xl text-sm font-black hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                          disabled={isAIGenGenerating || (workspaceService === 'circular' ? !circularMainFile : (!aiGenSubject && !aiGenDetails))}
+                          className="w-full py-3.5 bg-[#133E87] text-white rounded-xl text-sm font-black hover:bg-[#0B2545] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                         >
                           {isAIGenGenerating ? (
                             <>
                               <Loader2 className="w-5 h-5 animate-spin" />
-                              جاري تحليل البيانات والصياغة...
+                              جاري تحليل الخطاب واستخراج البيانات...
                             </>
                           ) : (
                             <>
                               <Wand2 className="w-5 h-5" />
-                              توليد الخطاب الآن
+                              توليد وتنسيق بطاقة التعميم الذكية
                             </>
                           )}
                         </button>
@@ -2490,218 +2070,482 @@ ${t.description}
                   </div>
                 )}
 
+                {/* STEP 3: التدقيق والتعديل التفاعلي المباشر للبطاقة */}
                 {aiGenStep === 3 && (
                   <div className="flex flex-col h-full space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="font-bold text-gray-800 flex items-center gap-2">
                         <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                        {workspaceService === "circular" ? "بيانات التعميم المستخرجة" : "الخطاب المولد (يمكنك تعديله يدوياً قبل الطباعة أو الحفظ)"}
+                        {workspaceService === "circular" ? "تدقيق وتعديل بيانات بطاقة التعميم الرسمية" : "الخطاب المولد"}
                       </h3>
                       {workspaceService !== "circular" && (
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(aiGenGeneratedText);
-                          showGlobalToast("تم نسخ الخطاب للمسودة", "success");
-                        }}
-                        className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5"
-                      >
-                        <Copy className="w-3.5 h-3.5" /> نسخ النص
-                      </button>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(aiGenGeneratedText);
+                            showGlobalToast("تم نسخ الخطاب للمسودة", "success");
+                          }}
+                          className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5"
+                        >
+                          <Copy className="w-3.5 h-3.5" /> نسخ النص
+                        </button>
                       )}
                     </div>
                     
                     {workspaceService === "circular" ? (
                       <div className="flex flex-col lg:flex-row gap-6 h-full">
-                        <div className="lg:w-1/3 flex flex-col gap-4 overflow-y-auto pr-2">
-                          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
-                            <h4 className="font-bold text-gray-800 border-b border-gray-100 pb-2">بيانات التعميم المستخرجة</h4>
+                        {/* لوحة تحرير الحقول على اليمين */}
+                        <div className="lg:w-1/3 flex flex-col gap-4 overflow-y-auto pr-1 max-h-[70vh]">
+                          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-3">
+                            <h4 className="font-bold text-[#133E87] border-b border-gray-100 pb-2 text-sm flex items-center gap-2">
+                              <Sparkles className="w-4 h-4 text-[#C5A880]" />
+                              بيانات التعميم المستخرجة
+                            </h4>
+                            
+                            {/* أنواع التعميم */}
                             <div>
-                              <label className="block text-xs font-bold text-gray-600 mb-1.5">التعميم وارد من</label>
-                              <input type="text" value={circularIncomingFrom} onChange={e => setCircularIncomingFrom(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg font-bold text-sm" />
+                              <label className="block text-[11px] font-bold text-gray-600 mb-1.5">أهمية / نوع التعميم</label>
+                              <div className="flex flex-wrap gap-2">
+                                {["عادي", "هام", "عاجل", "سري"].map(t => (
+                                  <button
+                                    key={t}
+                                    onClick={() => {
+                                      if (circularTypes.includes(t)) {
+                                        setCircularTypes(circularTypes.filter(x => x !== t));
+                                      } else {
+                                        setCircularTypes([...circularTypes, t]);
+                                      }
+                                    }}
+                                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold border transition-colors ${circularTypes.includes(t) ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'}`}
+                                  >
+                                    {t}
+                                  </button>
+                                ))}
+                              </div>
                             </div>
-                            <div>
-                              <label className="block text-xs font-bold text-gray-600 mb-1.5">رقم وتاريخ التعميم</label>
-                              <input type="text" value={circularNumberDate} onChange={e => setCircularNumberDate(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg font-bold text-sm" />
+                            
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-[11px] font-bold text-gray-600 mb-1">رقم تعميم الغرفة</label>
+                                <input type="text" value={circularOutNumber} onChange={e => setCircularOutNumber(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg font-bold text-xs" />
+                              </div>
+                              <div>
+                                <label className="block text-[11px] font-bold text-gray-600 mb-1">تاريخ تعميم الغرفة</label>
+                                <input type="text" value={circularOutDate} onChange={e => setCircularOutDate(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg font-bold text-xs" />
+                              </div>
                             </div>
+
                             <div>
-                              <label className="block text-xs font-bold text-gray-600 mb-1.5">موضوع التعميم</label>
-                              <input type="text" value={circularSubject} onChange={e => setCircularSubject(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg font-bold text-sm" />
+                              <label className="block text-[11px] font-bold text-gray-600 mb-1">التعميم وارد من</label>
+                              <input type="text" value={circularIncomingFrom} onChange={e => setCircularIncomingFrom(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg font-bold text-xs" />
                             </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-[11px] font-bold text-gray-600 mb-1">رقم خطاب الجهة</label>
+                                <input type="text" value={circularIncomingNumber} onChange={e => setCircularIncomingNumber(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg font-bold text-xs" />
+                              </div>
+                              <div>
+                                <label className="block text-[11px] font-bold text-gray-600 mb-1">تاريخ خطاب الجهة</label>
+                                <input type="text" value={circularIncomingDate} onChange={e => setCircularIncomingDate(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg font-bold text-xs" />
+                              </div>
+                            </div>
+
                             <div>
-                              <label className="block text-xs font-bold text-gray-600 mb-1.5">عرض التعميم (النص التوجيهي)</label>
-                              <textarea value={aiGenGeneratedText.split("عرض التعميم:")[1]?.trim() || aiGenGeneratedText.split("نص توجيهي مقترح لإرساله للجان:")[1]?.trim() || aiGenGeneratedText} onChange={e => setAiGenGeneratedText("عرض التعميم:\n" + e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg font-bold text-sm min-h-[150px] resize-none" />
+                              <label className="block text-[11px] font-bold text-gray-600 mb-1">موضوع التعميم الرئيسي</label>
+                              <textarea rows={3} value={circularSubject} onChange={e => setCircularSubject(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg font-bold text-xs resize-none" />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-bold text-gray-600 mb-1">اسم المرفق</label>
+                              <input type="text" value={circularAttachmentName} onChange={e => setCircularAttachmentName(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg font-bold text-xs" />
+                            </div>
+
+                            <div className="pt-2 border-t border-gray-100 space-y-2">
+                              <label className="block text-[11px] font-bold text-gray-600">بيانات مسؤول التواصل</label>
+                              <input type="text" value={circularContactName} onChange={e => setCircularContactName(e.target.value)} placeholder="اسم المسؤول" className="w-full px-3 py-2 border border-gray-200 rounded-lg font-bold text-xs" />
+                              <div className="grid grid-cols-2 gap-2">
+                                <input type="text" value={circularContactPhone} onChange={e => setCircularContactPhone(e.target.value)} placeholder="الجوال" className="w-full px-3 py-2 border border-gray-200 rounded-lg font-bold text-xs" />
+                                <input type="text" value={circularContactEmail} onChange={e => setCircularContactEmail(e.target.value)} placeholder="البريد الإلكتروني" className="w-full px-3 py-2 border border-gray-200 rounded-lg font-bold text-xs" />
+                              </div>
                             </div>
                           </div>
                         </div>
-                        <div className="lg:w-2/3 bg-gray-200/80 p-4 rounded-xl overflow-y-auto flex justify-center h-[70vh]">
-                          <div className="bg-white shadow-xl border border-gray-300 w-full max-w-[21cm] min-h-[29.7cm] flex flex-col mx-auto shrink-0 transition-all p-12 sm:p-16 text-[16px] leading-[2.2] font-sans">
-                             <div className="border-b-2 border-gray-800 pb-4 mb-6 text-center">
-                               <h1 className="text-2xl font-black text-gray-900 mb-2">تعميم داخلي</h1>
-                               <h2 className="text-lg font-bold text-gray-700">{aiGenCommittees.map(id => committees.find(c => String(c.id) === id)?.name || id).join("، ")}</h2>
-                             </div>
-                             
-                             <div className="grid grid-cols-2 gap-4 mb-8 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                               <div><span className="font-bold text-gray-900">إلى:</span> جميع أعضاء اللجان الموقرين</div>
-                               <div><span className="font-bold text-gray-900">من:</span> إدارة اللجان</div>
-                               <div><span className="font-bold text-gray-900">وارد من:</span> {circularIncomingFrom || "—"}</div>
-                               <div><span className="font-bold text-gray-900">التاريخ والرقم:</span> {circularNumberDate || "—"}</div>
-                               <div className="col-span-2"><span className="font-bold text-gray-900">الموضوع:</span> {circularSubject || "—"}</div>
-                             </div>
 
-                             <div className="flex-1 whitespace-pre-wrap text-justify">
-                               {aiGenGeneratedText.split("عرض التعميم:")[1]?.trim() || aiGenGeneratedText.split("نص توجيهي مقترح لإرساله للجان:")[1]?.trim() || aiGenGeneratedText}
-                             </div>
-                             
-                             <div className="mt-12 pt-8 border-t border-gray-200 text-center">
-                               <p className="font-bold text-gray-800">شاكرين ومقدرين تعاونكم،،،</p>
-                             </div>
+                        {/* بطاقة المعاينة الفورية بالنمط الهجين الفاخر */}
+                        <div className="lg:w-2/3 bg-slate-300/80 rounded-2xl overflow-hidden flex justify-center items-center min-h-[70vh] max-h-[70vh] border border-gray-300 relative">
+                          <div className="scale-[0.50] xl:scale-[0.60] origin-center">
+                            <div 
+                              className="w-[1123px] h-[794px] min-w-[1123px] min-h-[794px] max-h-[794px] rounded-2xl shadow-2xl overflow-hidden border border-slate-200/90 relative transition-all flex flex-col justify-between shrink-0"
+                              style={{ 
+                                background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 50%, #FAF8F5 100%)',
+                                boxShadow: '0 20px 40px -15px rgba(11, 37, 69, 0.08), 0 0 0 1px rgba(197, 168, 128, 0.25)' 
+                              }}
+                            >
+                            
+                            {/* الشريط العلوي الجمالي المتدرج */}
+                            <div className="h-2 w-full shrink-0" style={{ background: 'linear-gradient(90deg, #0B2545 0%, #133E87 35%, #C5A880 50%, #133E87 65%, #0B2545 100%)' }}></div>
+
+                            {/* منطقة الترويسة الزجاجية المغلفة بشريط كامل */}
+                            <div className="px-8 py-5 shrink-0">
+                              <div 
+                                className="flex justify-between items-center px-6 py-4 rounded-3xl text-right text-xs shadow-sm border border-slate-200/90"
+                                style={{ background: 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(8px)' }}
+                              >
+                                <div className="text-right">
+                                  <div className="font-extrabold text-[#133E87] flex items-center gap-1.5 mb-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#C5A880]"></span>
+                                    <span>رقم التعميم:</span>
+                                    <span className="text-gray-900 font-black tracking-wider text-[13px] border-b border-dashed border-gray-400 pb-0.5">{circularOutNumber}</span>
+                                  </div>
+                                  <div className="font-extrabold text-[#133E87] flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#C5A880]"></span>
+                                    <span>تاريـــــــخه:</span>
+                                    <span className="text-gray-900 font-black tracking-wider text-[13px] border-b border-dashed border-gray-400 pb-0.5">{circularOutDate}</span>
+                                  </div>
+                                </div>
+
+                                <div className="text-center relative">
+                                  <h1 className="text-4xl text-[#133E87] tracking-widest leading-none font-black" >
+                                    تـعـمـيـم
+                                  </h1>
+                                  <div className="w-20 h-1 bg-gradient-to-r from-transparent via-[#C5A880] to-transparent mx-auto mt-2.5 rounded-full"></div>
+                                  
+                                  {circularTypes.length > 0 && circularTypes.some(t => t !== "عادي") && (
+                                    <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex justify-center gap-1.5 w-full">
+                                      {circularTypes.filter(t => t !== "عادي").map(t => (
+                                        <span key={t} className="px-2 py-0.5 rounded-md border border-red-600 text-red-600 text-[10px] font-black tracking-widest bg-white">
+                                          {t}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center justify-end">
+                                  <div className="w-20 h-16 flex items-center justify-center shrink-0">
+                                    <img src={logoBase64} alt="شعار غرفة مكة" className="w-full h-full object-contain scale-125" />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* شريط الوارد والمرجعية */}
+                            <div className="mx-8 my-2 shrink-0 mt-6">
+                              <div className="px-6 py-2.5 rounded-xl flex justify-between items-center text-xs font-bold shadow-sm border border-[#133E87]/20 bg-[#133E87]/10 text-[#133E87]">
+                                <span className="flex items-center gap-1.5">
+                                  <span className="w-2 h-2 rounded-full bg-[#C5A880]"></span>
+                                  <strong className="text-[#133E87]">الوارد من:</strong> 
+                                  <span className="text-[#133E87] font-black border-b border-dashed border-[#133E87]/40 pb-0.5">{circularIncomingFrom || "—"}</span>
+                                </span>
+                                <span><strong className="text-[#133E87]">برقم:</strong> <span className="text-[#133E87] font-black border-b border-dashed border-[#133E87]/40 pb-0.5">{circularIncomingNumber || "—"}</span></span>
+                                <span><strong className="text-[#133E87]">بتاريخ:</strong> <span className="text-[#133E87] font-black border-b border-dashed border-[#133E87]/40 pb-0.5">{circularIncomingDate || "—"}</span></span>
+                              </div>
+                            </div>
+
+                            {/* متن التعميم / الموضوع الرئيسي - بطاقة زجاجية عائمة */}
+                            <div 
+                              className="mx-8 my-3 py-8 px-8 text-center flex-1 flex items-center justify-center rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden"
+                              style={{ 
+                                background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.85) 100%)',
+                                backdropFilter: 'blur(12px)'
+                              }}
+                            >
+                              <div className="text-2xl font-black text-[#0B2545] leading-relaxed max-w-[700px] mx-auto z-10">
+                                {circularSubject || "—"}
+                              </div>
+                            </div>
+
+                            {/* 5. التذييل: المرفقات أعلى بيانات التواصل */}
+                            <div className="mx-8 mb-4 mt-1 pt-3 border-t border-slate-200/80 flex flex-col gap-4 shrink-0">
+                              {/* المرفقات (بالأعلى) */}
+                              <div className="flex items-center gap-2.5 w-full">
+                                <span className="text-[11px] font-black text-[#133E87] uppercase tracking-wider bg-[#133E87]/10 px-3 py-1.5 rounded-lg border border-[#133E87]/20">
+                                  المرفقات
+                                </span>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <a 
+                                    href={getAttachmentUrl(circularMainFile)} 
+                                    target="_blank" 
+                                    rel="noreferrer" 
+                                    className="bg-[#EFF6FF] text-[#1E40AF] border border-[#BFDBFE] px-3 py-1.5 rounded-lg text-[11px] font-extrabold flex items-center gap-1.5 hover:bg-blue-100 transition-all shadow-sm"
+                                  >
+                                    📎 {circularAttachmentName || "المرفق الأساسي"}
+                                  </a>
+                                  {circularAtt1 && (
+                                    <a 
+                                      href={getAttachmentUrl(circularAtt1)} 
+                                      target="_blank" 
+                                      rel="noreferrer" 
+                                      className="bg-[#EFF6FF] text-[#1E40AF] border border-[#BFDBFE] px-3 py-1.5 rounded-lg text-[11px] font-extrabold flex items-center gap-1.5 hover:bg-blue-100 transition-all shadow-sm"
+                                    >
+                                      📎 مرفق 1
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* بيانات التواصل (بالأسفل) */}
+                              <div className="flex items-center justify-between w-full bg-slate-50/80 p-3 rounded-xl border border-slate-200/70 shadow-sm">
+                                <div className="flex items-center gap-2.5">
+                                  <span className="w-8 h-8 rounded-full bg-[#133E87]/10 flex items-center justify-center text-[#133E87]">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                  </span>
+                                  <div>
+                                    <span className="text-[10px] font-bold text-gray-500 block mb-0.5">للاستفسار والتواصل</span>
+                                    <span className="text-xs font-black text-gray-900">{circularContactName || "الأستاذ / محمد الصيعري"}</span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2.5" dir="ltr">
+                                  {circularContactEmail && (
+                                    <a 
+                                      href={`mailto:${circularContactEmail}`} 
+                                      className="bg-white hover:bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-[11px] font-bold text-[#133E87] flex items-center gap-1.5 shadow-sm transition-all"
+                                    >
+                                      ✉️ {circularContactEmail}
+                                    </a>
+                                  )}
+                                  {circularContactPhone && (
+                                    <a 
+                                      href={`tel:${circularContactPhone}`} 
+                                      className="bg-white hover:bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-[11px] font-bold text-[#133E87] flex items-center gap-1.5 shadow-sm transition-all"
+                                    >
+                                      📞 {circularContactPhone}
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* شريط سفلي نحيف */}
+                            <div className="h-1 w-full bg-[#133E87] shrink-0"></div>
+                            </div>
+
                           </div>
                         </div>
                       </div>
                     ) : (
-                    <div className="flex-1 bg-gray-200/80 p-4 sm:p-8 rounded-xl overflow-y-auto flex justify-center h-[70vh]">
-                      <div className="bg-white shadow-xl border border-gray-300 w-full max-w-[21cm] min-h-[29.7cm] flex flex-col mx-auto shrink-0 transition-all">
-                        <div
-                          contentEditable
-                          suppressContentEditableWarning
-                          onBlur={(e) => setAiGenGeneratedText(e.currentTarget.innerText)}
-                          className="flex-1 w-full p-12 sm:p-16 text-[16px] leading-[2.2] text-justify font-sans focus:outline-none bg-transparent whitespace-pre-wrap outline-none"
-                        >
-                          {aiGenGeneratedText}
+                      <div className="flex-1 bg-gray-200/80 p-4 sm:p-8 rounded-xl overflow-y-auto flex justify-center h-[70vh]">
+                        <div className="bg-white shadow-xl border border-gray-300 w-full max-w-[21cm] min-h-[29.7cm] flex flex-col mx-auto shrink-0 transition-all">
+                          <div
+                            contentEditable
+                            suppressContentEditableWarning
+                            onBlur={(e) => setAiGenGeneratedText(e.currentTarget.innerText)}
+                            className="flex-1 w-full p-12 sm:p-16 text-[16px] leading-[2.2] text-justify font-sans focus:outline-none bg-transparent whitespace-pre-wrap outline-none"
+                          >
+                            {aiGenGeneratedText}
+                          </div>
                         </div>
                       </div>
-                    </div>
                     )}
                   </div>
                 )}
+
+                {/* STEP 4: المعاينة النهائية والتصدير المباشر لبطاقة التعميم (A4 Landscape الدقيقة) */}
                 {aiGenStep === 4 && workspaceService === "circular" && (
                   <div className="flex flex-col h-full space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="font-bold text-gray-800 flex items-center gap-2">
                         <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                        معاينة التعميم النهائي (جاهز للطباعة والتصدير)
+                        المعاينة النهائية لبطاقة التعميم (جاهزة للطباعة والتصدير كـ PDF بالنمط الملكي الزجاجي)
                       </h3>
                     </div>
                     
-                    <div className="flex-1 bg-gray-200/80 p-4 sm:p-8 rounded-xl overflow-y-auto flex justify-center h-[70vh]">
+                    <div className="flex-1 bg-slate-300/80 rounded-2xl overflow-hidden flex justify-center items-center min-h-[75vh] border border-gray-300 relative">
+                      <div className="scale-[0.55] xl:scale-[0.65] 2xl:scale-[0.80] origin-center">
                         <div 
                           ref={circularPrintRef}
-                          className="bg-white shadow-2xl border border-gray-200 w-full max-w-[21cm] min-h-[29.7cm] flex flex-col mx-auto shrink-0 transition-all p-12 sm:p-16 text-[18px] leading-[2.2] font-sans text-gray-900 relative"
-                        >
-                           {/* Header */}
-                           <div className="grid grid-cols-3 items-center mb-10">
-                             {/* Right: Info */}
-                             <div className="text-right text-lg text-gray-800 space-y-3 font-bold">
-                               <div className="flex items-center justify-start gap-2">
-                                  <span>رقم التعميم:</span>
-                                  <input type="text" value={circularOutNumber} onChange={e => setCircularOutNumber(e.target.value)} className="bg-transparent border-b border-gray-400 text-gray-900 text-right w-32 focus:outline-none focus:border-gray-800" />
-                               </div>
-                               <div className="flex items-center justify-start gap-2">
-                                  <span>تاريخه:</span>
-                                  <input type="text" value={circularOutDate} onChange={e => setCircularOutDate(e.target.value)} className="bg-transparent border-b border-gray-400 text-gray-900 text-right w-32 focus:outline-none focus:border-gray-800" />
-                               </div>
-                             </div>
+                          className="w-[1123px] h-[794px] min-w-[1123px] min-h-[794px] max-h-[794px] rounded-2xl shadow-2xl overflow-hidden relative shrink-0 flex flex-col justify-between font-sans"
+                        style={{ 
+                          boxSizing: 'border-box',
+                          background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 50%, #FAF8F5 100%)',
+                          border: '1px solid rgba(197, 168, 128, 0.35)',
+                          boxShadow: '0 25px 50px -12px rgba(11, 37, 69, 0.15)'
+                        }}
+                        dir="rtl"
+                      >
+                        {/* 1. الشريط العلوي الفخم المتدرج */}
+                        <div className="h-3 w-full shrink-0" style={{ background: 'linear-gradient(90deg, #0B2545 0%, #133E87 35%, #C5A880 50%, #133E87 65%, #0B2545 100%)' }}></div>
 
-                             {/* Center: Title */}
-                             <div className="text-center relative">
-                               <h1 className="text-4xl sm:text-5xl font-black text-gray-900 tracking-[0.2em] relative z-10 inline-block px-4 bg-white pb-2">تـعـمـيـم</h1>
-                               <div className="absolute top-[40%] left-0 w-full h-[2px] bg-gray-900 -translate-y-1/2 z-0"></div>
-                             </div>
+                        {/* 2. الترويسة الرسمية المغلفة بشريط كامل */}
+                        <div className="px-12 pt-7 pb-3 shrink-0">
+                          <div 
+                            className="flex justify-between items-center px-8 py-5 rounded-3xl shadow-sm border border-slate-200/90"
+                            style={{ background: 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(10px)' }}
+                          >
+                            {/* اليمين: ملصق تعميم الغرفة */}
+                            <div className="text-right">
+                              <div className="text-sm font-extrabold text-[#133E87] mb-2 flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-[#C5A880]"></span>
+                                <span>رقم التعميم:</span>
+                                <span className="text-gray-900 font-black tracking-wider text-base border-b border-dashed border-gray-400 pb-0.5">{circularOutNumber || "—"}</span>
+                              </div>
+                              <div className="text-sm font-extrabold text-[#133E87] flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-[#C5A880]"></span>
+                                <span>تاريـــــــخه:</span>
+                                <span className="text-gray-900 font-black tracking-wider text-base border-b border-dashed border-gray-400 pb-0.5">{circularOutDate || "—"}</span>
+                              </div>
+                            </div>
 
-                             {/* Left: Logo area */}
-                             <div className="flex justify-end">
-                               <div className="w-24 h-24 border border-gray-900 flex items-center justify-center p-2">
-                                 <div className="text-center font-bold text-gray-900 leading-tight">
-                                   شعار<br/>غرفة<br/>مكة
-                                 </div>
-                               </div>
-                             </div>
-                           </div>
+                            {/* الوسط: كلمة تـعـمـيـم بخط الصفحة */}
+                            <div className="text-center relative">
+                              <h1 className="text-6xl text-[#133E87] font-black tracking-widest leading-none">
+                                تـعـمـيـم
+                              </h1>
+                              <div className="w-32 h-1.5 bg-gradient-to-r from-transparent via-[#C5A880] to-transparent mx-auto mt-4 rounded-full"></div>
+                              
+                              {circularTypes.length > 0 && circularTypes.some(t => t !== "عادي") && (
+                                <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 flex justify-center gap-2 w-full">
+                                  {circularTypes.filter(t => t !== "عادي").map(t => (
+                                    <span key={t} className="px-3 py-1 rounded-md border-2 border-red-600 text-red-600 text-[13px] font-black tracking-widest bg-white">
+                                      {t}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
 
-                           {/* Meta Info Box */}
-                           <div className="border border-gray-900 px-4 py-2 rounded mb-10 flex flex-wrap justify-center items-center gap-2 text-xl font-bold bg-transparent">
-                             <span>وارد من:</span>
-                             <span className="text-gray-900">{circularIncomingFrom || "—"}</span>
-                             <span className="mx-2">برقم:</span>
-                             <span className="text-gray-900">{circularNumberDate ? circularNumberDate.split(" ")[0] : "—"}</span>
-                             <span className="mx-2">وتاريخ:</span>
-                             <span className="text-gray-900">{circularNumberDate ? circularNumberDate.split(" ").slice(1).join(" ") : "—"}</span>
-                           </div>
-                           
-                           {/* Subject */}
-                           <div className="text-center text-3xl font-bold text-gray-900 mb-12 leading-relaxed px-4 underline underline-offset-8 decoration-gray-400">
-                             {circularSubject || "—"}
-                           </div>
-
-                           {/* Body */}
-                           <div className="flex-1 flex flex-col mb-12">
-                             <textarea 
-                               value={aiGenGeneratedText.split("عرض التعميم:")[1]?.trim() || aiGenGeneratedText.split("نص توجيهي مقترح لإرساله للجان:")[1]?.trim() || aiGenGeneratedText} 
-                               onChange={e => setAiGenGeneratedText("عرض التعميم:\n" + e.target.value)}
-                               className="flex-1 w-full bg-transparent text-gray-900 text-justify text-[22px] leading-[2.2] font-bold focus:outline-none resize-none min-h-[200px]"
-                             />
-                           </div>
-                           
-                           {/* Footer Horizontal Line */}
-                           <div className="w-full h-[2px] bg-gray-400 mb-8 mt-auto"></div>
-                           
-                           {/* Footer (Contact & Attachments) */}
-                           <div className="flex items-start justify-between">
-                             {/* First item in RTL (Right side of paper): Attachments */}
-                             <div className="flex items-start gap-2">
-                               <span className="font-bold text-xl text-gray-900 mt-2">
-                                 المرفقات:
-                               </span>
-                               <div className="flex flex-col gap-2">
-                                 {(circularMainFile || circularAtt1 || circularAtt2 || circularAtt3) ? (
-                                   <>
-                                     {(circularMainFile && typeof circularMainFile === 'string' && circularMainFile !== "#") || (circularMainFile && typeof circularMainFile === 'object') ? (
-                                       <div className="border border-gray-900 px-4 py-2 text-gray-900 font-bold bg-transparent text-lg">
-                                         خطاب اتحاد الغرف
-                                       </div>
-                                     ) : null}
-                                     {(circularAtt1 && typeof circularAtt1 === 'string' && circularAtt1 !== "#") || (circularAtt1 && typeof circularAtt1 === 'object') ? (
-                                       <div className="border border-gray-900 px-4 py-2 text-gray-900 font-bold bg-transparent text-lg mt-2">
-                                         مرفق 1
-                                       </div>
-                                     ) : null}
-                                     {(circularAtt2 && typeof circularAtt2 === 'string' && circularAtt2 !== "#") || (circularAtt2 && typeof circularAtt2 === 'object') ? (
-                                       <div className="border border-gray-900 px-4 py-2 text-gray-900 font-bold bg-transparent text-lg mt-2">
-                                         مرفق 2
-                                       </div>
-                                     ) : null}
-                                     {(circularAtt3 && typeof circularAtt3 === 'string' && circularAtt3 !== "#") || (circularAtt3 && typeof circularAtt3 === 'object') ? (
-                                       <div className="border border-gray-900 px-4 py-2 text-gray-900 font-bold bg-transparent text-lg mt-2">
-                                         مرفق 3
-                                       </div>
-                                     ) : null}
-                                   </>
-                                 ) : (
-                                   <div className="border border-gray-900 px-4 py-2 text-gray-900 font-bold inline-block bg-transparent text-lg">
-                                     لا توجد مرفقات
-                                   </div>
-                                 )}
-                               </div>
-                             </div>
-
-                             {/* Last item in RTL (Left side of paper): Contact */}
-                             <div className="space-y-4 text-left">
-                               <div className="text-2xl font-bold text-gray-900 text-left w-full">
-                                 الأستاذ / {employees.find(e => e.id === aiGenContact)?.name || "محمد الصيعري"}
-                               </div>
-                               <div className="flex items-center justify-end gap-3 mt-4 w-full">
-                                  <span className="font-bold text-gray-800 text-lg">للتواصل:</span>
-                                  <div className="border border-gray-900 px-4 py-1.5 font-bold text-gray-900 text-lg bg-transparent">جوال</div>
-                                  <div className="border border-gray-900 px-4 py-1.5 font-bold text-gray-900 text-lg bg-transparent">بريد إلكتروني</div>
-                               </div>
-                             </div>
-                           </div>
+                            {/* اليسار: شعار غرفة مكة المكرمة (الشعار فقط) */}
+                            <div className="flex items-center justify-end">
+                              <div className="w-28 h-24 flex items-center justify-center shrink-0">
+                                <img
+                                  src={logoBase64}
+                                  alt="شعار غرفة مكة"
+                                  className="w-full h-full object-contain scale-125"
+                                />
+                              </div>
+                            </div>
+                          </div>
                         </div>
+
+                        {/* 3. شريط الوارد والمرجعية */}
+                        <div className="mx-12 my-2 shrink-0 mt-8">
+                          <div className="px-8 py-3.5 rounded-2xl flex justify-between items-center text-sm shadow-sm border border-[#133E87]/20 bg-[#133E87]/10 text-[#133E87]">
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-xs font-bold text-[#C5A880] bg-[#133E87]/10 px-2.5 py-1 rounded-lg">وارد من</span>
+                              <span className="font-black text-[#133E87] border-b border-dashed border-[#133E87]/40 pb-0.5">{circularIncomingFrom || "—"}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-gray-500">برقم:</span>
+                              <span className="font-black text-[#133E87] tracking-wider border-b border-dashed border-[#133E87]/40 pb-0.5">{circularIncomingNumber || "—"}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-gray-500">بتاريخ:</span>
+                              <span className="font-black text-[#133E87] tracking-wider border-b border-dashed border-[#133E87]/40 pb-0.5">{circularIncomingDate || "—"}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 4. متن التعميم / الموضوع الرئيسي - بطاقة زجاجية فخمة */}
+                        <div 
+                          className="flex-1 flex flex-col justify-center items-center px-16 py-6 mx-12 my-2 rounded-2xl relative overflow-hidden shrink-0 border border-slate-200/90 shadow-sm"
+                          style={{ 
+                            background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.85) 100%)',
+                            backdropFilter: 'blur(16px)'
+                          }}
+                        >
+                          <div className="text-center text-3xl font-black text-[#0B2545] leading-relaxed max-w-[920px] z-10">
+                            {circularSubject || "—"}
+                          </div>
+                        </div>
+
+                        {/* 5. التذييل: المرفقات أعلى بيانات التواصل */}
+                        <div className="mx-12 mb-6 mt-2 pt-4 border-t border-slate-200/80 flex flex-col gap-5 shrink-0">
+                          {/* المرفقات (بالأعلى) */}
+                          <div className="flex items-center gap-3 w-full">
+                            <span className="text-sm font-black text-[#133E87] uppercase tracking-wider bg-[#133E87]/10 px-4 py-2 rounded-xl border border-[#133E87]/20">
+                              المرفقات
+                            </span>
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <a 
+                                href={getAttachmentUrl(circularMainFile)} 
+                                data-pdf-link={getAttachmentUrl(circularMainFile)} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="bg-[#EFF6FF] text-[#1E40AF] border border-[#BFDBFE] px-4 py-2 rounded-xl text-sm font-extrabold flex items-center gap-2 hover:bg-blue-100 transition-all shadow-sm"
+                              >
+                                📎 {circularAttachmentName || "المرفق الأساسي"}
+                              </a>
+                              {circularAtt1 && (
+                                <a 
+                                  href={getAttachmentUrl(circularAtt1)} 
+                                  data-pdf-link={getAttachmentUrl(circularAtt1)} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  className="bg-[#EFF6FF] text-[#1E40AF] border border-[#BFDBFE] px-4 py-2 rounded-xl text-sm font-extrabold flex items-center gap-2 hover:bg-blue-100 transition-all shadow-sm"
+                                >
+                                  📎 مرفق إضافي 1
+                                </a>
+                              )}
+                              {circularAtt2 && (
+                                <a 
+                                  href={getAttachmentUrl(circularAtt2)} 
+                                  data-pdf-link={getAttachmentUrl(circularAtt2)} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  className="bg-[#EFF6FF] text-[#1E40AF] border border-[#BFDBFE] px-4 py-2 rounded-xl text-sm font-extrabold flex items-center gap-2 hover:bg-blue-100 transition-all shadow-sm"
+                                >
+                                  📎 مرفق إضافي 2
+                                </a>
+                              )}
+                              {circularAtt3 && (
+                                <a 
+                                  href={getAttachmentUrl(circularAtt3)} 
+                                  data-pdf-link={getAttachmentUrl(circularAtt3)} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  className="bg-[#EFF6FF] text-[#1E40AF] border border-[#BFDBFE] px-4 py-2 rounded-xl text-sm font-extrabold flex items-center gap-2 hover:bg-blue-100 transition-all shadow-sm"
+                                >
+                                  📎 مرفق إضافي 3
+                                </a>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* بيانات التواصل (بالأسفل) */}
+                          <div className="flex items-center justify-between w-full bg-slate-50/80 p-4 rounded-2xl border border-slate-200/70 shadow-sm">
+                            <div className="flex items-center gap-3">
+                              <span className="w-10 h-10 rounded-full bg-[#133E87]/10 flex items-center justify-center text-[#133E87]">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                              </span>
+                              <div>
+                                <span className="text-xs font-bold text-gray-500 block mb-0.5">للاستفسار والتواصل</span>
+                                <span className="text-sm font-black text-gray-900">{circularContactName || "الأستاذ / محمد الصيعري"}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3" dir="ltr">
+                              {circularContactEmail && (
+                                <a 
+                                  href={`mailto:${circularContactEmail}`} 
+                                  data-pdf-link={`mailto:${circularContactEmail}`} 
+                                  className="bg-white hover:bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl text-sm font-bold text-[#133E87] flex items-center gap-2 shadow-sm transition-all"
+                                >
+                                  ✉️ {circularContactEmail}
+                                </a>
+                              )}
+                              {circularContactPhone && (
+                                <a 
+                                  href={`tel:${circularContactPhone}`} 
+                                  data-pdf-link={`tel:${circularContactPhone}`} 
+                                  className="bg-white hover:bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl text-sm font-bold text-[#133E87] flex items-center gap-2 shadow-sm transition-all"
+                                >
+                                  📞 {circularContactPhone}
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 6. شريط سفلي نحيف */}
+                        <div className="h-1.5 w-full bg-[#133E87] shrink-0"></div>
+
                       </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
 
+              {/* أزرار التحكم السفلية بالمعالج */}
               <div className="p-5 border-t border-gray-100 bg-gray-50 flex items-center justify-between shrink-0 rounded-b-3xl">
                 <div>
                   {aiGenStep > 1 && !isAIGenGenerating && (
@@ -2717,97 +2561,34 @@ ${t.description}
                 {aiGenStep === 3 && workspaceService === "circular" && (
                   <button
                     onClick={() => setAiGenStep(4)}
-                    className="px-6 py-2.5 bg-[#0B1A35] text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-colors flex items-center gap-2"
+                    className="px-7 py-2.5 bg-[#133E87] text-white rounded-xl text-sm font-bold hover:bg-[#0B2545] transition-colors flex items-center gap-2 shadow-md"
                   >
-                    معاينة التصميم النهائي <ChevronLeft className="w-4 h-4" />
+                    معاينة التصميم النهائي المعتمد <ChevronLeft className="w-4 h-4" />
                   </button>
                 )}
+
                 {aiGenStep === 4 && workspaceService === "circular" && (
-                  <button
-                    onClick={handleDownloadPDF}
-                    className="px-6 py-2.5 bg-[#0B1A35] text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-colors flex items-center gap-2 shadow-lg"
-                  >
-                    <Download className="w-4 h-4" /> تصدير PDF
-                  </button>
-                )}
-                {((aiGenStep === 4 && workspaceService === "circular") || (aiGenStep === 3 && workspaceService !== "circular")) && (
                   <div className="flex items-center gap-3">
                     <button
-                      onClick={() => {
-                        const printWin = window.open('', '_blank');
-                        if (printWin) {
-                          if (workspaceService === "circular") {
-                            const circularBody = aiGenGeneratedText.split("عرض التعميم:")[1]?.trim() || aiGenGeneratedText.split("نص توجيهي مقترح لإرساله للجان:")[1]?.trim() || aiGenGeneratedText;
-                            printWin.document.write(`
-                              <html dir="rtl">
-                                <head>
-                                  <title>طباعة التعميم</title>
-                                  <style>
-                                    body { font-family: 'Cairo', system-ui, sans-serif; padding: 40px; color: #000; line-height: 2.2; max-width: 800px; margin: 0 auto; font-size: 16px; }
-                                    .content { white-space: pre-wrap; text-align: justify; }
-                                    .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 30px; }
-                                    .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #f9fafb; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb; margin-bottom: 30px; }
-                                    @media print {
-                                      body { padding: 0; }
-                                      @page { margin: 2.5cm; }
-                                    }
-                                  </style>
-                                </head>
-                                <body>
-                                  <div class="header">
-                                    <h1 style="font-size: 24px; font-weight: 900; margin-bottom: 8px;">تعميم داخلي</h1>
-                                    <h2 style="font-size: 18px; font-weight: bold; margin: 0;">${aiGenCommittees.map(id => committees.find(c => String(c.id) === id)?.name || id).join("، ")}</h2>
-                                  </div>
-                                  <div class="meta">
-                                    <div><strong>إلى:</strong> جميع أعضاء اللجان الموقرين</div>
-                                    <div><strong>من:</strong> إدارة اللجان</div>
-                                    <div><strong>وارد من:</strong> ${circularIncomingFrom || "—"}</div>
-                                    <div><strong>التاريخ والرقم:</strong> ${circularNumberDate || "—"}</div>
-                                    <div style="grid-column: 1 / -1;"><strong>الموضوع:</strong> ${circularSubject || "—"}</div>
-                                  </div>
-                                  <div class="content">${circularBody}</div>
-                                  <div style="margin-top: 50px; text-align: center; font-weight: bold; border-top: 1px solid #e5e7eb; padding-top: 30px;">
-                                    شاكرين ومقدرين تعاونكم،،،
-                                  </div>
-                                  <script>
-                                    window.onload = () => { window.print(); window.close(); }
-                                  </script>
-                                </body>
-                              </html>
-                            `);
-                          } else {
-                            printWin.document.write(`
-                              <html dir="rtl">
-                                <head>
-                                  <title>طباعة الخطاب</title>
-                                  <style>
-                                    body { font-family: 'Cairo', system-ui, sans-serif; padding: 40px; color: #000; line-height: 2.2; max-width: 800px; margin: 0 auto; font-size: 16px; }
-                                    .content { white-space: pre-wrap; text-align: justify; }
-                                    @media print {
-                                      body { padding: 0; }
-                                      @page { margin: 2.5cm; }
-                                    }
-                                  </style>
-                                </head>
-                                <body>
-                                  <div class="content">${aiGenGeneratedText}</div>
-                                  <script>
-                                    window.onload = () => { window.print(); window.close(); }
-                                  </script>
-                                </body>
-                              </html>
-                            `);
-                          }
-                          printWin.document.close();
-                        }
-                      }}
-                      className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm"
+                      onClick={handleDownloadPDF}
+                      className="px-6 py-2.5 bg-[#133E87] text-white rounded-xl text-sm font-bold hover:bg-[#0B2545] transition-colors flex items-center gap-2 shadow-md"
                     >
-                      <Printer className="w-4 h-4" /> طباعة
+                      <Download className="w-4 h-4" /> تصدير PDF
                     </button>
                     <button
                       onClick={saveAIGeneratedLetter}
-                      className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-sm"
+                      className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-md"
+                    >
+                      <Check className="w-4 h-4" /> حفظ وأرشفة بالدرايف
+                    </button>
+                  </div>
+                )}
+
+                {aiGenStep === 3 && workspaceService !== "circular" && (
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={saveAIGeneratedLetter}
+                      className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-md"
                     >
                       <Check className="w-4 h-4" /> حفظ وأرشفة بالدرايف
                     </button>
@@ -2818,7 +2599,6 @@ ${t.description}
           </div>
         )}
       </AnimatePresence>
-
     </div>
   );
 }

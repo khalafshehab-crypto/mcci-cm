@@ -1,7 +1,7 @@
 import { initializeApp as fbInitializeApp } from "firebase/app";
 import { getAuth as fbGetAuth } from "firebase/auth";
 import { 
-  getFirestore as fbGetFirestore,
+  initializeFirestore as fbInitializeFirestore, getFirestore as fbGetFirestore,
   collection as fbCollection, 
   onSnapshot as fbOnSnapshot, 
   query as fbQuery, 
@@ -37,7 +37,7 @@ try {
 }
 
 try {
-  db = fbGetFirestore(app, firebaseAppletConfig.firestoreDatabaseId || "(default)");
+  db = fbInitializeFirestore(app, { experimentalForceLongPolling: true }, firebaseAppletConfig.firestoreDatabaseId || "(default)");
   if (db) {
     db.isBlocked = !db || db.type === "dummy_firestore";
   }

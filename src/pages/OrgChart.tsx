@@ -33,9 +33,11 @@ import {
   Printer,
   Database,
   FolderLock,
-  Network
+  Network,
+  RefreshCw,
 } from "lucide-react";
 import { useFirestoreCollection } from "../lib/firebaseUtils";
+import { useThemeSettings } from "../hooks/useThemeSettings";
 
 // AVATAR PRESETS - Professional placeholders for visual ease
 const PRESET_AVATARS = [
@@ -179,7 +181,14 @@ export function getEmployeePrefix(emp?: { name?: string; gender?: "MALE" | "FEMA
 }
 
 export default function OrgChart() {
-  const [activeTab, setActiveTab] = useState<"hierarchy" | "org_chart" | "transfer" | "approvals" | "logs" | "permissions" | "master_data">("hierarchy");
+  const { theme, updateTheme } = useThemeSettings();
+  const [customPrimary, setCustomPrimary] = useState(theme.primary || '#246fff');
+  const [customSecondary, setCustomSecondary] = useState(theme.secondary || '#dfba6b');
+  const [customPageBg, setCustomPageBg] = useState(theme.pageBg || '#f9fafb');
+  const [customCardBg, setCustomCardBg] = useState(theme.cardBg || '#ffffff');
+  const [customHeaderBg, setCustomHeaderBg] = useState(theme.headerBg || '#ffffff');
+  const [customTextColor, setCustomTextColor] = useState(theme.textColor || '#111827');
+  const [activeTab, setActiveTab] = useState<"hierarchy" | "org_chart" | "transfer" | "approvals" | "logs" | "permissions" | "master_data" | "design_settings">("hierarchy");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
   // Local state for administrative master data console
@@ -1412,7 +1421,7 @@ export default function OrgChart() {
 
         {currentUserRole === "SYS_ADMIN" && (
           
-<div key="filter-popover-1784704070986-1">
+<>
             <button
               onClick={() => setActiveTab("transfer")}
               className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
@@ -1459,10 +1468,16 @@ export default function OrgChart() {
               <Database className="w-4 h-4 shrink-0" />
               <span>البيانات الموحدة</span>
             </button>
-          </div>
+        <button
+          onClick={() => setActiveTab("design_settings")}
+          className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${ activeTab === "design_settings" ? "border-brand text-brand font-black" : "border-transparent text-gray-500 hover:text-gray-900" }`}
+        >
+          <Sparkles className="w-4 h-4 shrink-0" />
+          <span>تنظيم التصميم</span>
+        </button>
+          </>
         )}
       </div>
-
       {/* 3. PRESENTATION OF ACTIVE VIEWPORT */}
       <div className="space-y-6">
         
@@ -1548,7 +1563,6 @@ export default function OrgChart() {
                     return (
                       <motion.div
                         key={emp.id}
-                        layout
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.9 }}
@@ -2391,6 +2405,160 @@ export default function OrgChart() {
           </div>
         )}
 
+        {/* TAB: DESIGN SETTINGS */}
+        {activeTab === "design_settings" && (
+          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5"><Sparkles className="w-5 h-5 text-amber-500" /><span>تنظيم التصميم (إعدادات الصفحة)</span></h2>
+              <button 
+                onClick={() => {
+                  updateTheme({ primary: '#246fff', secondary: '#dfba6b', pageBg: '#f9fafb', cardBg: '#ffffff', headerBg: '#ffffff', textColor: '#111827', fontFamily: 'Cairo', fontSize: 100 }); setCustomPrimary('#246fff'); setCustomSecondary('#dfba6b'); setCustomPageBg('#f9fafb'); setCustomCardBg('#ffffff'); setCustomHeaderBg('#ffffff'); setCustomTextColor('#111827');
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-all border border-gray-200 cursor-pointer"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>العودة للسمة الأصلية</span>
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Themes */}
+              <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200 space-y-4">
+                <h3 className="font-extrabold text-sm text-gray-800">السمات البصرية (Themes)</h3>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  يمكنك اختيار السمة البصرية المفضلة للنظام. جميع السمات مصممة بحيث تراعي قواعد التباين العالي.
+                </p>
+                <div className="grid grid-cols-2 gap-3 mt-4">
+                  <button onClick={() => { updateTheme({ primary: '#1e293b', secondary: '#dfba6b', pageBg: '#f9fafb', cardBg: '#ffffff', headerBg: '#ffffff', textColor: '#111827' }); setCustomPrimary('#1e293b'); setCustomSecondary('#dfba6b'); setCustomPageBg('#f9fafb'); setCustomCardBg('#ffffff'); setCustomHeaderBg('#ffffff'); setCustomTextColor('#111827'); }} className="flex items-center gap-3 p-3 bg-white border border-gray-200 hover:border-brand rounded-xl text-right cursor-pointer">
+                    <div className="w-6 h-6 rounded-full bg-[#1e293b] border-2 border-[#dfba6b]"></div>
+                    <span className="text-xs font-black text-gray-800">كحلي وذهبي</span>
+                  </button>
+                  <button onClick={() => { updateTheme({ primary: '#047857', secondary: '#34d399', pageBg: '#f9fafb', cardBg: '#ffffff', headerBg: '#ffffff', textColor: '#111827' }); setCustomPrimary('#047857'); setCustomSecondary('#34d399'); setCustomPageBg('#f9fafb'); setCustomCardBg('#ffffff'); setCustomHeaderBg('#ffffff'); setCustomTextColor('#111827'); }} className="flex items-center gap-3 p-3 bg-white border border-gray-200 hover:border-brand rounded-xl text-right cursor-pointer">
+                    <div className="w-6 h-6 rounded-full bg-emerald-700 border-2 border-emerald-400"></div>
+                    <span className="text-xs font-bold text-gray-600">أخضر زمردي</span>
+                  </button>
+                  <button onClick={() => { updateTheme({ primary: '#1d4ed8', secondary: '#60a5fa', pageBg: '#f9fafb', cardBg: '#ffffff', headerBg: '#ffffff', textColor: '#111827' }); setCustomPrimary('#1d4ed8'); setCustomSecondary('#60a5fa'); setCustomPageBg('#f9fafb'); setCustomCardBg('#ffffff'); setCustomHeaderBg('#ffffff'); setCustomTextColor('#111827'); }} className="flex items-center gap-3 p-3 bg-white border border-gray-200 hover:border-brand rounded-xl text-right cursor-pointer">
+                    <div className="w-6 h-6 rounded-full bg-blue-700 border-2 border-blue-400"></div>
+                    <span className="text-xs font-bold text-gray-600">أزرق مؤسسي</span>
+                  </button>
+                  <button onClick={() => { updateTheme({ primary: '#6d28d9', secondary: '#a78bfa', pageBg: '#f9fafb', cardBg: '#ffffff', headerBg: '#ffffff', textColor: '#111827' }); setCustomPrimary('#6d28d9'); setCustomSecondary('#a78bfa'); setCustomPageBg('#f9fafb'); setCustomCardBg('#ffffff'); setCustomHeaderBg('#ffffff'); setCustomTextColor('#111827'); }} className="flex items-center gap-3 p-3 bg-white border border-gray-200 hover:border-brand rounded-xl text-right cursor-pointer">
+                    <div className="w-6 h-6 rounded-full bg-purple-700 border-2 border-purple-400"></div>
+                    <span className="text-xs font-bold text-gray-600">بنفسجي ملكي</span>
+                  </button>
+                  <button onClick={() => { updateTheme({ primary: '#be123c', secondary: '#fb7185', pageBg: '#f9fafb', cardBg: '#ffffff', headerBg: '#ffffff', textColor: '#111827' }); setCustomPrimary('#be123c'); setCustomSecondary('#fb7185'); setCustomPageBg('#f9fafb'); setCustomCardBg('#ffffff'); setCustomHeaderBg('#ffffff'); setCustomTextColor('#111827'); }} className="flex items-center gap-3 p-3 bg-white border border-gray-200 hover:border-brand rounded-xl text-right cursor-pointer">
+                    <div className="w-6 h-6 rounded-full bg-rose-700 border-2 border-rose-400"></div>
+                    <span className="text-xs font-bold text-gray-600">أحمر قرمزي</span>
+                  </button>
+                  <button onClick={() => { updateTheme({ primary: '#246fff', secondary: '#3b82f6', pageBg: '#0f172a', cardBg: '#1e293b', headerBg: '#1e293b', textColor: '#f8fafc' }); setCustomPrimary('#246fff'); setCustomSecondary('#3b82f6'); setCustomPageBg('#0f172a'); setCustomCardBg('#1e293b'); setCustomHeaderBg('#1e293b'); setCustomTextColor('#f8fafc'); }} className="flex items-center gap-3 p-3 bg-white border border-gray-200 hover:border-brand rounded-xl text-right cursor-pointer">
+                    <div className="w-6 h-6 rounded-full bg-slate-900 border-2 border-slate-700"></div>
+                    <span className="text-xs font-bold text-gray-600">داكن (Dark)</span>
+                  </button>
+                  
+                </div>
+              </div>
+
+              {/* Manual Customization */}
+              <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200 space-y-4">
+                <h3 className="font-extrabold text-sm text-gray-800">تخصيص ثيم يدوي</h3>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  اختر الألوان المفضلة وسيقوم النظام بتطبيقها على مساحة عملك الخاصة فقط.
+                </p>
+                <div className="space-y-4 mt-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-700 mb-1">اللون الرئيسي (Primary):</label>
+                      <div className="flex items-center gap-2">
+                        <input type="color" value={customPrimary} onChange={(e) => setCustomPrimary(e.target.value)} className="w-8 h-8 rounded border border-gray-300 cursor-pointer" />
+                        <span className="text-[10px] font-mono text-gray-500 uppercase">{customPrimary}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-700 mb-1">اللون الثانوي (Secondary):</label>
+                      <div className="flex items-center gap-2">
+                        <input type="color" value={customSecondary} onChange={(e) => setCustomSecondary(e.target.value)} className="w-8 h-8 rounded border border-gray-300 cursor-pointer" />
+                        <span className="text-[10px] font-mono text-gray-500 uppercase">{customSecondary}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-700 mb-1">خلفية الصفحة (Page Bg):</label>
+                      <div className="flex items-center gap-2">
+                        <input type="color" value={customPageBg} onChange={(e) => setCustomPageBg(e.target.value)} className="w-8 h-8 rounded border border-gray-300 cursor-pointer" />
+                        <span className="text-[10px] font-mono text-gray-500 uppercase">{customPageBg}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-700 mb-1">خلفية النوافذ والبطاقات (Card Bg):</label>
+                      <div className="flex items-center gap-2">
+                        <input type="color" value={customCardBg} onChange={(e) => setCustomCardBg(e.target.value)} className="w-8 h-8 rounded border border-gray-300 cursor-pointer" />
+                        <span className="text-[10px] font-mono text-gray-500 uppercase">{customCardBg}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-700 mb-1">خلفية الشريط العلوي (Header Bg):</label>
+                      <div className="flex items-center gap-2">
+                        <input type="color" value={customHeaderBg} onChange={(e) => setCustomHeaderBg(e.target.value)} className="w-8 h-8 rounded border border-gray-300 cursor-pointer" />
+                        <span className="text-[10px] font-mono text-gray-500 uppercase">{customHeaderBg}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-700 mb-1">لون النصوص (Text Color):</label>
+                      <div className="flex items-center gap-2">
+                        <input type="color" value={customTextColor} onChange={(e) => setCustomTextColor(e.target.value)} className="w-8 h-8 rounded border border-gray-300 cursor-pointer" />
+                        <span className="text-[10px] font-mono text-gray-500 uppercase">{customTextColor}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <button onClick={() => updateTheme({ primary: customPrimary, secondary: customSecondary, pageBg: customPageBg, cardBg: customCardBg, headerBg: customHeaderBg, textColor: customTextColor })} className="w-full mt-4 bg-brand hover:bg-brand/90 text-white font-black text-xs py-3 rounded-xl transition-colors cursor-pointer shadow-sm">
+                    حفظ وتطبيق الثيم المخصص
+                  </button>
+                </div>
+              </div>
+
+              {/* Typography (Fonts and Font Sizes) */}
+              <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200 space-y-4 md:col-span-2">
+                <h3 className="font-extrabold text-sm text-gray-800">الخطوط وأحجام النصوص (Typography)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Font Family */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-3">نوع الخط (Font Family):</label>
+                    <div className="space-y-2">
+                      {['Cairo', 'Tajawal', 'Almarai', 'Changa'].map(font => (
+                        <label key={font} className={`flex items-center justify-between p-3 border rounded-xl cursor-pointer ${theme.fontFamily === font ? 'border-brand bg-blue-50/50' : 'border-gray-200 bg-white hover:border-brand'}`}>
+                          <span style={{ fontFamily: font }} className="text-sm font-bold text-gray-800">{font} - نظام إدارة اللجان</span>
+                          <input type="radio" name="fontFamily" checked={theme.fontFamily === font} onChange={() => updateTheme({ fontFamily: font })} className="w-4 h-4 text-brand focus:ring-brand" />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Font Size */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-3">حجم الخط الأساسي:</label>
+                    <div className="space-y-2">
+                      <label className={`flex items-center justify-between p-3 border rounded-xl cursor-pointer ${theme.fontSize === 90 ? 'border-brand bg-blue-50/50' : 'border-gray-200 bg-white hover:border-brand'}`}>
+                        <span className="text-xs font-bold text-gray-800">صغير (90%)</span>
+                        <input type="radio" name="fontSize" checked={theme.fontSize === 90} onChange={() => updateTheme({ fontSize: 90 })} className="w-4 h-4 text-brand focus:ring-brand" />
+                      </label>
+                      <label className={`flex items-center justify-between p-3 border rounded-xl cursor-pointer ${theme.fontSize === 100 ? 'border-brand bg-blue-50/50' : 'border-gray-200 bg-white hover:border-brand'}`}>
+                        <span className="text-sm font-bold text-gray-800">افتراضي (100%)</span>
+                        <input type="radio" name="fontSize" checked={theme.fontSize === 100} onChange={() => updateTheme({ fontSize: 100 })} className="w-4 h-4 text-brand focus:ring-brand" />
+                      </label>
+                      <label className={`flex items-center justify-between p-3 border rounded-xl cursor-pointer ${theme.fontSize === 110 ? 'border-brand bg-blue-50/50' : 'border-gray-200 bg-white hover:border-brand'}`}>
+                        <span className="text-base font-bold text-gray-800">كبير (110%)</span>
+                        <input type="radio" name="fontSize" checked={theme.fontSize === 110} onChange={() => updateTheme({ fontSize: 110 })} className="w-4 h-4 text-brand focus:ring-brand" />
+                      </label>
+                      <label className={`flex items-center justify-between p-3 border rounded-xl cursor-pointer ${theme.fontSize === 120 ? 'border-brand bg-blue-50/50' : 'border-gray-200 bg-white hover:border-brand'}`}>
+                        <span className="text-lg font-bold text-gray-800">كبير جداً (120%)</span>
+                        <input type="radio" name="fontSize" checked={theme.fontSize === 120} onChange={() => updateTheme({ fontSize: 120 })} className="w-4 h-4 text-brand focus:ring-brand" />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ORG BUILDER MODAL */}
