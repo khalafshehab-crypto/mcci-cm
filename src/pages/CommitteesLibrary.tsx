@@ -43,7 +43,7 @@ import {
   FileSpreadsheet,
   Sparkles,
   FileText,
-  Loader2,
+  Loader2, Info,
   CheckCircle2,
   Search,
   Copy
@@ -357,10 +357,9 @@ export default function CommitteesLibrary() {
     }
   };
   
-  const handleDownloadPDF = async () => {
-    if (!circularPrintRef.current) return;
+  const getPdfBlob = async (): Promise<Blob | null> => {
+    if (!circularPrintRef.current) return null;
     try {
-      showGlobalToast("جاري تحضير ملف PDF عالي الجودة...", "loading");
       const el = circularPrintRef.current;
       const dataUrl = await toPng(el, { 
         cacheBust: true, 
@@ -402,11 +401,26 @@ export default function CommitteesLibrary() {
         pdf.link(pdfX, pdfY, pdfW, pdfH, { url });
       });
 
-      pdf.save(`تعميم_${circularOutNumber.replace(/[\/\\]/g, '-')}.pdf`);
-      showGlobalToast("تم تحميل التعميم بصيغة PDF بنجاح", "success");
+      return pdf.output('blob');
     } catch (err) {
       console.error(err);
-      showGlobalToast("حدث خطأ أثناء التصدير", "error");
+      return null;
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    showGlobalToast("جاري تحضير ملف PDF عالي الجودة...", "loading");
+    const blob = await getPdfBlob();
+    if (blob) {
+       const url = URL.createObjectURL(blob);
+       const link = document.createElement('a');
+       link.href = url;
+       link.download = `تعميم_${circularOutNumber.replace(/[\\/\\]/g, '-')}.pdf`;
+       link.click();
+       URL.revokeObjectURL(url);
+       showGlobalToast("تم تحميل التعميم بصيغة PDF بنجاح", "success");
+    } else {
+       showGlobalToast("حدث خطأ أثناء التصدير", "error");
     }
   };
 
@@ -425,6 +439,7 @@ export default function CommitteesLibrary() {
   const [aiGenReplyContent, setAiGenReplyContent] = useState("");
   const [aiGenReplyFile, setAiGenReplyFile] = useState<File | string | null>(null);
   const [isAIGenGenerating, setIsAIGenGenerating] = useState(false);
+  const [isSavingAIGen, setIsSavingAIGen] = useState(false);
 
   const openGenerateWizard = () => {
     setIsTemplateMenuOpen(false);
@@ -610,6 +625,9 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
   };
 
   const saveAIGeneratedLetter = async () => {
+    if (isSavingAIGen) return;
+    setIsSavingAIGen(true);
+    showGlobalToast("جاري حفظ التعميم وإنشاء المجلدات بالدرايف...", "loading");
     try {
       const stored = localStorage.getItem("current_user");
       let currentUser = null;
@@ -617,68 +635,113 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
       
       const creatorName = currentUser ? currentUser.name : "الأخصائي";
       const targetCommittees = committees.filter(c => aiGenCommittees.includes(String(c.id)));
-
       if (targetCommittees.length === 0) {
         alert("لم يتم العثور على لجان للحفظ فيها.");
+        setIsSavingAIGen(false);
         return;
       }
-
+      const isCircular = workspaceService === "circular";
+      const finalType = isCircular ? "تعميم" : aiGenTemplateType.replace(/\s*\(.*\)/, "").trim();
+      const subjectName = aiGenSubject || circularSubject || "تعميم جديد";
+      
+      let pdfBlob: Blob | null = null;
+      if (isCircular) {
+          pdfBlob = await getPdfBlob();
+      }
+      
+      const committeeUrls: any[] = [];
+      let lastCloudUrl = "#";
+      let lastTemplateText = "";
       for (const committee of targetCommittees) {
         const committeeName = committee.name;
-        const finalType = aiGenTemplateType.replace(/\s*\(.*\)/, "").trim();
-
+        
         let finalDocumentText = aiGenGeneratedText;
-        if (workspaceService === "circular") {
+        if (isCircular) {
             const circularBody = aiGenGeneratedText.split("عرض التعميم:")[1]?.trim() || aiGenGeneratedText;
             finalDocumentText = `تعميم إداري\nاللجنة: ${committeeName}\nرقم التعميم: ${circularOutNumber}\nالتاريخ: ${circularOutDate}\nالوارد من: ${circularIncomingFrom || "—"}\nبرقم: ${circularIncomingNumber || "—"} وتاريخ: ${circularIncomingDate || "—"}\nالموضوع: ${circularSubject || "—"}\n\n${circularBody}\n\nللتواصل: ${circularContactName || "—"}\nجوال: ${circularContactPhone || "—"}\nبريد: ${circularContactEmail || "—"}`;
         }
         
         let finalCloudUrl = "#";
-
-        if (finalType === "مستندات" || workspaceService === "circular") {
+        let folderCloudUrl = "#";
+        if (finalType === "مستندات" || isCircular) {
           try {
-            const subjectName = aiGenSubject || circularSubject || "تعميم جديد";
-            const folderPath = workspaceService === "circular" ? `تقرير اللجان للدورة الـ 22/اللجان المعتمدة/${committeeName}/التعاميم/${subjectName}` : `تقرير اللجان للدورة الـ 22/اللجان المعتمدة/${committeeName}/الخطابات/مسودات/${subjectName}`;
+            const folderPath = isCircular ? `تقرير اللجان للدورة الـ 22/اللجان المعتمدة/${committeeName}/التعاميم/${subjectName}` : `تقرير اللجان للدورة الـ 22/اللجان المعتمدة/${committeeName}/الخطابات/مسودات/${subjectName}`;
             const folderId = await resolveDrivePath(folderPath);
+            folderCloudUrl = `https://drive.google.com/drive/folders/${folderId}`;
+            
             const { documentId, documentUrl } = await createGoogleDoc(subjectName, finalDocumentText);
             await moveDriveFile(documentId, folderId);
             finalCloudUrl = documentUrl;
             
-            if (workspaceService === "circular") {
+            if (isCircular) {
+               if (pdfBlob) {
+                   const pdfFile = new File([pdfBlob], `تعميم_${circularOutNumber.replace(/[\\/\\]/g, '-')}.pdf`, { type: 'application/pdf' });
+                   const uploadedPdfUrl = await uploadFileToDriveByPath(pdfFile, folderPath, pdfFile.name);
+                   if (uploadedPdfUrl) finalCloudUrl = uploadedPdfUrl;
+               }
                if (circularMainFile && typeof circularMainFile === 'object') await uploadFileToDriveByPath(circularMainFile as File, folderPath, (circularMainFile as File).name);
                if (circularAtt1 && typeof circularAtt1 === 'object') await uploadFileToDriveByPath(circularAtt1 as File, folderPath, (circularAtt1 as File).name);
             }
           } catch (apiError) {
             console.error("Google API Error:", apiError);
+            showGlobalToast(`تنبيه: حدث خطأ أثناء إنشاء ملف درايف للجنة ${committeeName}`, "error");
           }
         }
-
-        const urlAttachments = [];
-        if (typeof circularMainFile === 'string') urlAttachments.push(circularMainFile);
-        if (typeof circularAtt1 === 'string') urlAttachments.push(circularAtt1);
         
-        const newDoc = {
-          title: aiGenSubject || circularSubject || "تعميم جديد",
-          description: workspaceService === "circular" ? `مجلد تعاميم | لجنة: ${committeeName} | موضوع: ${circularSubject || ""}` : `مجلد خطابات - مجلد مسودات | لجنة: ${committeeName} | صادر إلى: ${aiGenRecipientName}`,
-          type: workspaceService === "circular" ? "تعميم" : finalType,
-          creator: creatorName,
-          cloudUrl: finalCloudUrl,
-          downloadUrl: finalCloudUrl,
-          lastUpdated: new Date().toISOString().split('T')[0],
-          isFavorite: false,
-          templateText: finalDocumentText,
-          committeeId: committee.id || "",
-          attachments: urlAttachments,
-        };
+        lastCloudUrl = finalCloudUrl;
+        lastTemplateText = finalDocumentText;
         
-        await addDoc(collection(db, "templates"), newDoc);
+        committeeUrls.push({
+            committeeId: committee.id,
+            committeeName: committee.name,
+            documentUrl: finalCloudUrl,
+            folderUrl: folderCloudUrl
+        });
+        await new Promise(resolve => setTimeout(resolve, 800));
       }
       
-      alert(targetCommittees.length > 1 ? `تم حفظ التعميم بنجاح لعدد ${targetCommittees.length} من اللجان.` : "تم حفظ التعميم بنجاح.");
+      const urlAttachments = [];
+      if (typeof circularMainFile === 'string') urlAttachments.push(circularMainFile);
+      if (typeof circularAtt1 === 'string') urlAttachments.push(circularAtt1);
+      const combinedCommitteesName = targetCommittees.map(c => c.name).join(' و ');
+      
+      const newDoc = {
+        title: subjectName,
+        description: isCircular ? `مجلد تعاميم | لجان: ${combinedCommitteesName} | موضوع: ${circularSubject || ""}` : `مجلد خطابات - مجلد مسودات | لجان: ${combinedCommitteesName} | صادر إلى: ${aiGenRecipientName}`,
+        type: finalType,
+        creator: creatorName,
+        cloudUrl: lastCloudUrl, // For download button
+        downloadUrl: lastCloudUrl, // For download button
+        lastUpdated: new Date().toISOString().split('T')[0],
+        isFavorite: false,
+        templateText: lastTemplateText,
+        committeeId: targetCommittees[0].id || "", // legacy
+        targetCommitteesList: targetCommittees.map(c => ({id: c.id, name: c.name})),
+        committeeUrls: committeeUrls,
+        attachments: urlAttachments,
+        circularDetails: isCircular ? {
+            outNumber: circularOutNumber,
+            outDate: circularOutDate,
+            incomingFrom: circularIncomingFrom,
+            incomingNumber: circularIncomingNumber,
+            incomingDate: circularIncomingDate,
+            subject: circularSubject,
+            contactName: circularContactName,
+            contactPhone: circularContactPhone,
+            contactEmail: circularContactEmail,
+            body: aiGenGeneratedText.split("عرض التعميم:")[1]?.trim() || aiGenGeneratedText,
+        } : null
+      };
+      
+      await addDoc(collection(db, "templates"), newDoc);
+      
+      showGlobalToast(targetCommittees.length > 1 ? `تم حفظ التعميم بنجاح لعدد ${targetCommittees.length} من اللجان.` : "تم حفظ التعميم بنجاح.", "success");
       setIsAIGenOpen(false);
     } catch (e) {
       console.error(e);
-      alert("حدث خطأ أثناء الحفظ. الرجاء المحاولة مجدداً.", "error");
+      showGlobalToast("حدث خطأ أثناء الحفظ. الرجاء المحاولة مجدداً.", "error");
+    } finally {
+      setIsSavingAIGen(false);
     }
   };
 
@@ -698,6 +761,9 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
 
   const [uploadedFileDataUrl, setUploadedFileDataUrl] = useState("");
   const [exportSelectedIds, setExportSelectedIds] = useState<string[]>([]);
+  const [cloudSelectOpen, setCloudSelectOpen] = useState<string | null>(null);
+  const [circularDetailsOpen, setCircularDetailsOpen] = useState<any>(null);
+
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -728,6 +794,27 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
   };
 
   const handleDownloadTemplate = (t: TemplateItem) => {
+    if (t.type === "تعميم") {
+      let urlToOpen = t.downloadUrl && t.downloadUrl !== "#" ? t.downloadUrl :
+                      (t.cloudUrl && t.cloudUrl !== "#" ? t.cloudUrl :
+                      (t.committeeUrls && t.committeeUrls.length > 0 && t.committeeUrls[0].documentUrl && t.committeeUrls[0].documentUrl !== "#" ? t.committeeUrls[0].documentUrl : null));
+      
+      if (urlToOpen) {
+          // If it's a drive file link, try to make it direct download if possible
+          let match = urlToOpen.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+          if (!match) match = urlToOpen.match(/id=([a-zA-Z0-9_-]+)/);
+          
+          if (match && match[1]) {
+              window.open(`https://drive.google.com/uc?export=download&id=${match[1]}`, '_blank');
+          } else {
+              window.open(urlToOpen, '_blank');
+          }
+      } else {
+        alert("لا يوجد ملف متاح للتحميل.");
+      }
+      return;
+    }
+
     if (t.downloadUrl && t.downloadUrl.startsWith("data:")) {
       const downloadAnchor = document.createElement("a");
       downloadAnchor.setAttribute("href", t.downloadUrl);
@@ -1348,30 +1435,55 @@ ${t.description}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2 border-t border-gray-200/60">
-                    <a
-                      href={t.cloudUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-extrabold transition-colors border border-blue-200 shadow-sm"
-                    >
-                      فتح سحابي
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
+                    <div className="relative">
+                      {t.committeeUrls && t.committeeUrls.length > 1 ? (
+                        <>
+                            <button
+                                onClick={() => setCloudSelectOpen(cloudSelectOpen === t.id ? null : t.id)}
+                                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-extrabold transition-colors border border-blue-200 shadow-sm"
+                            >
+                                فتح سحابي
+                                <ExternalLink className="w-3.5 h-3.5" />
+                            </button>
+                            {cloudSelectOpen === t.id && (
+                                <div className="absolute bottom-full mb-1 left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-10 p-1 flex flex-col gap-1">
+                                    {t.committeeUrls.map((cu: any) => (
+                                        <a key={cu.committeeId} href={cu.documentUrl || cu.folderUrl} target="_blank" rel="noopener noreferrer" className="block px-2 py-1.5 text-xs text-gray-700 hover:bg-blue-50 rounded text-right whitespace-nowrap overflow-hidden text-ellipsis font-bold" onClick={() => setCloudSelectOpen(null)}>
+                                            {cu.committeeName}
+                                        </a>
+                                    ))}
+                                </div>
+                            )}
+                        </>
+                      ) : (
+                        <a
+                          href={t.committeeUrls?.[0]?.documentUrl || t.cloudUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-extrabold transition-colors border border-blue-200 shadow-sm"
+                        >
+                          فتح سحابي
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                    </div>
                     <button
-                      onClick={() => handleDownloadTemplate(t)}
+                      onClick={(e) => {
+                         e.preventDefault();
+                         handleDownloadTemplate(t);
+                      }}
                       className="flex items-center justify-center gap-1.5 px-3 py-2 bg-white text-gray-750 hover:text-black hover:bg-gray-100 rounded-lg text-xs font-extrabold transition-colors border border-gray-300 shadow-sm"
                       title="تحميل مباشرة"
                     >
                       تحميل
                       <Download className="w-3.5 h-3.5" />
                     </button>
-
                     <button
-                      onClick={() => t.type === "خطاب ذكي" ? openFillSmartLetter(t) : handleOpenAI(t)}
+                      onClick={() => t.type === "خطاب ذكي" ? openFillSmartLetter(t) : (t.type === "تعميم" ? setCircularDetailsOpen(t) : handleOpenAI(t))}
                       className="flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-l from-indigo-600 to-indigo-500 text-white hover:brightness-110 rounded-lg text-xs font-extrabold transition-all shadow-sm"
-                      title={t.type === "خطاب ذكي" ? "تعبئة المتغيرات وطباعة الخطاب" : "المولد الذكي للخطابات والتعاميم"}
+                      title={t.type === "خطاب ذكي" ? "تعبئة المتغيرات وطباعة الخطاب" : (t.type === "تعميم" ? "تفاصيل التعميم" : "المولد الذكي للخطابات والتعاميم")}
                     >
-                      {t.type === "خطاب ذكي" ? "تعبئة وطباعة" : "توليد ذكي"}
+                      {t.type === "خطاب ذكي" ? "تعبئة وطباعة" : (t.type === "تعميم" ? "التفاصيل" : "توليد ذكي")}
                       <Wand2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -1747,6 +1859,135 @@ ${t.description}
                   className="px-6 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors text-sm disabled:opacity-50 flex items-center gap-2 shadow-sm"
                 >
                   {formIsSaving ? "جاري الحذف..." : "تأكيد الحذف"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      
+      {/* Circular Details Modal */}
+      <AnimatePresence>
+        {circularDetailsOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+              dir="rtl"
+            >
+              <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
+                    <Info className="w-5 h-5" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    تفاصيل التعميم
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setCircularDetailsOpen(null)}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+                {circularDetailsOpen.circularDetails ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 mb-1">الموضوع</label>
+                      <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-gray-800 font-bold text-sm">
+                        {circularDetailsOpen.circularDetails.subject || circularDetailsOpen.title}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 mb-1">رقم التعميم</label>
+                      <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-gray-800 font-bold text-sm">
+                        {circularDetailsOpen.circularDetails.outNumber || "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 mb-1">تاريخ التعميم</label>
+                      <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-gray-800 font-bold text-sm">
+                        {circularDetailsOpen.circularDetails.outDate || "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 mb-1">الوارد من</label>
+                      <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-gray-800 font-bold text-sm">
+                        {circularDetailsOpen.circularDetails.incomingFrom || "—"}
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-gray-500 mb-1">نص التعميم</label>
+                      <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100 text-gray-800 font-medium text-sm leading-relaxed whitespace-pre-wrap">
+                        {circularDetailsOpen.circularDetails.body}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      الموضوع:
+                    </label>
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-gray-800 font-medium">
+                      {circularDetailsOpen.title}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    تم التعميم على اللجان التالية:
+                  </label>
+                  <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100 flex flex-wrap gap-2">
+                    {circularDetailsOpen.targetCommitteesList?.map((c: any) => (
+                      <span key={c.id} className="px-3 py-1 bg-white border border-blue-200 text-blue-700 rounded-lg text-sm font-bold shadow-sm">
+                        {c.name}
+                      </span>
+                    ))}
+                    {(!circularDetailsOpen.targetCommitteesList || circularDetailsOpen.targetCommitteesList.length === 0) && (
+                      <span className="text-gray-500 text-sm">
+                        {circularDetailsOpen.committeeName || "غير محدد"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    روابط الأرشفة السحابية للجان:
+                  </label>
+                  <div className="space-y-2">
+                    {circularDetailsOpen.committeeUrls?.map((cu: any) => (
+                      <div key={cu.committeeId} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
+                        <span className="font-bold text-gray-700 text-sm">{cu.committeeName}</span>
+                        <a
+                          href={cu.folderUrl || cu.documentUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-blue-600 hover:bg-blue-50 border border-blue-100 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                        >
+                          المجلد السحابي
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+
+              <div className="p-4 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3">
+                <button
+                  onClick={() => setCircularDetailsOpen(null)}
+                  className="px-6 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-bold transition-colors"
+                >
+                  إغلاق
                 </button>
               </div>
             </motion.div>
@@ -2584,8 +2825,8 @@ ${t.description}
                       <Download className="w-4 h-4" /> تصدير PDF
                     </button>
                     <button
-                      onClick={saveAIGeneratedLetter}
-                      className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-md"
+                      onClick={saveAIGeneratedLetter} disabled={isSavingAIGen} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-md ${isSavingAIGen ? "bg-gray-400 text-white cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-700 text-white"}`}
+                     
                     >
                       <Check className="w-4 h-4" /> حفظ وأرشفة بالدرايف
                     </button>
@@ -2595,8 +2836,8 @@ ${t.description}
                 {aiGenStep === 3 && workspaceService !== "circular" && (
                   <div className="flex items-center gap-3">
                     <button
-                      onClick={saveAIGeneratedLetter}
-                      className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-md"
+                      onClick={saveAIGeneratedLetter} disabled={isSavingAIGen} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-md ${isSavingAIGen ? "bg-gray-400 text-white cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-700 text-white"}`}
+                     
                     >
                       <Check className="w-4 h-4" /> حفظ وأرشفة بالدرايف
                     </button>

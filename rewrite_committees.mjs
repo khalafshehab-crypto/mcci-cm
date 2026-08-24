@@ -1,16 +1,13 @@
-const fs = require('fs');
-const file = 'src/pages/CommitteesLibrary.tsx';
-let code = fs.readFileSync(file, 'utf8');
+import fs from 'fs';
 
-// 1. Add isSavingAIGen
-code = code.replace(
-  'const [isAIGenGenerating, setIsAIGenGenerating] = useState(false);',
-  'const [isAIGenGenerating, setIsAIGenGenerating] = useState(false);\n  const [isSavingAIGen, setIsSavingAIGen] = useState(false);'
-);
+let code = fs.readFileSync('src/pages/CommitteesLibrary.tsx', 'utf8');
 
-// 2. Replace handleDownloadPDF with getPdfBlob + handleDownloadPDF
-const handleDownloadRegex = /const handleDownloadPDF = async \(\) => \{[\s\S]*?showGlobalToast\("حدث خطأ أثناء التصدير", "error"\);\s*\}\s*\};/;
-const newHandleDownload = `const getPdfBlob = async (): Promise<Blob | null> => {
+// 1. Add getPdfBlob to CommitteesLibrary component.
+const handleDownloadPDFMatch = code.match(/const handleDownloadPDF = async \(\) => \{[\s\S]*?pdf\.save\([^)]+\);\s*showGlobalToast\([^)]+\);\s*\} catch \(e\) \{\s*console\.error\(e\);\s*\}\s*\};/);
+
+if (handleDownloadPDFMatch && !code.includes('const getPdfBlob')) {
+  const getPdfBlobCode = `
+  const getPdfBlob = async (): Promise<Blob | null> => {
     if (!circularPrintRef.current) return null;
     try {
       const el = circularPrintRef.current;
@@ -53,40 +50,21 @@ const newHandleDownload = `const getPdfBlob = async (): Promise<Blob | null> => 
         
         pdf.link(pdfX, pdfY, pdfW, pdfH, { url });
       });
-
+      
       return pdf.output('blob');
-    } catch (err) {
-      console.error(err);
+    } catch (e) {
+      console.error(e);
       return null;
     }
   };
-
-  const handleDownloadPDF = async () => {
-    showGlobalToast("جاري تحضير ملف PDF عالي الجودة...", "loading");
-    const blob = await getPdfBlob();
-    if (blob) {
-       const url = URL.createObjectURL(blob);
-       const link = document.createElement('a');
-       link.href = url;
-       link.download = \`تعميم_\${circularOutNumber.replace(/[\\\\/\\\\]/g, '-')}.pdf\`;
-       link.click();
-       URL.revokeObjectURL(url);
-       showGlobalToast("تم تحميل التعميم بصيغة PDF بنجاح", "success");
-    } else {
-       showGlobalToast("حدث خطأ أثناء التصدير", "error");
-    }
-  };`;
-
-if (!code.includes('const getPdfBlob')) {
-    code = code.replace(handleDownloadRegex, newHandleDownload);
+`;
+  code = code.replace(handleDownloadPDFMatch[0], getPdfBlobCode + '\n' + handleDownloadPDFMatch[0]);
 }
 
-// 3. Update saveAIGeneratedLetter
-const saveAIGeneratedRegex = /const saveAIGeneratedLetter = async \(\) => \{[\s\S]*?alert\("حدث خطأ أثناء الحفظ. الرجاء المحاولة مجدداً.", "error"\);\s*\}\s*\};/;
-const newSaveAIGenerated = `const saveAIGeneratedLetter = async () => {
-    if (isSavingAIGen) return;
-    setIsSavingAIGen(true);
-    showGlobalToast("جاري حفظ التعميم وإنشاء المجلدات بالدرايف...", "loading");
+const altSaveAI = code.match(/const saveAIGeneratedLetter = async \(\) => \{[\s\S]*?alert\("حدث خطأ أثناء الحفظ. الرجاء المحاولة مجدداً.", "error"\);\s*\}\s*\};/);
+
+if(altSaveAI) {
+    const newSaveAICode = `const saveAIGeneratedLetter = async () => {
     try {
       const stored = localStorage.getItem("current_user");
       let currentUser = null;
@@ -94,11 +72,12 @@ const newSaveAIGenerated = `const saveAIGeneratedLetter = async () => {
       
       const creatorName = currentUser ? currentUser.name : "الأخصائي";
       const targetCommittees = committees.filter(c => aiGenCommittees.includes(String(c.id)));
+
       if (targetCommittees.length === 0) {
         alert("لم يتم العثور على لجان للحفظ فيها.");
-        setIsSavingAIGen(false);
         return;
       }
+
       const isCircular = workspaceService === "circular";
       const finalType = isCircular ? "تعميم" : aiGenTemplateType.replace(/\\s*\\(.*\\)/, "").trim();
       const subjectName = aiGenSubject || circularSubject || "تعميم جديد";
@@ -111,6 +90,7 @@ const newSaveAIGenerated = `const saveAIGeneratedLetter = async () => {
       const committeeUrls: any[] = [];
       let lastCloudUrl = "#";
       let lastTemplateText = "";
+
       for (const committee of targetCommittees) {
         const committeeName = committee.name;
         
@@ -122,6 +102,7 @@ const newSaveAIGenerated = `const saveAIGeneratedLetter = async () => {
         
         let finalCloudUrl = "#";
         let folderCloudUrl = "#";
+
         if (finalType === "مستندات" || isCircular) {
           try {
             const folderPath = isCircular ? \`تقرير اللجان للدورة الـ 22/اللجان المعتمدة/\${committeeName}/التعاميم/\${subjectName}\` : \`تقرير اللجان للدورة الـ 22/اللجان المعتمدة/\${committeeName}/الخطابات/مسودات/\${subjectName}\`;
@@ -134,7 +115,7 @@ const newSaveAIGenerated = `const saveAIGeneratedLetter = async () => {
             
             if (isCircular) {
                if (pdfBlob) {
-                   const pdfFile = new File([pdfBlob], \`تعميم_\${circularOutNumber.replace(/[\\\\/\\\\]/g, '-')}.pdf\`, { type: 'application/pdf' });
+                   const pdfFile = new File([pdfBlob], \`تعميم_\${circularOutNumber.replace(/[\\/\\\\]/g, '-')}.pdf\`, { type: 'application/pdf' });
                    const uploadedPdfUrl = await uploadFileToDriveByPath(pdfFile, folderPath, pdfFile.name);
                    if (uploadedPdfUrl) finalCloudUrl = uploadedPdfUrl;
                }
@@ -143,7 +124,6 @@ const newSaveAIGenerated = `const saveAIGeneratedLetter = async () => {
             }
           } catch (apiError) {
             console.error("Google API Error:", apiError);
-            showGlobalToast(\`تنبيه: حدث خطأ أثناء إنشاء ملف درايف للجنة \${committeeName}\`, "error");
           }
         }
         
@@ -161,6 +141,7 @@ const newSaveAIGenerated = `const saveAIGeneratedLetter = async () => {
       const urlAttachments = [];
       if (typeof circularMainFile === 'string') urlAttachments.push(circularMainFile);
       if (typeof circularAtt1 === 'string') urlAttachments.push(circularAtt1);
+
       const combinedCommitteesName = targetCommittees.map(c => c.name).join(' و ');
       
       const newDoc = {
@@ -181,37 +162,87 @@ const newSaveAIGenerated = `const saveAIGeneratedLetter = async () => {
       
       await addDoc(collection(db, "templates"), newDoc);
       
-      showGlobalToast(targetCommittees.length > 1 ? \`تم حفظ التعميم بنجاح لعدد \${targetCommittees.length} من اللجان.\` : "تم حفظ التعميم بنجاح.", "success");
+      alert(targetCommittees.length > 1 ? \`تم حفظ التعميم بنجاح لعدد \${targetCommittees.length} من اللجان.\` : "تم حفظ التعميم بنجاح.");
       setIsAIGenOpen(false);
     } catch (e) {
       console.error(e);
-      showGlobalToast("حدث خطأ أثناء الحفظ. الرجاء المحاولة مجدداً.", "error");
-    } finally {
-      setIsSavingAIGen(false);
+      alert("حدث خطأ أثناء الحفظ. الرجاء المحاولة مجدداً.", "error");
     }
   };`;
+    code = code.replace(altSaveAI[0], newSaveAICode);
+}
 
-code = code.replace(saveAIGeneratedRegex, newSaveAIGenerated);
+// 2. Add state for cloud open select
+if (!code.includes('const [cloudSelectOpen, setCloudSelectOpen]')) {
+    code = code.replace(/const \[exportSelectedIds, setExportSelectedIds\] = useState<string\[\]>\(\[\]\);/, `const [exportSelectedIds, setExportSelectedIds] = useState<string[]>([]);\n  const [cloudSelectOpen, setCloudSelectOpen] = useState<string | null>(null);\n  const [circularDetailsOpen, setCircularDetailsOpen] = useState<any>(null);\n`);
+}
 
-// 4. Fix handleDownloadTemplate for circulars
-const downloadTemplateRegex = /const handleDownloadTemplate = \(t: TemplateItem\) => \{[\s\S]*?if \(t\.downloadUrl && t\.downloadUrl\.startsWith\("data:"\)\) \{/;
-const newDownloadTemplate = `const handleDownloadTemplate = (t: TemplateItem) => {
-    if (t.type === "تعميم") {
-      if (t.downloadUrl && t.downloadUrl !== "#") {
-        window.open(t.downloadUrl, '_blank');
-      } else if (t.cloudUrl && t.cloudUrl !== "#") {
-        window.open(t.cloudUrl, '_blank');
-      } else if (t.committeeUrls && t.committeeUrls.length > 0 && t.committeeUrls[0].documentUrl && t.committeeUrls[0].documentUrl !== "#") {
-        window.open(t.committeeUrls[0].documentUrl, '_blank');
-      } else {
-        alert("لا يوجد ملف متاح للتحميل.");
-      }
-      return;
-    }
+// 3. Update the buttons in the map.
+// Let's replace the buttons in the card view.
+const buttonBlockRegex = /<div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2 border-t border-gray-200\/60">[\s\S]*?<\/div>\s*<\/div>\s*<\/div>\s*\)\)\}\s*<\/div>/;
+const matchCardButtons = code.match(buttonBlockRegex);
+if(matchCardButtons) {
+    const newButtons = `<div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2 border-t border-gray-200/60">
+                    <div className="relative">
+                      {t.committeeUrls && t.committeeUrls.length > 1 ? (
+                        <>
+                            <button
+                                onClick={() => setCloudSelectOpen(cloudSelectOpen === t.id ? null : t.id)}
+                                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-extrabold transition-colors border border-blue-200 shadow-sm"
+                            >
+                                فتح سحابي
+                                <ExternalLink className="w-3.5 h-3.5" />
+                            </button>
+                            {cloudSelectOpen === t.id && (
+                                <div className="absolute bottom-full mb-1 left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-10 p-1 flex flex-col gap-1">
+                                    {t.committeeUrls.map((cu: any) => (
+                                        <a key={cu.committeeId} href={cu.folderUrl || cu.documentUrl} target="_blank" rel="noopener noreferrer" className="block px-2 py-1.5 text-xs text-gray-700 hover:bg-blue-50 rounded text-right whitespace-nowrap overflow-hidden text-ellipsis font-bold" onClick={() => setCloudSelectOpen(null)}>
+                                            {cu.committeeName}
+                                        </a>
+                                    ))}
+                                </div>
+                            )}
+                        </>
+                      ) : (
+                        <a
+                          href={t.committeeUrls?.[0]?.folderUrl || t.cloudUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-extrabold transition-colors border border-blue-200 shadow-sm"
+                        >
+                          فتح سحابي
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                    </div>
+                    <a
+                      href={t.cloudUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 bg-white text-gray-750 hover:text-black hover:bg-gray-100 rounded-lg text-xs font-extrabold transition-colors border border-gray-300 shadow-sm"
+                      title="تحميل مباشرة"
+                    >
+                      تحميل
+                      <Download className="w-3.5 h-3.5" />
+                    </a>
+                    <button
+                      onClick={() => t.type === "خطاب ذكي" ? openFillSmartLetter(t) : (t.type === "تعميم" ? setCircularDetailsOpen(t) : handleOpenAI(t))}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-l from-indigo-600 to-indigo-500 text-white hover:brightness-110 rounded-lg text-xs font-extrabold transition-all shadow-sm"
+                      title={t.type === "خطاب ذكي" ? "تعبئة المتغيرات وطباعة الخطاب" : (t.type === "تعميم" ? "تفاصيل التعميم" : "المولد الذكي للخطابات والتعاميم")}
+                    >
+                      {t.type === "خطاب ذكي" ? "تعبئة وطباعة" : (t.type === "تعميم" ? "التفاصيل" : "توليد ذكي")}
+                      <Wand2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>`;
+          
+    code = code.replace(matchCardButtons[0], newButtons);
+} else {
+    console.log("Could not find button block for cards");
+}
 
-    if (t.downloadUrl && t.downloadUrl.startsWith("data:")) {`;
-
-code = code.replace(downloadTemplateRegex, newDownloadTemplate);
-
-fs.writeFileSync(file, code);
-console.log("Done patching.");
+fs.writeFileSync('src/pages/CommitteesLibrary.tsx', code);
+console.log("Done rewriting CommitteesLibrary");
