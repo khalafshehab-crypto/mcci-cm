@@ -225,7 +225,7 @@ const executeWithRetry = async (operation: any, maxRetries = 3) => {
       userParts.push({ text: finalPrompt });
 
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-3.7-pro", // use pro since it could be reading a pdf/image reply
+        model: "gemini-3.1-pro-preview", // use pro since it could be reading a pdf/image reply
         contents: { parts: userParts },
       }));
 
@@ -272,7 +272,7 @@ Output ONLY the final Arabic text of the letter, ready to be printed or used. Do
 `;
 
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-3.7-pro",
+        model: "gemini-3.1-pro-preview",
         contents: { parts: [{ text: fullPrompt }] },
       }));
 
@@ -357,7 +357,7 @@ Output ONLY the final Arabic text of the letter, ready to be printed or used. Do
       }
       
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-3.7-pro",
+        model: "gemini-3.1-pro-preview",
         contents: [{ role: "user", parts: contents }],
       }));
       
@@ -425,7 +425,7 @@ ${incomingLetter || "مرفق في الملف"}
       }
 
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-3.7-pro",
+        model: "gemini-3.1-pro-preview",
         contents: { parts: contents },
       }));
 
@@ -465,7 +465,7 @@ ${incomingLetter || "مرفق في الملف"}
 ${text}`;
 
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-3.7-pro",
+        model: "gemini-3.1-pro-preview",
         contents: { parts: [{ text: fullPrompt }] },
       }));
 
