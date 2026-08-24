@@ -1518,14 +1518,7 @@ export default function Home() {
     <div className="space-y-4 pb-12 print:p-0 print:bg-white text-right">
       
       {/* 0. Print helper style injected for physical A4 layout fitting */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        @media print {
-          body * { visibility: hidden !important; background: white !important; }
-          #printable-meetings-table, #printable-meetings-table * { visibility: visible !important; }
-          #printable-meetings-table { position: absolute; left: 0; top: 0; width: 100% !important; margin: 0 !important; padding: 0 !important; }
-          .print-hidden, .print\\:hidden { display: none !important; }
-        }
-      } />
+      <style dangerouslySetInnerHTML={{ __html: "@media print { body * { visibility: hidden !important; background: white !important; } #printable-meetings-table, #printable-meetings-table * { visibility: visible !important; } #printable-meetings-table { position: absolute; left: 0; top: 0; width: 100% !important; margin: 0 !important; padding: 0 !important; } .print-hidden, .print\\:hidden { display: none !important; } }" }} />
 
 
       {/* -------------------- مركز الإشعارات والموظفين المتصلين -------------------- */}
@@ -1680,7 +1673,7 @@ export default function Home() {
                                       navigate("/events", { state: { selectedEventId: evtObj.id, selectedStepIndex: step.stepIndex } });
                                     }}
                                     className={`px-2 py-1.5 rounded-lg text-[9px] font-bold text-center border transition-all flex items-center justify-center gap-1 cursor-pointer select-none ${statusColor}`}
-                                    title={`انتقل مباشرة إلى خطوة: ${displayText}
+                                    title={`انتقل مباشرة إلى خطوة: ${displayText}`}
                                   >
                                     {step.isDone ? (
                                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />

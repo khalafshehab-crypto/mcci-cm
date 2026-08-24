@@ -155,6 +155,11 @@ export default function App() {
             const freshString = JSON.stringify(freshUser);
             if (currentStored !== freshString) {
               localStorage.setItem("current_user", freshString);
+              if (freshUser.geminiApiKey) {
+                localStorage.setItem("BYOK_GEMINI_API_KEY", freshUser.geminiApiKey);
+              } else {
+                localStorage.removeItem("BYOK_GEMINI_API_KEY");
+              }
               setUser(freshUser);
             }
           }

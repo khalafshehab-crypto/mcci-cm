@@ -206,7 +206,7 @@ export default function Library() {
       const response = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "gemini/generate-letter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: JSON.stringify({ userApiKey: localStorage.getItem('BYOK_GEMINI_API_KEY') || undefined,
           prompt: aiPrompt,
           templateContent: aiTemplate?.templateText || (aiTemplate?.title + " - " + (aiTemplate?.description || ""))
         })
@@ -431,7 +431,7 @@ ${aiPrompt || 'صغ تعميماً احترافياً يلخص المعاملة 
         setAiGenStep(3);
       } else {
         const errData = await response.text().then(t => t ? JSON.parse(t) : null).catch(() => null);
-        alert("عذراً، الخادم يواجه ضغطاً حالياً. الرجاء المحاولة مرة أخرى.\n" + (errData?.error || ""));
+        alert(errData?.error || "حدث خطأ أثناء التوليد الذكي.");
       }
     } catch (e) {
       console.error(e);

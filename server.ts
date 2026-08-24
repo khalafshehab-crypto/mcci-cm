@@ -24,11 +24,11 @@ async function uploadBase64ToGemini(ai, fileBase64, mimeType) {
     return upload.uri;
 }
 
-const executeWithRetry = async (operation: any, maxRetries = 5) => {
+const executeWithRetry = async (operation: any, maxRetries = 3) => {
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await operation();
-    } catch (err: any) {
+    } catch (err: any) { console.error('executeWithRetry error on attempt', i, err.message);
       const errStr = String(err);
       const is503 = errStr.includes("503") || errStr.includes("UNAVAILABLE") || errStr.includes("high demand") || errStr.includes("overloaded");
       const is429 = errStr.includes("429") || errStr.includes("RESOURCE_EXHAUSTED") || errStr.includes("quota");
@@ -92,7 +92,7 @@ const executeWithRetry = async (operation: any, maxRetries = 5) => {
       }
 
       return res.json(parsed);
-    } catch (err: any) {
+    } catch (err: any) { console.error('executeWithRetry error on attempt', i, err.message);
       console.error("Gmail Proxy Error:", err);
       return res.status(500).json({ error: { message: err.message || "Internal Server Error" } });
     }
@@ -143,7 +143,7 @@ const executeWithRetry = async (operation: any, maxRetries = 5) => {
       }
 
       return res.json(parsed);
-    } catch (err: any) {
+    } catch (err: any) { console.error('executeWithRetry error on attempt', i, err.message);
       console.error("Google Proxy Error:", err);
       return res.status(500).json({ error: { message: err.message || "Internal Server Error" } });
     }
@@ -154,12 +154,12 @@ const executeWithRetry = async (operation: any, maxRetries = 5) => {
   app.post("/api/gemini/generate-new-letter", async (req, res) => {
     try {
       const { mode, prompt, replyFileBase64, replyFileMimeType, committeeName, recipientName, recipientPosition, subject, details, contact, attachments, signatory, workspaceService } = req.body;
-      if (!(req.body.userApiKey || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY)) {
-        return res.status(500).json({ error: "مفتاح الذكاء الاصطناعي (GEMINI_API_KEY) غير موجود في إعدادات Vercel. يرجى إضافته في قسم Environment Variables." });
+      if (!req.body.userApiKey) {
+        return res.status(403).json({ error: "لا يمكن استخدام ميزات الذكاء الاصطناعي. يرجى إدخال مفتاح (BYOK) الخاص بك في 'إعدادات الحساب الشخصي' ضمن صفحة الموظفين." });
       }
 
       const ai = new GoogleGenAI({
-        apiKey: (req.body.userApiKey || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY),
+        apiKey: req.body.userApiKey,
         httpOptions: {
           headers: { 'User-Agent': 'aistudio-build' }
         }
@@ -168,12 +168,18 @@ const executeWithRetry = async (operation: any, maxRetries = 5) => {
       const userParts: any[] = [];
       
       if (replyFileBase64 && typeof replyFileBase64 === "string" && replyFileMimeType) {
-        userParts.push({
-          inlineData: {
-            data: replyFileBase64,
-            mimeType: replyFileMimeType
-          }
-        });
+        try {
+          const uri = await uploadBase64ToGemini(ai, replyFileBase64, replyFileMimeType);
+          userParts.push({ fileData: { fileUri: uri, mimeType: replyFileMimeType } });
+        } catch (uploadErr) {
+          console.error("Upload to Gemini File API failed, falling back to inlineData", uploadErr);
+          userParts.push({
+            inlineData: {
+              data: replyFileBase64,
+              mimeType: replyFileMimeType
+            }
+          });
+        }
       }
       
       let finalPrompt = prompt;
@@ -216,11 +222,11 @@ const executeWithRetry = async (operation: any, maxRetries = 5) => {
           }
       }
       
-      userParts.push(finalPrompt);
+      userParts.push({ text: finalPrompt });
 
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-1.5-flash", // use pro since it could be reading a pdf/image reply
-        contents: userParts,
+        model: "gemini-3.7-flash", // use pro since it could be reading a pdf/image reply
+        contents: { parts: userParts },
       }));
 
       return res.json({ result: response.text });
@@ -237,12 +243,12 @@ const executeWithRetry = async (operation: any, maxRetries = 5) => {
         return res.status(400).json({ error: "Missing prompt or templateContent" });
       }
 
-      if (!(req.body.userApiKey || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY)) {
-        return res.status(500).json({ error: "مفتاح الذكاء الاصطناعي (GEMINI_API_KEY) غير موجود في إعدادات Vercel. يرجى إضافته في قسم Environment Variables." });
+      if (!req.body.userApiKey) {
+        return res.status(403).json({ error: "لا يمكن استخدام ميزات الذكاء الاصطناعي. يرجى إدخال مفتاح (BYOK) الخاص بك في 'إعدادات الحساب الشخصي' ضمن صفحة الموظفين." });
       }
 
       const ai = new GoogleGenAI({
-        apiKey: (req.body.userApiKey || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY),
+        apiKey: req.body.userApiKey,
         httpOptions: {
           headers: {
             'User-Agent': 'aistudio-build',
@@ -266,12 +272,12 @@ Output ONLY the final Arabic text of the letter, ready to be printed or used. Do
 `;
 
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-1.5-flash",
-        contents: fullPrompt,
+        model: "gemini-3.7-flash",
+        contents: { parts: [{ text: fullPrompt }] },
       }));
 
       return res.json({ result: response.text });
-    } catch (err: any) {
+    } catch (err: any) { console.error('executeWithRetry error on attempt', i, err.message);
       console.error("Gemini Generate Letter Error:", err);
       return res.status(500).json({ error: err.message || "Internal Server Error" });
     }
@@ -285,7 +291,7 @@ Output ONLY the final Arabic text of the letter, ready to be printed or used. Do
       let uploadedFileMime = null;
       
       const ai = new GoogleGenAI({
-        apiKey: (req.body.userApiKey || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY),
+        apiKey: req.body.userApiKey,
         httpOptions: {
           headers: { 'User-Agent': 'aistudio-build' }
         }
@@ -338,8 +344,8 @@ Output ONLY the final Arabic text of the letter, ready to be printed or used. Do
           uploadedFileMime = mimeType;
       }
       
-      if (!(req.body.userApiKey || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY)) {
-        return res.status(500).json({ error: "مفتاح الذكاء الاصطناعي (GEMINI_API_KEY) غير موجود في إعدادات Vercel. يرجى إضافته في قسم Environment Variables." });
+      if (!req.body.userApiKey) {
+        return res.status(403).json({ error: "لا يمكن استخدام ميزات الذكاء الاصطناعي. يرجى إدخال مفتاح (BYOK) الخاص بك في 'إعدادات الحساب الشخصي' ضمن صفحة الموظفين." });
       }
       
       let contents: any[] = [{ text: prompt }];
@@ -351,7 +357,7 @@ Output ONLY the final Arabic text of the letter, ready to be printed or used. Do
       }
       
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-1.5-flash",
+        model: "gemini-3.7-flash",
         contents: [{ role: "user", parts: contents }],
       }));
       
@@ -369,12 +375,12 @@ Output ONLY the final Arabic text of the letter, ready to be printed or used. Do
         return res.status(400).json({ error: "Missing incomingLetter text or file" });
       }
 
-      if (!(req.body.userApiKey || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY)) {
-        return res.status(500).json({ error: "مفتاح الذكاء الاصطناعي (GEMINI_API_KEY) غير موجود في إعدادات Vercel. يرجى إضافته في قسم Environment Variables." });
+      if (!req.body.userApiKey) {
+        return res.status(403).json({ error: "لا يمكن استخدام ميزات الذكاء الاصطناعي. يرجى إدخال مفتاح (BYOK) الخاص بك في 'إعدادات الحساب الشخصي' ضمن صفحة الموظفين." });
       }
 
       const ai = new GoogleGenAI({
-        apiKey: (req.body.userApiKey || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY),
+        apiKey: req.body.userApiKey,
         httpOptions: {
           headers: {
             'User-Agent': 'aistudio-build',
@@ -419,12 +425,12 @@ ${incomingLetter || "مرفق في الملف"}
       }
 
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-1.5-flash",
-        contents: contents,
+        model: "gemini-3.7-flash",
+        contents: { parts: contents },
       }));
 
       return res.json({ result: response.text });
-    } catch (err: any) {
+    } catch (err: any) { console.error('executeWithRetry error on attempt', i, err.message);
       console.error("Gemini Reply to Letter Error:", err);
       return res.status(500).json({ error: err.message || "Internal Server Error" });
     }
@@ -437,12 +443,12 @@ ${incomingLetter || "مرفق في الملف"}
       if (!text) {
         return res.status(400).json({ error: "Missing text" });
       }
-      if (!(req.body.userApiKey || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY)) {
-        return res.status(500).json({ error: "مفتاح الذكاء الاصطناعي (GEMINI_API_KEY) غير موجود في إعدادات Vercel. يرجى إضافته في قسم Environment Variables." });
+      if (!req.body.userApiKey) {
+        return res.status(403).json({ error: "لا يمكن استخدام ميزات الذكاء الاصطناعي. يرجى إدخال مفتاح (BYOK) الخاص بك في 'إعدادات الحساب الشخصي' ضمن صفحة الموظفين." });
       }
 
       const ai = new GoogleGenAI({
-        apiKey: (req.body.userApiKey || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY),
+        apiKey: req.body.userApiKey,
         httpOptions: {
           headers: {
             'User-Agent': 'aistudio-build',
@@ -459,8 +465,8 @@ ${incomingLetter || "مرفق في الملف"}
 ${text}`;
 
       const response = await executeWithRetry(() => ai.models.generateContent({
-        model: "gemini-1.5-flash",
-        contents: fullPrompt,
+        model: "gemini-3.7-flash",
+        contents: { parts: [{ text: fullPrompt }] },
       }));
 
       return res.json({ result: response.text });

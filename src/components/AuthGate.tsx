@@ -77,6 +77,11 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
       if (existingAdmin) {
         // Use the existingAdmin (it has their custom ID, name, phone, etc.!)
         localStorage.setItem("current_user", JSON.stringify(existingAdmin));
+        if (existingAdmin.geminiApiKey) {
+          localStorage.setItem("BYOK_GEMINI_API_KEY", existingAdmin.geminiApiKey);
+        } else {
+          localStorage.removeItem("BYOK_GEMINI_API_KEY");
+        }
         await logSystemAction(existingAdmin.name, `تسجيل دخول ناجح للمسؤول برمز بريدي معتمد [${emailLower}]`, "ناجحة");
         onLogin(existingAdmin);
         return true;
@@ -99,6 +104,11 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
       // Ensure provisioned in the local storage database
       await setFirebaseEmpDoc("01", adminEmp);
       localStorage.setItem("current_user", JSON.stringify(adminEmp));
+      if (adminEmp.geminiApiKey) {
+        localStorage.setItem("BYOK_GEMINI_API_KEY", adminEmp.geminiApiKey);
+      } else {
+        localStorage.removeItem("BYOK_GEMINI_API_KEY");
+      }
       await logSystemAction(adminEmp.name, `تسجيل دخول ناجح للمسؤول برمز بريدي معتمد [${emailLower}]`, "ناجحة");
       onLogin(adminEmp);
       return true;
@@ -141,6 +151,11 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
       }
 
       localStorage.setItem("current_user", JSON.stringify(matchedEmployee));
+      if (matchedEmployee.geminiApiKey) {
+        localStorage.setItem("BYOK_GEMINI_API_KEY", matchedEmployee.geminiApiKey);
+      } else {
+        localStorage.removeItem("BYOK_GEMINI_API_KEY");
+      }
       await logSystemAction(matchedEmployee.name, `تسجيل دخول موظف بالبريد الرقمي المعتمد [${emailLower}]`, "ناجحة");
       onLogin(matchedEmployee);
       return true;
@@ -179,6 +194,11 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
       };
       await setFirebaseEmpDoc(parsedId, newEmp);
       localStorage.setItem("current_user", JSON.stringify(newEmp));
+      if (newEmp.geminiApiKey) {
+        localStorage.setItem("BYOK_GEMINI_API_KEY", newEmp.geminiApiKey);
+      } else {
+        localStorage.removeItem("BYOK_GEMINI_API_KEY");
+      }
       await logSystemAction(newEmp.name, `إنشاء تلقائي لموظف معتمد (Whitelist) وتفويض الدخول [${emailLower}]`, "ناجحة");
       onLogin(newEmp);
       return true;

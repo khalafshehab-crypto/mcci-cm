@@ -11,6 +11,7 @@ export const extractAgendaClient = async (
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
+      userApiKey: localStorage.getItem('BYOK_GEMINI_API_KEY') || undefined,
       prompt,
       fileBase64,
       mimeType,
@@ -39,6 +40,7 @@ export const replyToLetterClient = async (
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
+      userApiKey: localStorage.getItem('BYOK_GEMINI_API_KEY') || undefined,
       incomingLetter,
       fileBase64,
       mimeType

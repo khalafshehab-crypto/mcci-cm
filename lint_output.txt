@@ -1,0 +1,43 @@
+
+> react-example@0.0.0 lint
+> tsc --noEmit
+
+src/pages/Home.tsx(1583,29): error TS1005: ',' expected.
+src/pages/Home.tsx(1583,33): error TS1005: ',' expected.
+src/pages/Home.tsx(1583,37): error TS1351: An identifier or keyword cannot immediately follow a numeric literal.
+src/pages/Home.tsx(1583,41): error TS1005: '}' expected.
+src/pages/Home.tsx(1583,67): error TS1003: Identifier expected.
+src/pages/Home.tsx(1587,19): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/pages/Home.tsx(1588,15): error TS1382: Unexpected token. Did you mean `{'>'}` or `&gt;`?
+src/pages/Home.tsx(1591,17): error TS17002: Expected corresponding JSX closing tag for 'div'.
+src/pages/Home.tsx(1592,13): error TS1005: ')' expected.
+src/pages/Home.tsx(1593,11): error TS1109: Expression expected.
+src/pages/Home.tsx(1596,16): error TS1005: ';' expected.
+src/pages/Home.tsx(1597,28): error TS1005: ',' expected.
+src/pages/Home.tsx(1659,27): error TS2657: JSX expressions must have one parent element.
+src/pages/Home.tsx(1758,41): error TS1005: '}' expected.
+src/pages/Home.tsx(1758,50): error TS1003: Identifier expected.
+src/pages/Home.tsx(1758,53): error TS1005: ';' expected.
+src/pages/Home.tsx(1758,64): error TS1005: ';' expected.
+src/pages/Home.tsx(1758,72): error TS1351: An identifier or keyword cannot immediately follow a numeric literal.
+src/pages/Home.tsx(1758,76): error TS1005: ';' expected.
+src/pages/Home.tsx(1758,87): error TS1005: ';' expected.
+src/pages/Home.tsx(1758,102): error TS1005: ';' expected.
+src/pages/Home.tsx(1758,117): error TS1005: ';' expected.
+src/pages/Home.tsx(1758,135): error TS1005: ';' expected.
+src/pages/Home.tsx(1758,141): error TS1005: ';' expected.
+src/pages/Home.tsx(1758,148): error TS1434: Unexpected keyword or identifier.
+src/pages/Home.tsx(1850,32): error TS1005: ';' expected.
+src/pages/Home.tsx(1850,39): error TS1434: Unexpected keyword or identifier.
+src/pages/Home.tsx(1850,45): error TS1434: Unexpected keyword or identifier.
+src/pages/Home.tsx(1850,51): error TS1434: Unexpected keyword or identifier.
+src/pages/Home.tsx(1850,63): error TS1127: Invalid character.
+src/pages/Home.tsx(1854,23): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/pages/Home.tsx(1857,19): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/pages/Home.tsx(1857,20): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/pages/Home.tsx(1858,17): error TS1382: Unexpected token. Did you mean `{'>'}` or `&gt;`?
+src/pages/Home.tsx(1888,13): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/pages/Home.tsx(1888,15): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/pages/Home.tsx(1894,9): error TS1005: ')' expected.
+src/pages/Home.tsx(2802,7): error TS17002: Expected corresponding JSX closing tag for 'motion.div'.
+src/pages/Home.tsx(2804,2): error TS1005: ')' expected.

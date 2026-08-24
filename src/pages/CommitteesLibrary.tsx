@@ -333,17 +333,17 @@ export default function CommitteesLibrary() {
   const [circularAtt3, setCircularAtt3] = useState<File | string | null>(null);
   
   // Circular Variables (مطابقة لمعايير الهوية الرسمية)
-  const [circularIncomingFrom, setCircularIncomingFrom] = useState("اتحاد الغرف السعودية");
-  const [circularIncomingNumber, setCircularIncomingNumber] = useState("ACS005681");
-  const [circularIncomingDate, setCircularIncomingDate] = useState("2025-10-12");
-  const [circularSubject, setCircularSubject] = useState("دعوة المهتمين للانضمام إلى عضوية مجلس الأعمال السعودي التايلاندي");
-  const [circularContactName, setCircularContactName] = useState("الأستاذ / محمد الصيعري");
-  const [circularContactPhone, setCircularContactPhone] = useState("0581517644");
-  const [circularContactEmail, setCircularContactEmail] = useState("malsaiari@fsc.org.sa");
-  const [circularAttachmentName, setCircularAttachmentName] = useState("خطاب اتحاد الغرف");
+  const [circularIncomingFrom, setCircularIncomingFrom] = useState("");
+  const [circularIncomingNumber, setCircularIncomingNumber] = useState("");
+  const [circularIncomingDate, setCircularIncomingDate] = useState("");
+  const [circularSubject, setCircularSubject] = useState("");
+  const [circularContactName, setCircularContactName] = useState("");
+  const [circularContactPhone, setCircularContactPhone] = useState("");
+  const [circularContactEmail, setCircularContactEmail] = useState("");
+  const [circularAttachmentName, setCircularAttachmentName] = useState("");
   
-  const [circularOutNumber, setCircularOutNumber] = useState(`15/45536242`);
-  const [circularOutDate, setCircularOutDate] = useState(`1447/04/20 هـ`);
+  const [circularOutNumber, setCircularOutNumber] = useState("");
+  const [circularOutDate, setCircularOutDate] = useState("");
   const [circularTypes, setCircularTypes] = useState<string[]>([]);
   const circularPrintRef = useRef<HTMLDivElement>(null);
 
@@ -437,14 +437,14 @@ export default function CommitteesLibrary() {
     setCircularAtt1(null);
     setCircularAtt2(null);
     setCircularAtt3(null);
-    setCircularIncomingFrom("اتحاد الغرف السعودية");
-    setCircularIncomingNumber("ACS005681");
-    setCircularIncomingDate("2025-10-12");
-    setCircularSubject("دعوة المهتمين للانضمام إلى عضوية مجلس الأعمال السعودي التايلاندي");
-    setCircularContactName("الأستاذ / محمد الصيعري");
-    setCircularContactPhone("0581517644");
-    setCircularContactEmail("malsaiari@fsc.org.sa");
-    setCircularAttachmentName("خطاب اتحاد الغرف");
+    setCircularIncomingFrom("");
+    setCircularIncomingNumber("");
+    setCircularIncomingDate("");
+    setCircularSubject("");
+    setCircularContactName("");
+    setCircularContactPhone("");
+    setCircularContactEmail("");
+    setCircularAttachmentName("");
     setAiGenTemplateType("مستندات (Google Docs)");
     setAiGenMode("new");
     setAiGenRecipientName("");
@@ -472,19 +472,19 @@ export default function CommitteesLibrary() {
       if (aiGenMode === "reply" && aiGenReplyFile) {
         const reader = new FileReader();
         const base64Promise = new Promise<string>((resolve) => {
-          reader.onload = (ev) => resolve((ev.target?.result as string).split(','));
+          reader.onload = (ev) => resolve((ev.target?.result as string).split(',')[1]);
         });
         reader.readAsDataURL(aiGenReplyFile);
         replyFileBase64 = await base64Promise;
-        replyFileMimeType = aiGenReplyFile.type;
+        replyFileMimeType = aiGenReplyFile.type || "application/pdf";
       } else if (workspaceService === "circular" && circularMainFile && typeof circularMainFile === 'object') {
         const reader = new FileReader();
         const base64Promise = new Promise<string>((resolve) => {
-          reader.onload = (ev) => resolve((ev.target?.result as string).split(','));
+          reader.onload = (ev) => resolve((ev.target?.result as string).split(',')[1]);
         });
         reader.readAsDataURL(circularMainFile as File);
         replyFileBase64 = await base64Promise;
-        replyFileMimeType = circularMainFile.type;
+        replyFileMimeType = circularMainFile.type || "application/pdf";
       }
 
       const contactInfo = contactEmp ? `${contactEmp.jobTitle ? contactEmp.jobTitle + ' / ' : ''}${contactEmp.name} (جوال: ${contactEmp.phone || ''}, بريد: ${contactEmp.email || ''})` : aiGenContact;
@@ -508,13 +508,13 @@ export default function CommitteesLibrary() {
 التعميم وارد من: اسم الجهة الوارد منها
 رقم خطاب الجهة: رقم الخطاب الأساسي المكتوب في خطاب الجهة المرسلة
 تاريخ خطاب الجهة: تاريخ الخطاب الأساسي للجهة المرسلة
-رقم ملصق الغرفة: رقم الاستيكر/الملصق المضاف من الغرفة (مثل ACS005681)
+رقم ملصق الغرفة: رقم الاستيكر/الملصق المضاف من الغرفة 
 تاريخ ملصق الغرفة: تاريخ الاستيكر/الملصق المضاف من الغرفة
 الموضوع: موضوع التعميم الرئيسي بصياغة رسمية واضحة ومباشرة
-مسؤول التواصل: اسم مسؤول التواصل ومسماه الوظيفي تماماً كما ورد في الخطاب (مثال: أمين مجلس الأعمال الأستاذ/ محمد الصيعري)
-هاتف التواصل: رقم الجوال إن وجد
-بريد التواصل: البريد الإلكتروني إن وجد
-اسم المرفق: اسم مقترح للمرفق بناءً على الجهة المرسلة (مثل: خطاب اتحاد الغرف)
+مسؤول التواصل: اسم مسؤول التواصل ومسماه الوظيفي تماماً كما ورد في الخطاب (وإن لم يوجد اتركه فارغاً)
+هاتف التواصل: رقم الجوال إن وجد (وإن لم يوجد اتركه فارغاً)
+بريد التواصل: البريد الإلكتروني إن وجد (وإن لم يوجد اتركه فارغاً)
+اسم المرفق: اسم مقترح للمرفق بناءً على الجهة المرسلة 
 نوع التعميم: استخرج أو استنتج نوع/أهمية التعميم من الكلمات التالية إذا وجدت (عادي، هام، عاجل، سري). يمكن اختيار أكثر من واحد، افصل بينها بفاصلة. إذا لم يُذكر شيء اعتبره (عادي).
 عرض التعميم:
 نص التعميم التوجيهي أو ملخص فحوى التعميم الموجه للجان`;
@@ -599,11 +599,11 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
         setAiGenStep(3);
       } else {
         const errData = await response.text().then(t => t ? JSON.parse(t) : null).catch(() => null);
-        alert("عذراً، الخادم يواجه ضغطاً حالياً. الرجاء المحاولة مرة أخرى.\n" + (errData?.error || ""));
+        showGlobalToast("عذراً، الخادم يواجه ضغطاً حالياً. الرجاء المحاولة مرة أخرى.\n" + (errData?.error || ""), "error");
       }
     } catch (e) {
       console.error(e);
-      alert("حدث خطأ أثناء الاتصال بالخادم. الرجاء التأكد من اتصالك بالإنترنت والمحاولة مجدداً.");
+      showGlobalToast("حدث خطأ أثناء الاتصال بالخادم. الرجاء التأكد من اتصالك بالإنترنت والمحاولة مجدداً.", "error");
     } finally {
       setIsAIGenGenerating(false);
     }
@@ -629,7 +629,7 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
 
         let finalDocumentText = aiGenGeneratedText;
         if (workspaceService === "circular") {
-            const circularBody = aiGenGeneratedText.split("عرض التعميم:")?.trim() || aiGenGeneratedText;
+            const circularBody = aiGenGeneratedText.split("عرض التعميم:")[1]?.trim() || aiGenGeneratedText;
             finalDocumentText = `تعميم إداري\nاللجنة: ${committeeName}\nرقم التعميم: ${circularOutNumber}\nالتاريخ: ${circularOutDate}\nالوارد من: ${circularIncomingFrom || "—"}\nبرقم: ${circularIncomingNumber || "—"} وتاريخ: ${circularIncomingDate || "—"}\nالموضوع: ${circularSubject || "—"}\n\n${circularBody}\n\nللتواصل: ${circularContactName || "—"}\nجوال: ${circularContactPhone || "—"}\nبريد: ${circularContactEmail || "—"}`;
         }
         
@@ -678,7 +678,7 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
       setIsAIGenOpen(false);
     } catch (e) {
       console.error(e);
-      alert("حدث خطأ أثناء الحفظ. الرجاء المحاولة مجدداً.");
+      alert("حدث خطأ أثناء الحفظ. الرجاء المحاولة مجدداً.", "error");
     }
   };
 
@@ -2291,7 +2291,7 @@ ${t.description}
                                   </span>
                                   <div>
                                     <span className="text-[10px] font-bold text-gray-500 block mb-0.5">للاستفسار والتواصل</span>
-                                    <span className="text-xs font-black text-gray-900">{circularContactName || "الأستاذ / محمد الصيعري"}</span>
+                                    <span className="text-xs font-black text-gray-900">{circularContactName || "—"}</span>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2.5" dir="ltr">
@@ -2508,7 +2508,7 @@ ${t.description}
                               </span>
                               <div>
                                 <span className="text-xs font-bold text-gray-500 block mb-0.5">للاستفسار والتواصل</span>
-                                <span className="text-sm font-black text-gray-900">{circularContactName || "الأستاذ / محمد الصيعري"}</span>
+                                <span className="text-sm font-black text-gray-900">{circularContactName || "—"}</span>
                               </div>
                             </div>
                             <div className="flex items-center gap-3" dir="ltr">
