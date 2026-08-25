@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import { toPng } from 'html-to-image';
 import { showGlobalToast } from "../lib/toastUtils";
-import { createGoogleDoc, resolveDrivePath, uploadFileToDriveByPath, moveDriveFile } from "../lib/googleApi";
+import { createGoogleDoc, resolveDrivePath, uploadFileToDriveByPath, moveDriveFile, uploadBinaryFileToDrive } from "../lib/googleApi";
 import { logoBase64 } from "../lib/logoBase64";
 import React, { useState, useEffect, FormEvent, useRef } from "react";
 import {
@@ -46,7 +46,7 @@ import {
   Loader2, Info,
   CheckCircle2,
   Search,
-  Copy
+  Copy, Edit
 } from "lucide-react";
 import { db } from "../lib/firebase";
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from "firebase/firestore";
@@ -54,6 +54,11 @@ import { motion, AnimatePresence } from "motion/react";
 import GoogleWorkspaceCenter from "../components/GoogleWorkspaceCenter";
 
 export interface TemplateItem {
+  committeeUrls?: Record<string, string>;
+  circularDetails?: any;
+  attachments?: any[];
+  targetCommittees?: string[];
+  targetCommitteesList?: any[];
   id: string;
   title: string;
   description: string;
@@ -322,6 +327,7 @@ export default function CommitteesLibrary() {
 
   // AI Generator States
   const [isAIGenOpen, setIsAIGenOpen] = useState(false);
+  const [editAIGenTargetId, setEditAIGenTargetId] = useState<string | null>(null);
   const [aiGenStep, setAiGenStep] = useState(1);
   const [workspaceService, setWorkspaceService] = useState("docs");
   const [aiGenCommittees, setAiGenCommittees] = useState<string[]>([]);
@@ -340,6 +346,7 @@ export default function CommitteesLibrary() {
   const [circularContactName, setCircularContactName] = useState("");
   const [circularContactPhone, setCircularContactPhone] = useState("");
   const [circularContactEmail, setCircularContactEmail] = useState("");
+  const [circularDistribution, setCircularDistribution] = useState("كلاهما");
   const [circularAttachmentName, setCircularAttachmentName] = useState("");
   
   const [circularOutNumber, setCircularOutNumber] = useState("");
@@ -357,7 +364,7 @@ export default function CommitteesLibrary() {
     }
   };
   
-  const getPdfBlob = async (): Promise<Blob | null> => {
+  const getPdfBlob = async (attachmentDriveUrls?: Record<string, string>): Promise<Blob | null> => {
     if (!circularPrintRef.current) return null;
     try {
       const el = circularPrintRef.current;
@@ -383,7 +390,11 @@ export default function CommitteesLibrary() {
       const containerRect = el.getBoundingClientRect();
       
       links.forEach((link) => {
-        const url = link.getAttribute('data-pdf-link');
+        let url = link.getAttribute('data-pdf-link');
+        const attId = link.getAttribute('data-pdf-link-id');
+        if (attId && attachmentDriveUrls && attachmentDriveUrls[attId]) {
+            url = attachmentDriveUrls[attId];
+        }
         if (!url || url === '#') return;
         
         const rect = link.getBoundingClientRect();
@@ -644,14 +655,23 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
       const finalType = isCircular ? "تعميم" : aiGenTemplateType.replace(/\s*\(.*\)/, "").trim();
       const subjectName = aiGenSubject || circularSubject || "تعميم جديد";
       
+      const uploadToFolder = async (f: File, parent: string) => {
+                  const b64 = await new Promise<string>((res, rej) => {
+                    const reader = new FileReader();
+                    reader.onload = () => res((reader.result as string).split(',')[1]);
+                    reader.onerror = rej;
+                    reader.readAsDataURL(f);
+                  });
+                  const uploaded = await uploadBinaryFileToDrive(f.name, b64, f.type, parent);
+                  return uploaded.webViewLink || `https://drive.google.com/file/d/${uploaded.id}/view`;
+               };
+
       let pdfBlob: Blob | null = null;
-      if (isCircular) {
-          pdfBlob = await getPdfBlob();
-      }
-      
+      let pdfGenerated = false;
       const committeeUrls: any[] = [];
       let lastCloudUrl = "#";
       let lastTemplateText = "";
+      
       for (const committee of targetCommittees) {
         const committeeName = committee.name;
         
@@ -674,13 +694,27 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
             finalCloudUrl = documentUrl;
             
             if (isCircular) {
+               let mainUrl = "", att1Url = "", att2Url = "", att3Url = "";
+               if (circularMainFile && typeof circularMainFile === 'object') mainUrl = await uploadToFolder(circularMainFile as File, folderId);
+               if (circularAtt1 && typeof circularAtt1 === 'object') att1Url = await uploadToFolder(circularAtt1 as File, folderId);
+               if (circularAtt2 && typeof circularAtt2 === 'object') att2Url = await uploadToFolder(circularAtt2 as File, folderId);
+               if (circularAtt3 && typeof circularAtt3 === 'object') att3Url = await uploadToFolder(circularAtt3 as File, folderId);
+               
+               if (!pdfGenerated) {
+                  const overrideUrls: Record<string, string> = {};
+                  if (mainUrl) overrideUrls.main = mainUrl;
+                  if (att1Url) overrideUrls.att1 = att1Url;
+                  if (att2Url) overrideUrls.att2 = att2Url;
+                  if (att3Url) overrideUrls.att3 = att3Url;
+                  pdfBlob = await getPdfBlob(overrideUrls);
+                  pdfGenerated = true;
+               }
+               
                if (pdfBlob) {
                    const pdfFile = new File([pdfBlob], `تعميم_${circularOutNumber.replace(/[\\/\\]/g, '-')}.pdf`, { type: 'application/pdf' });
-                   const uploadedPdfUrl = await uploadFileToDriveByPath(pdfFile, folderPath, pdfFile.name);
+                   const uploadedPdfUrl = await uploadToFolder(pdfFile, folderId);
                    if (uploadedPdfUrl) finalCloudUrl = uploadedPdfUrl;
                }
-               if (circularMainFile && typeof circularMainFile === 'object') await uploadFileToDriveByPath(circularMainFile as File, folderPath, (circularMainFile as File).name);
-               if (circularAtt1 && typeof circularAtt1 === 'object') await uploadFileToDriveByPath(circularAtt1 as File, folderPath, (circularAtt1 as File).name);
             }
           } catch (apiError) {
             console.error("Google API Error:", apiError);
@@ -697,7 +731,7 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
             documentUrl: finalCloudUrl,
             folderUrl: folderCloudUrl
         });
-        await new Promise(resolve => setTimeout(resolve, 800));
+        await new Promise(resolve => setTimeout(resolve, 1500));
       }
       
       const urlAttachments = [];
@@ -729,14 +763,20 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
             contactName: circularContactName,
             contactPhone: circularContactPhone,
             contactEmail: circularContactEmail,
+            distributionMethod: (circularViaEmail && circularViaWhatsApp) ? "البريد الإلكتروني والواتس آب" : circularViaEmail ? "البريد الإلكتروني" : circularViaWhatsApp ? "الواتس آب" : "غير محدد",
             body: aiGenGeneratedText.split("عرض التعميم:")[1]?.trim() || aiGenGeneratedText,
         } : null
       };
       
-      await addDoc(collection(db, "templates"), newDoc);
+      if (editAIGenTargetId) {
+        await updateDoc(doc(db, "templates", editAIGenTargetId), newDoc);
+      } else {
+        await addDoc(collection(db, "templates"), newDoc);
+      }
       
       showGlobalToast(targetCommittees.length > 1 ? `تم حفظ التعميم بنجاح لعدد ${targetCommittees.length} من اللجان.` : "تم حفظ التعميم بنجاح.", "success");
       setIsAIGenOpen(false);
+      setEditAIGenTargetId(null);
     } catch (e) {
       console.error(e);
       showGlobalToast("حدث خطأ أثناء الحفظ. الرجاء المحاولة مجدداً.", "error");
@@ -1020,6 +1060,43 @@ ${t.description}
       alert("حدث خطأ أثناء حفظ النموذج الرقمي.");
     } finally {
       setFormIsSaving(false);
+    }
+  };
+
+  const handleEditTemplate = (item: TemplateItem) => {
+    setEditAIGenTargetId(item.id);
+    if (item.type === "تعميم" && item.circularDetails) {
+      setWorkspaceService("circular");
+      setCircularIncomingFrom(item.circularDetails.incomingFrom || "");
+      setCircularOutNumber(item.circularDetails.outNumber || "");
+      setCircularOutDate(item.circularDetails.outDate || "");
+      
+      if (item.attachments && item.attachments.length > 0) {
+          setCircularMainFile(item.attachments[0] || null);
+          setCircularAtt1(item.attachments[1] || null);
+          setCircularAtt2(item.attachments[2] || null);
+          setCircularAtt3(item.attachments[3] || null);
+      }
+
+      setCircularIncomingNumber(item.circularDetails.incomingNumber || "");
+      setCircularIncomingDate(item.circularDetails.incomingDate || "");
+      setCircularSubject(item.circularDetails.subject || item.title || "");
+      setCircularContactName(item.circularDetails.contactName || "");
+      setCircularContactPhone(item.circularDetails.contactPhone || "");
+      setCircularContactEmail(item.circularDetails.contactEmail || "");
+      setAiGenGeneratedText(item.circularDetails.body || "");
+      setAiGenSubject(item.title);
+      
+      const distribution = item.circularDetails.distributionMethod || "";
+      setCircularViaEmail(distribution.includes("البريد") || distribution.includes("الايميل") || distribution.includes("كلاهما") || distribution.includes("الكتروني"));
+      setCircularViaWhatsApp(distribution.includes("واتس") || distribution.includes("كلاهما"));
+      
+      setAiGenCommittees(item.targetCommittees?.map(c => String(c.id)) || []);
+      
+      setIsAIGenOpen(true);
+      setAiGenStep(2);
+    } else {
+      showGlobalToast("عذراً، ميزة التعديل متاحة حالياً للتعاميم فقط.", "error");
     }
   };
 
@@ -1399,8 +1476,15 @@ ${t.description}
                     </div>
                     <div className="flex items-center gap-1">
                       <button
-                        onClick={() => handleDeleteTemplate(t)}
-                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-red-100 shadow-sm hover:shadow"
+                            onClick={() => handleEditTemplate(t)}
+                            className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-green-100 shadow-sm hover:shadow"
+                            title="تعديل"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTemplate(t)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-red-100 shadow-sm hover:shadow"
                         title="حذف"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1563,6 +1647,13 @@ ${t.description}
                             title="مشاركة سريعة"
                           >
                             <Share2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleEditTemplate(t)}
+                            className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-green-100 shadow-sm hover:shadow"
+                            title="تعديل"
+                          >
+                            <Edit className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDeleteTemplate(t)}
@@ -1922,6 +2013,12 @@ ${t.description}
                         {circularDetailsOpen.circularDetails.incomingFrom || "—"}
                       </div>
                     </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 mb-1">طريقة التعميم</label>
+                      <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-gray-800 font-bold text-sm">
+                        {circularDetailsOpen.circularDetails.distributionMethod === "كلاهما" ? "البريد الإلكتروني والواتس آب" : circularDetailsOpen.circularDetails.distributionMethod || "—"}
+                      </div>
+                    </div>
                     <div className="md:col-span-2">
                       <label className="block text-xs font-bold text-gray-500 mb-1">نص التعميم</label>
                       <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100 text-gray-800 font-medium text-sm leading-relaxed whitespace-pre-wrap">
@@ -1966,6 +2063,12 @@ ${t.description}
                     {circularDetailsOpen.committeeUrls?.map((cu: any) => (
                       <div key={cu.committeeId} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
                         <span className="font-bold text-gray-700 text-sm">{cu.committeeName}</span>
+                        <div className="flex items-center gap-3">
+                        {circularDetailsOpen.circularDetails?.distributionMethod && circularDetailsOpen.circularDetails.distributionMethod !== "غير محدد" && (
+                          <span className="text-[11px] text-gray-500">
+                             (تم التعميم عن طريق {circularDetailsOpen.circularDetails.distributionMethod === "كلاهما" ? "البريد الإلكتروني والواتس آب" : circularDetailsOpen.circularDetails.distributionMethod})
+                          </span>
+                        )}
                         <a
                           href={cu.folderUrl || cu.documentUrl}
                           target="_blank"
@@ -1975,6 +2078,7 @@ ${t.description}
                           المجلد السحابي
                           <ExternalLink className="w-3.5 h-3.5" />
                         </a>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2698,7 +2802,7 @@ ${t.description}
                             <div className="flex items-center gap-3 flex-wrap">
                               <a 
                                 href={getAttachmentUrl(circularMainFile)} 
-                                data-pdf-link={getAttachmentUrl(circularMainFile)} 
+                                data-pdf-link={getAttachmentUrl(circularMainFile)} data-pdf-link-id="main" 
                                 target="_blank" 
                                 rel="noreferrer" 
                                 className="bg-[#EFF6FF] text-[#1E40AF] border border-[#BFDBFE] px-4 py-2 rounded-xl text-sm font-extrabold flex items-center gap-2 hover:bg-blue-100 transition-all shadow-sm"
@@ -2708,7 +2812,7 @@ ${t.description}
                               {circularAtt1 && (
                                 <a 
                                   href={getAttachmentUrl(circularAtt1)} 
-                                  data-pdf-link={getAttachmentUrl(circularAtt1)} 
+                                  data-pdf-link={getAttachmentUrl(circularAtt1)} data-pdf-link-id="att1" 
                                   target="_blank" 
                                   rel="noreferrer" 
                                   className="bg-[#EFF6FF] text-[#1E40AF] border border-[#BFDBFE] px-4 py-2 rounded-xl text-sm font-extrabold flex items-center gap-2 hover:bg-blue-100 transition-all shadow-sm"
@@ -2719,7 +2823,7 @@ ${t.description}
                               {circularAtt2 && (
                                 <a 
                                   href={getAttachmentUrl(circularAtt2)} 
-                                  data-pdf-link={getAttachmentUrl(circularAtt2)} 
+                                  data-pdf-link={getAttachmentUrl(circularAtt2)} data-pdf-link-id="att2" 
                                   target="_blank" 
                                   rel="noreferrer" 
                                   className="bg-[#EFF6FF] text-[#1E40AF] border border-[#BFDBFE] px-4 py-2 rounded-xl text-sm font-extrabold flex items-center gap-2 hover:bg-blue-100 transition-all shadow-sm"
@@ -2730,7 +2834,7 @@ ${t.description}
                               {circularAtt3 && (
                                 <a 
                                   href={getAttachmentUrl(circularAtt3)} 
-                                  data-pdf-link={getAttachmentUrl(circularAtt3)} 
+                                  data-pdf-link={getAttachmentUrl(circularAtt3)} data-pdf-link-id="att3" 
                                   target="_blank" 
                                   rel="noreferrer" 
                                   className="bg-[#EFF6FF] text-[#1E40AF] border border-[#BFDBFE] px-4 py-2 rounded-xl text-sm font-extrabold flex items-center gap-2 hover:bg-blue-100 transition-all shadow-sm"
@@ -2817,7 +2921,8 @@ ${t.description}
                 )}
 
                 {aiGenStep === 4 && workspaceService === "circular" && (
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-col md:flex-row items-center gap-4 w-full">                    <div className="flex-1"></div>
+                    <div className="flex items-center gap-3">
                     <button
                       onClick={handleDownloadPDF}
                       className="px-6 py-2.5 bg-[#133E87] text-white rounded-xl text-sm font-bold hover:bg-[#0B2545] transition-colors flex items-center gap-2 shadow-md"
@@ -2830,6 +2935,7 @@ ${t.description}
                     >
                       <Check className="w-4 h-4" /> حفظ وأرشفة بالدرايف
                     </button>
+                  </div>
                   </div>
                 )}
 

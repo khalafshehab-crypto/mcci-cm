@@ -154,7 +154,7 @@ export async function disconnectGoogleWorkspace() {
 }
 
 // helper rest call
-async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Promise<any> {
+async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}, maxRetries = 5): Promise<any> {
   const token = await getSharedAccessToken();
   if (!token) {
     throw new Error("Authentication required: No active Google Workspace connection.");
@@ -179,52 +179,76 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}): Prom
     url = `https://chat.googleapis.com/${endpoint.substring(5)}`;
   }
 
-  const response = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "google-proxy", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      token,
-      url,
-      method: options.method || "GET",
-      headers: { ...options.headers },
-      body: options.body
-    })
-  });
+  let lastError;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const response = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "google-proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token,
+        url,
+        method: options.method || "GET",
+        headers: { ...options.headers },
+        body: options.body
+      })
+    });
 
-  if (!response.ok) {
-    if (response.status === 401) {
-      console.warn("Google API 401: Token expired. Attempting silent refresh...");
-      try {
-        console.warn("Google API 401: Pausing and requesting user to re-authenticate via UI...");
-        const newAccessToken = await triggerAuthModal();
-        if (newAccessToken) {
-          setCachedAccessToken(newAccessToken);
-          const retryResponse = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "google-proxy", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              token: newAccessToken,
-              url,
-              method: options.method || "GET",
-              headers: { ...options.headers },
-              body: options.body
-            })
-          });
-          if (retryResponse.status === 204) return null;
-          return retryResponse.json();
-        }
-      } catch (e) {
-        console.error("User rejected re-auth", e);
-        throw new Error("Google Workspace Session Expired. Please log in again.");
+    if (!response.ok) {
+      if (response.status === 429 || response.status === 500 || response.status === 502 || response.status === 503) {
+        console.warn(`Google API Rate Limit (${response.status}). Retrying attempt ${attempt + 1}/${maxRetries}...`);
+        await new Promise(res => setTimeout(res, 2000 * Math.pow(2, attempt) + Math.random() * 1000));
+        lastError = response;
+        continue;
       }
-    }
-    const errObj = await response.json().catch(() => ({}));
-    throw new Error(`Google API Error (${response.status}): ${errObj?.error?.message || response.statusText}`);
-  }
-  if (response.status === 204) return null;
-  return response.json();
-}
+      
+      if (response.status === 403) {
+         const cloned = response.clone();
+         const errJson = await cloned.json().catch(() => ({}));
+         if (errJson?.error?.message?.includes("Rate Limit") || errJson?.error?.message?.includes("rate limit") || errJson?.error?.errors?.[0]?.reason === "rateLimitExceeded" || errJson?.error?.errors?.[0]?.reason === "userRateLimitExceeded") {
+            console.warn(`Google API Rate Limit (403). Retrying attempt ${attempt + 1}/${maxRetries}...`);
+            await new Promise(res => setTimeout(res, 2000 * Math.pow(2, attempt) + Math.random() * 1000));
+            lastError = response;
+            continue;
+         }
+      }
 
+      if (response.status === 401) {
+        console.warn("Google API 401: Token expired. Requesting user to re-authenticate via UI...");
+        try {
+          const newAccessToken = await triggerAuthModal();
+          if (newAccessToken) {
+            setCachedAccessToken(newAccessToken);
+            const retryResponse = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "google-proxy", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                token: newAccessToken,
+                url,
+                method: options.method || "GET",
+                headers: { ...options.headers },
+                body: options.body
+              })
+            });
+            if (retryResponse.status === 204) return null;
+            return retryResponse.json();
+          }
+        } catch (e) {
+          console.error("User rejected re-auth", e);
+          throw new Error("Google Workspace Session Expired. Please log in again.");
+        }
+      }
+      
+      const errObj = await response.json().catch(() => ({}));
+      throw new Error(`Google API Error (${response.status}): ${errObj?.error?.message || response.statusText}`);
+    }
+
+    if (response.status === 204) return null;
+    return response.json();
+  }
+  
+  const errObj = await lastError.json().catch(() => ({}));
+  throw new Error(`Google API Error (${lastError.status}): ${errObj?.error?.message || lastError.statusText}`);
+}
 
 export async function listDriveFiles(q: string = ""): Promise<any[]> {
   const endpoint = q ? `drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)` : "drive/v3/files";

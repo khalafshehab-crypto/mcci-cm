@@ -247,3 +247,4 @@ export async function getDoc(docRef: any): Promise<any> {
     return mockFb.getDoc ? mockFb.getDoc(docRef) : { exists: () => false, data: () => null };
   }
 }
+export { where } from "firebase/firestore";

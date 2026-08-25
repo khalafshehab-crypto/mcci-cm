@@ -17,7 +17,7 @@ import {
   UserCheck
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";import NotificationCenter from "./NotificationCenter";
 import { subscribeToFirestoreBlocked } from "../lib/firebaseUtils";
  
 interface LayoutProps {
@@ -402,6 +402,7 @@ export default function Layout({ children }: LayoutProps) {
         <div className="flex flex-col md:flex-row-reverse items-stretch md:items-center gap-2">
           {/* Date & Time */}
           <div className="flex flex-row-reverse items-center gap-2 pr-0 pt-2 md:pt-0">
+            <NotificationCenter />
             {/* 1. Date Cards */}
             <div id="datetime-card" className="flex flex-col gap-1">
               <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-gray-100 shadow-sm min-w-0 sm:min-w-[150px]">

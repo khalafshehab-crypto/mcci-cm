@@ -2,6 +2,8 @@ import React, { useState, useEffect, FormEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query } from '../lib/firebase';
 import { db } from '../lib/firebase';
+import { getSharedAccessToken, triggerAuthModal, getOrCreateFolder, uploadBinaryFileToDrive } from "../lib/googleApi";
+import { showGlobalToast } from "../lib/toastUtils";
 import { 
   CheckSquare, Search, Plus, X, Trash2, Edit2, LayoutGrid, List, AlertTriangle, Check, BookOpen, Clock, AlignLeft, Send, Filter, Users, Settings, Copy, ChevronDown, ChevronUp, Sparkles, Sliders, ArrowLeftRight, Archive, CheckCircle2, AlertCircle, FileSpreadsheet, Paperclip, ChevronLeft, Calendar
 } from "lucide-react";
@@ -252,6 +254,7 @@ export default function CommitteesTasks() {
     setCurrentTask(task);
     setStatus(task.status);
     setAchievementNotes(task.achievementNotes || "");
+    setTempAttachments(task.attachments || []);
     setIsActionOpen(true);
   };
 
@@ -292,7 +295,8 @@ export default function CommitteesTasks() {
         status,
         achievementNotes: combinedNotes,
         escalationLevel: newEscLevel,
-        historyLog: updatedHistory
+        historyLog: updatedHistory,
+        attachments: tempAttachments
       });
       setIsActionOpen(false);
       setNewProgressNote("");
@@ -390,19 +394,55 @@ export default function CommitteesTasks() {
     }
   };
 
-  const handleDrop = (e: any) => {
+  const handleDrop = async (e: any) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const filesArray = Array.from(e.dataTransfer.files) as File[];
-      const mapped = filesArray.map(f => ({
-        name: f.name,
-        url: `https://drive.google.com/drive/folders/uploaded_task_${Date.now()}`,
-        date: new Date().toISOString().substring(0, 10)
-      }));
-      setTempAttachments([...tempAttachments, ...mapped]);
+      
+      showGlobalToast("جاري المعالجة والرفع إلى السحابة المركزية...", "loading", 0);
+      try {
+        let token = await getSharedAccessToken();
+        if (!token) {
+          token = await triggerAuthModal();
+          if (!token) return;
+        }
+
+        const rootFolderId = await getOrCreateFolder("تقرير اللجان للدورة الـ 22");
+        const tasksFolderId = await getOrCreateFolder("المهام الإدارية", rootFolderId);
+        
+        const empName = assignedTo || "عام";
+        const empFolderId = await getOrCreateFolder(empName, tasksFolderId);
+        
+        const taskFolderId = await getOrCreateFolder(title.trim() || "مهمة جديدة", empFolderId);
+
+        const mapped: any[] = [];
+        for (const file of filesArray) {
+          const base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve((reader.result as string).split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          
+          const res = await uploadBinaryFileToDrive(file.name, base64, file.type || "application/octet-stream", taskFolderId);
+          if (res) {
+            mapped.push({
+              name: file.name,
+              url: res.webViewLink || `https://drive.google.com/file/d/${res.id}/view`,
+              date: new Date().toISOString().substring(0, 10)
+            });
+          }
+        }
+        
+        setTempAttachments(prev => [...prev, ...mapped]);
+        showGlobalToast("تم رفع المرفقات بنجاح.", "success");
+      } catch (err) {
+        console.error(err);
+        showGlobalToast("حدث خطأ أثناء الرفع.", "error");
+      }
     }
   };
 
