@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useFirestoreCollection, setFirestoreBlocked } from "../lib/firebaseUtils";
 import { auth, db } from "../lib/firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, addDoc, query, where } from "../lib/firebase";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { getGoogleProvider, setCachedAccessToken } from "../lib/googleApi";
 
@@ -45,13 +45,11 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
   const { data: dbEmployees, setDocument: setFirebaseEmpDoc, loading: employeesLoading } = useFirestoreCollection<any>("employees", []);
   const { data: dbApprovedEmails, loading: approvedEmailsLoading } = useFirestoreCollection<any>("approved_emails", []);
   const { data: dbJoinRequests, addDocument: addFirebaseJoinReq, loading: joinRequestsLoading } = useFirestoreCollection<any>("join_requests", []);
-  const { addDocument: addFirebaseLog } = useFirestoreCollection<any>("system_logs", []);
-
   const isDataLoading = employeesLoading || joinRequestsLoading || approvedEmailsLoading;
 
   const logSystemAction = async (employeeName: string, details: string, status: "ناجحة" | "مرفوضة") => {
     try {
-      await addFirebaseLog({
+      await addDoc(collection(db, "system_logs"), {
         employeeName,
         time: new Date().toISOString().replace('T', ' ').substring(0, 19),
         operationType: "تسجيل دخول / انضمام",
@@ -104,8 +102,8 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
       // Ensure provisioned in the local storage database
       await setFirebaseEmpDoc("01", adminEmp);
       localStorage.setItem("current_user", JSON.stringify(adminEmp));
-      if (adminEmp.geminiApiKey) {
-        localStorage.setItem("BYOK_GEMINI_API_KEY", adminEmp.geminiApiKey);
+      if ((adminEmp as any).geminiApiKey) {
+        localStorage.setItem("BYOK_GEMINI_API_KEY", (adminEmp as any).geminiApiKey);
       } else {
         localStorage.removeItem("BYOK_GEMINI_API_KEY");
       }
@@ -194,8 +192,8 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
       };
       await setFirebaseEmpDoc(parsedId, newEmp);
       localStorage.setItem("current_user", JSON.stringify(newEmp));
-      if (newEmp.geminiApiKey) {
-        localStorage.setItem("BYOK_GEMINI_API_KEY", newEmp.geminiApiKey);
+      if ((newEmp as any).geminiApiKey) {
+        localStorage.setItem("BYOK_GEMINI_API_KEY", (newEmp as any).geminiApiKey);
       } else {
         localStorage.removeItem("BYOK_GEMINI_API_KEY");
       }

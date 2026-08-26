@@ -15,6 +15,48 @@ import {
 import { db, auth } from './firebase';
 import { getLocalCollection, saveLocalCollection } from './mockFirebase';
 
+
+export const logSystemAction = (collectionName: string, operation: string, id: string) => {
+    if (collectionName === 'system_logs') return; 
+    
+    try {
+        let employeeName = "مدير النظام";
+        const stored = localStorage.getItem("current_user");
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (parsed && parsed.name) employeeName = parsed.name;
+        }
+
+        let opText = "";
+        if (operation === 'CREATE') opText = "إضافة";
+        else if (operation === 'UPDATE') opText = "تعديل";
+        else if (operation === 'DELETE') opText = "حذف";
+
+        let moduleText = collectionName;
+        if (collectionName === "recommendations") moduleText = "توصية";
+        else if (collectionName === "tasks") moduleText = "مهمة";
+        else if (collectionName === "events") moduleText = "فعالية";
+        else if (collectionName === "committees") moduleText = "لجنة";
+        else if (collectionName === "members") moduleText = "عضو";
+
+        const logEntry = {
+            id: `log_${Date.now()}_${Math.random().toString(36).substr(2,9)}`,
+            time: new Date().toLocaleString('ar-SA'),
+            employeeName,
+            operationType: opText,
+            details: `قام الموظف بإجراء عملية ${opText} على السجل (${moduleText}) - معرف ${id.substring(0,8)}`
+        };
+
+        const logs = JSON.parse(localStorage.getItem('mock_db_system_logs') || '[]');
+        logs.push(logEntry);
+        localStorage.setItem('mock_db_system_logs', JSON.stringify(logs));
+        window.dispatchEvent(new StorageEvent('storage', { key: 'mock_db_system_logs', newValue: JSON.stringify(logs) }));
+
+        if (!isUseMock()) {
+            addDoc(collection(db, "system_logs"), logEntry).catch(()=> {});
+        }
+    } catch (e) {}
+};
 export enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
@@ -157,7 +199,7 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
               console.warn(`Firestore subscription failed for '${collectionName}'. Gracefully falling back to local storage.`, error);
               
               // Only set global blocked state if this is not an expected unauthenticated permission error
-              const isUnauthPermissionError = error?.code === 'permission-denied' && !auth?.currentUser;
+              const isUnauthPermissionError = error?.code === 'permission-denied';
               if (!isUnauthPermissionError) {
                 setFirestoreBlocked(true);
               } else {
@@ -242,6 +284,7 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
     const localItem = { ...item, id: newId } as unknown as T;
     list.push(localItem);
     saveLocalCollection(collectionName, list);
+    logSystemAction(collectionName, "CREATE", newId);
 
     if (!isUseMock()) {
       try {

@@ -37,7 +37,7 @@ import {
   RefreshCw,
   Settings,
   X
-} from "lucide-react";
+, CalendarDays, ChevronRight, ChevronLeft} from "lucide-react";
 import { 
   BarChart, 
   Bar, 
@@ -317,6 +317,7 @@ export interface Alarm {
 }
 
 import { useFirestoreCollection } from '../lib/firebaseUtils';
+import { useDashboardStats } from "../hooks/useDashboardStats";
 import { formatCommitteeNameArabic } from '../lib/arabicUtils';
 import { doc, updateDoc, addDoc, collection, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -389,12 +390,13 @@ const getStepsForEventAlarm = (e: any) => {
 
 export default function CommitteesHome() {
   const navigate = useNavigate();
-  const { data: dbCommittees } = useFirestoreCollection<any>("committees", []);
+  const { data: dbEmployees } = useFirestoreCollection<any>("employees", []);
   const { data: dbEvents } = useFirestoreCollection<any>("events", []);
-  const { data: dbMembers } = useFirestoreCollection<any>("members", []);
   const { data: dbRecs } = useFirestoreCollection<any>("recommendations", []);
   const { data: dbTasks } = useFirestoreCollection<any>("tasks", []);
-  const { data: dbEmployees } = useFirestoreCollection<any>("employees", []);
+  
+  const { stats, loading: statsLoading } = useDashboardStats();
+
 
   const [currentUserRole, setCurrentUserRole] = useState("SPECIALIST");
   const [currentUserName, setCurrentUserName] = useState("مدير النظام");
@@ -422,287 +424,64 @@ export default function CommitteesHome() {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [activeTypes, setActiveTypes] = useState<string[]>(["event", "recommendation", "task"]);
   const [activeTimeframes, setActiveTimeframes] = useState<string[]>(["current", "next"]);
-  const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table">("cards");
+  
+  const [currentDate, setCurrentDate] = useState(new Date());
+  
+  const getDaysInMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  };
+  
+  const getFirstDayOfMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  };
+  
+  const getMonthName = (date: Date) => {
+    return new Intl.DateTimeFormat('ar-SA', { month: 'long', year: 'numeric' }).format(date);
+  };
+  
+  const handlePrevMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  };
+  
+  const handleNextMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+  };
+const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "calendar">("cards");
   const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false);
 
-  const allRecommendations = React.useMemo(() => {
-    let recs: any[] = [];
-    if (Array.isArray(dbRecs)) {
-      recs = [...dbRecs];
-    }
-    if (Array.isArray(dbEvents)) {
-      dbEvents.forEach((evt: any) => {
-        // 1. Standalone recommendations
-        if (evt.recommendationType) {
-           recs.push({
-             id: evt.id,
-             title: evt.title || "توصية غير مسماة",
-             description: evt.description || evt.notes || "",
-             assignedTo: evt.recommendationAssignee || (evt.employees && evt.employees.length > 0 ? evt.employees[0] : "غير محدد"),
-             duration: evt.recommendationDuration || "غير محدد",
-             status: evt.status || "جديدة",
-             committeeName: evt.committeeName || "غير محدد",
-             date: evt.date || "2026-06-11"
-           });
-        } else {
-          // 2. Agenda-based recommendations
-          if (evt.agenda && Array.isArray(evt.agenda)) {
-            evt.agenda.forEach((g: any, idx: number) => {
-              if (g.recommendation && g.recommendation.trim() !== "") {
-                const expectedId = `custom-rec-${evt.id}-${g.id || idx}`;
-                const isAlreadyInDb = recs.some((dr: any) => 
-                  dr.id === expectedId || 
-                  dr.title === g.title || 
-                  (dr.description && dr.description.trim() === g.recommendation.trim())
-                );
-                if (!isAlreadyInDb) {
-                  recs.push({
-                    id: expectedId,
-                    title: g.title,
-                    description: g.recommendation,
-                    assignedTo: g.assignee || "غير محدد",
-                    duration: g.durationRec || "أسبوعين",
-                    status: "جديدة",
-                    committeeName: evt.committeeName,
-                    date: evt.date
-                  });
-                }
-              }
-            });
-          }
-        }
-      });
-    }
-    
-    // Final deduplication for home page just in case
-    const finalUniqueRecs: any[] = [];
-    const finalSeen = new Set();
-    for (const r of recs) {
-       const key = r.description?.trim() || r.title?.trim() || r.id;
-       if (!finalSeen.has(key)) {
-         finalSeen.add(key);
-         finalUniqueRecs.push(r);
-       }
-    }
-    return finalUniqueRecs;
-  }, [dbRecs, dbEvents]);
 
-  const meetings = React.useMemo(() => {
-    const list: Meeting[] = [];
-    
-    if (Array.isArray(dbEvents)) {
-      dbEvents.forEach((evt) => {
-        if (evt.recommendationType || evt.recommendationClassification || evt.recommendationEventId) return;
-        const dateObj = evt.date ? new Date(evt.date) : new Date();
-        
-        // Dynamic checklists of preparations
-        const hasAgenda = !!evt.agendaTransferred || !!evt.minutesSaved;
-        const hasAttendance = !!evt.attendanceConfirmed;
-        
-        const checklistItems = (evt.preparationsChecklist !== undefined && Array.isArray(evt.preparationsChecklist)) ? evt.preparationsChecklist : DEFAULT_PREPARATIONS;
-        const hasGreeting = !!evt.preparationsConfirmed || !checklistItems.some((p: string) => p.includes("الأجهزة") || p.includes("الترحيبية"));
-        const hasHospitality = !!evt.preparationsConfirmed || !checklistItems.some((p: string) => p.includes("الضيافة") || p.includes("ماء"));
-        const hasSetup = !!evt.preparationsConfirmed || !checklistItems.some((p: string) => p.includes("تجهيز وحجز") || p.includes("فتح البوابة"));
-        const hasMedia = !!evt.preparationsConfirmed || !checklistItems.some((p: string) => p.includes("الإعلامي") || p.includes("تصوير"));
+  const calculatedLiveDb = stats || {
+      totalComms: 0, activeComms: 0, inactiveComms: 0, approvedPlans: 0,
+      totalMbrs: 0, activeMbrs: 0, menMbrs: 0, womenMbrs: 0,
+      totalRecs: 0, completedRecs: 0, activeRecs: 0, delayedRecs: 0,
+      totalTsks: 0, completedTsks: 0, activeTsks: 0,
+      totalEvts: 0, meetingsEvts: 0, gatheringsEvts: 0, workshopsEvts: 0, visitsEvts: 0,
+      apprecCases: 0
+  };
 
-        const dynamicChecklist = [
-          { label: "جدول الأعمال", completed: hasAgenda },
-          { label: "كشف توقيع الحضور", completed: hasAttendance },
-          { label: "الشاشة الترحيبية", completed: hasGreeting },
-          { label: "الضيافة", completed: hasHospitality },
-          { label: "التجهيزات", completed: hasSetup },
-          { label: "التغطية الإعلامية", completed: hasMedia }
-        ];
-
-        let calculatedStatus = "جديد";
-        if (evt.minutesSaved && evt.exportedRecommendationsToPage) {
-          calculatedStatus = "مؤكد";
-        } else if (!evt.committeeConfirmed) {
-          calculatedStatus = "جاري تأكيد الموعد";
-        } else if (!evt.invitationSent) {
-          calculatedStatus = "جاري إرسال الدعوات";
-        } else if (!evt.attendanceConfirmed) {
-          calculatedStatus = "جاري تأكيد الحضور";
-        } else if (!evt.preparationsConfirmed) {
-          calculatedStatus = "جاري تجهيز اللقاء";
-        } else if (!evt.agenda || evt.agenda.length === 0 || !evt.agendaTransferred) {
-          calculatedStatus = "جاري كتابة جدول الأعمال";
-        } else if (!evt.minutesSaved) {
-          calculatedStatus = "جاري كتابة محضر الاجتماع";
-        } else if (!evt.exportedRecommendationsToPage) {
-          calculatedStatus = "جاري كتابة التوصيات";
-        } else {
-          calculatedStatus = "مؤكد";
-        }
-
-        list.push({
-          id: evt.id,
-          day: ArabicDays[dateObj.getDay()] || "الأحد",
-          date: evt.date || "2026/06/11",
-          time: evt.time || "10:00 AM",
-          dept: "إدارة الفعاليات",
-          section: evt.committeeName || "العامة",
-          responsible: (Array.isArray(evt.employees) && evt.employees[0]) || "أخصائي اللجنة",
-          room: evt.location || "حضوري",
-          desc: evt.type || "فعالية",
-          status: calculatedStatus,
-          event: evt.title || "عنوان الفعالية",
-          notes: evt.notes || "",
-          category: "event",
-          dateObj: dateObj,
-          monthName: ArabicMonths[dateObj.getMonth()] || "يناير",
-          checklist: dynamicChecklist
-        });
-      });
-    }
-
-    const uniqueList = Array.from(new Map(list.map(a => [a.id, a])).values());
-    uniqueList.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
-    return uniqueList;
-  }, [dbEvents]);
-
-  // Real-time Database computations - completely dynamic based on actual data in the system
-  const { liveDb, chartData } = React.useMemo(() => {
-    let committeesTotal = 0;
-    let activeCommittees = 0;
-    let inactiveCommittees = 0;
-    let approvedPlans = 0;
-    let ratingIssuesCount = 0;
-    
-    let totalMembers = 0;
-    let activeMembers = 0;
-    let menCount = 0;
-    let womenCount = 0;
-
-    let totalRecommendations = 0;
-    let completedRecommendations = 0;
-    let activeRecommendations = 0;
-    let inactiveRecommendations = 0;
-    let impactRecommendations = 0;
-
-    let totalTasks = 0;
-    let completedTasks = 0;
-    let activeTasks = 0;
-    let delayedTasks = 0;
-
-    let eventsCount = 0;
-    let meetingsCount = 0;
-    let gatheringsCount = 0;
-    let workshopsCount = 0;
-    let visitsCount = 0;
-    let apprecCases = 0;
-
-    try {
-      // 1. Committees
-      const comms = dbCommittees;
-      if (Array.isArray(comms) && comms.length > 0) {
-        committeesTotal = comms.length;
-        activeCommittees = comms.filter((c: any) => c && c.active !== false).length;
-        inactiveCommittees = committeesTotal - activeCommittees;
-        approvedPlans = comms.filter((c: any) => c && (c.duration || c.strategyAppr === "معتمد" || (c.strategicPlan && c.strategicPlan !== "غير مدرجة"))).length;
-        ratingIssuesCount = comms.filter((c: any) => c && c.ratingIssues && c.ratingIssues.trim().length > 0 && c.ratingIssues !== "لا يوجد قضايا تقدير").length;
-        apprecCases = ratingIssuesCount;
-      }
-      
-      // 2. Events & Meetings
-      const evts = dbEvents;
-      if (Array.isArray(evts)) {
-        const realEvents = evts.filter((e: any) => !e.recommendationType && !e.recommendationClassification);
-        eventsCount = realEvents.length;
-        meetingsCount = realEvents.filter((e: any) => e.type === "اجتماع" || e.title?.includes("اجتماع")).length;
-        let gatheringsCount = realEvents.filter((e: any) => e.type === "لقاء" || e.title?.includes("لقاء")).length;
-        let workshopsCount = realEvents.filter((e: any) => e.type === "ورشة عمل" || e.title?.includes("ورشة")).length;
-        let visitsCount = realEvents.filter((e: any) => e.type === "زيارة" || e.title?.includes("زيارة")).length;
-      }
-
-      // 3. Members
-      let mbrs = dbMembers;
-      if (Array.isArray(mbrs) && mbrs.length > 0) {
-        totalMembers = mbrs.length;
-        activeMembers = mbrs.filter((m: any) => m.active === true || m.active === "true" || m.status === "نشط" || m.status === "فعال" || m.active !== false).length;
-        
-        const femaleCount = mbrs.filter((m: any) => {
-          const title = m.title || "";
-          const name = m.name || "";
-          return title === "الأستاذة" || title === "الدكتورة" || title === "المهندسة" || 
-                 name.includes("سمر") || name.includes("فاطمة") || name.includes("المهندسة") || 
-                 name.includes("الدكتورة") || name.includes("أمل") || name.includes("سارة") || name.includes("خديجة");
-        }).length;
-        
-        womenCount = femaleCount;
-        menCount = totalMembers - womenCount;
-      }
-
-      // 4. Recommendations
-      const recs = allRecommendations;
-      if (recs.length > 0) {
-        totalRecommendations = recs.length;
-        completedRecommendations = recs.filter((r: any) => r.status === "منجزة" || r.approvalStage === "مكتملة").length;
-        activeRecommendations = recs.filter((r: any) => r.status === "جاري العمل عليها").length;
-        inactiveRecommendations = totalRecommendations - completedRecommendations - activeRecommendations;
-        impactRecommendations = recs.filter((r: any) => r.duration || r.attachments?.length > 0).length;
-      }
-
-      // 5. Tasks
-      const tasks = dbTasks;
-      if (Array.isArray(tasks) && tasks.length > 0) {
-        totalTasks = tasks.length;
-        completedTasks = tasks.filter((t: any) => t.status === "منجزة").length;
-        activeTasks = tasks.filter((t: any) => t.status === "جاري العمل عليها" || t.status === "جديدة").length;
-        delayedTasks = tasks.filter((t: any) => t.status === "متأخرة").length;
-      }
-    } catch(e) {}
-
-    const calculatedLiveDb = {
-      totalComms: committeesTotal,
-      activeComms: activeCommittees,
-      inactiveComms: inactiveCommittees,
-      approvedPlans: approvedPlans,
-      totalMbrs: totalMembers,
-      activeMbrs: activeMembers,
-      menMbrs: menCount,
-      womenMbrs: womenCount,
-      totalRecs: totalRecommendations,
-      completedRecs: completedRecommendations,
-      activeRecs: activeRecommendations,
-      delayedRecs: inactiveRecommendations,
-      totalTsks: totalTasks,
-      completedTsks: completedTasks,
-      activeTsks: activeTasks,
-      totalEvts: eventsCount,
-      meetingsEvts: meetingsCount,
-      gatheringsEvts: gatheringsCount,
-      workshopsEvts: workshopsCount,
-      visitsEvts: visitsCount,
-      apprecCases: apprecCases
-    };
-
-    const calculatedChartData = [
-      { name: "المهام جاري العمل عليها", value: activeTasks, color: "#4f46e5", icon: ListTodo },
-      { name: "المهام المنجزة", value: completedTasks, color: "#f87171", icon: ClipboardCheck },
-      { name: "إجمالي المهام", value: totalTasks, color: "#22c55e", icon: Briefcase },
-      { name: "الخطط الاستراتيجية", value: approvedPlans, color: "#6366f1", icon: Target },
-      { name: "قضايا التقدير", value: apprecCases, color: "#475569", icon: Gavel },
-      { name: "إجمالي الفعاليات", value: eventsCount, color: "#eab308", icon: Zap },
-      { name: "الاجتماعات", value: meetingsCount, color: "#22c55e", icon: Calendar },
-      { name: "اللقاءات", value: gatheringsCount, color: "#8b5cf6", icon: Users2 },
-      { name: "ورش العمل", value: workshopsCount, color: "#f59e0b", icon: Briefcase },
-      { name: "الزيارات", value: visitsCount, color: "#06b6d4", icon: Target },
-      { name: "التوصيات المتأخرة", value: inactiveRecommendations, color: "#eab308", icon: AlertTriangle },
-      { name: "التوصيات جاري العمل عليها", value: activeRecommendations, color: "#ec4899", icon: Clock },
-      { name: "التوصيات المنجزة", value: completedRecommendations, color: "#22c55e", icon: Trophy },
-      { name: "إجمالي التوصيات", value: totalRecommendations, color: "#3b82f6", icon: MessageSquare },
-      { name: "إجمالي الأعضاء", value: totalMembers, color: "#f59e0b", icon: User },
-      { name: "عدد السيدات", value: womenCount, color: "#ec4899", icon: Users2 },
-      { name: "عدد الرجال", value: menCount, color: "#6366f1", icon: Users2 },
-      { name: "الأعضاء النشطون", value: activeMembers, color: "#22c55e", icon: UserCheck },
-      { name: "اللجان غير الفعالة", value: inactiveCommittees, color: "#ef4444", icon: XCircle },
-      { name: "اللجان الفعالة", value: activeCommittees, color: "#22c55e", icon: CheckCircle2 },
-      { name: "إجمالي اللجان", value: committeesTotal, color: "#3b82f6", icon: LayoutDashboard }
-    ];
-
-    return { liveDb: calculatedLiveDb, chartData: calculatedChartData };
-  }, [dbCommittees, dbEvents, dbMembers, dbRecs, dbTasks, allRecommendations]);
+  const chartData = [
+      { name: "المهام جاري العمل عليها", value: calculatedLiveDb.activeTsks, color: "#4f46e5", icon: ListTodo },
+      { name: "المهام المنجزة", value: calculatedLiveDb.completedTsks, color: "#f87171", icon: ClipboardCheck },
+      { name: "إجمالي المهام", value: calculatedLiveDb.totalTsks, color: "#22c55e", icon: Briefcase },
+      { name: "الخطط الاستراتيجية", value: calculatedLiveDb.approvedPlans, color: "#6366f1", icon: Target },
+      { name: "قضايا التقدير", value: calculatedLiveDb.apprecCases, color: "#475569", icon: Gavel },
+      { name: "إجمالي الفعاليات", value: calculatedLiveDb.totalEvts, color: "#eab308", icon: Zap },
+      { name: "الاجتماعات", value: calculatedLiveDb.meetingsEvts, color: "#22c55e", icon: Calendar },
+      { name: "اللقاءات", value: calculatedLiveDb.gatheringsEvts, color: "#8b5cf6", icon: Users2 },
+      { name: "ورش العمل", value: calculatedLiveDb.workshopsEvts, color: "#f59e0b", icon: Briefcase },
+      { name: "الزيارات", value: calculatedLiveDb.visitsEvts, color: "#06b6d4", icon: Target },
+      { name: "التوصيات المتأخرة", value: calculatedLiveDb.delayedRecs, color: "#eab308", icon: AlertTriangle },
+      { name: "التوصيات جاري العمل عليها", value: calculatedLiveDb.activeRecs, color: "#ec4899", icon: Clock },
+      { name: "التوصيات المنجزة", value: calculatedLiveDb.completedRecs, color: "#22c55e", icon: Trophy },
+      { name: "إجمالي التوصيات", value: calculatedLiveDb.totalRecs, color: "#3b82f6", icon: MessageSquare },
+      { name: "إجمالي الأعضاء", value: calculatedLiveDb.totalMbrs, color: "#f59e0b", icon: User },
+      { name: "عدد السيدات", value: calculatedLiveDb.womenMbrs, color: "#ec4899", icon: Users2 },
+      { name: "عدد الرجال", value: calculatedLiveDb.menMbrs, color: "#6366f1", icon: Users2 },
+      { name: "الأعضاء النشطون", value: calculatedLiveDb.activeMbrs, color: "#22c55e", icon: UserCheck },
+      { name: "اللجان غير الفعالة", value: calculatedLiveDb.inactiveComms, color: "#ef4444", icon: XCircle },
+      { name: "اللجان الفعالة", value: calculatedLiveDb.activeComms, color: "#22c55e", icon: CheckCircle2 },
+      { name: "إجمالي اللجان", value: calculatedLiveDb.totalComms, color: "#3b82f6", icon: LayoutDashboard }
+  ];
 
   // Load ignored alerts state from localStorage
   const [ignoredAlarms, setIgnoredAlarms] = useState<Record<string, any>>(() => {
@@ -750,7 +529,7 @@ export default function CommitteesHome() {
 
     // 1. Core Dynamic Recommendations
     try {
-      const recs = allRecommendations;
+      const recs = dbRecs;
       if (recs.length > 0) {
         // Exclude completed recommendations
         const activeRecs = recs.filter((r: any) => r.status !== "منجزة" && r.status !== "مكتملة");
@@ -869,7 +648,7 @@ export default function CommitteesHome() {
     } catch (e) {}
 
     setAlarms(Array.from(new Map(list.map(a => [a.id, a])).values()));
-  }, [dbRecs, dbTasks, dbEvents, manuallyUrgentAlarms, allRecommendations]);
+  }, [dbRecs, dbTasks, dbEvents, manuallyUrgentAlarms, dbRecs]);
 
   // Dynamic Online Staff loaded directly from the database of employees
   const [onlineStaff, setOnlineStaff] = useState<any[]>([]);
@@ -1142,7 +921,7 @@ export default function CommitteesHome() {
         });
       } else if (selectedAlarm.type === "recommendation") {
         const recId = String(selectedAlarm.id).replace(/^rec-/, "");
-        const matchedRec = allRecommendations.find((r: any) => String(r.id) === recId);
+        const matchedRec = dbRecs.find((r: any) => String(r.id) === recId);
         
         let mappedStatus = "جديدة";
         if (targetStatus === "تمت الإحالة") mappedStatus = "منجزة";
@@ -1481,6 +1260,7 @@ export default function CommitteesHome() {
     window.print();
   };
 
+  const meetings = (dbEvents || []).map((e: any) => ({ ...e, dateObj: e.date ? new Date(e.date) : new Date(0) }));
   const filteredMeetings = meetings.filter(mtg => {
     // Filter by timeframe
     const showCurrent = activeTimeframes.includes("current");
@@ -2515,7 +2295,7 @@ export default function CommitteesHome() {
                       </div>
                     );
                   })() : selectedAlarm.type === "recommendation" ? (() => {
-                    const matchedRec = allRecommendations.find((r: any) => String(r.id) === String(selectedAlarm.id).replace(/^rec-/, ""));
+                    const matchedRec = dbRecs.find((r: any) => String(r.id) === String(selectedAlarm.id).replace(/^rec-/, ""));
                     return (
                       <div key="filter-popover-1784704070969-3">
                         <h4 className="text-xs font-black text-gray-400 tracking-wider">تفاصيل مسار التوصية</h4>
@@ -2674,7 +2454,7 @@ export default function CommitteesHome() {
                         </div>
                       );
                     })() : selectedAlarm.type === "recommendation" ? (() => {
-                      const matchedRec = allRecommendations.find((r: any) => String(r.id) === String(selectedAlarm.id).replace(/^rec-/, ""));
+                      const matchedRec = dbRecs.find((r: any) => String(r.id) === String(selectedAlarm.id).replace(/^rec-/, ""));
                       if (!matchedRec || !matchedRec.auditLogs || matchedRec.auditLogs.length === 0) return null;
                       return (
                         <div className="mt-4 border-t border-gray-200/80 pt-4">

@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
-import { toPng } from 'html-to-image';
+import { toJpeg, toPng } from 'html-to-image';
+import { analyzeDocumentClient } from "../lib/geminiClient";
 import { showGlobalToast } from "../lib/toastUtils";
 import { createGoogleDoc, resolveDrivePath, uploadFileToDriveByPath, moveDriveFile, uploadBinaryFileToDrive } from "../lib/googleApi";
 import { logoBase64 } from "../lib/logoBase64";
@@ -49,7 +50,7 @@ import {
   Copy, Edit
 } from "lucide-react";
 import { db } from "../lib/firebase";
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from "firebase/firestore";
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from "../lib/firebase";
 import { motion, AnimatePresence } from "motion/react";
 import GoogleWorkspaceCenter from "../components/GoogleWorkspaceCenter";
 
@@ -264,10 +265,15 @@ export default function CommitteesLibrary() {
       : isLoadingTemplates
         ? []
         : fallbackTemplates
-  ).filter((t) => !deletedTemplateIds.includes(t.id));
+  ).filter((t) => !deletedTemplateIds.includes(t.id)).sort((a, b) => {
+    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : new Date(a.lastUpdated || 0).getTime();
+    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : new Date(b.lastUpdated || 0).getTime();
+    return timeB - timeA;
+  });
 
   // Filters state
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [typeFilter, setTypeFilter] = useState("all");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
 
@@ -291,6 +297,14 @@ export default function CommitteesLibrary() {
   const [isShareOpen, setIsShareOpen] = useState(false);
 
   const [isAIOpen, setIsAIOpen] = useState(false);
+
+  const [isAnalyzeModalOpen, setIsAnalyzeModalOpen] = useState(false);
+  const [analyzedTasks, setAnalyzedTasks] = useState<any[]>([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const [analyzeUploadedFile, setAnalyzeUploadedFile] = useState<File | null>(null);
+  const [analyzeUploadedDataUrl, setAnalyzeUploadedDataUrl] = useState<string>("");
+    
   const [aiTemplate, setAiTemplate] = useState<TemplateItem | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiResult, setAiResult] = useState("");
@@ -312,6 +326,77 @@ export default function CommitteesLibrary() {
   const [formIsSaving, setFormIsSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TemplateItem | null>(null);
   const [deleteReason, setDeleteReason] = useState("");
+
+
+  const [isAnalyzeTasksOpen, setIsAnalyzeTasksOpen] = useState(false);
+  const [analyzeTarget, setAnalyzeTarget] = useState<TemplateItem | null>(null);
+    
+  const handleAnalyzeTasks = async (t: TemplateItem) => {
+      setAnalyzeTarget(t);
+      setAnalyzedTasks([]);
+      setIsAnalyzeTasksOpen(true);
+      setIsAnalyzing(true);
+      
+      try {
+          let textToAnalyze = t.templateText || "";
+          if (!textToAnalyze && t.downloadUrl && t.downloadUrl.startsWith('data:')) {
+              const mime = t.downloadUrl.split(';')[0].split(':')[1];
+              const b64 = t.downloadUrl.split(',')[1];
+              textToAnalyze = await analyzeDocumentClient("استخرج النص الكامل من هذا المستند.", b64, mime);
+          }
+          
+          if (!textToAnalyze) {
+              showGlobalToast("لم يتم العثور على نص لتحليله في هذا المستند.", "error");
+              setIsAnalyzing(false);
+              return;
+          }
+
+          const prompt = "اقرأ النص التالي المستخرج من مستند رسمي (خطاب أو قرار أو تعميم)، واستخرج منه أي مهام (Tasks) أو توجيهات أو قرارات تتطلب تنفيذاً. أرجع النتيجة على شكل مصفوفة JSON تحتوي على كائنات بالصيغة التالية: [{\"title\": \"عنوان المهمة\", \"description\": \"وصف تفصيلي\", \"deadline\": \"تاريخ أو مدة التنفيذ إن وجدت\"}] (وإذا لم يكن هناك توجيهات أرجع []). لا ترجع أي نص آخر سوى الـ JSON.\n\nالنص:\n" + textToAnalyze;
+          
+          const result = await analyzeDocumentClient(prompt, null, null);
+          let parsed = [];
+          try {
+              const clean = result.replace(/```json/g, '').replace(/```/g, '').trim();
+              parsed = JSON.parse(clean);
+          } catch(e) {
+              console.error(e);
+              parsed = [];
+          }
+          
+          setAnalyzedTasks(parsed);
+      } catch(e) {
+          console.error(e);
+          showGlobalToast("حدث خطأ أثناء تحليل المستند.", "error");
+      } finally {
+          setIsAnalyzing(false);
+      }
+  };
+
+  const handleCreateTaskFromAnalysis = async (taskObj: any) => {
+      try {
+          await addDoc(collection(db, "tasks"), {
+              title: taskObj.title,
+              description: taskObj.description + "\n\nالمرجع: " + (analyzeTarget?.title || ""),
+              assignedTo: "غير محدد",
+              priority: "عادية",
+              dueDate: new Date().toISOString().split('T')[0],
+              status: "جديدة",
+              timestamp: new Date().toISOString()
+          });
+          
+          await addDoc(collection(db, "system_logs"), {
+              type: "إضافة مهمة",
+              details: `تم توليد مهمة من مستند المرجعي [${analyzeTarget?.title}] عبر الذكاء الاصطناعي.`,
+              status: "ناجحة",
+              timestamp: new Date().toISOString(),
+          });
+          
+          showGlobalToast("تم إنشاء المهمة بنجاح وإحالتها لسجل المهام.", "success");
+          setAnalyzedTasks(prev => prev.filter(p => p !== taskObj));
+      } catch(e) {
+          showGlobalToast("حدث خطأ أثناء إنشاء المهمة", "error");
+      }
+  };
 
   // Share form state
   const [shareEmail, setShareEmail] = useState("");
@@ -368,10 +453,11 @@ export default function CommitteesLibrary() {
     if (!circularPrintRef.current) return null;
     try {
       const el = circularPrintRef.current;
-      const dataUrl = await toPng(el, { 
+      const dataUrl = await toJpeg(el, { 
         cacheBust: true, 
         backgroundColor: '#FFFFFF', 
-        pixelRatio: 3,
+        pixelRatio: 1.5,
+        quality: 0.85,
         style: {
           transform: 'scale(1)',
           transformOrigin: 'top left'
@@ -384,7 +470,7 @@ export default function CommitteesLibrary() {
       const pageHeight = pdf.internal.pageSize.getHeight();
       const yOffset = pdfHeight < pageHeight ? (pageHeight - pdfHeight) / 2 : 0;
       
-      pdf.addImage(dataUrl, 'PNG', 0, yOffset, pdfWidth, pdfHeight);
+      pdf.addImage(dataUrl, 'JPEG', 0, yOffset, pdfWidth, pdfHeight);
 
       const links = el.querySelectorAll('[data-pdf-link]');
       const containerRect = el.getBoundingClientRect();
@@ -451,6 +537,8 @@ export default function CommitteesLibrary() {
   const [aiGenReplyFile, setAiGenReplyFile] = useState<File | string | null>(null);
   const [isAIGenGenerating, setIsAIGenGenerating] = useState(false);
   const [isSavingAIGen, setIsSavingAIGen] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{id: string, name: string, status: 'pending' | 'syncing' | 'completed' | 'error'}[]>([]);
+  const [showUploadOverlay, setShowUploadOverlay] = useState(false);
 
   const openGenerateWizard = () => {
     setIsTemplateMenuOpen(false);
@@ -638,7 +726,6 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
   const saveAIGeneratedLetter = async () => {
     if (isSavingAIGen) return;
     setIsSavingAIGen(true);
-    showGlobalToast("جاري حفظ التعميم وإنشاء المجلدات بالدرايف...", "loading");
     try {
       const stored = localStorage.getItem("current_user");
       let currentUser = null;
@@ -651,6 +738,9 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
         setIsSavingAIGen(false);
         return;
       }
+      setUploadProgress(targetCommittees.map(c => ({ id: String(c.id), name: c.name, status: 'pending' })));
+      setShowUploadOverlay(true);
+      
       const isCircular = workspaceService === "circular";
       const finalType = isCircular ? "تعميم" : aiGenTemplateType.replace(/\s*\(.*\)/, "").trim();
       const subjectName = aiGenSubject || circularSubject || "تعميم جديد";
@@ -672,7 +762,13 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
       let lastCloudUrl = "#";
       let lastTemplateText = "";
       
-      for (const committee of targetCommittees) {
+      for (let i = 0; i < targetCommittees.length; i++) {
+        const committee = targetCommittees[i];
+        const nextCommitteeName = targetCommittees[i + 1]?.name;
+        let progressMsg = `جاري مزامنة الملفات وأرشفتها في جوجل درايف... جاري حالياً أرشفة الملفات في ${committee.name}`;
+        if (nextCommitteeName) progressMsg += ` والتالي أرشفة الملفات في ${nextCommitteeName}`;
+        // showGlobalToast(progressMsg, "loading", 10000); // UI overlay takes over
+        setUploadProgress(prev => prev.map(p => p.id === String(committee.id) ? { ...p, status: 'syncing' } : p));
         const committeeName = committee.name;
         
         let finalDocumentText = aiGenGeneratedText;
@@ -718,7 +814,7 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
             }
           } catch (apiError) {
             console.error("Google API Error:", apiError);
-            showGlobalToast(`تنبيه: حدث خطأ أثناء إنشاء ملف درايف للجنة ${committeeName}`, "error");
+            setUploadProgress(prev => prev.map(p => p.id === String(committee.id) ? { ...p, status: 'error' } : p));
           }
         }
         
@@ -731,6 +827,9 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
             documentUrl: finalCloudUrl,
             folderUrl: folderCloudUrl
         });
+        
+        setUploadProgress(prev => prev.map(p => p.id === String(committee.id) && p.status !== 'error' ? { ...p, status: 'completed' } : p));
+        
         await new Promise(resolve => setTimeout(resolve, 1500));
       }
       
@@ -739,32 +838,39 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
       if (typeof circularAtt1 === 'string') urlAttachments.push(circularAtt1);
       const combinedCommitteesName = targetCommittees.map(c => c.name).join(' و ');
       
+      const sanitize = (val) => val === undefined ? "" : val;
       const newDoc = {
-        title: subjectName,
-        description: isCircular ? `مجلد تعاميم | لجان: ${combinedCommitteesName} | موضوع: ${circularSubject || ""}` : `مجلد خطابات - مجلد مسودات | لجان: ${combinedCommitteesName} | صادر إلى: ${aiGenRecipientName}`,
-        type: finalType,
-        creator: creatorName,
-        cloudUrl: lastCloudUrl, // For download button
-        downloadUrl: lastCloudUrl, // For download button
+        title: sanitize(subjectName),
+        description: sanitize(isCircular ? `مجلد تعاميم | لجان: ${combinedCommitteesName} | موضوع: ${circularSubject || ""}` : `مجلد خطابات - مجلد مسودات | لجان: ${combinedCommitteesName} | صادر إلى: ${aiGenRecipientName}`),
+        type: sanitize(finalType),
+        creator: sanitize(currentUser?.name || "الأخصائي"),
+        cloudUrl: sanitize(lastCloudUrl), // For download button
+        downloadUrl: sanitize(lastCloudUrl), // For download button
         lastUpdated: new Date().toISOString().split('T')[0],
+        createdAt: new Date().toISOString(),
         isFavorite: false,
-        templateText: lastTemplateText,
-        committeeId: targetCommittees[0].id || "", // legacy
-        targetCommitteesList: targetCommittees.map(c => ({id: c.id, name: c.name})),
-        committeeUrls: committeeUrls,
+        templateText: sanitize(lastTemplateText),
+        committeeId: sanitize(targetCommittees[0]?.id || ""), // legacy
+        targetCommitteesList: targetCommittees.map(c => ({id: sanitize(c.id), name: sanitize(c.name)})),
+        committeeUrls: committeeUrls.map(cu => ({
+            committeeId: sanitize(cu.committeeId),
+            committeeName: sanitize(cu.committeeName),
+            documentUrl: sanitize(cu.documentUrl),
+            folderUrl: sanitize(cu.folderUrl)
+        })),
         attachments: urlAttachments,
         circularDetails: isCircular ? {
-            outNumber: circularOutNumber,
-            outDate: circularOutDate,
-            incomingFrom: circularIncomingFrom,
-            incomingNumber: circularIncomingNumber,
-            incomingDate: circularIncomingDate,
-            subject: circularSubject,
-            contactName: circularContactName,
-            contactPhone: circularContactPhone,
-            contactEmail: circularContactEmail,
-            distributionMethod: (circularViaEmail && circularViaWhatsApp) ? "البريد الإلكتروني والواتس آب" : circularViaEmail ? "البريد الإلكتروني" : circularViaWhatsApp ? "الواتس آب" : "غير محدد",
-            body: aiGenGeneratedText.split("عرض التعميم:")[1]?.trim() || aiGenGeneratedText,
+            outNumber: sanitize(circularOutNumber),
+            outDate: sanitize(circularOutDate),
+            incomingFrom: sanitize(circularIncomingFrom),
+            incomingNumber: sanitize(circularIncomingNumber),
+            incomingDate: sanitize(circularIncomingDate),
+            subject: sanitize(circularSubject),
+            contactName: sanitize(circularContactName),
+            contactPhone: sanitize(circularContactPhone),
+            contactEmail: sanitize(circularContactEmail),
+            distributionMethod: sanitize((circularViaEmail && circularViaWhatsApp) ? "البريد الإلكتروني والواتس آب" : circularViaEmail ? "البريد الإلكتروني" : circularViaWhatsApp ? "الواتس آب" : "غير محدد"),
+            body: sanitize(aiGenGeneratedText.split("عرض التعميم:")[1]?.trim() || aiGenGeneratedText),
         } : null
       };
       
@@ -774,12 +880,13 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
         await addDoc(collection(db, "templates"), newDoc);
       }
       
-      showGlobalToast(targetCommittees.length > 1 ? `تم حفظ التعميم بنجاح لعدد ${targetCommittees.length} من اللجان.` : "تم حفظ التعميم بنجاح.", "success");
       setIsAIGenOpen(false);
       setEditAIGenTargetId(null);
+      setTimeout(() => setShowUploadOverlay(false), 5000);
     } catch (e) {
       console.error(e);
       showGlobalToast("حدث خطأ أثناء الحفظ. الرجاء المحاولة مجدداً.", "error");
+      setShowUploadOverlay(false);
     } finally {
       setIsSavingAIGen(false);
     }
@@ -837,7 +944,7 @@ ${replyFileBase64 ? 'تم إرفاق ملف المعاملة الواردة، ي
     if (t.type === "تعميم") {
       let urlToOpen = t.downloadUrl && t.downloadUrl !== "#" ? t.downloadUrl :
                       (t.cloudUrl && t.cloudUrl !== "#" ? t.cloudUrl :
-                      (t.committeeUrls && t.committeeUrls.length > 0 && t.committeeUrls[0].documentUrl && t.committeeUrls[0].documentUrl !== "#" ? t.committeeUrls[0].documentUrl : null));
+                      (t.committeeUrls && Object.values(t.committeeUrls).length > 0 && Object.values(t.committeeUrls)[0] && Object.values(t.committeeUrls)[0] !== "#" ? Object.values(t.committeeUrls)[0] : null));
       
       if (urlToOpen) {
           // If it's a drive file link, try to make it direct download if possible
@@ -976,6 +1083,7 @@ ${t.description}
         cloudUrl: url,
         downloadUrl: url,
         lastUpdated: new Date().toISOString().split("T")[0],
+        createdAt: new Date().toISOString(),
         isFavorite: false,
       };
       await addDoc(collection(db, "templates"), newDoc);
@@ -1021,11 +1129,24 @@ ${t.description}
         ? `https://storage.makkahchamber.sa/templates/${uploadedFile?.name || "file"}`
         : formCloudUrl || "https://docs.google.com/document/d/example";
       const finalDownloadUrl = isComputer ? uploadedFileDataUrl : "#";
+      let autoExtractedText = formTemplateText;
+      
+      if (isComputer && uploadedFileDataUrl && !formTemplateText) {
+         try {
+           showGlobalToast("جاري فحص المستند وقراءة محتواه (OCR) عبر الذكاء الاصطناعي...", "error");
+           const mime = uploadedFile?.type || "application/pdf";
+           const b64 = uploadedFileDataUrl.split(',')[1];
+           autoExtractedText = await analyzeDocumentClient("استخرج النص الكامل من هذا المستند بدقة.", b64, mime);
+           showGlobalToast("تم تفريغ النص بنجاح للحفظ في المكتبة.", "success");
+         } catch (e) {
+           console.error("OCR failed", e);
+         }
+      }
 
       await addDoc(collection(db, "templates"), {
         title: formTitle,
         description: formDesc,
-        templateText: formTemplateText,
+        templateText: autoExtractedText || formTemplateText,
         type: formType,
         creator: "أخصائي الحوكمة",
         cloudUrl: finalCloudUrl,
@@ -1091,7 +1212,7 @@ ${t.description}
       setCircularViaEmail(distribution.includes("البريد") || distribution.includes("الايميل") || distribution.includes("كلاهما") || distribution.includes("الكتروني"));
       setCircularViaWhatsApp(distribution.includes("واتس") || distribution.includes("كلاهما"));
       
-      setAiGenCommittees(item.targetCommittees?.map(c => String(c.id)) || []);
+      setAiGenCommittees(item.targetCommittees?.map(c => String((c as any).id || c)) || []);
       
       setIsAIGenOpen(true);
       setAiGenStep(2);
@@ -1196,16 +1317,46 @@ ${t.description}
         <div className="flex flex-wrap items-center gap-2 justify-center md:justify-end shrink-0 w-full md:w-auto">
           {/* Search Input */}
           <div className="flex items-center gap-2 relative">
-            <div className="relative w-full lg:w-48">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ابحث عن قالب أو تعميم..."
-                className="w-full pl-8 pr-3 py-2 bg-white border border-gray-300 rounded-xl text-xs font-bold placeholder-gray-400 text-right focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm"
-              />
-              <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-            </div>
+            <AnimatePresence>
+              {isSearchVisible && (
+                <motion.div
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 220, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  className="relative overflow-hidden"
+                >
+                  <input
+                    type="text"
+                    placeholder="ابحث عن قالب أو تعميم..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') setIsSearchVisible(false); }}
+                    onBlur={() => setTimeout(() => setIsSearchVisible(false), 200)}
+                    className="w-full h-10 pr-3 pl-8 bg-white border border-gray-300 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+                  />
+                  {searchQuery && (
+                    <button onClick={() => { setSearchQuery(""); setIsSearchVisible(false); }} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <button
+              onClick={() => {
+                  if (searchQuery && isSearchVisible) {
+                      setIsSearchVisible(false);
+                  } else {
+                      setIsSearchVisible(!isSearchVisible);
+                  }
+              }}
+              className={`w-10 h-10 flex items-center justify-center rounded-xl border transition-all cursor-pointer shadow-sm ${
+                isSearchVisible || searchQuery ? "bg-blue-50 text-blue-600 border-blue-200" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+              }`}
+              title="بحث"
+            >
+              <Search className="w-5 h-5" />
+            </button>
           </div>
 
           <div className="relative flex bg-white p-1 rounded-xl border border-gray-200 select-none shadow-sm gap-1">
@@ -1306,20 +1457,14 @@ ${t.description}
           <button
             type="button"
             onClick={() => setShowWorkspaceCenter(!showWorkspaceCenter)}
-            className={`h-10 px-4 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all duration-200 cursor-pointer shrink-0 w-full lg:w-auto ${
+            className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all duration-200 cursor-pointer shrink-0 ${
               showWorkspaceCenter
                 ? "bg-amber-600 hover:bg-amber-700 text-white animate-pulse"
                 : "bg-emerald-600 hover:bg-emerald-700 text-white"
             }`}
           >
-            <RefreshCw
-              className={`w-4 h-4 ${showWorkspaceCenter ? "animate-spin" : ""}`}
-            />
-            <span>
-              {showWorkspaceCenter
-                ? "إغلاق بوابة Google Workspace"
-                : "بوابة التكامل Google Workspace 🌐"}
-            </span>
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="w-5 h-5"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path></svg>
           </button>
 
           <div className="relative dropdown-container">
@@ -1329,7 +1474,7 @@ ${t.description}
               className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer shrink-0 w-full lg:w-auto"
             >
               <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
-              <span>إجراءات القوالب والتعاميم</span>
+              <span>إجراءات المكتبة</span>
               <ChevronDown className="w-4 h-4 mr-1 opacity-70" />
             </button>
             <AnimatePresence>
@@ -1386,6 +1531,23 @@ ${t.description}
                       </div>
                       <span>تصدير قوالب</span>
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAnalyzeModalOpen(true);
+                        setAnalyzeUploadedFile(null);
+                        setAnalyzeUploadedDataUrl("");
+                        setAnalyzedTasks([]);
+                        setIsTemplateMenuOpen(false);
+                      }}
+                      className="w-full h-10 px-3 bg-white hover:bg-purple-50 text-gray-800 hover:text-purple-700 font-bold text-xs rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-right group border-t border-gray-50 mt-1 pt-1"
+                    >
+                      <div className="w-6 h-6 rounded-md bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 group-hover:bg-purple-100">
+                        <Sparkles className="w-3.5 h-3.5" />
+                      </div>
+                      <span>تحليل واستخراج البيانات</span>
+                    </button>
+
                   </motion.div>
                 </div>
               )}
@@ -1393,6 +1555,169 @@ ${t.description}
           </div>
         </div>
       </div>
+
+      
+      {/* -------------------- Analyze Tasks Modal -------------------- */}
+      <AnimatePresence>
+        {isAnalyzeModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => !isAnalyzing && setIsAnalyzeModalOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl relative z-10 overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="bg-gradient-to-l from-purple-900 to-indigo-800 p-6 text-white shrink-0">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm shadow-inner border border-white/30">
+                      <Sparkles className="w-5 h-5 text-purple-100" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-extrabold text-white">تحليل واستخراج البيانات</h2>
+                      <p className="text-purple-200 text-xs mt-1">الذكاء الاصطناعي لاستخراج المهام من المستندات</p>
+                    </div>
+                  </div>
+                  <button onClick={() => !isAnalyzing && setIsAnalyzeModalOpen(false)} className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 overflow-y-auto font-sans" dir="rtl">
+                {!analyzeUploadedFile && analyzedTasks.length === 0 ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-600 font-bold mb-2">الخطوة الأولى: أرفق المستند (نفس آلية إرفاق خطاب التشكيل)</p>
+                    <AttachmentInput 
+                        label="اسحب وأفلت المستند هنا أو اضغط للتصفح (PDF, Image, Word)" 
+                        value={analyzeUploadedFile} 
+                        onChange={async (file) => {
+                            setAnalyzeUploadedFile(file as File);
+                            if (file && typeof file === 'object') {
+                                const reader = new FileReader();
+                                reader.onload = () => setAnalyzeUploadedDataUrl(reader.result as string);
+                                reader.readAsDataURL(file);
+                            }
+                        }} 
+                        id="analyze-upload" 
+                    />
+                    <div className="flex justify-end mt-6 pt-4 border-t border-gray-100">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!analyzeUploadedFile) {
+                              showGlobalToast("الرجاء إرفاق المستند أولاً", "error");
+                              return;
+                          }
+                          setIsAnalyzing(true);
+                          try {
+                            const b64 = analyzeUploadedDataUrl.split(',')[1];
+                            const mime = analyzeUploadedDataUrl.split(';')[0].split(':')[1];
+                            
+                            const prompt = `اقرأ النص في هذا المستند الرسمي واستخرج منه أي مهام (Tasks) أو توجيهات تتطلب تنفيذاً. أرجع النتيجة كـ JSON: [{"title": "عنوان المهمة", "description": "وصف تفصيلي", "deadline": "تاريخ أو مدة التنفيذ إن وجدت"}] (لا ترجع أي نص آخر سوى הJSON).`;
+                            
+                            const result = await analyzeDocumentClient(prompt, b64, mime);
+                            let parsed = [];
+                            try {
+                                const clean = result.replace(/\x60\x60\x60json/g, '').replace(/\x60\x60\x60/g, '').trim();
+                                parsed = JSON.parse(clean);
+                            } catch(e) {
+                                console.error(e);
+                                parsed = [];
+                            }
+                            setAnalyzedTasks(parsed);
+                          } catch(e) {
+                            console.error(e);
+                            showGlobalToast("حدث خطأ أثناء تحليل المستند.", "error");
+                          } finally {
+                            setIsAnalyzing(false);
+                          }
+                        }}
+                        disabled={!analyzeUploadedFile || isAnalyzing}
+                        className="h-10 px-6 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-70"
+                      >
+                        {isAnalyzing ? (
+                          <><RefreshCw className="w-4 h-4 animate-spin" /> جاري التحليل...</>
+                        ) : (
+                          <><Sparkles className="w-4 h-4" /> بدء الاستخراج والتحليل</>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ) : isAnalyzing ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <div className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-4" />
+                    <p className="text-gray-800 font-extrabold">جاري تحليل المستند...</p>
+                    <p className="text-gray-500 text-xs mt-2">يتم الآن قراءة المحتوى واستخلاص التوجيهات والمهام</p>
+                  </div>
+                ) : analyzedTasks.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-bold text-gray-800 flex items-center gap-2">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                            تم استخراج ({analyzedTasks.length}) مهام/توجيهات
+                        </h4>
+                        <button onClick={() => {
+                            setAnalyzeUploadedFile(null);
+                            setAnalyzeUploadedDataUrl("");
+                            setAnalyzedTasks([]);
+                        }} className="text-xs text-purple-600 hover:underline font-bold">
+                            تحليل مستند آخر
+                        </button>
+                    </div>
+                    
+                    <div className="max-h-80 overflow-y-auto space-y-3 pr-2">
+                      {analyzedTasks.map((task, idx) => (
+                        <div key={idx} className="bg-white border border-purple-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-all relative group">
+                          <h5 className="font-extrabold text-gray-900 text-sm mb-1">{task.title}</h5>
+                          <p className="text-xs text-gray-600 leading-relaxed mb-3">{task.description}</p>
+                          {task.deadline && (
+                            <div className="flex items-center gap-1.5 text-[10px] text-amber-700 bg-amber-50 px-2 py-1 rounded inline-flex mb-3">
+                              <Calendar className="w-3 h-3" />
+                              <span>{task.deadline}</span>
+                            </div>
+                          )}
+                          <div className="border-t border-purple-50 pt-3">
+                             <button
+                               onClick={() => handleCreateTaskFromAnalysis({ ...task, title: task.title + ' (مستخرجة آلياً)' })}
+                               className="w-full h-8 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
+                             >
+                               <Plus className="w-3.5 h-3.5" />
+                               إحالة إلى سجل المهام
+                             </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                    <div className="text-center py-10">
+                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <AlertTriangle className="w-8 h-8 text-amber-500" />
+                        </div>
+                        <h4 className="font-bold text-gray-800">لم يتم العثور على مهام</h4>
+                        <p className="text-sm text-gray-500 mt-1 mb-4">لم يتعرف الذكاء الاصطناعي على أي توجيهات صريحة أو مهام في هذا المستند.</p>
+                        <button onClick={() => {
+                            setAnalyzeUploadedFile(null);
+                            setAnalyzeUploadedDataUrl("");
+                            setAnalyzedTasks([]);
+                        }} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold transition-colors">
+                            المحاولة بملف آخر
+                        </button>
+                    </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* -------------------- Unified Google Workspace Integration Center -------------------- */}
       <AnimatePresence>
@@ -1489,9 +1814,9 @@ ${t.description}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+                                            
                       <button
                         onClick={() => {
-                          setTemplateToShare(t);
                           setIsShareOpen(true);
                         }}
                         className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-blue-100 shadow-sm hover:shadow"
@@ -1638,9 +1963,9 @@ ${t.description}
                           >
                             <Wand2 className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => {
-                              setTemplateToShare(t);
+                                                
+                      <button
+                        onClick={() => {
                               setIsShareOpen(true);
                             }}
                             className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-blue-100 shadow-sm hover:shadow"
@@ -1672,6 +1997,52 @@ ${t.description}
           </div>
         )}
       </div>
+
+      
+      {/* Upload Progress Overlay */}
+      <AnimatePresence>
+        {showUploadOverlay && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-6 left-6 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-[9999] overflow-hidden"
+            dir="rtl"
+          >
+            <div className="bg-gray-50/80 backdrop-blur border-b border-gray-100 px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                 <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
+                    <Upload className="w-5 h-5" />
+                 </div>
+                 <div>
+                   <h3 className="font-extrabold text-sm text-gray-900">مزامنة وأرشفة سحابية</h3>
+                   <p className="text-[11px] font-bold text-gray-500 mt-0.5">{!isSavingAIGen ? "تم نقل وحفظ الملفات بنجاح" : "جاري نقل وحفظ الملفات"}</p>
+                 </div>
+              </div>
+              {!isSavingAIGen && (
+                <button onClick={() => setShowUploadOverlay(false)} className="p-1.5 hover:bg-gray-200 rounded-lg text-gray-500 transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            <div className="max-h-64 overflow-y-auto custom-scrollbar p-2">
+              <ul className="space-y-1">
+                {uploadProgress.map((p, idx) => (
+                  <li key={p.id + idx} className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors">
+                     <span className="text-xs font-bold text-gray-700">{p.name}</span>
+                     <div>
+                       {p.status === 'pending' && <Clock className="w-4 h-4 text-gray-300" />}
+                       {p.status === 'syncing' && <div className="w-4 h-4 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />}
+                       {p.status === 'completed' && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                       {p.status === 'error' && <AlertTriangle className="w-4 h-4 text-red-500" />}
+                     </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Add / Import / Export Modal */}
       <AnimatePresence>

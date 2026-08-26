@@ -41,7 +41,7 @@ import {
   Reply 
 } from "lucide-react";
 import { db } from "../lib/firebase";
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from "firebase/firestore";
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from "../lib/firebase";
 import { motion, AnimatePresence } from "motion/react";
 import GoogleWorkspaceCenter from "../components/GoogleWorkspaceCenter";
 

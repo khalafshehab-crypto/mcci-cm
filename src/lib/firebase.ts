@@ -248,3 +248,38 @@ export async function getDoc(docRef: any): Promise<any> {
   }
 }
 export { where } from "firebase/firestore";
+import { getCountFromServer as fbGetCountFromServer } from "firebase/firestore";
+
+export async function getCountFromServer(queryOrColRef: any): Promise<any> {
+  if (isUseMock()) {
+    return { data: () => ({ count: 0 }) };
+  }
+  try {
+    const { result, timedOut } = await withTimeout(fbGetCountFromServer(queryOrColRef), 8000);
+    if (timedOut) {
+      return { data: () => ({ count: 0 }) };
+    }
+    return result;
+  } catch (e) {
+    console.warn("getCountFromServer fallback on crash", e);
+    return { data: () => ({ count: 0 }) };
+  }
+}
+
+import { getDocs as fbGetDocs } from "firebase/firestore";
+
+export async function getDocs(queryOrColRef: any): Promise<any> {
+  if (isUseMock()) {
+    return { docs: [], forEach: (cb) => {} };
+  }
+  try {
+    const { result, timedOut } = await withTimeout(fbGetDocs(queryOrColRef), 8000);
+    if (timedOut) {
+      return { docs: [], forEach: (cb) => {} };
+    }
+    return result;
+  } catch (e) {
+    console.warn("getDocs fallback on crash", e);
+    return { docs: [], forEach: (cb) => {} };
+  }
+}

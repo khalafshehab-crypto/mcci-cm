@@ -96,6 +96,25 @@ service cloud.firestore {
       allow delete: if isManager();
     }
 
+    // 8. Templates (Digital Library)
+    match /templates/{templateId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(templateId);
+      allow delete: if isSysAdmin() || isManager() || isSignedIn();
+    }
+
+    // 9. Reports & KPIs
+    match /reports/{reportId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(reportId);
+      allow delete: if isSysAdmin() || isManager();
+    }
+    match /kpis/{kpiId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(kpiId);
+      allow delete: if isSysAdmin() || isManager();
+    }
+
     // 6. System Logs (Append Only)
     match /system_logs/{logId} {
       allow read: if isSysAdmin() || isManager();

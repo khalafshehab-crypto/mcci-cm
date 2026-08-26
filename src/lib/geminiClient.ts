@@ -55,3 +55,28 @@ export const replyToLetterClient = async (
   const data = await response.json();
   return data.result;
 };
+
+export const analyzeDocumentClient = async (
+  prompt: string,
+  fileBase64: string | null,
+  mimeType: string | null
+) => {
+  const response = await fetch('/api/gemini/extract-agenda', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      userApiKey: localStorage.getItem('BYOK_GEMINI_API_KEY') || undefined,
+      prompt,
+      fileBase64,
+      mimeType,
+    })
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || "Failed to analyze document");
+  }
+  const data = await response.json();
+  return data.result;
+};

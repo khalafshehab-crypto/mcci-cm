@@ -6,7 +6,7 @@ import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Calendar, CheckCircle, Search, Plus, X, Users2, Trash2, Edit2, LayoutGrid, List, SlidersHorizontal, AlertTriangle, Check, BookOpen, Clock, Presentation, MapPin, AlignLeft, Send, PlayCircle, Filter, Users, Settings, Copy, ChevronDown, ChevronUp, CheckSquare, Sparkles, Activity, Sliders, Lock
-, Upload, Paperclip, Wand2, Loader2 } from "lucide-react";
+, Upload, Paperclip, Wand2, Loader2 , CalendarDays, ChevronRight, ChevronLeft} from "lucide-react";
 import { Member } from "../data/initialMembers";
 import { formatCommitteeNameArabic } from "../lib/arabicUtils";
 
@@ -614,7 +614,29 @@ export default function AssistantSecGenEvents() {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [selectedFilterCommittees, setSelectedFilterCommittees] = useState<string[]>([]);
-  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  
+  const [currentDate, setCurrentDate] = useState(new Date());
+  
+  const getDaysInMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  };
+  
+  const getFirstDayOfMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  };
+  
+  const getMonthName = (date: Date) => {
+    return new Intl.DateTimeFormat('ar-SA', { month: 'long', year: 'numeric' }).format(date);
+  };
+  
+  const handlePrevMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  };
+  
+  const handleNextMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+  };
+const [viewMode, setViewMode] = useState<"grid" | "table" | "calendar">("grid");
   const [selectedCommIdForCards, setSelectedCommIdForCards] = useState<number | null>(null);
   const [selectedEventKindForCards, setSelectedEventKindForCards] = useState<string | null>(null);
   const [selectedClassificationForCards, setSelectedClassificationForCards] = useState<string | null>(null);
@@ -1687,6 +1709,17 @@ ${formattedItems}
             >
               <List className="w-3.5 h-3.5" />
               <span>سجل</span>
+            </button>\n            <button
+              type="button"
+              onClick={() => { setViewMode("calendar"); setIsFilterOpen(false); }}
+              className={`px-3 py-1.5 rounded-lg font-black text-xs transition-all flex items-center gap-1 cursor-pointer ${
+                viewMode === "calendar" && !isFilterOpen
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <CalendarDays className="w-3.5 h-3.5" />
+              <span>تقويم</span>
             </button>
             <div className="relative">
               <button
@@ -1807,6 +1840,51 @@ ${formattedItems}
             عرض كافة الفعاليات المسجلة
           </button>
         </div>
+      ) : viewMode === "calendar" ? (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <button onClick={handlePrevMonth} className="p-2 rounded-xl hover:bg-white hover:shadow-sm transition-all text-gray-500 hover:text-brand"><ChevronRight className="w-5 h-5" /></button>
+                <h3 className="font-black text-gray-900 text-lg">{getMonthName(currentDate)}</h3>
+                <button onClick={handleNextMonth} className="p-2 rounded-xl hover:bg-white hover:shadow-sm transition-all text-gray-500 hover:text-brand"><ChevronLeft className="w-5 h-5" /></button>
+            </div>
+            <div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50/30">
+                {['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'].map(day => (
+                    <div key={day} className="py-3 text-center text-xs font-black text-gray-500">{day}</div>
+                ))}
+            </div>
+            <div className="grid grid-cols-7 auto-rows-fr">
+                {Array.from({ length: getFirstDayOfMonth(currentDate) }).map((_, i) => (
+                    <div key={`empty-${i}`} className="min-h-[120px] p-2 border-b border-l border-gray-100 bg-gray-50/20"></div>
+                ))}
+                {Array.from({ length: getDaysInMonth(currentDate) }).map((_, i) => {
+                    const day = i + 1;
+                    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const dayEvents = filteredEvents.filter((e: any) => e.date === dateStr);
+                    const isToday = new Date().toDateString() === new Date(currentDate.getFullYear(), currentDate.getMonth(), day).toDateString();
+                    
+                    return (
+                        <div key={day} className={`min-h-[120px] p-2 border-b border-l border-gray-100 relative transition-colors ${isToday ? 'bg-blue-50/30' : 'hover:bg-gray-50/50'}`}>
+                            <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold mb-2 ${isToday ? 'bg-brand text-white shadow-sm' : 'text-gray-600'}`}>
+                                {day}
+                            </span>
+                            <div className="space-y-1.5 overflow-y-auto max-h-[85px] custom-scrollbar">
+                                {dayEvents.map((evt: any) => (
+                                    <div 
+                                        key={evt.id} 
+                                        onClick={() => {}}
+                                        className="text-[10px] p-1.5 rounded-md font-bold truncate cursor-pointer transition-all hover:scale-[1.02]"
+                                        style={{ backgroundColor: `${evt.color}15`, color: evt.color, border: `1px solid ${evt.color}30` }}
+                                    >
+                                        <div className="truncate">{evt.time && <span className="opacity-70 ml-1">{evt.time}</span>}{evt.title || evt.eventName}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    
       ) : viewMode === "grid" ? (
         <div className="space-y-6 text-right">
           {/* Elegant Breadcrumbs Navigator */}
