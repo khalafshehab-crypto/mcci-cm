@@ -2656,7 +2656,7 @@ ${closureText}
             <div className="bg-white px-3.5 py-1.5 rounded-xl text-center shadow-inner" style={{ borderWidth: '0px' }}>
               <span className="text-[10px] font-black text-gray-400 block leading-tight">منتهية</span>
               <span className="text-lg font-black text-emerald-600 leading-none font-mono">
-                {events.filter(e => e.status === "منتهية").length}
+                {events.filter(e => isEventCompleted(e) || e.status === "منتهية").length}
               </span>
             </div>
           </div>

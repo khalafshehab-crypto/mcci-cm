@@ -455,7 +455,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
       totalMbrs: 0, activeMbrs: 0, menMbrs: 0, womenMbrs: 0,
       totalRecs: 0, completedRecs: 0, activeRecs: 0, delayedRecs: 0,
       totalTsks: 0, completedTsks: 0, activeTsks: 0,
-      totalEvts: 0, meetingsEvts: 0, gatheringsEvts: 0, workshopsEvts: 0, visitsEvts: 0,
+      totalEvts: 0, completedEvts: 0, meetingsEvts: 0, gatheringsEvts: 0, workshopsEvts: 0, visitsEvts: 0,
       apprecCases: 0
   };
 
@@ -465,6 +465,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
       { name: "إجمالي المهام", value: calculatedLiveDb.totalTsks, color: "#22c55e", icon: Briefcase },
       { name: "الخطط الاستراتيجية", value: calculatedLiveDb.approvedPlans, color: "#6366f1", icon: Target },
       { name: "قضايا التقدير", value: calculatedLiveDb.apprecCases, color: "#475569", icon: Gavel },
+      { name: "الفعاليات المنجزة", value: calculatedLiveDb.completedEvts, color: "#10b981", icon: Trophy },
       { name: "إجمالي الفعاليات", value: calculatedLiveDb.totalEvts, color: "#eab308", icon: Zap },
       { name: "الاجتماعات", value: calculatedLiveDb.meetingsEvts, color: "#22c55e", icon: Calendar },
       { name: "اللقاءات", value: calculatedLiveDb.gatheringsEvts, color: "#8b5cf6", icon: Users2 },
@@ -478,8 +479,8 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
       { name: "عدد السيدات", value: calculatedLiveDb.womenMbrs, color: "#ec4899", icon: Users2 },
       { name: "عدد الرجال", value: calculatedLiveDb.menMbrs, color: "#6366f1", icon: Users2 },
       { name: "الأعضاء النشطون", value: calculatedLiveDb.activeMbrs, color: "#22c55e", icon: UserCheck },
-      { name: "اللجان غير الفعالة", value: calculatedLiveDb.inactiveComms, color: "#ef4444", icon: XCircle },
-      { name: "اللجان الفعالة", value: calculatedLiveDb.activeComms, color: "#22c55e", icon: CheckCircle2 },
+      { name: "اللجان غير النشطة", value: calculatedLiveDb.inactiveComms, color: "#ef4444", icon: XCircle },
+      { name: "اللجان النشطة", value: calculatedLiveDb.activeComms, color: "#22c55e", icon: CheckCircle2 },
       { name: "إجمالي اللجان", value: calculatedLiveDb.totalComms, color: "#3b82f6", icon: LayoutDashboard }
   ];
 
@@ -753,10 +754,6 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
 
   // Quick internal messaging state for Connected Staff Panel
   const [chatTarget, setChatTarget] = useState<{name: string, jobTitle: string, photo?: string | null} | null>(null);
-  const [chatMsg, setChatMsg] = useState("");
-  const [chatToast, setChatToast] = useState<string | null>(null);
-  const [chatMessages, setChatMessages] = useState<Array<{id: string, sender: string, text: string, isMine: boolean, time: string, photo?: string | null}>>([]);
-  const [isTyping, setIsTyping] = useState(false);
 
   // Filters for notifications center
   const [notifTypeFilter, setNotifTypeFilter] = useState<string>("all");
@@ -1060,71 +1057,6 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
     setReferNotes("");
   };
 
-  // Quick Chat Send
-  const handleSendChat = () => {
-    if (!chatMsg.trim() || !chatTarget) return;
-
-    const userMsg = chatMsg.trim();
-    const newMsgId = `msg-${Date.now()}`;
-    const targetName = chatTarget.name;
-    const targetPhoto = chatTarget.photo;
-
-    // 1. Add user's message to the chat local history
-    setChatMessages(prev => [...prev, {
-      id: newMsgId,
-      sender: "أنت (مدير النظام)",
-      text: userMsg,
-      isMine: true,
-      time: "الآن"
-    }]);
-
-    setChatMsg("");
-
-    // 2. Display a beautiful floating alert indicating that the target employee was alerted immediately on their control panel!
-    setChatToast(`🔔 جاري الإرسال والتنبيه... ظهر إشعار عاجل للتو على لوحة التحكم وشاشة العمل الخاصة بـ ${targetName}.`);
-
-    // 3. Set typing state to simulate the employee writing back
-    setTimeout(() => {
-      setIsTyping(true);
-    }, 850);
-
-    // 4. Employee sends a realistic response back!
-    setTimeout(() => {
-      setIsTyping(false);
-      setChatMessages(prev => [...prev, {
-        id: `reply-${Date.now()}`,
-        sender: targetName,
-        text: `وعليكم السلام ورحمة الله وبركاته، أهلاً بك يا فندم. لقد تلقيت للتو تنبيهاً فورياً عاجلاً على لوحتي السحابية 🔔 وبشأن استفسارك المعول: "${userMsg}"، جاري المباشرة بالتنسيق مع الأخصائيين واللجان والعمل على وجه السرعة والإفادة فوراً بالمنجز. شكراً على حرصكم ومتابعتكم الدائمة!`,
-        isMine: false,
-        time: "الآن",
-        photo: targetPhoto
-      }]);
-
-      setChatToast(`🟢 تم بفضل الله إشعار وتأكيد استجابة الموظف ${targetName} بنجاح.`);
-      
-      setTimeout(() => {
-        setChatToast(null);
-      }, 5000);
-
-    }, 2800);
-
-    // 5. Inject a real notification (alarm) into the Dashboard notification center so the user can verify it in the alerts list!
-    const newChatAlarm: Alarm = {
-      id: `chat-alert-${Date.now()}`,
-      type: "task",
-      title: `مخاطبة عاجلة: تم تنبيه ${targetName} بنجاح`,
-      description: `تم إرسال إشعار فوري للعمل والتنسيق: "${userMsg}" - والموظف متصل الآن وجاري التعامل.`,
-      dept: "قنوات التنسيق الداخلي",
-      committee: "تنسيق فوري",
-      responsible: targetName,
-      isUrgent: true,
-      dateStr: new Date().toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" }),
-      status: "قيد الانتظار", // Yellow badge -> Active!
-      timeframe: "current"
-    };
-
-    setAlarms(prev => [newChatAlarm, ...prev]);
-  };
 
   const handleMarkUrgent = async (alarm: Alarm, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1291,7 +1223,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
       ` }} />
 
 
-      {/* -------------------- مركز الإشعارات والموظفين المتصلين -------------------- */}
+      {/* -------------------- مركز الإشعارات -------------------- */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 print:hidden">
         
         {/* أ) مركز التنبيهات - يغطي 3 أعمدة */}
@@ -1309,8 +1241,8 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
                 )}
               </div>
               <div className="text-right">
-                <h3 className="font-extrabold text-gray-900 text-sm">مركز الإشعارات والتنبيهات</h3>
-                <p style={{ width: '250px' }} className="text-[10px] text-gray-500 font-bold mt-0.5">تنبيهات مبرمجة لمتابعة استحقاق المهام والتوصيات وأعمال اللجان</p>
+                <h3 className="font-extrabold text-gray-900 text-sm">مركز الإشعارات</h3>
+                <p style={{ width: '250px' }} className="text-[10px] text-gray-500 font-bold mt-0.5">تنبيهات متابعة المهام والتوصيات وأعمال اللجان</p>
               </div>
             </div>
 
@@ -1355,7 +1287,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
             </div>
           </div>
 
-          {/* قائمة التنبيهات النشطة بصرياً */}
+          {/* قائمة التنبيهات النشطة */}
           <div className="p-4 space-y-2.5 max-h-[360px] overflow-y-auto custom-scrollbar">
             {filteredAlarms.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-center space-y-2 text-center w-full">
@@ -1588,7 +1520,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
               <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-ping shrink-0" />
               <span className="font-extrabold text-gray-900 text-xs">قنوات العمل الداخلي النشطة</span>
             </div>
-            <p className="text-[9px] text-gray-400 mt-0.5">موظفي نظام اللجان متصلون الآن</p>
+            <p className="text-[9px] text-gray-400 mt-0.5">موظفي إدارة اللجان متصلون الآن</p>
           </div>
 
           <div className="p-3 divide-y divide-gray-100 max-h-[300px] overflow-y-auto custom-scrollbar space-y-2">
@@ -1930,10 +1862,10 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
                               <td className="whitespace-nowrap px-4 py-3.5 text-center">
                                 <div className="flex flex-col items-center gap-1.5 justify-center w-full min-w-[100px]">
                                   <span className="text-[10px] text-gray-600 font-extrabold">
-                                    {mtg.checklist.filter(c => c.completed).length} من {mtg.checklist.length} جهزت
+                                    {(mtg.checklist || []).filter(c => c.completed).length} من {(mtg.checklist || []).length} جهزت
                                   </span>
                                   <div className="flex gap-1">
-                                    {mtg.checklist.map((c, idx) => (
+                                    {(mtg.checklist || []).map((c, idx) => (
                                       <div
                                         key={idx}
                                         title={c.label}
@@ -2017,7 +1949,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
                             <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">تجهيزات الاجتماع</span>
                           </div>
                           <div className="grid grid-cols-1 gap-y-1">
-                            {mtg.checklist.map((item, idx) => (
+                            {(mtg.checklist || []).map((item, idx) => (
                               <div key={idx} className="flex items-center gap-2">
                                 <div className={`w-1.5 h-1.5 rounded-full ${item.completed ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-gray-300'}`} />
                                 <span className={`text-[10px] font-bold transition-colors ${item.completed ? 'text-gray-700' : 'text-gray-400'}`}>
@@ -2657,7 +2589,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: "spring", duration: 0.4 }}
-              className="bg-white border-2 border-[#b59410]/20 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative flex flex-col"
+              className="bg-white border-2 border-[#b59410]/20 rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl relative flex flex-col"
             >
               {/* Header */}
               <div className="bg-[#b59410] text-white p-4 flex items-center justify-between border-b border-[#a4840d]">
@@ -2682,65 +2614,14 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
                 </button>
               </div>
 
-              {/* Chat Body - Interactive simulation context */}
-              <div className="p-4 bg-slate-50 flex-1 overflow-y-auto min-h-[180px] max-h-[300px] flex flex-col justify-end text-right space-y-3">
-                <div className="text-center my-1">
-                  <span className="text-[8px] bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full font-black font-mono">
-                    تواصل آمن ومحمي ومحفوظ بنظام الدعم
-                  </span>
-                </div>
-
-                {/* Received message simulation */}
-                <div className="flex items-start gap-2.5">
-                  <span className="w-6 h-6 rounded-full bg-slate-300 text-slate-707 font-black text-[9px] flex items-center justify-center shrink-0">
-                    م س
-                  </span>
-                  <div className="bg-white border border-gray-150 p-2.5 rounded-2xl rounded-tr-none text-xs text-slate-808 leading-snug shadow-sm max-w-[80%]">
-                    <p className="font-extrabold mb-0.5 text-slate-505 text-[9px]">أخصائي النظام المعاون:</p>
-                    السلام عليكم، حياكم الله أستاذ باسم. نأمل العمل والتواصل بشأن المعاملات وتوصيات اللجان المعلقة بالنظام والمحالة اليوم.
-                  </div>
-                </div>
-
-                {/* Sent confirmation notification */}
-                {chatToast && (
-                  <motion.div
-                    initial={{ scale: 0.95, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-2.5 rounded-xl text-[10px] font-black text-center"
-                  >
-                    {chatToast}
-                  </motion.div>
-                )}
-              </div>
-
-              {/* Message Entry footer block */}
-              <div className="p-3 bg-white border-t border-gray-150 space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={chatMsg}
-                    onChange={(e) => setChatMsg(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
-                    placeholder="اكتب المعاملة أو الرسالة الداخلية الفورية هنا..."
-                    className="flex-1 bg-slate-101 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-955 focus:bg-white focus:border-[#b59410] focus:ring-1 focus:ring-[#b59410] outline-none"
-                  />
-                  <button
-                    onClick={handleSendChat}
-                    disabled={!chatMsg.trim()}
-                    className={`p-2.5 rounded-xl text-white flex items-center justify-center transition-all ${
-                      chatMsg.trim() 
-                        ? "bg-[#b59410] hover:bg-[#a4840d] cursor-pointer" 
-                        : "bg-gray-300 cursor-not-allowed text-gray-500"
-                    }`}
-                  >
-                    <Send className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="text-center">
-                  <span className="text-[8px] text-[#b59410] font-extrabold">
-                    تنبيه: سيتم إشعار الموظف بالبريد وجوال العمل فور الإرسال.
-                  </span>
-                </div>
+              {/* Chat Body - Embedded Google Chat */}
+              <div className="w-full h-[70vh] bg-slate-50 relative overflow-hidden flex flex-col">
+                <iframe 
+                  src="https://chat.google.com" 
+                  className="w-full flex-1 border-0"
+                  title="Google Chat"
+                  sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                />
               </div>
             </motion.div>
           </div>

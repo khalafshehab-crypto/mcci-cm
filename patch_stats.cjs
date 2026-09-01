@@ -1,36 +1,44 @@
 const fs = require('fs');
-let code = fs.readFileSync('src/pages/CommitteesReports.tsx', 'utf-8');
+let code = fs.readFileSync('src/hooks/useDashboardStats.ts', 'utf-8');
 
-// Add tasks to ReportItem interface
+const getEventKindStrString = `
+const getEventKindStr = (rawTitle: string) => {
+  if (!rawTitle) return "فعالية";
+  const title = rawTitle.trim();
+  if (title.startsWith("اجتماع") || title.includes("اجتماع")) return "اجتماع";
+  if (title.startsWith("لقاء") || title.includes("لقاء")) return "لقاء";
+  if (title.startsWith("زيارة") || title.includes("زيارة")) return "زيارة";
+  if (title.startsWith("استضافة") || title.includes("استضافة")) return "استضافة";
+  if (title.startsWith("ورشة عمل") || title.includes("ورشة عمل")) return "ورشة عمل";
+  if (title.startsWith("ندوة") || title.includes("ندوة")) return "ندوة";
+  if (title.startsWith("حفل") || title.includes("حفل")) return "حفل";
+  if (title.startsWith("تدشين") || title.includes("تدشين")) return "تدشين";
+  return "فعالية";
+};
+`;
+
+code = code.replace('export function useDashboardStats() {', getEventKindStrString + '\nexport function useDashboardStats() {');
+
 code = code.replace(
-    'completedRecsCount: number;',
-    'completedRecsCount: number;\n    tasksCount?: number;\n    completedTasksCount?: number;'
+  'const completedEvts = evts.filter(e => e.status === "منتهية" || e.status === "مكتملة" || e.status === "منجزة" || e.status === "مؤكد").length;',
+  `const completedEvts = evts.filter(e => {
+        const stepValues = [
+          !!e.committeeConfirmed,
+          !!e.invitationSent,
+          !!e.attendanceConfirmed,
+          !!e.preparationsConfirmed,
+          !!(e.agenda && e.agenda.length > 0 && e.agendaTransferred),
+          !!e.minutesSaved,
+          !!e.exportedRecommendationsToPage
+        ];
+        return stepValues.filter(Boolean).length === 7 || e.status === "منتهية" || e.status === "مكتملة" || e.status === "منجزة";
+      }).length;`
 );
 
-// Add to re-scan
-code = code.replace(
-    'completedRecsCount: Math.round(freshItems.length / 3)',
-    'completedRecsCount: Math.round(freshItems.length / 3),\n          tasksCount: Math.round(freshItems.length / 3),\n          completedTasksCount: Math.round(freshItems.length / 3)'
-);
+code = code.replace('const meetingsEvts = evts.filter(e => e.type === "اجتماع").length;', 'const meetingsEvts = evts.filter(e => getEventKindStr(e.title) === "اجتماع").length;');
+code = code.replace('const gatheringsEvts = evts.filter(e => e.type === "لقاء").length;', 'const gatheringsEvts = evts.filter(e => getEventKindStr(e.title) === "لقاء").length;');
+code = code.replace('const workshopsEvts = evts.filter(e => e.type === "ورشة عمل").length;', 'const workshopsEvts = evts.filter(e => getEventKindStr(e.title) === "ورشة عمل").length;');
+code = code.replace('const visitsEvts = evts.filter(e => e.type === "زيارة").length;', 'const visitsEvts = evts.filter(e => getEventKindStr(e.title) === "زيارة").length;');
 
-// Add to rendering UI in details view
-const uiStatsFind = `<div className="flex justify-between items-center">
-                              <span className="text-gray-600 font-bold">التوصيات المنجزة:</span>
-                              <span className="font-black text-emerald-600 bg-white px-2 py-0.5 rounded-md shadow-sm">{selectedDetailsItem.item.extractedStats.completedRecsCount || 0}</span>
-                            </div>`;
-const uiStatsReplace = `<div className="flex justify-between items-center border-t border-indigo-100/50 pt-1 mt-1">
-                              <span className="text-gray-600 font-bold">إجمالي المهام:</span>
-                              <span className="font-black text-gray-900 bg-white px-2 py-0.5 rounded-md shadow-sm">{selectedDetailsItem.item.extractedStats.tasksCount || 0}</span>
-                            </div>
-                            <div className="flex justify-between items-center border-t border-indigo-100/50 pt-1 mt-1">
-                              <span className="text-gray-600 font-bold">المهام المنجزة:</span>
-                              <span className="font-black text-emerald-600 bg-white px-2 py-0.5 rounded-md shadow-sm">{selectedDetailsItem.item.extractedStats.completedTasksCount || 0}</span>
-                            </div>`;
-
-// Check if uiStatsFind exists
-if (code.includes('التوصيات المنجزة')) {
-   code = code.replace(uiStatsFind, uiStatsFind + '\n                            ' + uiStatsReplace);
-}
-
-fs.writeFileSync('src/pages/CommitteesReports.tsx', code);
-console.log("Patched UI stats");
+fs.writeFileSync('src/hooks/useDashboardStats.ts', code);
+console.log("Stats patched!");

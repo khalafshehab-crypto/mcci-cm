@@ -60,40 +60,40 @@ service cloud.firestore {
     // 2. Committees
     match /committees/{committeeId} {
       allow read: if isSignedIn();
-      allow create: if isManager() && isValidId(committeeId);
-      allow update: if isManager() || (
+      allow create: if (isManager() || isSysAdmin()) && isValidId(committeeId);
+      allow update: if isManager() || isSysAdmin() || (
         isSignedIn() &&
         // For simplicity: specialists can update if they are assigned. 
         // We allow updates to any field except hard deletion.
         exists(/databases/$(database)/documents/employees/$(request.auth.uid))
       );
-      allow delete: if isManager();
+      allow delete: if isManager() || isSysAdmin();
     }
 
     // 3. Events
     match /events/{eventId} {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn() && isValidId(eventId);
-      allow delete: if isManager();
+      allow delete: if isManager() || isSysAdmin();
     }
 
     // 4. Tasks & Recommendations
     match /tasks/{taskId} {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn() && isValidId(taskId);
-      allow delete: if isManager();
+      allow delete: if isManager() || isSysAdmin();
     }
     match /recommendations/{recId} {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn() && isValidId(recId);
-      allow delete: if isManager();
+      allow delete: if isManager() || isSysAdmin();
     }
     
     // 5. Members
     match /members/{memberId} {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn() && isValidId(memberId);
-      allow delete: if isManager();
+      allow delete: if isManager() || isSysAdmin();
     }
 
     // 8. Templates (Digital Library)
@@ -131,5 +131,14 @@ service cloud.firestore {
       allow read, create: if true; // Public can request
       allow update, delete: if isSysAdmin() || isManager();
     }
+
+    // 10. Missing Collections (Delegations, Centers, etc.)
+    match /delegations/{docId} { allow read, write: if isSignedIn(); }
+    match /centers_events/{docId} { allow read, write: if isSignedIn(); }
+    match /centers_list/{docId} { allow read, write: if isSignedIn(); }
+    match /affiliates_events/{docId} { allow read, write: if isSignedIn(); }
+    match /affiliates_list/{docId} { allow read, write: if isSignedIn(); }
+    match /secgen_events/{docId} { allow read, write: if isSignedIn(); }
+    match /secgen_list/{docId} { allow read, write: if isSignedIn(); }
   }
 }

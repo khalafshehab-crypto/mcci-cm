@@ -1280,18 +1280,18 @@ ${formattedItems}
     setNewCommitteeId(evt.committeeId);
     setNewStatus(evt.status);
     setNewLocation(evt.location);
-    setNewEmployees(evt.employees);
+    setNewEmployees(evt.employees || []);
     setNewMembers(evt.members || []);
     setNewNotes(evt.notes);
     
     if (evt.type === "مفردة") {
       setSingleTime(evt.time || "");
       setSingleRoom(evt.location);
-      setSingleEmployee(evt.employees[0] || "");
+      setSingleEmployee(evt.employees?.[0] || "");
     } else {
       setSeriesTime(evt.time || "");
       setSeriesRooms(evt.location.split("،").map(s => s.trim()));
-      setSeriesAssignedEmployee(evt.employees[0] || "");
+      setSeriesAssignedEmployee(evt.employees?.[0] || "");
     }
 
     setIsAddOpen(true);
@@ -1370,7 +1370,7 @@ ${formattedItems}
         if (overlappingRooms.length > 0) {
           return { message: `يوجد تعارض في القاعة (${overlappingRooms.join('، ')}) مع فعالية: ${evt.title}`, conflictingEventId: evt.id };
         }
-        const overlappingEmps = employees.filter(e => evt.employees.includes(e));
+        const overlappingEmps = employees.filter(e => (evt.employees || []).includes(e));
         if (overlappingEmps.length > 0) {
           return { message: `يوجد تعارض للموظف (${overlappingEmps.join('، ')}) مع فعالية: ${evt.title}`, conflictingEventId: evt.id };
         }
@@ -1709,7 +1709,8 @@ ${formattedItems}
             >
               <List className="w-3.5 h-3.5" />
               <span>سجل</span>
-            </button>\n            <button
+            </button>
+            <button
               type="button"
               onClick={() => { setViewMode("calendar"); setIsFilterOpen(false); }}
               className={`px-3 py-1.5 rounded-lg font-black text-xs transition-all flex items-center gap-1 cursor-pointer ${
@@ -1819,7 +1820,7 @@ ${formattedItems}
             <div className="bg-white px-3.5 py-1.5 rounded-xl text-center shadow-inner" style={{ borderWidth: '0px' }}>
               <span className="text-[10px] font-black text-gray-400 block leading-tight">منتهية</span>
               <span className="text-lg font-black text-emerald-600 leading-none font-mono">
-                {events.filter(e => e.status === "منتهية").length}
+                {events.filter(e => getDisplayStatus(e) === "منتهية").length}
               </span>
             </div>
           </div>
@@ -2400,7 +2401,7 @@ ${formattedItems}
                               {evt.title}
                             </span>
                             <div className="text-[9.5px] text-gray-500 font-bold">
-                              رئيس اللجنة: {allMembers.find(m => m.committeeId === evt.committeeId && m.role === "رئيس")?.name || "غير محدد"} - الموظف: {evt.employees[0] || "غير محدد"}
+                              رئيس اللجنة: {allMembers.find(m => m.committeeId === evt.committeeId && m.role === "رئيس")?.name || "غير محدد"} - الموظف: {evt.employees?.[0] || "غير محدد"}
                             </div>
                           </div>
                         </td>
@@ -3473,8 +3474,10 @@ ${formattedItems}
                                                 <BookOpen className="w-4 h-4 text-brand" />
                                                 تحرير بنود المحضر وكتابة التوصية والمسؤول والمدة (الوقائع الرسمية)
                                               </h3>
-                                              <span className="text-[9px] text-gray-500 font-bold">مرحلة 6 من 8</span>
-                                            </div>
+                                              <span className="text-[9px] text-gray-500 font-bold">مرحلة 6 من 8</span></div>
+
+                                            
+
 
                                             {agenda.length === 0 ? (
                                               <div className="text-center p-6 border border-yellow-250 rounded-lg bg-yellow-50 text-amber-700 text-[10px] font-bold">
@@ -3519,13 +3522,13 @@ ${formattedItems}
                                                       <div className="md:col-span-5 flex flex-col gap-1">
                                                         <label className="text-[8.5px] font-bold text-gray-750">المكلف بالتوصية</label>
                                                         <select
-                                                          value={(item.assignee === "الأخصائي" && evt.employees?.[0]) ? `${evt.employees[0]} (أخصائي اللجنة)` : (item.assignee === "الأخصائي" ? "أخصائي اللجنة" : (item.assignee || ""))}
+                                                          value={(item.assignee === "الأخصائي" && evt.employees?.[0]) ? `${evt.employees?.[0]} (أخصائي اللجنة)` : (item.assignee === "الأخصائي" ? "أخصائي اللجنة" : (item.assignee || ""))}
                                                           onChange={(e) => handleUpdateAgendaMinutes(item.id, { assignee: e.target.value })}
                                                           className="w-full text-[9.5px] font-bold p-1.5 border border-gray-200 rounded bg-white text-right h-8.5 focus:ring-brand focus:border-brand focus:outline-none"
                                                         >
                                                           <option value="">-- كشف المكلفين المتاحين --</option>
-                                                          <option value={evt.employees?.[0] ? `${evt.employees[0]} (أخصائي اللجنة)` : "أخصائي اللجنة"}>
-                                                            {evt.employees?.[0] ? `${evt.employees[0]} (أخصائي اللجنة)` : "أخصائي اللجنة"}
+                                                          <option value={evt.employees?.[0] ? `${evt.employees?.[0]} (أخصائي اللجنة)` : "أخصائي اللجنة"}>
+                                                            {evt.employees?.[0] ? `${evt.employees?.[0]} (أخصائي اللجنة)` : "أخصائي اللجنة"}
                                                           </option>
                                                           {allMembers.filter(m => String(m.committeeId) === String(evt.committeeId) || String(m.secondaryCommitteeId) === String(evt.committeeId)).map(m => (
                                                             <option key={m.id} value={`${m.role} - ${m.title} ${m.name}`}>{m.title} {m.name} ({m.role})</option>

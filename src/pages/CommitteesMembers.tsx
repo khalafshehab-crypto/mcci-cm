@@ -1164,8 +1164,20 @@ export default function CommitteesMembers() {
   const activeCount = members.filter(m => m.active).length;
   const inactiveCount = totalCount - activeCount;
 
-  const femaleTitles = ["الأستاذة", "المهندسة", "الدكتورة"];
-  const femaleCount = members.filter(m => femaleTitles.includes(m.title) || (m.title === "غير ذلك" && m.customTitle?.trim().endsWith("ة"))).length;
+  const femaleCount = members.filter(m => {
+    const title = (m.title || "").trim();
+    const name = (m.name || "").trim();
+    const customTitle = (m.customTitle || "").trim();
+    const womenTitles = ["أستاذة", "دكتورة", "مهندسة", "سيدة", "الأستاذة", "المهندسة", "الدكتورة"];
+    if (womenTitles.includes(title)) return true;
+    if (title === "غير ذلك" && customTitle.endsWith("ة")) return true;
+    if (name.includes("استاذة") || name.includes("أستاذة") || name.includes("دكتورة") || name.includes("مهندسة") || name.includes("سيدة") || name.includes("الأستاذة") || name.includes("المهندسة") || name.includes("الدكتورة")) return true;
+    const femaleNames = ["سمر", "فاطمة", "أمل", "سارة", "خديجة", "نورة", "مها", "عبير", "ريم", "هند", "ندى", "بشاير", "عهود", "نوف", "روان", "امجاد"];
+    for (let fn of femaleNames) {
+        if (name.includes(fn)) return true;
+    }
+    return false;
+  }).length;
   const maleCount = totalCount - femaleCount;
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {

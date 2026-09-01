@@ -105,6 +105,7 @@ const CommitteesEvents = React.lazy(() => import("./pages/CommitteesEvents"));
 const CommitteesRecommendations = React.lazy(() => import("./pages/CommitteesRecommendations"));
 const CommitteesTasks = React.lazy(() => import("./pages/CommitteesTasks"));
 const OrgChart = React.lazy(() => import("./pages/OrgChart"));
+const SystemLogs = React.lazy(() => import("./pages/SystemLogs"));
 const CommitteesReports = React.lazy(() => import("./pages/CommitteesReports"));
 const CommitteesLibrary = React.lazy(() => import("./pages/CommitteesLibrary"));
 const Centers = React.lazy(() => import("./pages/Centers"));
@@ -211,13 +212,14 @@ export default function App() {
               <Route path="/tasks" element={<CommitteesTasks />} />
               <Route path="/reports" element={<CommitteesReports />} />
               <Route path="/library" element={<CommitteesLibrary />} />
-              <Route path="/assistant-sec-gen" element={<AssistantSecGen />} />
+                            <Route path="/assistant-sec-gen" element={<AssistantSecGen />} />
               <Route path="/assistant-sec-gen/events" element={<AssistantSecGenEvents />} />
               <Route path="/centers" element={<Centers />} />
               <Route path="/centers/events" element={<CentersEvents />} />
               <Route path="/affiliates" element={<Affiliates />} />
               <Route path="/affiliates/events" element={<AffiliatesEvents />} />
               <Route path="/org-chart" element={<OrgChart />} />
+              <Route path="/system-logs" element={<SystemLogs />} />
             </Routes>
           </Suspense>
         </Layout>

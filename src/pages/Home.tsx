@@ -564,6 +564,7 @@ export default function Home() {
     let delayedTasks = 0;
 
     let eventsCount = 0;
+    let completedEventsCount = 0;
     let meetingsCount = 0;
     let gatheringsCount = 0;
     let workshopsCount = 0;
@@ -587,10 +588,23 @@ export default function Home() {
       if (Array.isArray(evts)) {
         const realEvents = evts.filter((e: any) => !e.recommendationClassification);
         eventsCount = realEvents.length;
-        meetingsCount = realEvents.filter((e: any) => e.type === "اجتماع" || e.title?.includes("اجتماع")).length;
-        let gatheringsCount = realEvents.filter((e: any) => e.type === "لقاء" || e.title?.includes("لقاء")).length;
-        let workshopsCount = realEvents.filter((e: any) => e.type === "ورشة عمل" || e.title?.includes("ورشة")).length;
-        let visitsCount = realEvents.filter((e: any) => e.type === "زيارة" || e.title?.includes("زيارة")).length;
+        completedEventsCount = realEvents.filter((e: any) => {
+          const stepValues = [
+            !!e.committeeConfirmed,
+            !!e.invitationSent,
+            !!e.attendanceConfirmed,
+            !!e.preparationsConfirmed,
+            !!(e.agenda && e.agenda.length > 0 && e.agendaTransferred),
+            !!e.minutesSaved,
+            !!e.exportedRecommendationsToPage
+          ];
+          const st = (e.status || "").trim();
+          return stepValues.filter(Boolean).length === 7 || st.includes("منته") || st.includes("مكتمل") || st.includes("منجز") || st.includes("مؤكد");
+        }).length;
+        meetingsCount = realEvents.filter((e: any) => e.type === "اجتماع" || (e.title && e.title.includes("اجتماع")) || (e.eventName && e.eventName.includes("اجتماع"))).length;
+        gatheringsCount = realEvents.filter((e: any) => e.type === "لقاء" || (e.title && e.title.includes("لقاء")) || (e.eventName && e.eventName.includes("لقاء"))).length;
+        workshopsCount = realEvents.filter((e: any) => e.type === "ورشة عمل" || (e.title && e.title.includes("ورشة")) || (e.eventName && e.eventName.includes("ورشة"))).length;
+        visitsCount = realEvents.filter((e: any) => e.type === "زيارة" || (e.title && e.title.includes("زيارة")) || (e.eventName && e.eventName.includes("زيارة"))).length;
       }
 
       // 3. Members
@@ -600,11 +614,20 @@ export default function Home() {
         activeMembers = mbrs.filter((m: any) => m.active === true || m.active === "true" || m.status === "نشط" || m.status === "فعال" || m.active !== false).length;
         
         const femaleCount = mbrs.filter((m: any) => {
-          const title = m.title || "";
-          const name = m.name || "";
-          return title === "الأستاذة" || title === "الدكتورة" || title === "المهندسة" || 
-                 name.includes("سمر") || name.includes("فاطمة") || name.includes("المهندسة") || 
-                 name.includes("الدكتورة") || name.includes("أمل") || name.includes("سارة") || name.includes("خديجة");
+          const title = (m.title || "").trim();
+          const name = (m.name || "").trim();
+          const customTitle = (m.customTitle || "").trim();
+          const womenTitles = ["أستاذة", "دكتورة", "مهندسة", "سيدة", "الأستاذة", "المهندسة", "الدكتورة"];
+          if (womenTitles.includes(title)) return true;
+          if (title === "غير ذلك" && customTitle.endsWith("ة")) return true;
+          if (name.includes("استاذة") || name.includes("أستاذة") || name.includes("دكتورة") || name.includes("مهندسة") || name.includes("سيدة") || name.includes("الأستاذة") || name.includes("المهندسة") || name.includes("الدكتورة")) return true;
+          
+          // Additional heuristic: some common female names inside the string
+          const femaleNames = ["سمر", "فاطمة", "أمل", "سارة", "خديجة", "نورة", "مها", "عبير", "ريم", "هند", "ندى", "بشاير", "عهود", "نوف", "روان", "امجاد"];
+          for (let fn of femaleNames) {
+              if (name.includes(fn)) return true;
+          }
+          return false;
         }).length;
         
         womenCount = femaleCount;
@@ -648,6 +671,7 @@ export default function Home() {
       completedTsks: completedTasks,
       activeTsks: activeTasks,
       totalEvts: eventsCount,
+      completedEvts: completedEventsCount,
       meetingsEvts: meetingsCount,
       gatheringsEvts: gatheringsCount,
       workshopsEvts: workshopsCount,
@@ -661,6 +685,7 @@ export default function Home() {
       { name: "إجمالي المهام", value: totalTasks, color: "#22c55e", icon: Briefcase },
       { name: "الخطط الاستراتيجية", value: approvedPlans, color: "#6366f1", icon: Target },
       { name: "قضايا التقدير", value: apprecCases, color: "#475569", icon: Gavel },
+      { name: "الفعاليات المنجزة", value: completedEventsCount, color: "#10b981", icon: Trophy },
       { name: "إجمالي الفعاليات", value: eventsCount, color: "#eab308", icon: Zap },
       { name: "الاجتماعات", value: meetingsCount, color: "#22c55e", icon: Calendar },
       { name: "اللقاءات", value: gatheringsCount, color: "#8b5cf6", icon: Users2 },

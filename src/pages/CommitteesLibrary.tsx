@@ -2006,7 +2006,7 @@ ${t.description}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-6 left-6 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-[9999] overflow-hidden"
+            className="fixed bottom-6 left-6 z-[99999] max-w-sm w-full bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden font-sans"
             dir="rtl"
           >
             <div className="bg-gray-50/80 backdrop-blur border-b border-gray-100 px-5 py-4 flex items-center justify-between">

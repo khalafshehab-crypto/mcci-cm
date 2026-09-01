@@ -108,7 +108,7 @@ export interface Committee {
   eventsCount: number;
   president?: string;
   specialist?: string;
-  status?: "فعالة" | "غير فعالة" | string;
+  status?: "نشطة" | "غير نشطة" | string;
   active?: boolean;
   driveFolderId?: string;
   libraryLink?: string;
@@ -860,7 +860,7 @@ export default function CommitteesFormation() {
             eventsCount: 0,
             ratingIssues: '',
             strategicPlan: '',
-            status: 'فعالة',
+            status: 'نشطة',
             active: true,
             desc: '',
             notes: ''
@@ -952,7 +952,7 @@ export default function CommitteesFormation() {
       } else if (hKey === "strategicPlan") {
         val = comm.strategicPlan || "غير مدرجة";
       } else if (hKey === "status") {
-        val = comm.active ? "فعالة / نشطة" : "غير فعالة";
+        val = comm.active ? "نشطة" : "غير نشطة";
       } else if (hKey === "notes") {
         val = "بيانات لجان قطاعية مستخرجة آلياً";
       } else if (hKey === "desc") {
@@ -1017,7 +1017,7 @@ export default function CommitteesFormation() {
         } else if (h.key === "strategicPlan") {
           val = comm.strategicPlan || "غير مدرجة";
         } else if (h.key === "status") {
-          val = comm.active ? "فعالة / نشطة" : "غير فعالة";
+          val = comm.active ? "نشطة" : "غير نشطة";
         } else if (h.key === "notes") {
           val = "بيانات لجان قطاعية مستخرجة آلياً";
         } else if (h.key === "desc") {
@@ -2633,7 +2633,7 @@ export default function CommitteesFormation() {
                   <div className="flex flex-col flex-1 overflow-hidden">
                     <div className="p-6 space-y-4 overflow-y-auto flex-1">
                       <p className="text-xs font-semibold text-gray-650 leading-relaxed bg-emerald-50 text-emerald-800 p-3 rounded-xl border border-emerald-100">
-                        {actionType === 'تصدير' ? 'سيتم فرز وتصدير اللجان المحددة أبجدياً مع جلب كافة الإحصائيات الفعالة تلقائياً.' : 'للاستيراد، يرجى اختيار ملف CSV مطابق للأعمدة المحددة.'}
+                        {actionType === 'تصدير' ? 'سيتم فرز وتصدير اللجان المحددة أبجدياً مع جلب كافة الإحصائيات النشطة تلقائياً.' : 'للاستيراد، يرجى اختيار ملف CSV مطابق للأعمدة المحددة.'}
                       </p>
 
                       <div className="space-y-2">

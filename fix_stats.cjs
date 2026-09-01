@@ -1,15 +1,32 @@
 const fs = require('fs');
-let code = fs.readFileSync('src/pages/CommitteesReports.tsx', 'utf-8');
+const path = 'src/pages/CommitteesReports.tsx';
+let code = fs.readFileSync(path, 'utf8');
 
-code = code.replace(
-    'meetingsCount: detailedItems.filter(i => i.category === \'event\' && i.type?.includes("اجتماع")).length,',
-    'meetingsCount: detailedItems.filter(i => i.category === \'event\' && i.title?.includes("اجتماع")).length,'
-);
+const oldLogic = `        extractedStats: {
+          meetingsCount: Math.round(freshItems.length / 3),
+          eventsCount: Math.round(freshItems.length / 3),
+          recommendationsCount: Math.round(freshItems.length / 3),
+          completedRecsCount: Math.round(freshItems.length / 3),
+          tasksCount: Math.round(freshItems.length / 3),
+          completedTasksCount: Math.round(freshItems.length / 3),
+          reportsCount: Math.round(freshItems.length / 3)
+        }`;
 
-code = code.replace(
-    'eventsCount: detailedItems.filter(i => i.category === \'event\' && !i.type?.includes("اجتماع")).length,',
-    'eventsCount: detailedItems.filter(i => i.category === \'event\' && !i.title?.includes("اجتماع")).length,'
-);
+const newLogic = `        extractedItems: freshItems,
+        extractedStats: {
+          meetingsCount: freshItems.filter(i => i.category === 'event' && i.title?.includes("اجتماع")).length,
+          eventsCount: freshItems.filter(i => i.category === 'event' && !i.title?.includes("اجتماع")).length,
+          recommendationsCount: freshItems.filter(i => i.category === 'recommendation').length,
+          completedRecsCount: freshItems.filter(i => i.category === 'recommendation' && (i.status === "منجزة" || i.status === "مكتملة")).length,
+          tasksCount: freshItems.filter(i => i.category === 'task').length,
+          completedTasksCount: freshItems.filter(i => i.category === 'task' && (i.status === "منجزة" || i.status === "مكتملة")).length,
+          reportsCount: freshItems.filter(i => i.category === 'report').length
+        }`;
 
-fs.writeFileSync('src/pages/CommitteesReports.tsx', code);
-console.log("Patched stats calculation");
+if (code.includes('Math.round(freshItems.length / 3)')) {
+  code = code.replace(oldLogic, newLogic);
+  fs.writeFileSync(path, code);
+  console.log('Fixed extractedStats calculation logic.');
+} else {
+  console.log('Logic not found. Maybe it is slightly different?');
+}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, FormEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, getDocs } from '../lib/firebase';
+import CommitteesAnalytics from "./CommitteesAnalytics";
 import { db } from '../lib/firebase';
 import { showGlobalToast } from "../lib/toastUtils";
 import { resolveDrivePath, createGoogleDoc, moveDriveFile } from "../lib/googleApi";
@@ -79,7 +80,7 @@ const INITIAL_CHAMBER_KPIS_2026: Omit<KpiItem, "id">[] = [
 ];
 
 export default function CommitteesReports() {
-  const [activeTab, setActiveTab] = useState<"reports" | "kpis">("reports");
+  const [activeTab, setActiveTab] = useState<"reports" | "kpis" | "analytics">("reports");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
@@ -88,6 +89,18 @@ export default function CommitteesReports() {
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [kpis, setKpis] = useState<KpiItem[]>([]);
   const [committees, setCommittees] = useState<any[]>([]);
+
+  
+  const handleRefreshData = async () => {
+    setIsRefreshing(true);
+    showGlobalToast("جاري تحديث واستيراد أحدث البيانات من النظام...", "loading");
+    // Since Firebase onSnapshot is already real-time, this is mostly a visual cue
+    // and forces a small delay to simulate a deep re-fetch for user reassurance.
+    setTimeout(() => {
+      setIsRefreshing(false);
+      showGlobalToast("تم تحديث البيانات وجلب أحدث الإحصائيات بنجاح", "success");
+    }, 1500);
+  };
 
   // Setup Firestore listeners
   useEffect(() => {
@@ -138,6 +151,7 @@ export default function CommitteesReports() {
   const [selectedDetailsItem, setSelectedDetailsItem] = useState<{type: 'report' | 'kpi', item: any} | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isReScanning, setIsReScanning] = useState(false);
   const [isGeneratingSlides, setIsGeneratingSlides] = useState(false);
   const [isSyncingKpis, setIsSyncingKpis] = useState(false);
@@ -423,14 +437,15 @@ export default function CommitteesReports() {
       await updateDoc(doc(db, "reports", editingReport.id), {
         selectedItemsCount: freshItems.length,
         notes: updatedNotes,
+        extractedItems: freshItems,
         extractedStats: {
-          meetingsCount: Math.round(freshItems.length / 3),
-          eventsCount: Math.round(freshItems.length / 3),
-          recommendationsCount: Math.round(freshItems.length / 3),
-          completedRecsCount: Math.round(freshItems.length / 3),
-          tasksCount: Math.round(freshItems.length / 3),
-          completedTasksCount: Math.round(freshItems.length / 3),
-          reportsCount: Math.round(freshItems.length / 3)
+          meetingsCount: freshItems.filter(i => i.category === 'event' && i.title?.includes("اجتماع")).length,
+          eventsCount: freshItems.filter(i => i.category === 'event' && !i.title?.includes("اجتماع")).length,
+          recommendationsCount: freshItems.filter(i => i.category === 'recommendation').length,
+          completedRecsCount: freshItems.filter(i => i.category === 'recommendation' && (i.status === "منجزة" || i.status === "مكتملة")).length,
+          tasksCount: freshItems.filter(i => i.category === 'task').length,
+          completedTasksCount: freshItems.filter(i => i.category === 'task' && (i.status === "منجزة" || i.status === "مكتملة")).length,
+          reportsCount: freshItems.filter(i => i.category === 'report').length
         }
       });
 
@@ -650,7 +665,17 @@ export default function CommitteesReports() {
         <div className="flex flex-wrap items-center gap-2 justify-center md:justify-end shrink-0 w-full md:w-auto">
           {/* حقل البحث القابل للتوسيع */}
           <div className="flex items-center gap-2">
+            
+            <button
+              onClick={handleRefreshData}
+              disabled={isRefreshing}
+              className={`p-2.5 rounded-xl transition-all cursor-pointer border bg-white text-gray-600 border-gray-200 hover:bg-gray-50 disabled:opacity-50`}
+              title="تحديث البيانات"
+            >
+              <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
+            </button>
             <AnimatePresence>
+
               {isSearchExpanded && (
                 <motion.div
                   initial={{ width: 0, opacity: 0 }}
@@ -704,6 +729,15 @@ export default function CommitteesReports() {
             >
               <Activity className="w-4 h-4" />
             </button>
+            <button
+              onClick={() => setActiveTab("analytics")}
+              className={`px-3 py-1.5 rounded-lg font-black text-xs transition-all flex items-center gap-1 cursor-pointer ${
+                activeTab === "analytics" ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+              }`}
+              title="تحليل أداء اللجان"
+            >
+              <BarChart2 className="w-4 h-4" />
+            </button>
 
             <div className="w-[1px] bg-gray-200 my-1 mx-0.5" />
 
@@ -741,17 +775,17 @@ export default function CommitteesReports() {
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>توليد تقرير دوري ذكي</span>
             </button>
-          ) : (
+          ) : activeTab === "kpis" ? (
             <div className="flex items-center gap-2">
               <button 
                 type="button"
                 onClick={handleAutoScanAndPopulateKPIs}
                 disabled={isSyncingKpis}
                 className="h-10 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-50"
-                title="مسح مدخلات النظام وتسكينها تلقائياً في ملف Google Sheets"
+                title="تصدير ومزامنة مصفوفة تقييم أداء الغرفة 2026 إلى Google Sheets"
               >
-                <Database className="w-4 h-4" />
-                <span>{isSyncingKpis ? "جاري المسح والتصنيف..." : "مسح وتسكين المؤشرات بالسحابة"}</span>
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>{isSyncingKpis ? "جاري المزامنة..." : "تصدير ومزامنة مصفوفة تقييم أداء الغرفة 2026"}</span>
               </button>
               <button 
                 type="button"
@@ -765,7 +799,7 @@ export default function CommitteesReports() {
                 <span>إضافة طلب مؤشر ومعيار</span>
               </button>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -904,6 +938,19 @@ export default function CommitteesReports() {
       {activeTab === "kpis" && (
         <div className="space-y-6">
           
+          {/* شريط تنبيهات الإنذار المبكر */}
+          {filteredKpis.some(k => k.achievementRate < 70) && (
+            <div className="bg-red-50 border-r-4 border-red-500 p-4 rounded-xl flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="w-6 h-6 text-red-500 animate-pulse" />
+                <div>
+                  <h4 className="font-bold text-red-800 text-sm">إنذار مبكر: مؤشرات متأخرة</h4>
+                  <p className="text-xs text-red-600 font-semibold mt-1">يوجد {filteredKpis.filter(k => k.achievementRate < 70).length} مؤشرات تقل نسبة إنجازها عن 70%، تتطلب إعداد خطة تصحيحية عاجلة.</p>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {/* شريط فلترة المحاور */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
             {["الكل", "الاداء والتوجه الاستراتيجي", "حوكمة بيئة العمل", "الاستدامة المالية", "الخدمات التنظيمية", "التوعية والارشاد"].map((pillar) => (
@@ -983,7 +1030,7 @@ export default function CommitteesReports() {
                         className="flex items-center justify-center gap-1 px-2 py-2 bg-white text-gray-750 hover:bg-gray-100 rounded-lg text-xs font-extrabold transition-colors border border-gray-300 shadow-sm"
                         title="تصدير شيت المؤشر"
                       >
-                        تسكين
+                        تحميل
                         <Download className="w-3 h-3" />
                       </button>
                       <button
@@ -1040,6 +1087,14 @@ export default function CommitteesReports() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      
+      {/* -------------------- TAB 3: تحليل أداء اللجان -------------------- */}
+      {activeTab === "analytics" && (
+        <div className="mt-4">
+          <CommitteesAnalytics />
         </div>
       )}
 

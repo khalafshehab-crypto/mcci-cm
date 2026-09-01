@@ -1,5 +1,7 @@
 import React, { useState, useEffect, ReactNode } from "react";
 import { 
+  BarChart2,
+  ShieldCheck,
   Settings, 
   LogOut, 
   ChevronDown, 
@@ -201,8 +203,8 @@ export default function Layout({ children }: LayoutProps) {
         { name: "سجل الفعاليات", nameAr: "الفعاليات", path: "/events", icon: <Calendar className="w-4 h-4" /> },
         { name: "Recommendations", nameAr: "التوصيات", path: "/recommendations", icon: <CheckCircle2 className="w-4 h-4" /> },
         { name: "Tasks", nameAr: "المهام", path: "/tasks", icon: <CheckSquare className="w-4 h-4" /> },
-        { name: "Reports", nameAr: "التقارير", path: "/reports", icon: <FileText className="w-4 h-4" /> },
-        { name: "Library", nameAr: "المكتبة الرقمية", path: "/library", icon: <BookOpen className="w-4 h-4" /> },
+        { name: "Reports", nameAr: "التقارير وتحليل الأداء", path: "/reports", icon: <FileText className="w-4 h-4" /> },
+                { name: "Library", nameAr: "المكتبة الرقمية", path: "/library", icon: <BookOpen className="w-4 h-4" /> },
       ]
     },
     {
@@ -225,6 +227,9 @@ export default function Layout({ children }: LayoutProps) {
 
     // Admin permissions allows viewing the system admin page
     if (currentUserObj.adminPermissions && page.path === "/org-chart") return true;
+
+    // Strategic Dashboard (Reports page) is allowed for all employees
+    if (page.path === "/reports") return true;
 
     // If allowedPages is explicitly set, use it (even if empty)
     if (currentUserObj.allowedPages && Array.isArray(currentUserObj.allowedPages)) {

@@ -1,7 +1,8 @@
 import { initializeApp as fbInitializeApp } from "firebase/app";
 import { getAuth as fbGetAuth } from "firebase/auth";
 import { 
-  initializeFirestore as fbInitializeFirestore, getFirestore as fbGetFirestore,
+  initializeFirestore as fbInitializeFirestore,
+  enableMultiTabIndexedDbPersistence, getFirestore as fbGetFirestore,
   collection as fbCollection, 
   onSnapshot as fbOnSnapshot, 
   query as fbQuery, 
@@ -40,6 +41,14 @@ try {
   db = fbInitializeFirestore(app, { experimentalForceLongPolling: true }, firebaseAppletConfig.firestoreDatabaseId || "(default)");
   if (db) {
     db.isBlocked = !db || db.type === "dummy_firestore";
+    // Enable Offline Mode
+    enableMultiTabIndexedDbPersistence(db).catch((err) => {
+        if (err.code === 'failed-precondition') {
+            console.warn("Multiple tabs open, persistence can only be enabled in one tab at a a time.");
+        } else if (err.code === 'unimplemented') {
+            console.warn("The current browser does not support all of the features required to enable persistence");
+        }
+    });
   }
 } catch (e) {
   console.warn("Firebase getFirestore failed, using mock database implementation.", e);

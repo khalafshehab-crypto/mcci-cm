@@ -460,6 +460,9 @@ ${incomingLetter || "مرفق في الملف"}
   });
 
 
+  
+  
+
   app.post("/api/gemini/smart-recommendation", async (req, res) => {
     try {
       const { text } = req.body;
