@@ -585,7 +585,6 @@ export default function CommitteesEvents() {
          e.id !== "01" && 
          e.name !== "شهاب الدين" && 
          e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
-         e.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com" &&
          ((e.orgLevel1 && e.orgLevel1.match(/اللجان/)) || (e.orgLevel2 && e.orgLevel2.match(/اللجان/)) || (e.orgLevel3 && e.orgLevel3.match(/اللجان/)))
      );
      return sourceList.map(e => e.name).filter(Boolean);

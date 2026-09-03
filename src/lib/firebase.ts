@@ -12,7 +12,7 @@ import {
   doc as fbDoc, 
   setDoc as fbSetDoc, getDoc as fbGetDoc 
 } from "firebase/firestore";
-import * as mockFb from "./mockFirebase";
+
 import firebaseAppletConfig from "../../firebase-applet-config.json";
 
 // إعدادات مشروع mcci-cm الجديد والصحيح من البيئة، مع توفير خيارات بديلة
@@ -38,7 +38,7 @@ try {
 }
 
 try {
-  db = fbInitializeFirestore(app, { experimentalForceLongPolling: true }, firebaseAppletConfig.firestoreDatabaseId || "(default)");
+  db = fbInitializeFirestore(app, { experimentalForceLongPolling: true }, (firebaseAppletConfig as any).firestoreDatabaseId || "(default)");
   if (db) {
     db.isBlocked = !db || db.type === "dummy_firestore";
     // Enable Offline Mode
@@ -107,39 +107,18 @@ export function isUseMock() {
 }
 
 export function collection(dbRef: any, collectionName: string): any {
-  if (isUseMock()) {
-    return mockFb.collection(dbRef, collectionName);
-  }
-  try {
-    return fbCollection(dbRef, collectionName);
-  } catch (e) {
-    console.warn("Collection fallback on crash", e);
-    return mockFb.collection(dbRef, collectionName);
-  }
+  return fbCollection(dbRef, collectionName);
+
 }
 
 export function doc(dbRef: any, nameOrPath: string, maybeId?: string): any {
-  if (isUseMock()) {
-    return mockFb.doc(dbRef, nameOrPath, maybeId);
-  }
-  try {
-    return maybeId ? fbDoc(dbRef, nameOrPath, maybeId) : fbDoc(dbRef, nameOrPath);
-  } catch (e) {
-    console.warn("Doc fallback on crash", e);
-    return mockFb.doc(dbRef, nameOrPath, maybeId);
-  }
+  return maybeId ? fbDoc(dbRef, nameOrPath, maybeId) : fbDoc(dbRef, nameOrPath);
+
 }
 
 export function query(collectionRef: any, ...queryConstraints: any[]): any {
-  if (isUseMock()) {
-    return mockFb.query(collectionRef);
-  }
-  try {
-    return fbQuery(collectionRef, ...queryConstraints);
-  } catch (e) {
-    console.warn("Query fallback on crash", e);
-    return mockFb.query(collectionRef);
-  }
+  return fbQuery(collectionRef, ...queryConstraints);
+
 }
 
 // Wrap core firebase promises with a timeout to prevent hanging on connection or rules issues
@@ -166,129 +145,56 @@ async function withTimeout<T>(
 }
 
 export async function addDoc(collectionRef: any, data: any): Promise<any> {
-  if (isUseMock()) {
-    return mockFb.addDoc(collectionRef, data);
-  }
-  try {
-    const { result, timedOut } = await withTimeout(fbAddDoc(collectionRef, data), 8000);
-    if (timedOut) {
-      return mockFb.addDoc(collectionRef, data);
-    }
-    return result;
-  } catch (e) {
-    console.warn("addDoc fallback on crash", e);
-    return mockFb.addDoc(collectionRef, data);
-  }
+  return fbAddDoc(collectionRef, data);
+
 }
 
 export async function setDoc(docRef: any, data: any, options?: any): Promise<any> {
-  if (isUseMock()) {
-    return mockFb.setDoc(docRef, data, options);
-  }
-  try {
-    const promise = options !== undefined ? fbSetDoc(docRef, data, options) : fbSetDoc(docRef, data);
-    const { timedOut } = await withTimeout(promise, 8000);
-    if (timedOut) {
-      return mockFb.setDoc(docRef, data, options);
-    }
-  } catch (e) {
-    console.warn("setDoc fallback on crash", e);
-    return mockFb.setDoc(docRef, data, options);
-  }
+  return options !== undefined ? fbSetDoc(docRef, data, options) : fbSetDoc(docRef, data);
+
 }
 
 export async function updateDoc(docRef: any, data: any): Promise<any> {
-  if (isUseMock()) {
-    return mockFb.updateDoc(docRef, data);
-  }
-  try {
-    const { timedOut } = await withTimeout(fbUpdateDoc(docRef, data), 8000);
-    if (timedOut) {
-      return mockFb.updateDoc(docRef, data);
-    }
-  } catch (e) {
-    console.warn("updateDoc fallback on crash", e);
-    return mockFb.updateDoc(docRef, data);
-  }
+  return fbUpdateDoc(docRef, data);
+
 }
 
 export async function deleteDoc(docRef: any): Promise<any> {
-  if (isUseMock()) {
-    return mockFb.deleteDoc(docRef);
-  }
-  try {
-    const { timedOut } = await withTimeout(fbDeleteDoc(docRef), 8000);
-    if (timedOut) {
-      return mockFb.deleteDoc(docRef);
-    }
-  } catch (e) {
-    console.warn("deleteDoc fallback on crash", e);
-    return mockFb.deleteDoc(docRef);
-  }
+  return fbDeleteDoc(docRef);
+
 }
 
 export function onSnapshot(queryOrColRef: any, onNext: (snap: any) => void, onError?: (err: any) => void): any {
-  if (isUseMock()) {
-    return mockFb.onSnapshot(queryOrColRef, onNext, onError);
-  }
-  try {
-    return fbOnSnapshot(queryOrColRef, onNext, onError);
-  } catch (e) {
-    console.warn("onSnapshot fallback on crash", e);
-    return mockFb.onSnapshot(queryOrColRef, onNext, onError);
-  }
+  const safeOnError = onError || ((err: any) => {
+    console.warn("Firestore snapshot listener error:", err);
+  });
+  return fbOnSnapshot(queryOrColRef, onNext, safeOnError);
+
 }
 
 export { app, db, auth };
 export default app;
 export async function getDoc(docRef: any): Promise<any> {
-  if (isUseMock()) {
-    return mockFb.getDoc ? mockFb.getDoc(docRef) : { exists: () => false, data: () => null };
-  }
-  try {
-    const { result, timedOut } = await withTimeout(fbGetDoc(docRef), 8000);
-    if (timedOut) {
-      return mockFb.getDoc ? mockFb.getDoc(docRef) : { exists: () => false, data: () => null };
-    }
-    return result;
-  } catch (e) {
-    console.warn("getDoc fallback on crash", e);
-    return mockFb.getDoc ? mockFb.getDoc(docRef) : { exists: () => false, data: () => null };
-  }
+  return fbGetDoc(docRef);
 }
 export { where } from "firebase/firestore";
 import { getCountFromServer as fbGetCountFromServer } from "firebase/firestore";
 
 export async function getCountFromServer(queryOrColRef: any): Promise<any> {
-  if (isUseMock()) {
-    return { data: () => ({ count: 0 }) };
-  }
-  try {
-    const { result, timedOut } = await withTimeout(fbGetCountFromServer(queryOrColRef), 8000);
-    if (timedOut) {
-      return { data: () => ({ count: 0 }) };
-    }
-    return result;
-  } catch (e) {
-    console.warn("getCountFromServer fallback on crash", e);
-    return { data: () => ({ count: 0 }) };
-  }
+  return fbGetCountFromServer(queryOrColRef);
 }
 
 import { getDocs as fbGetDocs } from "firebase/firestore";
 
+const safeEmptySnapshot = {
+  docs: [],
+  forEach: (cb: any) => {},
+  empty: true,
+  size: 0,
+  docChanges: () => []
+};
+
 export async function getDocs(queryOrColRef: any): Promise<any> {
-  if (isUseMock()) {
-    return { docs: [], forEach: (cb) => {} };
-  }
-  try {
-    const { result, timedOut } = await withTimeout(fbGetDocs(queryOrColRef), 8000);
-    if (timedOut) {
-      return { docs: [], forEach: (cb) => {} };
-    }
-    return result;
-  } catch (e) {
-    console.warn("getDocs fallback on crash", e);
-    return { docs: [], forEach: (cb) => {} };
-  }
+  return fbGetDocs(queryOrColRef);
+
 }

@@ -57,8 +57,7 @@ export default function Tasks() {
           e.role !== "SYS_ADMIN" &&
           e.id !== "01" && 
           e.name !== "شهاب الدين" && 
-          e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
-          e.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com"
+          e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com"
         );
         setAllEmployeesData(emps);
         setEmployeesList(emps.map(e => e.name).filter(Boolean));

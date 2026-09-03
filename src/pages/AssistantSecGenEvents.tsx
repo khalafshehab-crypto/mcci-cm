@@ -585,7 +585,6 @@ export default function AssistantSecGenEvents() {
          e.id !== "01" && 
          e.name !== "شهاب الدين" && 
          e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
-         e.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com" &&
          ((e.orgLevel1 && e.orgLevel1.match(/مساعد الأمين/)) || (e.orgLevel2 && e.orgLevel2.match(/مساعد الأمين/)) || (e.title && e.title.match(/سكرتير/)))
      );
      return sourceList.map(e => e.name).filter(Boolean);

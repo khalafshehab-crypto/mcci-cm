@@ -4,8 +4,9 @@ import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query } from
 import { db } from '../lib/firebase';
 import { getSharedAccessToken, triggerAuthModal, getOrCreateFolder, uploadBinaryFileToDrive } from "../lib/googleApi";
 import { showGlobalToast } from "../lib/toastUtils";
+import { createGoogleCalendarEvent } from "../lib/googleApi";
 import { 
-  CheckSquare, Search, Plus, X, Trash2, Edit2, LayoutGrid, List, AlertTriangle, Check, BookOpen, Clock, AlignLeft, Send, Filter, Users, Settings, Copy, ChevronDown, ChevronUp, Sparkles, Sliders, ArrowLeftRight, Archive, CheckCircle2, AlertCircle, FileSpreadsheet, Paperclip, ChevronLeft, Calendar
+  CheckSquare, RefreshCw, Search, Plus, X, Trash2, Edit2, LayoutGrid, List, AlertTriangle, Check, BookOpen, Clock, AlignLeft, Send, Filter, Users, Settings, Copy, ChevronDown, ChevronUp, Sparkles, Sliders, ArrowLeftRight, Archive, CheckCircle2, AlertCircle, FileSpreadsheet, Paperclip, ChevronLeft, Calendar
 } from "lucide-react";
 
 export interface TaskItem {
@@ -59,8 +60,7 @@ export default function CommitteesTasks() {
           e.role !== "SYS_ADMIN" &&
           e.id !== "01" && 
           e.name !== "شهاب الدين" && 
-          e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
-          e.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com"
+          e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com"
         );
         setAllEmployeesData(emps);
         setEmployeesList(emps.map(e => e.name).filter(Boolean));
@@ -183,6 +183,28 @@ export default function CommitteesTasks() {
 
     try {
       await addDoc(collection(db, "tasks"), newTask);
+      
+      // Sync to Google Tasks
+      try {
+        const targetEmp = allEmployeesData.find(e => e.name === assignedTo);
+        const empEmail = targetEmp ? targetEmp.email : undefined;
+
+        await createGoogleCalendarEvent({
+          summary: `${title} (تكليف داخلي)`,
+          description: `الوصف: ${description}\nالمسند إليه: ${assignedTo}\nملاحظات: ${additionalNotes}`,
+          start: {
+            date: dueDate ? new Date(dueDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+          },
+          end: {
+            date: dueDate ? new Date(dueDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+          }
+        }, empEmail);
+        showGlobalToast("تم إنشاء المهمة ومزامنتها مع Google Calendar", "success");
+      } catch (err) {
+        console.warn("Failed to sync with Google Calendar", err);
+        showGlobalToast("تم الحفظ في النظام، ولكن فشلت المزامنة مع Google Calendar", "error");
+      }
+
       setIsAddOpen(false);
     } catch (e) {
       console.error(e);
@@ -747,6 +769,37 @@ export default function CommitteesTasks() {
               <List className="w-3.5 h-3.5" />
             </button>
           </div>
+
+          {/* Sync to Google Tasks */}
+          <button
+            onClick={async () => {
+              showGlobalToast("جاري مزامنة مهامك مع Google Tasks...", "loading");
+              try {
+                const myTasks = tasks.filter(t => t.assignedTo === currentUserName && t.status !== "منجزة" && t.status !== "مكتمل");
+                const storedUser = localStorage.getItem("current_user");
+                let currentUserEmail = undefined;
+                if (storedUser) {
+                  currentUserEmail = JSON.parse(storedUser).email;
+                }
+                for (const t of myTasks) {
+                  await createGoogleCalendarEvent({
+                    summary: t.title + " (تكليف داخلي)",
+                    description: "الوصف: " + t.description + "\nالمسند إليه: " + t.assignedTo + "\nملاحظات: " + (t.additionalNotes || ""),
+                    start: { date: t.dueDate ? new Date(t.dueDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0] },
+                    end: { date: t.dueDate ? new Date(t.dueDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0] }
+                  }, currentUserEmail);
+                }
+                showGlobalToast("تم مزامنة " + myTasks.length + " مهام مع حسابك بنجاح", "success");
+              } catch(e) {
+                console.error(e);
+                showGlobalToast("فشلت المزامنة، يرجى التأكد من صلاحيات Google Calendar", "error");
+              }
+            }}
+            className="h-10 px-4 bg-white border border-gray-200 text-sky-600 rounded-xl hover:bg-sky-50 transition-colors flex items-center gap-2 text-xs font-black shadow-sm"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>مزامنة مع Google Tasks</span>
+          </button>
 
           {/* Print A4 Sheet - Icon only without text */}
           <button

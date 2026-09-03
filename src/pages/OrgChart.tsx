@@ -35,9 +35,10 @@ import {
   Database,
   FolderLock,
   Network,
-  RefreshCw,
-} from "lucide-react";
+  Loader2, RefreshCw, ShieldCheck} from "lucide-react";
 import { useFirestoreCollection } from "../lib/firebaseUtils";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db } from "../lib/firebase";
 import { useThemeSettings } from "../hooks/useThemeSettings";
 
 // AVATAR PRESETS - Professional placeholders for visual ease
@@ -107,6 +108,7 @@ export interface OrgNode {
 }
 
 export interface Employee {
+  isProfileComplete?: boolean;
   geminiApiKey?: string;
   id: string; 
   name: string; 
@@ -144,6 +146,7 @@ export interface JoinRequest {
   requestedRole: string;
   requestedRoleAr: string;
   requestDate: string;
+  status?: 'pending' | 'approved' | 'rejected';
 }
 
 export interface ApprovedEmail {
@@ -191,7 +194,18 @@ export default function OrgChart() {
   const [customHeaderBg, setCustomHeaderBg] = useState(theme.headerBg || '#ffffff');
   const [customTextColor, setCustomTextColor] = useState(theme.textColor || '#111827');
   const [activeTab, setActiveTab] = useState<"hierarchy" | "org_chart" | "transfer" | "approvals" | "logs" | "permissions" | "master_data" | "design_settings" | "account_settings">("hierarchy");
-  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+
+    const verifyJoinRequestsIntegrity = async () => {
+    try {
+      const snapshot = await getDocs(collection(db, 'join_requests'));
+      const data = snapshot.docs.map(d => d.data());
+      const pending = data.filter((x: any) => !x.status || x.status === "pending");
+      alert(`اكتمل الفحص: يوجد ${pending.length} طلب انضمام معلق في قاعدة البيانات السحابية.`);
+    } catch (err: any) {
+      alert("فشل الاستعلام من قاعدة البيانات: " + err.message);
+    }
+  };
+const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
   // Local state for administrative master data console
   const [selectedSubCol, setSelectedSubCol] = useState<string>("committees");
@@ -203,6 +217,7 @@ export default function OrgChart() {
     title: string;
     message: string;
     onConfirm: () => void;
+    onCancel?: () => void;
     confirmText?: string;
     cancelText?: string;
     isAlert?: boolean;
@@ -222,8 +237,8 @@ export default function OrgChart() {
   const currentUserRole = currentUser?.role || "SPECIALIST";
 
   // Load state and collections from Firestore
-  const { data: dbEmployees, addDocument: addFirebaseEmp, updateDocument: updateFirebaseEmp, deleteDocument: deleteFirebaseEmp, loading: employeesLoading } = useFirestoreCollection<Employee>("employees", []);
-  const { data: dbJoinRequests, deleteDocument: deleteFirebaseReq } = useFirestoreCollection<JoinRequest>("join_requests", []);
+  const { data: dbEmployees, addDocument: addFirebaseEmp, setDocument: setFirebaseEmp, updateDocument: updateFirebaseEmp, deleteDocument: deleteFirebaseEmp, loading: employeesLoading } = useFirestoreCollection<Employee>("employees", []);
+  const { data: serverJoinRequests, deleteDocument: deleteJoinRequest } = useFirestoreCollection<JoinRequest>("join_requests", []);
   const { data: dbApprovedEmails, addDocument: addFirebaseAppr, deleteDocument: deleteFirebaseAppr } = useFirestoreCollection<ApprovedEmail>("approved_emails", []);
   const { data: dbSystemLogs, addDocument: addFirebaseLog } = useFirestoreCollection<SystemLog>("system_logs", []);
   
@@ -255,8 +270,7 @@ export default function OrgChart() {
       emp.id !== "01" && 
       emp.id !== "1" &&
       emp.name !== "شهاب الدين" && 
-      emp.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
-      emp.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com"
+      emp.email?.trim().toLowerCase() !== "khalafshehab@gmail.com"
     );
   }, [dbEmployees]);
 
@@ -609,9 +623,17 @@ export default function OrgChart() {
   const [purgeSuccess, setPurgeSuccess] = useState(false);
   const [purgeError, setPurgeError] = useState("");
 
-  const handlePurgeEntireSystem = async () => {
+    const handlePurgeEntireSystem = async () => {
     setIsPurging(true);
     setPurgeError("");
+    setShowPurgeConfirm(false);
+
+    window.dispatchEvent(
+      new CustomEvent("show-global-toast", {
+        detail: { message: "جاري حذف جميع البيانات من الجداول المحددة...", type: "loading" },
+      })
+    );
+
     try {
       const collectionsToPurge = [
         "committees", "members", "events", "recommendations", "tasks",
@@ -622,6 +644,11 @@ export default function OrgChart() {
       const { db } = await import("../lib/firebase");
 
       for (const colName of collectionsToPurge) {
+        window.dispatchEvent(
+          new CustomEvent("show-global-toast", {
+            detail: { message: "جاري تفريغ جدول: " + colName, type: "loading" },
+          })
+        );
         try {
           const snap = await getDocs(collection(db, colName));
           for (const docSnap of snap.docs) {
@@ -632,12 +659,17 @@ export default function OrgChart() {
         localStorage.removeItem(`app_${colName}`);
       }
 
+      window.dispatchEvent(
+        new CustomEvent("show-global-toast", {
+          detail: { message: "جاري تصفير بيانات الموظفين...", type: "loading" },
+        })
+      );
       try {
         const empSnap = await getDocs(collection(db, "employees"));
         for (const docSnap of empSnap.docs) {
           const d = docSnap.data();
           const lowerEmail = d?.email?.trim().toLowerCase();
-          const isSysAdmin = lowerEmail === "khalafshehab@gmail.com" || lowerEmail === "khalafshehab-crypto@gmail.com" || docSnap.id === "01";
+          const isSysAdmin = lowerEmail === "khalafshehab@gmail.com" || docSnap.id === "01";
           if (!isSysAdmin) {
             await deleteDoc(doc(db, "employees", docSnap.id));
           }
@@ -648,55 +680,138 @@ export default function OrgChart() {
       localStorage.removeItem(`app_employees`);
       setPurgeSuccess(true);
       
+      window.dispatchEvent(
+        new CustomEvent("show-global-toast", {
+          detail: { message: "اكتمل التصفير بنجاح! سيتم إعادة تحميل النظام.", type: "success" },
+        })
+      );
+
       setTimeout(() => {
         window.location.href = "/";
       }, 1500);
 
-    } catch (e) {
-      setPurgeError("حدث خطأ أثناء محاولة تصفير قاعدة البيانات.");
+    } catch (e: any) {
+      setPurgeError("حدث خطأ أثناء محاولة تصفير قاعدة البيانات: " + (e.message || String(e)));
+      window.dispatchEvent(
+        new CustomEvent("show-global-toast", {
+          detail: { message: "فشل التصفير: " + (e.message || String(e)), type: "error" },
+        })
+      );
     } finally {
       setIsPurging(false);
     }
   };
 
-  const handleApproveJoinRequest = async (req: JoinRequest) => {
+    const handleApproveJoinRequest = async (req: JoinRequest) => {
     if (employeesLoading) {
       alert("جاري تحميل البيانات، يرجى المحاولة بعد قليل.");
       return;
     }
     try {
       const emailLower = req.email.trim().toLowerCase();
-      const emailTaken = dbEmployees.some(emp => emp.email?.trim().toLowerCase() === emailLower);
+      // Check if email is taken by an active employee
+      const emailTaken = dbEmployees.some(emp => emp.email?.trim().toLowerCase() === emailLower && emp.active);
       if (emailTaken) {
-        alert(`عذراً، البريد الإلكتروني [${req.email}] مأخوذ.`);
+        alert(`عذراً، البريد الإلكتروني [${req.email}] مأخوذ من قبل موظف نشط.`);
         return;
       }
 
-      let parsedId = Math.floor(1000 + Math.random() * 9000).toString();
-      while (dbEmployees.some(emp => emp.id === parsedId)) {
-        parsedId = Math.floor(1000 + Math.random() * 9000).toString();
-      }
+      // Check for previous works or deleted employee
+      let hasWorks = false;
+      const tasksQ = query(collection(db, "tasks"), where("assignedTo", "==", req.name));
+      const recQ = query(collection(db, "recommendations"), where("assignedTo", "==", req.name));
       
-      const payload: Omit<Employee, "id"> = {
-        name: req.name,
-        role: "SPECIALIST",
-        roleAr: "أخصائي اللجان",
-        jobTitle: "أخصائي",
-        orgLevel1: "الأمانة العامة",
-        phone: req.phone,
-        email: emailLower,
-        photo: PRESET_AVATARS[Math.floor(Math.random() * PRESET_AVATARS.length)],
-        committees: [],
-        active: true,
-        joinDate: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
-        gender: (req as any).gender || "MALE"
+      const [tasksSnap, recSnap] = await Promise.all([getDocs(tasksQ), getDocs(recQ)]);
+      if (!tasksSnap.empty || !recSnap.empty) {
+        hasWorks = true;
+      }
+
+      const disabledEmp = dbEmployees.find(emp => emp.email?.trim().toLowerCase() === emailLower && !emp.active);
+      
+      const performApproval = async (linkChoice: boolean) => {
+        let parsedId = "";
+        
+        if (hasWorks || disabledEmp) {
+          if (linkChoice) {
+            if (disabledEmp) {
+              parsedId = disabledEmp.id;
+            } else {
+              parsedId = Math.floor(1000 + Math.random() * 9000).toString();
+              while (dbEmployees.some(emp => emp.id === parsedId)) {
+                parsedId = Math.floor(1000 + Math.random() * 9000).toString();
+              }
+            }
+          } else {
+            parsedId = Math.floor(1000 + Math.random() * 9000).toString();
+            while (dbEmployees.some(emp => emp.id === parsedId)) {
+              parsedId = Math.floor(1000 + Math.random() * 9000).toString();
+            }
+            req.name = req.name + " (جديد)";
+          }
+        } else {
+          parsedId = Math.floor(1000 + Math.random() * 9000).toString();
+          while (dbEmployees.some(emp => emp.id === parsedId)) {
+            parsedId = Math.floor(1000 + Math.random() * 9000).toString();
+          }
+        }
+
+        try {
+          const payload = {
+            name: req.name,
+            role: "SPECIALIST" as any,
+            roleAr: "أخصائي اللجان",
+            jobTitle: "أخصائي",
+            orgLevel1: "الأمانة العامة",
+            phone: req.phone || "",
+            email: emailLower,
+            photo: disabledEmp?.photo || PRESET_AVATARS[Math.floor(Math.random() * PRESET_AVATARS.length)],
+            committees: disabledEmp?.committees || [],
+            active: true,
+            joinDate: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
+            gender: (req as any).gender || "MALE",
+            isProfileComplete: false
+          };
+
+          await setFirebaseEmp(parsedId, payload);
+          await deleteJoinRequest(req.id);
+          
+          setConfirmDialog({
+            isOpen: true,
+            title: "تم بنجاح",
+            message: `تمت الموافقة بنجاح وتم توليد رقم وظيفي للموظف: ${parsedId}`,
+            confirmText: "حسناً",
+            isAlert: true,
+            onConfirm: () => setConfirmDialog(null)
+          });
+        } catch (error) {
+          console.error("Approval error:", error);
+          setConfirmDialog({
+            isOpen: true,
+            title: "خطأ",
+            message: "حدث خطأ أثناء محاولة الاعتماد.",
+            confirmText: "حسناً",
+            isAlert: true,
+            onConfirm: () => setConfirmDialog(null)
+          });
+        }
       };
 
-      await updateFirebaseEmp(parsedId, payload);
-      await deleteFirebaseReq(req.id);
-      alert(`تمت الموافقة بنجاح وتم توليد رقم وظيفي مؤقت للموظف: ${parsedId}`);
+      if (hasWorks || disabledEmp) {
+        setConfirmDialog({
+          isOpen: true,
+          title: "ارتباطات سابقة للموظف",
+          message: `هناك أعمال سابقة (مهام أو توصيات) مسجلة باسم الموظف (${req.name}) أو حساب معطل.\n\nهل تريد ربط الموظف الجديد بهذه الأعمال واستعادة حسابه القديم؟\n\n(تأكيد = ربط واستعادة، إلغاء = اعتماد كمعرف جديد)`,
+          confirmText: "ربط واستعادة",
+          cancelText: "معرف جديد",
+          onConfirm: () => { setConfirmDialog(null); performApproval(true); },
+          onCancel: () => { setConfirmDialog(null); performApproval(false); }
+        });
+      } else {
+        performApproval(false);
+      }
     } catch (error) {
-      alert("فشل في اعتماد طلب الانضمام.");
+      console.error(error);
+      alert("فشل في اعتماد طلب الانضمام: " + (error as any)?.message || String(error));
     }
   };
 
@@ -707,7 +822,7 @@ export default function OrgChart() {
       message: `هل أنت متأكد من رفض طلب الموظف: ${req.name}؟`,
       onConfirm: async () => {
         try {
-          await deleteFirebaseReq(req.id);
+          await deleteJoinRequest(req.id);
           setConfirmDialog(null);
         } catch (error) {
           setConfirmDialog(null);
@@ -912,7 +1027,7 @@ export default function OrgChart() {
         adminPermissions: calculatedAdminPerms,
         password: formPassword.trim() || (existingEmployee?.password || ""),
         joinDate: existingEmployee?.joinDate || new Date().toISOString().split('T')[0].replace(/-/g, '/'),
-        geminiApiKey: formGeminiApiKey.trim(),
+        geminiApiKey: formGeminiApiKey.trim(), isProfileComplete: true,
       };
 
       if (isEditing) {
@@ -1244,7 +1359,7 @@ export default function OrgChart() {
   const filteredEmployees = React.useMemo(() => {
     return safeDbEmployees.filter(emp => {
       // Unconditionally hide sys admin and root users from all employee lists, regardless of current user role
-      if (emp.role === "SYS_ADMIN" || emp.id === "01" || emp.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || emp.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com") {
+      if (emp.role === "SYS_ADMIN" || emp.id === "01" || emp.email?.trim().toLowerCase() === "khalafshehab@gmail.com") {
         return false;
       }
       const term = searchTerm.toLowerCase().trim();
@@ -1446,7 +1561,7 @@ export default function OrgChart() {
             >
               <UserCheck className="w-4 h-4 shrink-0" />
               <span>طلبات الانضمام</span>
-              {dbJoinRequests.length > 0 && <span className="bg-amber-500 px-2 py-0.5 rounded-full text-[10px] text-white font-black animate-bounce">{dbJoinRequests.length}</span>}
+              {serverJoinRequests.length > 0 && <span className="bg-amber-500 px-2 py-0.5 rounded-full text-[10px] text-white font-black animate-bounce">{serverJoinRequests.length}</span>}
             </button>
             <button
               onClick={() => setActiveTab("logs")}
@@ -2152,12 +2267,15 @@ export default function OrgChart() {
         {activeTab === "approvals" && currentUserRole === "SYS_ADMIN" && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm space-y-4">
-              <h2 className="text-sm font-black text-gray-900 flex items-center gap-1.5"><UserCheck className="w-5 h-5 text-amber-500" /><span>طلبات الانضمام المعلقة</span></h2>
-              {dbJoinRequests.length === 0 ? (
+              <div className="flex justify-between items-center">
+                <h2 className="text-sm font-black text-gray-900 flex items-center gap-1.5"><UserCheck className="w-5 h-5 text-amber-500" /><span>طلبات الانضمام المعلقة</span></h2>
+                <button onClick={verifyJoinRequestsIntegrity} className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-black flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5" /><span>فحص الاستعلام</span></button>
+              </div>
+              {serverJoinRequests.filter(req => !req.status || req.status === "pending").length === 0 ? (
                 <div className="p-8 border border-dashed border-gray-200 rounded-xl text-center text-[11px] font-bold text-gray-500">لا توجد طلبات معلقة.</div>
               ) : (
                 <div className="space-y-3">
-                  {dbJoinRequests.map((req) => (
+                  {serverJoinRequests.filter(req => !req.status || req.status === "pending").map((req) => (
                     <div key={req.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex justify-between items-center gap-4">
                       <div>
                         <span className="font-extrabold text-xs text-gray-900 block">{req.name}</span>
@@ -2667,13 +2785,13 @@ export default function OrgChart() {
       <AnimatePresence>
         {confirmDialog && confirmDialog.isOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setConfirmDialog(null)} className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { if (confirmDialog.onCancel) confirmDialog.onCancel(); else setConfirmDialog(null); }} className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" />
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden p-6">
               <div className="flex items-center gap-3 mb-4 text-red-600"><AlertTriangle className="w-6 h-6" /><h3 className="text-lg font-black">{confirmDialog.title}</h3></div>
               <p className="text-sm font-semibold text-gray-700 whitespace-pre-wrap">{confirmDialog.message}</p>
               <div className="mt-6 flex justify-end gap-3">
                 {!confirmDialog.isAlert && (
-                  <button onClick={() => setConfirmDialog(null)} className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-lg">
+                  <button onClick={() => { if (confirmDialog.onCancel) confirmDialog.onCancel(); else setConfirmDialog(null); }} className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-lg">
                     {confirmDialog.cancelText || "إلغاء"}
                   </button>
                 )}
@@ -2970,8 +3088,51 @@ export default function OrgChart() {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      
+        {/* Purge Confirm Modal */}
+        {showPurgeConfirm && (
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 text-right font-sans" dir="rtl">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-red-100"
+            >
+              <div className="p-6">
+                <div className="w-16 h-16 bg-red-50 text-red-650 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100">
+                  <ShieldAlert className="w-8 h-8 animate-pulse" />
+                </div>
+                <h3 className="text-xl font-black text-center text-gray-900 mb-2">تأكيد تصفير النظام</h3>
+                <p className="text-xs text-gray-500 font-bold text-center leading-relaxed mb-6">
+                  هذا الإجراء سيقوم بحذف <span className="text-red-650">كافة البيانات</span> (لجان، أعضاء، فعاليات، مهام، تقارير، الخ) بشكل نهائي ولا يمكن التراجع عنه. هل أنت متأكد من رغبتك في الاستمرار؟
+                </p>
 
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handlePurgeEntireSystem}
+                    disabled={isPurging}
+                    className="flex-1 h-12 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-black text-sm rounded-xl transition-all flex items-center justify-center gap-2"
+                  >
+                    {isPurging ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> جاري التصفير...</>
+                    ) : (
+                      <><ShieldAlert className="w-4 h-4" /> نعم، قم بتصفير النظام</>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setShowPurgeConfirm(false)}
+                    disabled={isPurging}
+                    className="px-6 h-12 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black text-sm rounded-xl transition-all"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+      </AnimatePresence>
     </div>
   );
 }

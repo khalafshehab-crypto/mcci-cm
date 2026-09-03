@@ -16,17 +16,20 @@ import {
   CheckCircle2,
   BookOpen,
   Library,
-  UserCheck
+  UserCheck,
+  User,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import UserProfileModal from "./UserProfileModal";
 import { Link, useLocation } from "react-router-dom";import NotificationCenter from "./NotificationCenter";
 import { subscribeToFirestoreBlocked } from "../lib/firebaseUtils";
  
 interface LayoutProps {
+  user?: any;
   children: ReactNode;
 }
  
-export default function Layout({ children }: LayoutProps) {
+export default function Layout({ children, user }: LayoutProps) {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     "assistant-sec-gen": false,
@@ -43,6 +46,7 @@ export default function Layout({ children }: LayoutProps) {
   const [userRoleAr, setUserRoleAr] = useState("مدير النظام");
   const [userPhoto, setUserPhoto] = useState<string | null>(null);
   const [currentUserObj, setCurrentUserObj] = useState<any>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   useEffect(() => {
     return subscribeToFirestoreBlocked((blocked) => {
@@ -55,6 +59,12 @@ export default function Layout({ children }: LayoutProps) {
       const stored = localStorage.getItem("current_user");
       if (stored) {
         const parsed = JSON.parse(stored);
+        if (parsed.isProfileComplete === false && location.pathname !== "/system-logs") {
+          setTimeout(() => setShowProfileModal(true), 500);
+        }
+      }
+      if (stored) {
+        const parsed = JSON.parse(stored);
         if (parsed) {
           setCurrentUserObj(parsed);
           if (parsed.name) setUserName(parsed.name);
@@ -63,7 +73,20 @@ export default function Layout({ children }: LayoutProps) {
         }
       }
     } catch (e) { /* ignore */ }
-  }, [location.pathname]);
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      setCurrentUserObj(user);
+      if (user.name) setUserName(user.name);
+      if (user.roleAr) setUserRoleAr(user.roleAr || "أخصائي اللجان");
+      if (user.photo) setUserPhoto(user.photo);
+      
+      if (user.isProfileComplete === false && location.pathname !== "/system-logs") {
+        setTimeout(() => setShowProfileModal(true), 500);
+      }
+    }
+  }, [user, location.pathname]);
  
   const toggleDropdown = (name: string) => {
     setActiveDropdown(activeDropdown === name ? null : name);
@@ -382,6 +405,14 @@ export default function Layout({ children }: LayoutProps) {
                         <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wide truncate mt-0.5">{userRoleAr}</p>
                       </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => { setShowProfileModal(true); setActiveDropdown(null); }}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-xl text-[11px] font-black transition-all border border-gray-200 mb-2"
+                    >
+                      <User className="w-4 h-4" />
+                      <span>الملف الشخصي</span>
+                    </button>
                     <button 
                       type="button"
                       onClick={() => {
@@ -457,6 +488,18 @@ export default function Layout({ children }: LayoutProps) {
           children
         )}
       </main>
+      {showProfileModal && currentUserObj && (
+        <UserProfileModal 
+          user={currentUserObj}
+          onClose={() => setShowProfileModal(false)}
+          onUpdate={(updated) => {
+             setCurrentUserObj(updated);
+             setUserName(updated.name);
+             setUserRoleAr(updated.roleAr || updated.role);
+             setUserPhoto(updated.photo);
+          }}
+        />
+      )}
     </div>
   );
 }

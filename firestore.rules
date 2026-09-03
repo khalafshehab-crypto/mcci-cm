@@ -6,15 +6,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Phase 3: Primitive Definition
     function isSignedIn() {
       return request.auth != null;
     }
-
     function incoming() {
       return request.resource.data;
     }
-
     function existing() {
       return resource.data;
     }
@@ -23,116 +20,100 @@ service cloud.firestore {
       return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    // To check if a user is Level1 or Level2 (Managers)
     function isManager() {
       return isSignedIn() &&
         exists(/databases/$(database)/documents/employees/$(request.auth.uid)) &&
-        (get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role == 'مدير إدارة' ||
-         get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role == 'رئيس قسم' ||
+        (get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role == 'مدير إدارة' || 
+         get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role == 'رئيس قسم' || 
          get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.orgLevel1 != null);
     }
-
-    function isSysAdmin() {
-       // Allow designated admin emails or specific flags if needed.
-       return isSignedIn() && request.auth.token.email == 'khalafshehab@gmail.com';
+    
+    function isSysAdmin() { 
+       return isSignedIn() && (request.auth.token.email == 'khalafshehab@gmail.com');
     }
 
-    // -- Entity Validations (Simplified for structural integrity) --
-    function isValidCommittee(data) {
-       return data.keys().hasAny(['name', 'status']);
-    }
-
-    // --- RULES ---
-
-    // 1. Employees (Profiles)
     match /employees/{userId} {
-      allow read: if isSignedIn();
-      // Only sysadmins can create or managers can approve
-      allow create: if isSysAdmin() || isManager();
-      // Users can update their own profile EXCEPT role fields. Managers can update anything.
+      allow read: if true;
+      allow create: if isSysAdmin() || isManager() || (
+        isSignedIn() && incoming().email == request.auth.token.email
+      );
       allow update: if isSysAdmin() || isManager() || (
-        isSignedIn() && request.auth.uid == userId &&
+        isSignedIn() && resource.data.email == request.auth.token.email &&
         !incoming().diff(existing()).affectedKeys().hasAny(['role', 'roleAr', 'orgLevel1', 'orgLevel2', 'active', 'loginEnabled'])
       );
-      allow delete: if isSysAdmin();
+      allow delete: if isSysAdmin() || (
+        isSignedIn() && resource.data.email == request.auth.token.email
+      );
     }
 
-    // 2. Committees
     match /committees/{committeeId} {
       allow read: if isSignedIn();
       allow create: if (isManager() || isSysAdmin()) && isValidId(committeeId);
       allow update: if isManager() || isSysAdmin() || (
         isSignedIn() &&
-        // For simplicity: specialists can update if they are assigned. 
-        // We allow updates to any field except hard deletion.
         exists(/databases/$(database)/documents/employees/$(request.auth.uid))
       );
       allow delete: if isManager() || isSysAdmin();
     }
 
-    // 3. Events
     match /events/{eventId} {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn() && isValidId(eventId);
       allow delete: if isManager() || isSysAdmin();
     }
 
-    // 4. Tasks & Recommendations
     match /tasks/{taskId} {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn() && isValidId(taskId);
       allow delete: if isManager() || isSysAdmin();
     }
+
     match /recommendations/{recId} {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn() && isValidId(recId);
       allow delete: if isManager() || isSysAdmin();
     }
     
-    // 5. Members
     match /members/{memberId} {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn() && isValidId(memberId);
       allow delete: if isManager() || isSysAdmin();
     }
 
-    // 8. Templates (Digital Library)
     match /templates/{templateId} {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn() && isValidId(templateId);
       allow delete: if isSysAdmin() || isManager() || isSignedIn();
     }
 
-    // 9. Reports & KPIs
     match /reports/{reportId} {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn() && isValidId(reportId);
       allow delete: if isSysAdmin() || isManager();
     }
+
     match /kpis/{kpiId} {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn() && isValidId(kpiId);
       allow delete: if isSysAdmin() || isManager();
     }
 
-    // 6. System Logs (Append Only)
     match /system_logs/{logId} {
       allow read: if isSysAdmin() || isManager();
       allow create: if isSignedIn() && isValidId(logId);
-      allow update, delete: if false;
+      allow update: if false; allow delete: if isSysAdmin();
     }
 
-    // 7. Config (Approved Emails, Join Requests)
     match /approved_emails/{emailId} {
-      allow read: if true; // Needed for login gate
+      allow read: if true; 
       allow create, update, delete: if isSysAdmin() || isManager();
     }
+
     match /join_requests/{reqId} {
-      allow read, create: if true; // Public can request
+      allow read, create: if true; 
       allow update, delete: if isSysAdmin() || isManager();
     }
 
-    // 10. Missing Collections (Delegations, Centers, etc.)
     match /delegations/{docId} { allow read, write: if isSignedIn(); }
     match /centers_events/{docId} { allow read, write: if isSignedIn(); }
     match /centers_list/{docId} { allow read, write: if isSignedIn(); }
@@ -140,5 +121,9 @@ service cloud.firestore {
     match /affiliates_list/{docId} { allow read, write: if isSignedIn(); }
     match /secgen_events/{docId} { allow read, write: if isSignedIn(); }
     match /secgen_list/{docId} { allow read, write: if isSignedIn(); }
+    
+    match /employee_tokens/{emailId} { allow read, write: if isSignedIn(); }
+    match /org_structure/{docId} { allow read, write: if isSignedIn(); }
+    match /system_settings/{settingId} { allow read, write: if isSignedIn(); }
   }
 }

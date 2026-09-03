@@ -89,11 +89,17 @@ export function saveLocalCollection(collectionName: string, data: any[]) {
 
 // Helper query mapper
 function makeSnapshot(data: any[]) {
+  const docs = data.map(item => ({
+    id: item.id || Math.random().toString(36).substring(2, 9),
+    data: () => item
+  }));
   return {
-    docs: data.map(item => ({
-      id: item.id || Math.random().toString(36).substring(2, 9),
-      data: () => item
-    }))
+    docs,
+    forEach: (cb: any) => docs.forEach(cb),
+    docChanges: () => docs.map(doc => ({ type: 'added', doc })),
+    empty: docs.length === 0,
+    size: docs.length,
+    isMock: true
   };
 }
 
@@ -234,11 +240,11 @@ export function doc(dbRef: any, nameOrPath: string, maybeId?: string): any {
 }
 
 export function query(collectionRef: any): any {
-  return { type: 'query', collectionRef, name: collectionRef.name };
+  return { type: 'query', collectionRef, name: collectionRef.name || collectionRef.id || "mock" };
 }
 
 export async function addDoc(collectionRef: any, data: any): Promise<any> {
-  const colName = collectionRef.name;
+  const colName = collectionRef.name || collectionRef.id || "mock";
   const list = getLocalCollection(colName);
   const newId = `${colName.substring(0, 4)}_${Math.random().toString(36).substring(2, 11)}`;
   const item = { ...data, id: newId };
@@ -248,7 +254,7 @@ export async function addDoc(collectionRef: any, data: any): Promise<any> {
 }
 
 export async function setDoc(docRef: any, data: any, options: any = {}): Promise<any> {
-  const colName = docRef.collectionName;
+  const colName = docRef.collectionName || (docRef.parent && docRef.parent.id) || (docRef.path ? docRef.path.split('/')[0] : "mock");
   const list = getLocalCollection(colName);
   const targetId = String(docRef.id);
   const index = list.findIndex(item => String(item.id) === targetId);
@@ -269,7 +275,7 @@ export async function updateDoc(docRef: any, data: any): Promise<any> {
 }
 
 export async function deleteDoc(docRef: any): Promise<any> {
-  const colName = docRef.collectionName;
+  const colName = docRef.collectionName || (docRef.parent && docRef.parent.id) || (docRef.path ? docRef.path.split('/')[0] : "mock");
   const list = getLocalCollection(colName);
   const targetId = String(docRef.id);
   const filtered = list.filter(item => String(item.id) !== targetId);
@@ -277,9 +283,9 @@ export async function deleteDoc(docRef: any): Promise<any> {
 }
 
 export function onSnapshot(queryOrColRef: any, onNext: (snap: any) => void, onError?: (err: any) => void): any {
-  const colName = queryOrColRef.type === 'query' 
-    ? queryOrColRef.collectionRef.name 
-    : queryOrColRef.name;
+  const isQuery = queryOrColRef.type === 'query';
+  const ref = isQuery ? queryOrColRef.collectionRef : queryOrColRef;
+  const colName = ref.name || ref.id || "mock";
 
   if (!listeners[colName]) {
     listeners[colName] = [];

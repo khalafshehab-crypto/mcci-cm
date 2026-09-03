@@ -1,3 +1,5 @@
+import { doc } from "firebase/firestore";
+import { setDoc } from "../lib/firebase";
 import React, { useState } from "react";
 import { 
   Lock, 
@@ -44,8 +46,8 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
   // Firestore Collections
   const { data: dbEmployees, setDocument: setFirebaseEmpDoc, loading: employeesLoading } = useFirestoreCollection<any>("employees", []);
   const { data: dbApprovedEmails, loading: approvedEmailsLoading } = useFirestoreCollection<any>("approved_emails", []);
-  const { data: dbJoinRequests, addDocument: addFirebaseJoinReq, loading: joinRequestsLoading } = useFirestoreCollection<any>("join_requests", []);
-  const isDataLoading = employeesLoading || joinRequestsLoading || approvedEmailsLoading;
+  
+  const isDataLoading = employeesLoading  || approvedEmailsLoading;
 
   const logSystemAction = async (employeeName: string, details: string, status: "ناجحة" | "مرفوضة") => {
     try {
@@ -66,7 +68,7 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
     const emailLower = email.trim().toLowerCase();
 
     // 1. Is this the Master Administrator?
-    if (emailLower === "khalafshehab@gmail.com" || emailLower === "khalafshehab-crypto@gmail.com") {
+    if (emailLower === "khalafshehab@gmail.com") {
       // Check if there is an existing employee card in the database with this admin email
       const existingAdmin = dbEmployees.find(
         (emp: any) => emp.email?.trim().toLowerCase() === emailLower
@@ -203,25 +205,29 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
     }
 
     // 4. Is there a pending join request?
-    const pendingReq = dbJoinRequests.find(
-      (req: any) => req.email?.trim().toLowerCase() === emailLower
-    );
-
-    if (pendingReq) {
-      setMessage({
-        text: `طلب انضمامك بالبريد الإلكتروني [${emailLower}] قيد المراجعة حالياً من قبل إدارة النظام والرقابة. ستتمكن من الدخول بمجرد اعتماد طلبك من لوحة الهيكل التنظيمي.`,
-        type: "info"
-      });
-      await logSystemAction("مستعلم", `محاولة دخول فاشلة - طلب الانضمام قيد الدراسة [${emailLower}]`, "مرفوضة");
-      return false;
-    } else {
-      setMessage({
-        text: `عذراً، البريد الإلكتروني غير مسجل مسبقاً بالنظام كحساب موظف معتمد. يرجى تقديم طلب انضمام جديد عبر التبويب الآخر ليتم تفعيله من المدير.`,
-        type: "error"
-      });
-      await logSystemAction("زائر", `محاولة دخول فاشلة لبريد غير مسجل [${emailLower}]`, "مرفوضة");
-      return false;
+    try {
+      const q = query(collection(db, "join_requests"), where("email", "==", emailLower));
+      const snap = await getDocs(q);
+      
+      if (!snap.empty) {
+        setMessage({
+          text: `طلب انضمامك بالبريد الإلكتروني [${emailLower}] قيد المراجعة حالياً من قبل إدارة النظام والرقابة. ستتمكن من الدخول بمجرد اعتماد طلبك من لوحة الهيكل التنظيمي.`,
+          type: "info"
+        });
+        await logSystemAction("مستعلم", `محاولة دخول فاشلة - طلب الانضمام قيد الدراسة [${emailLower}]`, "مرفوضة");
+        return false;
+      }
+    } catch (err) {
+      console.error("Failed to check join requests:", err);
     }
+    
+    // Fallback if not found
+    setMessage({
+      text: `عذراً، البريد الإلكتروني غير مسجل مسبقاً بالنظام كحساب موظف معتمد. يرجى تقديم طلب انضمام جديد عبر التبويب الآخر ليتم تفعيله من المدير.`,
+      type: "error"
+    });
+    await logSystemAction("زائر", `محاولة دخول فاشلة لبريد غير مسجل [${emailLower}]`, "مرفوضة");
+    return false;
   };
 
   // تسجيل الدخول الآمن بحساب جوجل
@@ -235,6 +241,18 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
       const credential = GoogleAuthProvider.credentialFromResult(result);
       if (credential?.accessToken) {
         setCachedAccessToken(credential.accessToken);
+        // Save this user's Google token globally so others can assign tasks to them!
+        try {
+          if (result.user && result.user.email) {
+            const tokenRef = doc(db, "employee_tokens", result.user.email.toLowerCase());
+            await setDoc(tokenRef, {
+               token: credential.accessToken,
+               timestamp: Date.now()
+            });
+          }
+        } catch (e) {
+          console.warn("Failed to save employee token:", e);
+        }
       }
       
       const user = result.user;
@@ -247,8 +265,11 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
       if (user && user.email) {
         setLoginEmail(user.email);
         const success = await proceedWithEmailLogin(user.email);
-        if (!success) {
-          // If not registered or pending, we've already displayed the notice inside proceedWithEmailLogin
+        if (success) {
+           const loggedInUser = dbEmployees.find((emp: any) => emp.email?.trim().toLowerCase() === user.email?.trim().toLowerCase());
+           if (loggedInUser) {
+              import("../lib/workspaceSync").then(m => m.syncUserWorkspace(loggedInUser));
+           }
         }
       } else {
         throw new Error("لم نتمكن من العثور على بريد إلكتروني نشط لحساب جوجل هذا.");
@@ -313,7 +334,7 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
 
     const emailLower = regEmail.trim().toLowerCase();
 
-    if (emailLower === "khalafshehab@gmail.com" || emailLower === "khalafshehab-crypto@gmail.com") {
+    if (emailLower === "khalafshehab@gmail.com") {
       setMessage({
         text: "هذا البريد الإلكتروني مخصص لمدير النظام الفعلي ومسجل لديه كافة الصلاحيات.",
         type: "error"
@@ -340,9 +361,10 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
       }
 
       // Check if already requested
-      const requestExists = dbJoinRequests.find(
-        (req: any) => req.email?.trim().toLowerCase() === emailLower
-      );
+      const q = query(collection(db, "join_requests"), where("email", "==", emailLower));
+      const snap = await getDocs(q);
+      const requestExists = !snap.empty;
+
 
       if (requestExists) {
         setMessage({
@@ -361,10 +383,11 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
         requestedRole: "SPECIALIST",
         requestedRoleAr: "أخصائي لجان",
         requestDate: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
-        gender: regGender
+        gender: regGender,
+        status: "pending"
       };
 
-      await addFirebaseJoinReq(payload);
+      await addDoc(collection(db, "join_requests"), payload);
       await logSystemAction(regName.trim(), `تم إرسال طلب انضمام جديد بنجاح للبريد [${emailLower}]`, "ناجحة");
 
       setMessage({

@@ -270,8 +270,7 @@ export default function Events() {
         e.role !== "SYS_ADMIN" &&
         e.id !== "01" && 
         e.name !== "شهاب الدين" && 
-        e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
-        e.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com"
+        e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com"
      );
      return sourceList.map(e => e.name).filter(Boolean);
   }, [dbEmployees]);

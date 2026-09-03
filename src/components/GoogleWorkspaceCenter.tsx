@@ -11,7 +11,7 @@ import {
   createCalendarEvent,
   createGoogleDoc,
   createGoogleSlide,
-  createGoogleTask,
+  
   listChatSpaces,
   sendChatMessage,
   createGoogleForm,
@@ -618,10 +618,11 @@ ${(targetEmployee.committees || []).length > 0
     setFeedback(null);
     try {
       const dueIso = taskDue ? new Date(taskDue).toISOString() : undefined;
-      await createGoogleTask({
-        title: taskTitle,
-        notes: taskNotes || "مهمة إدارية منقولة من نظام اللجان القطاعية",
-        due: dueIso
+      await createCalendarEvent({
+        title: `مهمة: ${taskTitle}`,
+        description: taskNotes,
+        startTime: dueIso || new Date().toISOString(),
+        endTime: dueIso || new Date().toISOString()
       });
       showFeedback(`تم تسجيل ومزامنة المهمة الإدارية "${taskTitle}" وحفظها في قائمة مهام Google Tasks الخاصة بك بنجاح!`, "success");
       setTaskTitle("");

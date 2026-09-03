@@ -585,7 +585,6 @@ export default function AffiliatesEvents() {
          e.id !== "01" && 
          e.name !== "شهاب الدين" && 
          e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
-         e.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com" &&
          ((e.orgLevel1 && e.orgLevel1.match(/المنتسبين/)) || (e.orgLevel2 && e.orgLevel2.match(/المنتسبين/)) || (e.orgLevel3 && e.orgLevel3.match(/المنتسبين/)))
      );
      return sourceList.map(e => e.name).filter(Boolean);

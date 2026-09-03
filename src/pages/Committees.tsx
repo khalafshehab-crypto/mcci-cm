@@ -109,8 +109,7 @@ export default function Committees() {
         e.role !== "SYS_ADMIN" &&
         e.id !== "01" && 
         e.name !== "شهاب الدين" && 
-        e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
-        e.email?.trim().toLowerCase() !== "khalafshehab-crypto@gmail.com"
+        e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com"
       );
 
       setDynamicEmployees(sourceList.map((e: any) => e.name).filter(Boolean));

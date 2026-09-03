@@ -666,7 +666,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
       if (Array.isArray(sourceList) && sourceList.length > 0) {
         // Unconditionally hide sys admin and root users from all employee lists, regardless of current user role
         const allowedEmps = sourceList.filter(emp => {
-          if (emp.role === "SYS_ADMIN" || emp.id === "01" || emp.email?.trim().toLowerCase() === "khalafshehab@gmail.com" || emp.email?.trim().toLowerCase() === "khalafshehab-crypto@gmail.com") {
+          if (emp.role === "SYS_ADMIN" || emp.id === "01" || emp.email?.trim().toLowerCase() === "khalafshehab@gmail.com") {
             return false;
           }
           return true;

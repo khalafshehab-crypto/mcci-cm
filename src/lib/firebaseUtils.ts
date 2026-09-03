@@ -44,7 +44,7 @@ export const logSystemAction = (collectionName: string, operation: string, id: s
             time: new Date().toLocaleString('ar-SA'),
             employeeName,
             operationType: opText,
-            details: `قام الموظف بإجراء عملية ${opText} على السجل (${moduleText}) - معرف ${id.substring(0,8)}`
+            details: `قام الموظف بإجراء عملية ${opText} على السجل (${moduleText}) - معرف ${id ? String(id).substring(0,8) : 'غير معروف'}`
         };
 
         const logs = JSON.parse(localStorage.getItem('mock_db_system_logs') || '[]');
@@ -141,239 +141,117 @@ export function useFirestoreCollection<T>(collectionName: string, initialData: T
     let hasLoaded = false;
 
     // Safety timeout: if we don't receive data within 8000ms, assume Firestore is blocked/slow and fallback
-    const safetyTimeout = setTimeout(() => {
-      if (active && !hasLoaded) {
-        console.warn(`Firestore subscription loading timed out for '${collectionName}'. Setting blocked state.`);
-        if (auth?.currentUser) {
-          setFirestoreBlocked(true);
-        } else {
-          setupLocalFallback();
-        }
+    
+
+    function setupFirestoreListener() {
+      if (localCleanup) {
+        try { localCleanup(); } catch(e) {}
+        localCleanup = null;
       }
-    }, 8000);
+      if (unsubscribe) return;
+      try {
+        
+        const q = query(collection(db, collectionName));
+        unsubscribe = onSnapshot(q, (snapshot) => {
+          if (!active) return;
+          hasLoaded = true;
+          const docs = snapshot.docs.map(doc => ({
+            ...doc.data(),
+            id: doc.id
+          })) as T[];
+          
+          setData(docs);
+          setLoading(false);
+        }, (error: any) => {
+          if (!active) return;
+          console.warn(`Firestore subscription failed for '${collectionName}'. Gracefully falling back to local storage.`, error);
+          
+          const isUnauthPermissionError = error?.code === 'permission-denied';
+          if (!isUnauthPermissionError) {
+            setFirestoreBlocked(true);
+          } else {
+            if (unsubscribe) {
+              try { unsubscribe(); } catch(e) {}
+              unsubscribe = null;
+            }
+          }
+        });
+      } catch (e) {
+        if (!active) return;
+        console.warn(`Firestore collection setup failed for '${collectionName}'. Gracefully falling back to local storage.`, e);
+        setFirestoreBlocked(true);
+      }
+    }
 
     // Listen to changes in the Firestore blocked state
-    const unsubscribeBlocked = subscribeToFirestoreBlocked((blocked) => {
-      if (!active) return;
-
-      if (blocked) {
-        // If Firestore is blocked, cleanly unsubscribe from real-time Firestore updates immediately
-        if (unsubscribe) {
-          try {
-            unsubscribe();
-          } catch(e) {}
-          unsubscribe = null;
-        }
-        // Start the offline mock local storage fallback if not already active
-        if (!localCleanup) {
-          setupLocalFallback();
-        }
-      } else {
-        // If not blocked, establish the real-time Firestore listener
-        if (!unsubscribe) {
-          // If we had a local fallback running, clean it up before switching back to Firestore
-          if (localCleanup) {
-            try {
-              localCleanup();
-            } catch(e) {}
-            localCleanup = null;
-          }
-          
-          try {
-            if (!db || db.type === "dummy_firestore") {
-              setFirestoreBlocked(true);
-              return;
-            }
-            const q = query(collection(db, collectionName));
-            unsubscribe = onSnapshot(q, (snapshot) => {
-              if (!active) return;
-              hasLoaded = true;
-              const docs = snapshot.docs.map(doc => ({
-                ...doc.data(),
-                id: doc.id
-              })) as T[];
-              setData(docs);
-              setLoading(false);
-            }, (error: any) => {
-              if (!active) return;
-              console.warn(`Firestore subscription failed for '${collectionName}'. Gracefully falling back to local storage.`, error);
-              
-              // Only set global blocked state if this is not an expected unauthenticated permission error
-              const isUnauthPermissionError = error?.code === 'permission-denied';
-              if (!isUnauthPermissionError) {
-                setFirestoreBlocked(true);
-              } else {
-                if (unsubscribe) {
-                  try { unsubscribe(); } catch(e) {}
-                  unsubscribe = null;
-                }
-                setupLocalFallback();
-              }
-            });
-          } catch (e) {
-            if (!active) return;
-            console.warn(`Firestore collection setup failed for '${collectionName}'. Gracefully falling back to local storage.`, e);
-            setFirestoreBlocked(true);
-          }
-        }
-      }
-    });
+    
 
     const unsubscribeAuth = auth?.onAuthStateChanged?.((user) => {
       if (!active) return;
-      if (user && localCleanup) {
-        // User logged in and we are in local fallback. Force a retry of Firestore connection.
-        // We do this by triggering the blocked listeners with false.
-        setFirestoreBlocked(false);
+      if (user) {
+        // User logged in and we are in local fallback (likely due to unauthenticated permission error).
+        // Force a retry of Firestore connection directly.
+        setupFirestoreListener();
       }
     });
 
-    function setupLocalFallback() {
-      // Load initial local data
-      const localData = getLocalCollection(collectionName) as T[];
-      setData(localData);
-      setLoading(false);
-
-      // Listen to storage changes for reactive updates across components/tabs
-      const handleStorageUpdate = (e: StorageEvent) => {
-        if (!active) return;
-        if (e.key === `mock_db_${collectionName}`) {
-          try {
-            const updated = JSON.parse(e.newValue || "[]") as T[];
-            setData(updated);
-          } catch (err) {}
-        }
-      };
-      
-      window.addEventListener('storage', handleStorageUpdate);
-
-      // Simple periodic polling to synchronize changes within the same tab in real-time
-      const intervalId = setInterval(() => {
-        if (!active) return;
-        const fresh = getLocalCollection(collectionName) as T[];
-        setData(fresh);
-      }, 1000);
-
-      localCleanup = () => {
-        window.removeEventListener('storage', handleStorageUpdate);
-        clearInterval(intervalId);
-      };
-    }
+    
 
     return () => {
       active = false;
-      clearTimeout(safetyTimeout);
-      unsubscribeBlocked();
+      
+      
       if (unsubscribeAuth) unsubscribeAuth();
       if (unsubscribe) {
-        try {
-          unsubscribe();
-        } catch(e) {}
+        try { unsubscribe(); } catch(e) {}
       }
       if (localCleanup) {
-        try {
-          localCleanup();
-        } catch(e) {}
+        try { localCleanup(); } catch(e) {}
       }
     };
   }, [collectionName]);
 
   const addDocument = async (item: Omit<T, 'id'>) => {
-    const list = getLocalCollection(collectionName);
     const newId = `${collectionName.substring(0, 4)}_${Math.random().toString(36).substring(2, 11)}`;
-    const localItem = { ...item, id: newId } as unknown as T;
-    list.push(localItem);
-    saveLocalCollection(collectionName, list);
     logSystemAction(collectionName, "CREATE", newId);
 
-    if (!isUseMock()) {
-      try {
-        const docRef = await withTimeout(
-          addDoc(collection(db, collectionName), item),
-          8000,
-          null
-        );
-        
-        if (docRef) {
-          // Sync the local storage collection's fallback ID with the actual Firestore ID
-          const freshList = getLocalCollection(collectionName);
-          const index = freshList.findIndex(x => String(x.id) === String(newId));
-          if (index >= 0) {
-            freshList[index].id = docRef.id;
-            saveLocalCollection(collectionName, freshList);
-          }
-          return docRef.id;
-        }
+          try {
+        const docRef = await addDoc(collection(db, collectionName), item);
+        return docRef.id;
       } catch(e) {
-        handleFirestoreError(e, OperationType.CREATE, collectionName);
-        return newId;
+        console.error("Firestore CREATE error:", e);
       }
-    }
     return newId;
   };
 
   const updateDocument = async (id: string, item: Partial<T>) => {
-    const list = getLocalCollection(collectionName);
-    const index = list.findIndex(x => String(x.id) === String(id));
-    if (index >= 0) {
-      list[index] = { ...list[index], ...item };
-    } else {
-      list.push({ id, ...item } as any);
-    }
-    saveLocalCollection(collectionName, list);
+    
 
-    if (!isUseMock()) {
-      try {
-        await withTimeout(
-          setDoc(doc(db, collectionName, String(id)), item, { merge: true }),
-          8000,
-          null
-        );
+          try {
+        await setDoc(doc(db, collectionName, String(id)), item, { merge: true });
       } catch(e) {
-        handleFirestoreError(e, OperationType.UPDATE, `${collectionName}/${id}`);
+        console.error("Firestore UPDATE error:", e);
       }
-    }
   };
 
   const deleteDocument = async (id: string) => {
-    const list = getLocalCollection(collectionName);
-    const filtered = list.filter(item => String(item.id) !== String(id));
-    saveLocalCollection(collectionName, filtered);
+    
 
-    if (!isUseMock()) {
-      try {
-        await withTimeout(
-          deleteDoc(doc(db, collectionName, String(id))),
-          8000,
-          null
-        );
+          try {
+        await deleteDoc(doc(db, collectionName, String(id)));
       } catch(e) {
-        handleFirestoreError(e, OperationType.DELETE, `${collectionName}/${id}`);
+        console.error("Firestore DELETE error:", e);
       }
-    }
   };
 
   const setDocument = async (id: string, item: Omit<T, 'id'>) => {
-    const list = getLocalCollection(collectionName);
-    const index = list.findIndex(x => String(x.id) === String(id));
-    if (index >= 0) {
-      list[index] = { ...item, id } as any;
-    } else {
-      list.push({ ...item, id } as any);
-    }
-    saveLocalCollection(collectionName, list);
+    
 
-    if (!isUseMock()) {
-      try {
-        await withTimeout(
-          setDoc(doc(db, collectionName, String(id)), item),
-          8000,
-          null
-        );
+          try {
+        await setDoc(doc(db, collectionName, String(id)), item);
       } catch(e) {
-        handleFirestoreError(e, OperationType.WRITE, `${collectionName}/${id}`);
+        console.error("Firestore WRITE error:", e);
       }
-    }
   };
 
   return { data, loading, addDocument, updateDocument, deleteDocument, setDocument };

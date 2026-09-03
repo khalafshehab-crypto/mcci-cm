@@ -126,7 +126,9 @@ export default function App() {
       const stored = localStorage.getItem("current_user");
       if (stored) {
         try {
-          setUser(JSON.parse(stored));
+          const parsedUser = JSON.parse(stored);
+          setUser(parsedUser);
+          import("./lib/workspaceSync").then(m => m.syncUserWorkspace(parsedUser));
         } catch (e) {
           setUser(null);
         }
@@ -136,8 +138,22 @@ export default function App() {
       setLoading(false);
     };
     checkUser();
+    
+    const syncInterval = setInterval(() => {
+      const stored = localStorage.getItem("current_user");
+      if (stored) {
+        try {
+          const parsedUser = JSON.parse(stored);
+          import("./lib/workspaceSync").then(m => m.syncUserWorkspace(parsedUser));
+        } catch (e) {}
+      }
+    }, 5 * 60 * 1000); // Every 5 minutes
+    
     window.addEventListener("storage", checkUser);
-    return () => window.removeEventListener("storage", checkUser);
+    return () => {
+      window.removeEventListener("storage", checkUser);
+      clearInterval(syncInterval);
+    };
   }, []);
 
   // Real-time listener for the current user's document
@@ -197,7 +213,7 @@ export default function App() {
       <GlobalToast />
       <Router>
         <GoogleSyncModal />
-        <Layout>
+        <Layout user={user}>
           <Suspense fallback={
             <div className="flex-1 min-h-screen bg-slate-900 flex items-center justify-center">
               <div className="w-10 h-10 border-4 border-brand/20 border-t-brand rounded-full animate-spin"></div>

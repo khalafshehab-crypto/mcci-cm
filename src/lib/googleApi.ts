@@ -154,8 +154,8 @@ export async function disconnectGoogleWorkspace() {
 }
 
 // helper rest call
-async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}, maxRetries = 5): Promise<any> {
-  const token = await getSharedAccessToken();
+async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}, maxRetries = 5, customToken?: string): Promise<any> {
+  const token = customToken || await getSharedAccessToken();
   if (!token) {
     throw new Error("Authentication required: No active Google Workspace connection.");
   }
@@ -167,16 +167,14 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}, maxRe
     url = `https://docs.googleapis.com/${endpoint.substring(5)}`;
   } else if (endpoint.startsWith("slides/")) {
     url = `https://slides.googleapis.com/${endpoint.substring(7)}`;
-  } else if (endpoint.startsWith("gmail/")) {
-    url = `https://gmail.googleapis.com/${endpoint.substring(6)}`;
-  } else if (endpoint.startsWith("calendar/")) {
-    url = `https://calendar.googleapis.com/${endpoint.substring(9)}`;
-  } else if (endpoint.startsWith("tasks/")) {
-    url = `https://tasks.googleapis.com/${endpoint.substring(6)}`;
   } else if (endpoint.startsWith("forms/")) {
     url = `https://forms.googleapis.com/${endpoint.substring(6)}`;
   } else if (endpoint.startsWith("chat/")) {
     url = `https://chat.googleapis.com/${endpoint.substring(5)}`;
+  } else if (endpoint.startsWith("gmail/")) {
+    url = `https://gmail.googleapis.com/${endpoint}`;
+  } else if (endpoint.startsWith("tasks/")) {
+    url = `https://tasks.googleapis.com/${endpoint}`;
   }
 
   let lastError;
@@ -322,18 +320,13 @@ export async function uploadBinaryFileToDrive(name: string, base64Content: strin
     `${base64Content}\r\n` +
     `--${boundary}--`;
     
-  const response = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "google-proxy", {
+  const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      token,
-      url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
-      method: "POST",
-      headers: {
-        "Content-Type": `multipart/related; boundary=${boundary}`,
-      },
-      body: multipartBody
-    })
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": `multipart/related; boundary=${boundary}`,
+    },
+    body: multipartBody
   });
 
   if (!response.ok) {
@@ -345,18 +338,13 @@ export async function uploadBinaryFileToDrive(name: string, base64Content: strin
         if (newAccessToken) {
           setCachedAccessToken(newAccessToken);
           // Retry
-          const retryResponse = await fetch((window.location.hostname.includes("vercel.app") ? "https://ais-pre-fsjjcsf7evn4v2avd7xc54-774050524447.europe-west2.run.app/api/" : "/api/") + "google-proxy", {
+          const retryResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              token: newAccessToken,
-              url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
-              method: "POST",
-              headers: {
-                "Content-Type": `multipart/related; boundary=${boundary}`,
-              },
-              body: multipartBody
-            })
+            headers: {
+              "Authorization": `Bearer ${newAccessToken}`,
+              "Content-Type": `multipart/related; boundary=${boundary}`,
+            },
+            body: multipartBody
           });
           return retryResponse.json();
         }
@@ -660,7 +648,26 @@ interface GoogleTaskPayload {
   due?: string; // ISO format e.g. 2026-06-22T00:00:00.000Z
 }
 
-export async function createGoogleTask(task: GoogleTaskPayload): Promise<any> {
+
+
+export async function createGoogleTask(task: GoogleTaskPayload, employeeEmail?: string): Promise<any> {
+  let tokenToUse: string | undefined = undefined;
+  
+  if (employeeEmail) {
+    try {
+      const tokenRef = doc(db, "employee_tokens", employeeEmail.toLowerCase());
+      const snap = await getDoc(tokenRef);
+      if (snap.exists() && snap.data().token) {
+        tokenToUse = snap.data().token;
+      } else {
+        throw new Error("لم يقم هذا الموظف بتسجيل الدخول للسماح باستقبال المهام بعد.");
+      }
+    } catch (e) {
+      console.warn("Failed to fetch employee token", e);
+      throw e;
+    }
+  }
+
   // First list or pick pre-existing task list, fallback to "@default"
   return fetchGoogleAPI("tasks/v1/lists/@default/tasks", {
     method: "POST",
@@ -669,7 +676,7 @@ export async function createGoogleTask(task: GoogleTaskPayload): Promise<any> {
       notes: task.notes || "",
       due: task.due || undefined,
     }),
-  });
+  }, 5, tokenToUse);
 }
 
 /**
@@ -872,4 +879,48 @@ export async function downloadDriveFileBase64(fileIdOrUrl: string): Promise<{ ba
   });
   
   return { base64, mimeType: finalMimeType };
+}
+
+
+export interface GoogleCalendarEventPayload {
+  summary: string;
+  description?: string;
+  start: {
+    dateTime?: string;
+    date?: string;
+    timeZone?: string;
+  };
+  end: {
+    dateTime?: string;
+    date?: string;
+    timeZone?: string;
+  };
+}
+
+export async function createGoogleCalendarEvent(event: GoogleCalendarEventPayload, employeeEmail?: string): Promise<any> {
+  let tokenToUse: string | undefined = undefined;
+  if (employeeEmail) {
+    try {
+      const tokenRef = doc(db, "employee_tokens", employeeEmail.toLowerCase());
+      const snap = await getDoc(tokenRef);
+      if (snap.exists() && snap.data().token) {
+        tokenToUse = snap.data().token;
+      } else {
+        throw new Error("لم يقم هذا الموظف بتسجيل الدخول للسماح باستقبال المواعيد بعد.");
+      }
+    } catch (e) {
+      console.warn("Failed to fetch employee token", e);
+      throw e;
+    }
+  }
+
+  return fetchGoogleAPI("calendar/v3/calendars/primary/events", {
+    method: "POST",
+    body: JSON.stringify({
+      summary: event.summary,
+      description: event.description || "",
+      start: event.start,
+      end: event.end,
+    }),
+  }, 5, tokenToUse);
 }

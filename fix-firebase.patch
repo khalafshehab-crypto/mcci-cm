@@ -1,0 +1,182 @@
+--- src/lib/firebaseUtils.ts
++++ src/lib/firebaseUtils.ts
+@@ -155,16 +155,8 @@
+       try {
+         if (!db || db.type === "dummy_firestore") {
+           setFirestoreBlocked(true);
+           return;
+         }
+ 
+         const q = query(collection(db, collectionName));
+         unsubscribe = onSnapshot(q, (snapshot) => {
+           if (!active) return;
+           hasLoaded = true;
+           const docs = snapshot.docs.map(doc => ({
+             ...doc.data(),
+             id: doc.id
+           })) as T[];
+-          if (!(snapshot as any).isMock) {
+-            saveLocalCollection(collectionName, docs);
+-          }
+           setData(docs);
+           setLoading(false);
+         }, (error: any) => {
+           if (!active) return;
+           console.warn(`Firestore subscription failed for '${collectionName}'.`, error);
+           
+           const isUnauthPermissionError = error?.code === 'permission-denied';
+           if (!isUnauthPermissionError) {
+             setFirestoreBlocked(true);
+           } else {
+             if (unsubscribe) {
+               try { unsubscribe(); } catch(e) {}
+               unsubscribe = null;
+             }
+-            setupLocalFallback();
+           }
+         });
+       } catch (e) {
+         if (!active) return;
+-        console.warn(`Firestore collection setup failed for '${collectionName}'. Gracefully falling back to local storage.`, e);
++        console.warn(`Firestore collection setup failed for '${collectionName}'.`, e);
+         setFirestoreBlocked(true);
+       }
+     }
+ 
+     // Listen to changes in the Firestore blocked state
+     const unsubscribeBlocked = subscribeToFirestoreBlocked((blocked) => {
+       if (!active) return;
+       if (blocked) {
+         if (unsubscribe) {
+           try { unsubscribe(); } catch(e) {}
+           unsubscribe = null;
+         }
+-        if (!localCleanup) {
+-          setupLocalFallback();
+-        }
+       } else {
+         setupFirestoreListener();
+       }
+     });
+ 
+     const unsubscribeAuth = auth?.onAuthStateChanged?.((user) => {
+       if (!active) return;
+       if (user) {
+         setupFirestoreListener();
+       }
+     });
+ 
+-    function setupLocalFallback() {
+-      if (localCleanup) return;
+-      const localData = getLocalCollection(collectionName) as T[];
+-      setData(localData);
+-      setLoading(false);
+-      
+-      const handleStorageUpdate = (e: StorageEvent) => {
+-        if (!active) return;
+-        if (e.key === `mock_db_${collectionName}`) {
+-          try {
+-            const updated = JSON.parse(e.newValue || "[]") as T[];
+-            setData(updated);
+-          } catch (err) {}
+-        }
+-      };
+-      
+-      window.addEventListener('storage', handleStorageUpdate);
+-      const intervalId = setInterval(() => {
+-        if (!active) return;
+-        const fresh = getLocalCollection(collectionName) as T[];
+-        setData(fresh);
+-      }, 1000);
+-      
+-      localCleanup = () => {
+-        window.removeEventListener('storage', handleStorageUpdate);
+-        clearInterval(intervalId);
+-      };
+-    }
+-
+     return () => {
+       active = false;
+       clearTimeout(safetyTimeout);
+@@ -242,50 +201,30 @@
+   }, [collectionName]);
+ 
+   const addDocument = async (item: Omit<T, 'id'>) => {
+-    const list = getLocalCollection(collectionName);
+     const newId = `${collectionName.substring(0, 4)}_${Math.random().toString(36).substring(2, 11)}`;
+-    const localItem = { ...item, id: newId } as unknown as T;
+-    list.push(localItem);
+-    saveLocalCollection(collectionName, list);
+-    setData(list);
+     logSystemAction(collectionName, "CREATE", newId);
+-
+     if (!isUseMock()) {
+       try {
+         const docRef = await withTimeout(
+           addDoc(collection(db, collectionName), item),
+           8000,
+           null
+         );
+         
+         if (docRef) {
+-          // Sync the local storage collection's fallback ID with the actual Firestore ID
+-          const freshList = getLocalCollection(collectionName);
+-          const index = freshList.findIndex(x => String(x.id) === String(newId));
+-          if (index >= 0) {
+-            freshList[index].id = docRef.id;
+-            saveLocalCollection(collectionName, freshList);
+-            setData(freshList);
+-          }
+           return docRef.id;
+         }
+       } catch(e) {
+         handleFirestoreError(e, OperationType.CREATE, collectionName);
+         return newId;
+       }
+     }
+     return newId;
+   };
+ 
+   const updateDocument = async (id: string, item: Partial<T>) => {
+-    const list = getLocalCollection(collectionName);
+-    const index = list.findIndex(x => String(x.id) === String(id));
+-    if (index >= 0) {
+-      list[index] = { ...list[index], ...item };
+-    } else {
+-      list.push({ id, ...item } as any);
+-    }
+-    saveLocalCollection(collectionName, list);
+-    setData(list);
+-
+     if (!isUseMock()) {
+       try {
+         await withTimeout(
+@@ -300,10 +239,6 @@
+   };
+ 
+   const deleteDocument = async (id: string) => {
+-    const list = getLocalCollection(collectionName);
+-    const filtered = list.filter(item => String(item.id) !== String(id));
+-    saveLocalCollection(collectionName, filtered);
+-    setData(filtered);
+-
+     if (!isUseMock()) {
+       try {
+         await withTimeout(
+@@ -318,15 +253,6 @@
+   };
+ 
+   const setDocument = async (id: string, item: Omit<T, 'id'>) => {
+-    const list = getLocalCollection(collectionName);
+-    const index = list.findIndex(x => String(x.id) === String(id));
+-    if (index >= 0) {
+-      list[index] = { ...item, id } as any;
+-    } else {
+-      list.push({ ...item, id } as any);
+-    }
+-    saveLocalCollection(collectionName, list);
+-    setData(list);
+-
+     if (!isUseMock()) {
+       try {
+         await withTimeout(
