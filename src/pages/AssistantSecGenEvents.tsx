@@ -470,6 +470,16 @@ function Step8Attachments({ evt, updateEventWorkflow }: { evt: any, updateEventW
 
 const syncEventsToCalendar = async (eventsList: any[], dbEmployees: any[], collectionName: string) => {
   let stats = { created: 0, updated: 0, failed: 0 };
+  
+  const { getSharedAccessToken, triggerAuthModal } = await import("../lib/googleApi");
+  let token = await getSharedAccessToken();
+  if (!token) {
+    token = await triggerAuthModal();
+    if (!token) {
+      stats.failed = eventsList.length;
+      return stats;
+    }
+  }
   for (const evt of eventsList) {
     if (!evt.employees || evt.employees.length === 0) continue;
     
@@ -4491,10 +4501,29 @@ ${formattedItems}
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter' && externalInput.trim()) {
                                       e.preventDefault();
-                                      if (!singleExternalInvitees.includes(externalInput.trim())) {
-                                        setSingleExternalInvitees(prev => [...prev, externalInput.trim()]);
-                                      }
+                                      const items = externalInput.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+                                      setSingleExternalInvitees(prev => {
+                                        const newItems = [...prev];
+                                        items.forEach(item => {
+                                          if (!newItems.includes(item)) newItems.push(item);
+                                        });
+                                        return newItems;
+                                      });
                                       setExternalInput("");
+                                    }
+                                  }}
+                                  onPaste={(e) => {
+                                    e.preventDefault();
+                                    const pastedText = e.clipboardData.getData('text');
+                                    const items = pastedText.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+                                    if (items.length > 0) {
+                                      setSingleExternalInvitees(prev => {
+                                        const newItems = [...prev];
+                                        items.forEach(item => {
+                                          if (!newItems.includes(item)) newItems.push(item);
+                                        });
+                                        return newItems;
+                                      });
                                     }
                                   }}
                                   placeholder="اكتب واضغط Enter..."
@@ -4503,7 +4532,7 @@ ${formattedItems}
                                 {singleExternalInvitees.length > 0 && (
                                   <div className="flex flex-wrap gap-1 mt-2">
                                     {singleExternalInvitees.map(ext => (
-                                      <span key={ext} className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded-md text-xs font-bold flex items-center gap-1">
+                                      <span key={ext} className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded-md text-xs font-bold flex items-center gap-1 break-all">
                                         {ext} <button type="button" onClick={() => setSingleExternalInvitees(prev => prev.filter(p => p !== ext))} className="hover:text-gray-900"><X className="w-3 h-3" /></button>
                                       </span>
                                     ))}
@@ -4708,10 +4737,29 @@ ${formattedItems}
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter' && seriesExternalInput.trim()) {
                                       e.preventDefault();
-                                      if (!seriesExternalInvitees.includes(seriesExternalInput.trim())) {
-                                        setSeriesExternalInvitees(prev => [...prev, seriesExternalInput.trim()]);
-                                      }
+                                      const items = seriesExternalInput.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+                                      setSeriesExternalInvitees(prev => {
+                                        const newItems = [...prev];
+                                        items.forEach(item => {
+                                          if (!newItems.includes(item)) newItems.push(item);
+                                        });
+                                        return newItems;
+                                      });
                                       setSeriesExternalInput("");
+                                    }
+                                  }}
+                                  onPaste={(e) => {
+                                    e.preventDefault();
+                                    const pastedText = e.clipboardData.getData('text');
+                                    const items = pastedText.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+                                    if (items.length > 0) {
+                                      setSeriesExternalInvitees(prev => {
+                                        const newItems = [...prev];
+                                        items.forEach(item => {
+                                          if (!newItems.includes(item)) newItems.push(item);
+                                        });
+                                        return newItems;
+                                      });
                                     }
                                   }}
                                   placeholder="اكتب واضغط Enter..."
@@ -4720,7 +4768,7 @@ ${formattedItems}
                                 {seriesExternalInvitees.length > 0 && (
                                   <div className="flex flex-wrap gap-1 mt-2">
                                     {seriesExternalInvitees.map(ext => (
-                                      <span key={ext} className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded-md text-xs font-bold flex items-center gap-1">
+                                      <span key={ext} className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded-md text-xs font-bold flex items-center gap-1 break-all">
                                         {ext} <button type="button" onClick={() => setSeriesExternalInvitees(prev => prev.filter(p => p !== ext))} className="hover:text-gray-900"><X className="w-3 h-3" /></button>
                                       </span>
                                     ))}
