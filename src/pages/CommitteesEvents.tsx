@@ -468,7 +468,7 @@ function Step8Attachments({ evt, updateEventWorkflow }: { evt: any, updateEventW
 
 
 
-const syncEventsToCalendar = async (eventsList: any[], dbEmployees: any[], collectionName: string) => {
+const syncEventsToCalendar = async (eventsList: any[], dbEmployees: any[], collectionName: string, allMembers: any[] = []) => {
   let stats = { created: 0, updated: 0, failed: 0 };
   
   const { getSharedAccessToken, triggerAuthModal } = await import("../lib/googleApi");
@@ -494,6 +494,22 @@ const syncEventsToCalendar = async (eventsList: any[], dbEmployees: any[], colle
       const emp = dbEmployees.find((e: any) => e.name === name);
       if (emp && emp.email) {
         uniqueEmails.add(emp.email);
+      }
+    }
+    
+    // Add external invitees emails
+    for (const ext of evt.externalInvitees || []) {
+      const extracted = ext.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
+      if (extracted) {
+        extracted.forEach((email) => uniqueEmails.add(email));
+      }
+    }
+
+    // Add members emails
+    for (const mId of evt.members || []) {
+      const m = allMembers.find((m: any) => m.id === mId);
+      if (m && m.email) {
+        uniqueEmails.add(m.email);
       }
     }
     const attendees = Array.from(uniqueEmails).map(email => ({ email }));
@@ -641,7 +657,7 @@ export default function CommitteesEvents() {
     const currentCollectionName = "events";
     const toSync = eventsToSync.filter(e => selectedEventsToSync.includes(e.id));
     showGlobalToast("جاري مزامنة التقويم، يرجى الانتظار...", "loading");
-    const stats = await syncEventsToCalendar(toSync, dbEmployees, currentCollectionName);
+    const stats = await syncEventsToCalendar(toSync, dbEmployees, currentCollectionName, allMembers);
     setIsSyncing(false);
     setIsSyncModalOpen(false);
     if (stats && (stats.created > 0 || stats.updated > 0 || stats.failed > 0)) {
@@ -1507,7 +1523,7 @@ ${formattedItems}
     }));
 
     newEventsList.forEach(async (ev) => { await setDoc(doc(db, "events", String(ev.id)), ev); });
-    const stats = await syncEventsToCalendar(newEventsList, dbEmployees, "events");
+    const stats = await syncEventsToCalendar(newEventsList, dbEmployees, "events", allMembers);
       if (stats.failed > 0) {
         showGlobalToast("تم الحفظ في النظام، لكن فشلت مزامنة بعض الفعاليات مع جوجل.", "error");
       } else {
@@ -1568,7 +1584,7 @@ ${formattedItems}
       } catch (err) {
         console.error(err);
       }
-      const stats = await syncEventsToCalendar([updatedEvent], dbEmployees, "events");
+      const stats = await syncEventsToCalendar([updatedEvent], dbEmployees, "events", allMembers);
       if (stats.failed > 0) {
         showGlobalToast("تم تحديث الفعالية في النظام، لكن فشلت المزامنة مع جوجل (قد يكون بسبب تكرار إيميلات المدعوين أو خطأ في صيغة الوقت).", "error");
       } else {
@@ -1595,7 +1611,7 @@ ${formattedItems}
       } catch (err) {
         console.error(err);
       }
-      const stats = await syncEventsToCalendar([newEvent], dbEmployees, "events");
+      const stats = await syncEventsToCalendar([newEvent], dbEmployees, "events", allMembers);
       if (stats.failed > 0) {
         showGlobalToast("تم إنشاء الفعالية في النظام، لكن فشلت المزامنة مع جوجل (قد يكون بسبب تكرار إيميلات المدعوين أو خطأ في صيغة الوقت).", "error");
       } else {
