@@ -1522,7 +1522,9 @@ ${formattedItems}
       notes: newNotes,
     }));
 
-    newEventsList.forEach(async (ev) => { await setDoc(doc(db, "events", String(ev.id)), ev); });
+    for (const ev of newEventsList) {
+      await setDoc(doc(db, "events", String(ev.id)), ev);
+    }
     const stats = await syncEventsToCalendar(newEventsList, dbEmployees, "events", allMembers);
       if (stats.failed > 0) {
         showGlobalToast("تم الحفظ في النظام، لكن فشلت مزامنة بعض الفعاليات مع جوجل.", "error");
