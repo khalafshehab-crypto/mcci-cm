@@ -16,20 +16,19 @@ jobs:
       - name: إعداد بيئة Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22  # ✅ تم التحديث من 20 إلى 22
 
-      - name: إعداد بيئة Java 17
+      - name: إعداد بيئة Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'  # ✅ تم التحديث من 17 إلى 21
 
       - name: إعداد أدوات Android SDK
         uses: android-actions/setup-android@v3
 
       - name: تثبيت حزم المشروع وبناء نسخة الويب
         run: |
-          # الانتقال لمجلد التطبيق إذا كان الكود داخله
           if [ -d "app/applet" ] && [ -f "app/applet/package.json" ]; then
             cd app/applet
           fi
@@ -46,11 +45,10 @@ jobs:
           
           npm install @capacitor/core @capacitor/cli @capacitor/android --legacy-peer-deps
           
-          # نسخ مجلد المخرجات ومزامنة ملفات الأندرويد
           if [ ! -d "android" ] && [ ! -d "../android" ]; then
             npx cap add android
           else
-            npx cap sync android || true
+            npx cap sync android
           fi
 
       - name: إعطاء صلاحيات التشغيل لـ Gradle
@@ -71,6 +69,7 @@ jobs:
           ./gradlew assembleDebug --no-daemon
 
       - name: رفع ملف الـ APK للتحميل
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: committee-management-apk
