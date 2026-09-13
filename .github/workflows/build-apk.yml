@@ -10,35 +10,69 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: استدعاء كود المشروع
+        uses: actions/checkout@v4
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
+      - name: إعداد بيئة Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-    - name: Install dependencies
-      run: npm install
+      - name: إعداد بيئة Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
-    - name: Build web app
-      run: npm run build
+      - name: إعداد أدوات Android SDK
+        uses: android-actions/setup-android@v3
 
-    - name: Setup Java
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'zulu'
-        java-version: '17'
+      - name: تثبيت حزم المشروع وبناء نسخة الويب
+        run: |
+          # الانتقال لمجلد التطبيق إذا كان الكود داخله
+          if [ -d "app/applet" ] && [ -f "app/applet/package.json" ]; then
+            cd app/applet
+          fi
+          npm install --legacy-peer-deps
+          npm run build
 
-    - name: Sync Capacitor
-      run: npx cap sync android
+      - name: تهيئة وتحديث منصة الأندرويد
+        run: |
+          TARGET_DIR="."
+          if [ -d "app/applet" ] && [ -f "app/applet/package.json" ]; then
+            TARGET_DIR="app/applet"
+          fi
+          cd $TARGET_DIR
+          
+          npm install @capacitor/core @capacitor/cli @capacitor/android --legacy-peer-deps
+          
+          # نسخ مجلد المخرجات ومزامنة ملفات الأندرويد
+          if [ ! -d "android" ] && [ ! -d "../android" ]; then
+            npx cap add android
+          else
+            npx cap sync android || true
+          fi
 
-    - name: Build APK
-      working-directory: ./android
-      run: ./gradlew assembleDebug
+      - name: إعطاء صلاحيات التشغيل لـ Gradle
+        run: |
+          if [ -f "android/gradlew" ]; then
+            chmod +x android/gradlew
+          elif [ -f "app/applet/android/gradlew" ]; then
+            chmod +x app/applet/android/gradlew
+          fi
 
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: app-debug.apk
-        path: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: تجميع وبناء ملف الـ APK
+        run: |
+          if [ -d "android" ]; then
+            cd android
+          elif [ -d "app/applet/android" ]; then
+            cd app/applet/android
+          fi
+          ./gradlew assembleDebug --no-daemon
+
+      - name: رفع ملف الـ APK للتحميل
+        uses: actions/upload-artifact@v4
+        with:
+          name: committee-management-apk
+          path: "**/app/build/outputs/apk/debug/app-debug.apk"
+          retention-days: 14
