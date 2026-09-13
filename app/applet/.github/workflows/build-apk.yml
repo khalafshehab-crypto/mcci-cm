@@ -16,13 +16,13 @@ jobs:
       - name: إعداد بيئة Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22  # ✅ تم التحديث من 20 إلى 22
 
-      - name: إعداد بيئة Java 17
+      - name: إعداد بيئة Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'  # ✅ تم التحديث من 17 إلى 21
 
       - name: إعداد أدوات Android SDK
         uses: android-actions/setup-android@v3
@@ -61,6 +61,7 @@ jobs:
           ./gradlew assembleDebug --no-daemon
 
       - name: رفع ملف الـ APK للتحميل
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: committee-management-apk
