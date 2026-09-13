@@ -57,20 +57,29 @@ export async function getSharedAccessToken(): Promise<string | null> {
   
   tokenPromise = (async () => {
     try {
-      const docRef = doc(db, "system_settings", "google_workspace");
-      const snap = await getDoc(docRef);
-      if (snap && snap.exists && snap.exists()) {
-        const data = snap.data();
-        if (data && data.token) {
-           setCachedAccessToken(data.token);
-           try {
-             localStorage.setItem("google_access_token", data.token);
-           } catch(e) {}
-           return data.token;
-        }
+      if (auth.currentUser?.email) {
+         try {
+           const myRef = doc(db, "employee_tokens", auth.currentUser.email.toLowerCase());
+           const mySnap = await getDoc(myRef);
+           if (mySnap.exists()) {
+             const data = mySnap.data();
+             if (data && data.token) {
+               setCachedAccessToken(data.token);
+               return data.token;
+             }
+           }
+         } catch(e) {}
       }
+      
+      // Fallback to local storage as a last resort for the current user
+      const localToken = localStorage.getItem("google_access_token");
+      if (localToken) {
+        setCachedAccessToken(localToken);
+        return localToken;
+      }
+      
     } catch(e) {
-      console.warn("Failed to get shared token", e);
+      console.warn("Failed to get personal token", e);
     }
     return null;
   })();
@@ -157,16 +166,9 @@ export async function connectGoogleWorkspace(): Promise<string> {
     console.warn("Failed to update personal token", e);
   }
   
-  // Save to Firestore so other employees can use it
   try {
-     const docRef = doc(db, "system_settings", "google_workspace");
-     await setDoc(docRef, {
-       token: credential.accessToken,
-       timestamp: Date.now()
-     }, { merge: true });
-  } catch(e) {
-     console.warn("Failed to share token in Firestore", e);
-  }
+    localStorage.setItem("google_access_token", credential.accessToken);
+  } catch(e) {}
   
   return credential.accessToken;
 }
