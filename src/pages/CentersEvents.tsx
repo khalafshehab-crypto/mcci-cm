@@ -1218,6 +1218,7 @@ const [singleClassification, setSingleClassification] = useState("");
   const [generatedSchedules, setGeneratedSchedules] = useState<{id: number, date: string, title: string, time: string}[]>([]);
   const [selectedSchedules, setSelectedSchedules] = useState<number[]>([]);
   const [isConfirmingSeries, setIsConfirmingSeries] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessMsg, setShowSuccessMsg] = useState(false);
 
   const handleSearchCommit = (e: FormEvent) => {
@@ -1446,7 +1447,7 @@ const [singleClassification, setSingleClassification] = useState("");
     const targetWeek = WEEKSMap[seriesWeekOfMonth];
     
     const results: {id: number, date: string, title: string, time: string}[] = [];
-    if (!newCommitteeId || newCommitteeId === 0) { alert("يرجى اختيار اللجنة أولاً"); return; }
+    if (!newCommitteeId || newCommitteeId === 0) { alert("يرجى اختيار اللجنة أولاً"); setIsSubmitting(false); return; }
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
     if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات لهذه اللجنة"); return; }
     const classifStr = seriesClassification === "دوري" ? "الدوري" : seriesClassification === "استثنائي" ? "الاستثنائي" : seriesClassification === "طارئ" ? "الطارئ" : seriesClassification === "فريق عمل" ? "فريق العمل" : seriesClassification;
@@ -1508,6 +1509,8 @@ const [singleClassification, setSingleClassification] = useState("");
   };
 
   const handleInsertSeries = async () => {
+    setIsSubmitting(true);
+
     if (!newCommitteeId || newCommitteeId === 0) { alert("يرجى اختيار اللجنة أولاً"); return; }
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
     if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات لهذه اللجنة"); return; }
@@ -1545,6 +1548,7 @@ const [singleClassification, setSingleClassification] = useState("");
       } else {
         showGlobalToast("تم إنشاء الفعاليات المتسلسلة ومحاولة مزامنتها مع تقويم جوجل للموظف", "success");
       }
+    setIsSubmitting(false);
     setIsConfirmingSeries(false);
     setIsAddOpen(false);
     setShowSuccessMsg(true);
@@ -1553,15 +1557,17 @@ const [singleClassification, setSingleClassification] = useState("");
   };
 
   const handleSubmit = async (e: FormEvent) => {
+    setIsSubmitting(true);
     e.preventDefault();
     setConflictWarning(null);
     
     if (newType === "متسلسلة") {
       generateDates();
+      setIsSubmitting(false);
       return;
     }
 
-    if (!newTitle.trim() || !newDate || !newCommitteeId || !singleTime) return;
+    if (!newTitle.trim() || !newDate || !newCommitteeId || !singleTime) { setIsSubmitting(false); return; }
 
     if (!newCommitteeId || newCommitteeId === 0) { alert("يرجى اختيار اللجنة أولاً"); return; }
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
@@ -1570,6 +1576,7 @@ const [singleClassification, setSingleClassification] = useState("");
     const conflict = checkConflict(newDate, singleTime, [singleRoom].filter(Boolean), [singleEmployee].filter(Boolean), editingEvent?.id);
     if (conflict) {
       setConflictWarning(conflict);
+      setIsSubmitting(false);
       return;
     }
 
@@ -1634,6 +1641,7 @@ const [singleClassification, setSingleClassification] = useState("");
         showGlobalToast("تم إنشاء الفعالية ومحاولة مزامنتها مع تقويم جوجل للموظف", "success");
       }
     }
+    setIsSubmitting(false);
     setIsAddOpen(false);
   };
 
@@ -4244,6 +4252,7 @@ const [singleClassification, setSingleClassification] = useState("");
                   )}
                 </AnimatePresence>
 
+                {isSubmitting && (<div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-2xl"><div className="flex flex-col items-center"><div className="w-10 h-10 border-4 border-brand/20 border-t-brand rounded-full animate-spin"></div><p className="mt-4 font-bold text-gray-700 animate-pulse">جاري إنشاء الفعالية والمزامنة مع جوجل، يرجى الانتظار...</p></div></div>)}
                 {isConfirmingSeries ? (
                   <div className="space-y-4 text-right" dir="rtl">
                     <h4 className="text-sm font-black text-gray-800 border-b border-gray-200 pb-2">
