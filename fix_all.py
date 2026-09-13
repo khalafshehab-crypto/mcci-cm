@@ -1,123 +1,57 @@
+import os
 import re
 
-files = ['src/pages/CommitteesRecommendations.tsx', 'src/pages/Recommendations.tsx']
+files = [
+    'src/pages/CommitteesRecommendations.tsx',
+    'src/pages/Recommendations.tsx',
+    'src/pages/Events.tsx'
+]
 
-for file_path in files:
-    with open(file_path, 'r') as f:
+for filename in files:
+    if not os.path.exists(filename): continue
+    
+    with open(filename, 'r', encoding='utf-8') as f:
         content = f.read()
 
-    # 1. Add "RotateCcw" import if not present
-    if "RotateCcw" not in content:
-        content = content.replace("CheckCircle,", "CheckCircle, RotateCcw,")
-
-    # 2. Add backward capability in Card View Gear Menu
-    # We find the advance stage button in the card gear menu and append the regress button
-    advance_btn_pattern = r'(\{\!\(rec\.status\?\.includes\("منجز"\) \|\| rec\.status\?\.includes\("مكتمل"\) \|\| rec\.status === "منجزة"\) && \(\s*<button[\s\S]*?<span>ترقية مسار الاعتماد</span>\s*<CheckCircle className="w-3\.5 h-3\.5" />\s*</button>\s*\)\})'
+    # Find the setEvents block
+    pattern = r'setEvents\(prev => prev\.map\(evt => \{.*?\n\s+if \(String\(evt\.id\) === String\(eventId\)\) \{\n(.*?)return evt;\n\s+\}\)\);'
     
-    regress_btn_rec = r"""\1
-                                            
-                                            {(() => {
-                                              const currentStage = rec.approvalStage || "أخصائي";
-                                              if (currentStage === "أخصائي") return null;
-                                              return (
-                                                <button
-                                                  type="button"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setActiveGearMenuId(null);
-                                                    let prevStage = "أخصائي";
-                                                    if (currentStage === "مدير إدارة") prevStage = "رئيس قسم";
-                                                    else if (currentStage === "مكتملة") prevStage = "مدير إدارة";
-                                                    const prevStatus = prevStage === "أخصائي" ? "جديدة" : "جاري العمل عليها";
-                                                    handleUpdateRecommendationStatus(rec.id, prevStatus, prevStage);
-                                                  }}
-                                                  className="w-full px-3 py-2 text-xs font-black text-amber-600 hover:bg-amber-50 flex items-center justify-end gap-2 transition-colors cursor-pointer"
-                                                >
-                                                  <span>تراجع مسار الاعتماد</span>
-                                                  <RotateCcw className="w-3.5 h-3.5" />
-                                                </button>
-                                              );
-                                            })()}"""
-    content = re.sub(advance_btn_pattern, regress_btn_rec, content)
-
-    # 3. Add backward capability in Table View Gear Menu
-    advance_btn_evt_pattern = r'(\{\!\(evt\.status\?\.includes\("منجز"\) \|\| evt\.status\?\.includes\("مكتمل"\) \|\| evt\.status === "منجزة"\) && \(\s*<button[\s\S]*?<span>ترقية مسار الاعتماد</span>\s*<CheckCircle className="w-3\.5 h-3\.5" />\s*</button>\s*\)\})'
-    regress_btn_evt = r"""\1
-      
-      {(() => {
-        const currentStage = evt.approvalStage || "أخصائي";
-        if (currentStage === "أخصائي") return null;
-        return (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setActiveGearMenuId(null);
-              let prevStage = "أخصائي";
-              if (currentStage === "مدير إدارة") prevStage = "رئيس قسم";
-              else if (currentStage === "مكتملة") prevStage = "مدير إدارة";
-              const prevStatus = prevStage === "أخصائي" ? "جديدة" : "جاري العمل عليها";
-              handleUpdateRecommendationStatus(evt.id, prevStatus, prevStage);
-            }}
-            className="w-full px-3 py-2 text-xs font-black text-amber-600 hover:bg-amber-50 flex items-center justify-end gap-2 transition-colors cursor-pointer"
-          >
-            <span>تراجع مسار الاعتماد</span>
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
-        );
-      })()}"""
-    content = re.sub(advance_btn_evt_pattern, regress_btn_evt, content)
-
-    # 4. Extract motion.div for preparation platform
-    start_str = r'<td colSpan=\{7\} className="p-0 bg-slate-50 border-t border-b border-gray-200 text-right font-sans">\s*(<motion\.div)'
-    end_str = r'(\s*</motion\.div>)\s*</td>'
-
-    match_start = re.search(start_str, content)
-    match_end = re.search(end_str, content[match_start.end():])
-
-    if match_start and match_end:
-        div_start = match_start.end() - len(match_start.group(1))
-        div_end = match_start.end() + match_end.end() - len(match_end.group(1)) + len('</motion.div>')
+    match = re.search(pattern, content, flags=re.DOTALL)
+    if match:
+        inner_content = match.group(1)
+        # We need to extract the part inside the if block, which is:
+        # const updated = ...
+        # ...
+        # return updated;
+        # }
         
-        platform_jsx = content[div_start:div_end]
+        replacement = f'''const evt = events.find(e => String(e.id) === String(eventId));
+    if (evt) {{
+{inner_content}
+        if (updated.isAgendaSource) {{
+           const idx = allDbRecommendations.findIndex(r => String(r.id) === String(eventId));
+           if (idx !== -1) {{
+              updateFirebaseRecommendation(String(eventId), updated);
+           }}
+        }} else {{
+           updateFirebaseEvent(String(eventId), updated);
+        }}
+    }}'''
+        # Wait, the inner_content already contains the `return updated;` and `}` at the end.
         
-        # Replace the platform in the table with the function call
-        content = content[:div_start] + '{renderPreparationPlatform(evt)}' + content[div_end:]
-        
-        # Insert the function definition right before the main return statement
-        main_return_match = re.search(r'\n\s*return \(\s*<div className="space-y-6 pb-16 text-right" dir="rtl">', content)
-        if main_return_match:
-            func_def = """
-  const renderPreparationPlatform = (evt: any) => {
-    const nextStep = getCalculatedNextStep(evt);
-    return (
-""" + platform_jsx + """
-    );
-  };
-"""
-            content = content[:main_return_match.start()] + func_def + content[main_return_match.start():]
-            
-            # Now find the card view and insert `{expandedEventId === rec.id && renderPreparationPlatform(rec)}` at the bottom of the card.
-            # The card is a motion.div ending with audit logs.
-            card_end = re.search(r'\{expandedRecLogsId === rec\.id && \([\s\S]*?</div>\s*\)\}\s*</div>\s*</div>\s*</motion\.div>', content)
-            if card_end:
-                insertion_point = card_end.end() - len('</motion.div>')
-                card_insertion = """
-        {expandedEventId === rec.id && (
-          <div className="mt-4 border-t border-gray-200/60 pt-4 w-full">
-            {renderPreparationPlatform(rec)}
-          </div>
-        )}
-"""
-                content = content[:insertion_point] + card_insertion + content[insertion_point:]
-            else:
-                print(f"Could not find card end in {file_path}")
-        else:
-            print(f"Could not find main return in {file_path}")
-    else:
-        print(f"Could not find the platform JSX in {file_path}")
-        
-    with open(file_path, 'w') as f:
+    # Actually, simpler:
+    content = re.sub(
+        r'setEvents\(prev => prev\.map\(evt => \{\s*if \(String\(evt\.id\) === String\(eventId\)\) \{',
+        r'const evt = events.find(e => String(e.id) === String(eventId));\n    if (evt) {',
+        content
+    )
+    content = re.sub(
+        r'return updated;\n\s+\}\n\s+return evt;\n\s+\}\)\);',
+        r'if (updated.isAgendaSource) { updateFirebaseRecommendation(String(eventId), updated); } else { updateFirebaseEvent(String(eventId), updated); }\n    }',
+        content
+    )
+
+    with open(filename, 'w', encoding='utf-8') as f:
         f.write(content)
-    print(f"Extraction and insertion successful for {file_path}")
 
+print("Done")

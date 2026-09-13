@@ -1,6 +1,6 @@
 import { extractAgendaClient } from "../lib/geminiClient";
 import { showGlobalToast } from "../lib/toastUtils";
-import { autoCreateEventDriveFolders, getOrCreateFolder, uploadBinaryFileToDrive, downloadDriveFileBase64, getCachedAccessToken } from "../lib/googleApi";
+import { autoCreateEventDriveFolders, getOrCreateFolder, uploadBinaryFileToDrive, downloadDriveFileBase64, getCachedAccessToken, deleteGoogleCalendarEvent } from "../lib/googleApi";
 import React, { useState, useEffect, FormEvent } from "react";
 import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
@@ -183,108 +183,11 @@ const exportRecommendationsToLocalStorage = async (evt: EventItem, selectedAgend
 
 import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc, setDoc } from '../lib/firebase';
 import { db } from '../lib/firebase';
-import { useFirestoreCollection } from '../lib/firebaseUtils';
+import { useFirestoreCollection, sendSystemAlert } from '../lib/firebaseUtils';
+import { AttachmentInput } from "../components/AttachmentInput";
 
 
-interface AttachmentInputProps {
-  label: string;
-  value: File | string | null;
-  onChange: (val: File | string | null) => void;
-  id: string;
-}
 
-function AttachmentInput({ label, value, onChange, id }: AttachmentInputProps) {
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      onChange(e.target.files[0]);
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      onChange(e.dataTransfer.files[0]);
-    }
-  };
-
-  const getDisplayValue = () => {
-    if (!value) return "";
-    if (typeof value === "string") {
-      return value.startsWith("http") ? "تم رفع الملف بنجاح (رابط)" : value;
-    }
-    if (typeof value === "object" && value !== null) {
-      return (value as any).name || "ملف مرفق";
-    }
-    return "ملف مرفق";
-  };
-  const displayValue = getDisplayValue();
-
-  return (
-    <div
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      className={`border-2 border-dashed rounded-2xl p-3.5 text-center transition-all relative ${
-        value
-          ? "border-emerald-300 bg-emerald-50/40"
-          : "border-gray-200 bg-gray-50/50 hover:bg-gray-100/70"
-      }`}
-    >
-      <input
-        type="file"
-        id={id}
-        className="hidden"
-        onChange={handleFileChange}
-      />
-      {value ? (
-        <div className="flex flex-col items-center gap-1.5">
-          <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
-            <Check className="w-4 h-4 text-emerald-600" />
-          </div>
-          <span className="text-[10px] font-bold text-gray-700 max-w-full overflow-hidden text-ellipsis whitespace-nowrap px-2">
-            {displayValue}
-          </span>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onChange(null);
-            }}
-            className="absolute top-2 left-2 p-1 bg-red-50 text-red-500 rounded-full hover:bg-red-100 transition-colors"
-          >
-            <X className="w-3 h-3" />
-          </button>
-        </div>
-      ) : (
-        <label htmlFor={id} className="cursor-pointer flex flex-col items-center gap-1.5">
-          <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
-            <Upload className="w-4 h-4 text-blue-500" />
-          </div>
-          <span className="text-[10px] font-bold text-gray-600">
-            {label}
-          </span>
-          <span className="text-[8.5px] text-gray-400">سحب وإفلات أو تصفح</span>
-        </label>
-      )}
-      {!value && (
-        <div className="mt-2 pt-2 border-t border-gray-200/50">
-          <input 
-            type="url" 
-            placeholder="أو ضع رابط درايف هنا..." 
-            className="w-full text-[9px] p-1.5 bg-white border border-gray-200 rounded text-center focus:ring-1 focus:ring-brand focus:border-brand"
-            onChange={(e) => {
-              if (e.target.value.trim()) onChange(e.target.value.trim());
-            }}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
 
 const readFileAsBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -407,7 +310,7 @@ function Step8Attachments({ evt, updateEventWorkflow }: { evt: any, updateEventW
         يرجى إرفاق روابط المستندات المطلوبة عبر جوجل درايف. (كشف الحضور ومحضر الاجتماع إلزامية).
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4 mt-4">
         <div className="space-y-1.5">
           <AttachmentInput
             id={`attendance-${evt.id}`}
@@ -471,7 +374,7 @@ function Step8Attachments({ evt, updateEventWorkflow }: { evt: any, updateEventW
           type="button"
           disabled={!isComplete || isUploading}
           onClick={handleFinalSave}
-          className={`px-5 py-2.5 rounded-lg text-[10.5px] font-black flex items-center gap-2 transition-all ${
+          className={`px-3 sm:px-4 md:px-5 py-2.5 rounded-lg text-[10.5px] font-black flex items-center gap-2 transition-all ${
             (isComplete && !isUploading)
               ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md cursor-pointer" 
               : "bg-gray-100 text-gray-400 cursor-not-allowed"
@@ -527,23 +430,6 @@ export default function Events() {
      return sourceList.map(e => e.name).filter(Boolean);
   }, [dbEmployees]);
 
-  const setEvents = (action: React.SetStateAction<EventItem[]>) => {
-    let nextEvents = typeof action === 'function' ? action(events) : action;
-    events.forEach(existing => {
-       if (!nextEvents.find(e => String(e.id) === String(existing.id))) {
-          deleteFirebaseEvent(String(existing.id));
-       }
-    });
-
-    nextEvents.forEach(nextT => {
-       const existing = events.find(e => String(e.id) === String(nextT.id));
-       if (!existing) {
-          updateFirebaseEvent(String(nextT.id), nextT); // Update actually creates if passing the explicit string ID using setDoc if we modify the helper. Let me modify useFirestoreCollection first!
-       } else if (JSON.stringify(existing) !== JSON.stringify(nextT)) {
-          updateFirebaseEvent(String(nextT.id), nextT);
-       }
-    });
-  };
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterQuery, setFilterQuery] = useState("");
@@ -1286,7 +1172,7 @@ ${formattedItems}
     return null;
   };
 
-  const handleInsertSeries = () => {
+  const handleInsertSeries = async () => {
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
     const selectedGen = generatedSchedules.filter(s => selectedSchedules.includes(s.id));
     
@@ -1309,12 +1195,12 @@ ${formattedItems}
       committeeName: commName,
       status: "تجهيز الفعاليات",
       location: seriesRooms.length > 0 ? seriesRooms.join("، ") : "حضوري",
-      employees: [seriesAssignedEmployee].filter(Boolean),
+      employees: Array.from(new Set([JSON.parse(localStorage.getItem("current_user") || "{}")?.name, seriesAssignedEmployee].flat().filter(Boolean))),
       members: newMembers,
       notes: newNotes,
     }));
 
-    setEvents([...newEventsList, ...events]);
+    newEventsList.forEach(async (ev) => { await setDoc(doc(db, "events", String(ev.id)), ev); });
     setIsConfirmingSeries(false);
     setIsAddOpen(false);
     setShowSuccessMsg(true);
@@ -1322,7 +1208,7 @@ ${formattedItems}
     setTimeout(() => setShowSuccessMsg(false), 3000);
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setConflictWarning(null);
     
@@ -1342,8 +1228,8 @@ ${formattedItems}
     }
 
     if (editingEvent) {
-      setEvents(events.map(ev => ev.id === editingEvent.id ? {
-        ...ev,
+      updateFirebaseEvent(String(editingEvent.id), {
+        ...editingEvent,
         title: newTitle,
         type: newType,
         date: newDate,
@@ -1352,14 +1238,12 @@ ${formattedItems}
         committeeName: commName,
         status: newStatus,
         location: singleRoom,
-        employees: [singleEmployee].filter(Boolean),
+        employees: Array.from(new Set([JSON.parse(localStorage.getItem("current_user") || "{}")?.name, singleEmployee].flat().filter(Boolean))),
         members: newMembers,
         notes: newNotes
-      } : ev));
+      });
     } else {
-      setEvents([
-        {
-          id: Date.now(),
+      addFirebaseEvent({
           title: newTitle,
           type: newType,
           date: newDate,
@@ -1368,19 +1252,39 @@ ${formattedItems}
           committeeName: commName,
           status: newStatus,
           location: singleRoom,
-          employees: [singleEmployee].filter(Boolean),
+          employees: Array.from(new Set([JSON.parse(localStorage.getItem("current_user") || "{}")?.name, singleEmployee].flat().filter(Boolean))),
           members: newMembers,
           notes: newNotes
-        },
-        ...events
-      ]);
+      });
     }
     setIsAddOpen(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (deletingEvent) {
-      setEvents(events.filter((e) => e.id !== deletingEvent.id));
+      try {
+        await deleteDoc(doc(db, "events", String(deletingEvent.id)));
+        
+        // Delete from Google Calendar if exists
+        if (deletingEvent.googleEventIds) {
+          const existingEventId = Object.values(deletingEvent.googleEventIds)[0] || undefined;
+          if (existingEventId) {
+            try {
+              await deleteGoogleCalendarEvent(existingEventId as string);
+            } catch (err) {
+              console.warn("Failed to delete Google Calendar event:", err);
+            }
+          }
+        }
+        
+        if (deletingEvent.employees) {
+          for (const emp of deletingEvent.employees) {
+            sendSystemAlert(emp, "إلغاء فعالية", `تم إلغاء فعالية "${deletingEvent.title || deletingEvent.eventName}"`, "event_delete", "/events");
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
       setDeletingEvent(null);
     }
   };
@@ -1389,7 +1293,24 @@ ${formattedItems}
     if (selectedEventIds.length > 0) {
       setIsBulkDeletingLoading(true);
       const itemsToDelete = events.filter((e) => selectedEventIds.includes(e.id));
-      await Promise.all(itemsToDelete.map(e => deleteFirebaseEvent(String(e.id))));
+      await Promise.all(itemsToDelete.map(async (e) => {
+        await deleteFirebaseEvent(String(e.id));
+        if (e.googleEventIds) {
+          const existingEventId = Object.values(e.googleEventIds)[0] || undefined;
+          if (existingEventId) {
+            try {
+              await deleteGoogleCalendarEvent(existingEventId as string);
+            } catch (err) {
+              console.warn("Failed to delete Google Calendar event in bulk:", err);
+            }
+          }
+        }
+        if (e.employees) {
+          for (const emp of e.employees) {
+            sendSystemAlert(emp, "إلغاء فعالية", `تم إلغاء فعالية "${e.title || e.eventName}"`, "event_delete", "/events");
+          }
+        }
+      }));
       setSelectedEventIds([]);
       setIsBulkDeletingLoading(false);
       setIsBulkDeleting(false);
@@ -1502,9 +1423,9 @@ ${formattedItems}
   return (
     <div className="space-y-6 pb-16">
       {/* Page Header Area */}
-      <div className="bg-[#e8e4e4] rounded-2xl p-6 border border-gray-200 shadow-sm flex flex-col xl:flex-row items-center justify-between gap-4">
+      <div className="bg-[#e8e4e4] rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 border border-gray-200 shadow-sm flex flex-col xl:flex-row items-center justify-between gap-2.5 sm:gap-3 md:gap-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
+          <h2 className="text-sm sm:text-base md:text-lg sm:text-xl md:text-2xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
             <Calendar className="w-7 h-7 text-brand" />
             <span>سجل الفعاليات</span>
           </h2>
@@ -1643,11 +1564,11 @@ ${formattedItems}
           <div className="flex gap-2">
             <div className="bg-white px-3.5 py-1.5 rounded-xl text-center shadow-inner" style={{ borderWidth: '0px' }}>
               <span className="text-[10px] font-black text-gray-400 block leading-tight">إجمالي الفعاليات</span>
-              <span className="text-lg font-black text-brand leading-none font-mono">{events.length}</span>
+              <span className="text-sm sm:text-base md:text-lg font-black text-brand leading-none font-mono">{events.length}</span>
             </div>
             <div className="bg-white px-3.5 py-1.5 rounded-xl text-center shadow-inner" style={{ borderWidth: '0px' }}>
               <span className="text-[10px] font-black text-gray-400 block leading-tight">منتهية</span>
-              <span className="text-lg font-black text-emerald-600 leading-none font-mono">
+              <span className="text-sm sm:text-base md:text-lg font-black text-emerald-600 leading-none font-mono">
                 {events.filter(e => getDisplayStatus(e) === "منتهية").length}
               </span>
             </div>
@@ -1657,8 +1578,8 @@ ${formattedItems}
       </div>
 
       {filteredEvents.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center space-y-3">
-          <div className="w-16 h-16 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mx-auto">
+        <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl p-12 text-center space-y-3">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mx-auto">
             <Search className="w-7 h-7" />
           </div>
           <p className="text-gray-500 font-extrabold text-base">لم يعثر على أية نتائج مخصصة لعملية البحث الحالية.</p>
@@ -1672,7 +1593,7 @@ ${formattedItems}
       ) : viewMode === "grid" ? (
         <div className="space-y-6 text-right">
           {/* Elegant Breadcrumbs Navigator */}
-          <div className="bg-white border border-gray-150 rounded-2xl p-4 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4 font-sans">
+          <div className="bg-white border border-gray-150 rounded-xl sm:rounded-2xl p-4 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-2.5 sm:gap-3 md:gap-4 font-sans">
             <div className="flex flex-wrap items-center gap-2 text-xs font-black text-gray-700">
               <button
                 onClick={() => {
@@ -1769,7 +1690,7 @@ ${formattedItems}
 
           {/* Level 1: Committees List view */}
           {selectedCommIdForCards === null ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
               {committees.map((comm) => {
                 const commEvents = filteredEvents.filter((e) => String(e.committeeId) === String(comm.id));
                 const president = allMembers.find((m) => String(m.committeeId) === String(comm.id) && m.active !== false && m.role === "رئيس")?.name || comm.president || "غير محدد";
@@ -1780,12 +1701,12 @@ ${formattedItems}
                     key={comm.id}
                     initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="bg-white border-2 border-slate-100 hover:border-[#dfba6b]/60 hover:shadow-lg transition-all duration-300 rounded-3xl p-6 relative group flex flex-col justify-between space-y-5"
+                    className="bg-white border-2 border-slate-100 hover:border-[#dfba6b]/60 hover:shadow-lg transition-all duration-300 rounded-xl sm:rounded-2xl sm:rounded-3xl p-3 sm:p-4 md:p-6 relative group flex flex-col justify-between space-y-5"
                   >
                     {/* Committee Header & Icon */}
                     <div className="space-y-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-2xl bg-brand/5 border border-brand/10 flex items-center justify-center text-brand shrink-0">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-brand/5 border border-brand/10 flex items-center justify-center text-brand shrink-0">
                           <Users2 className="w-6 h-6 font-black" />
                         </div>
                         <div className="min-w-0">
@@ -1799,7 +1720,7 @@ ${formattedItems}
                       </div>
 
                       {/* Committee Info details */}
-                      <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-100 space-y-2.5 text-xs">
+                      <div className="bg-slate-50/70 p-4 rounded-xl sm:rounded-2xl border border-slate-100 space-y-2.5 text-xs">
                         <div className="flex items-center justify-between">
                           <span className="text-gray-400 font-bold text-[10px]">رئيس اللجنة:</span>
                           <span className="text-gray-800 font-extrabold">{president}</span>
@@ -1842,14 +1763,14 @@ ${formattedItems}
 
                 if (uniqueKinds.length === 0) {
                   return (
-                    <div className="bg-white border border-gray-150 rounded-2xl p-10 text-center text-gray-500 font-bold text-sm">
+                    <div className="bg-white border border-gray-150 rounded-xl sm:rounded-2xl p-5 sm:p-8 md:p-10 text-center text-gray-500 font-bold text-sm">
                       لا توجد أية فعاليات مسجلة لهذه اللجنة حالياً.
                     </div>
                   );
                 }
 
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
                     {uniqueKinds.map((kind) => {
                       const count = commEvents.filter((e) => getEventKindStr(e.title) === kind).length;
                       return (
@@ -1857,10 +1778,10 @@ ${formattedItems}
                           key={kind}
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="bg-white border-2 border-slate-100 hover:border-blue-300 hover:shadow-lg transition-all duration-300 rounded-3xl p-6 flex flex-col justify-between space-y-4"
+                          className="bg-white border-2 border-slate-100 hover:border-blue-300 hover:shadow-lg transition-all duration-300 rounded-xl sm:rounded-2xl sm:rounded-3xl p-3 sm:p-4 md:p-6 flex flex-col justify-between space-y-4"
                         >
                           <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-2xl bg-blue-55/70 text-blue-800 border border-blue-100 flex items-center justify-center font-black">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-blue-55/70 text-blue-800 border border-blue-100 flex items-center justify-center font-black">
                               <Calendar className="w-6 h-6" />
                             </div>
                             <div>
@@ -1910,14 +1831,14 @@ ${formattedItems}
 
                 if (activeClassifications.length === 0) {
                   return (
-                    <div className="bg-white border border-gray-150 rounded-2xl p-10 text-center text-gray-500 font-bold text-sm">
+                    <div className="bg-white border border-gray-150 rounded-xl sm:rounded-2xl p-5 sm:p-8 md:p-10 text-center text-gray-500 font-bold text-sm">
                       لا يوجد أي تصنيف للفعاليات المدرجة حالياً.
                     </div>
                   );
                 }
 
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
                     {activeClassifications.map((cls) => {
                       const count = kindEvents.filter((e) => getEventClassification(e.title) === cls).length;
                       return (
@@ -1925,10 +1846,10 @@ ${formattedItems}
                           key={cls}
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="bg-white border-2 border-slate-100 hover:border-emerald-300 hover:shadow-lg transition-all duration-300 rounded-3xl p-6 flex flex-col justify-between space-y-4"
+                          className="bg-white border-2 border-slate-100 hover:border-emerald-300 hover:shadow-lg transition-all duration-300 rounded-xl sm:rounded-2xl sm:rounded-3xl p-3 sm:p-4 md:p-6 flex flex-col justify-between space-y-4"
                         >
                           <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-2xl bg-emerald-55/70 text-emerald-800 border border-emerald-100 flex items-center justify-center font-black animate-pulse">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-emerald-55/70 text-emerald-800 border border-emerald-100 flex items-center justify-center font-black animate-pulse">
                               <Sliders className="w-6 h-6" />
                             </div>
                             <div>
@@ -2007,14 +1928,14 @@ ${formattedItems}
 
                 if (finalList.length === 0) {
                   return (
-                    <div className="bg-white border border-gray-150 rounded-2xl p-10 text-center text-gray-500 font-bold text-sm">
+                    <div className="bg-white border border-gray-150 rounded-xl sm:rounded-2xl p-5 sm:p-8 md:p-10 text-center text-gray-500 font-bold text-sm">
                       لا تتوفر أية فعاليات تطابق شروط الفرز الحالية.
                     </div>
                   );
                 }
 
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
                     <AnimatePresence mode="popLayout">
                       {finalList.map((evt) => (
                         <motion.div
@@ -2024,7 +1945,7 @@ ${formattedItems}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.9 }}
                           transition={{ duration: 0.3 }}
-                          className="bg-[#e8e4e4] hover:bg-[#e2dede] transition-colors duration-300 rounded-3xl p-5 border border-gray-200 shadow-sm hover:shadow-md relative group flex flex-col justify-between"
+                          className="bg-[#e8e4e4] hover:bg-[#e2dede] transition-colors duration-300 rounded-xl sm:rounded-2xl sm:rounded-3xl p-3 sm:p-4 md:p-5 border border-gray-200 shadow-sm hover:shadow-md relative group flex flex-col justify-between"
                         >
                           {/* Title & Actions inside grid card */}
                           <div className="absolute top-4 left-4 z-20">
@@ -2135,7 +2056,7 @@ ${formattedItems}
         </div>
       ) : (
         /* TABLE REGISTER VIEW LAYOUT (سجل الفعاليات) */
-        <div className="bg-[#e8e4e4] rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-right">
+        <div className="bg-[#e8e4e4] rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-right">
           <div className="overflow-x-auto custom-scrollbar font-sans pb-36">
             <table className="w-full text-xs font-semibold text-gray-700 select-none border-collapse text-right">
               <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
@@ -2384,12 +2305,12 @@ ${formattedItems}
                               initial={{ opacity: 0, height: 0 }} 
                               animate={{ opacity: 1, height: "auto" }} 
                               exit={{ opacity: 0, height: 0 }}
-                              className="px-6 py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-y border-gray-200 text-right font-sans relative"
+                              className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-y border-gray-200 text-right font-sans relative"
                             >
                               {!canUserEditCommittee(evt.committeeName) && (
                                 <div className="absolute inset-0 z-[60] bg-slate-50/40 cursor-not-allowed rounded-lg" title="ليس لديك صلاحية لتعديل هذه الفعالية" />
                               )}
-                              <div className={`flex flex-col md:flex-row gap-6 relative ${!canUserEditCommittee(evt.committeeName) ? "opacity-80 pointer-events-none grayscale-[10%]" : ""}`}>
+                              <div className={`flex flex-col md:flex-row gap-3 sm:gap-4 md:gap-6 relative ${!canUserEditCommittee(evt.committeeName) ? "opacity-80 pointer-events-none grayscale-[10%]" : ""}`}>
                                 
                                 {/* Right Column: Steps Stepper / Timeline Sidebar */}
                                 <div className="w-full md:w-1/3 flex flex-col gap-2.5 bg-white p-4 rounded-xl border border-gray-200 shadow-sm shrink-0">
@@ -2490,7 +2411,7 @@ ${formattedItems}
                                 </div>
 
                                 {/* Left Column: Interactive Workspace for selected Step */}
-                                <div className="flex-1 bg-white p-5 rounded-xl border border-gray-200 shadow-sm min-w-0" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex-1 bg-white p-3 sm:p-4 md:p-5 rounded-xl border border-gray-200 shadow-sm min-w-0" onClick={(e) => e.stopPropagation()}>
                                   {(() => {
                                     const curTab = activeStepTab[evt.id] ?? getStepIndex(nextStep);
                                     
@@ -2641,7 +2562,7 @@ ${formattedItems}
                                         const quorumMet = ratioMet && leaderOk;
                                         
                                         return (
-                                          <div className="flex flex-col gap-4 text-right">
+                                          <div className="flex flex-col gap-2.5 sm:gap-3 md:gap-4 text-right">
                                             <div className="flex items-center justify-between pb-2 border-b border-gray-100 order-1">
                                               <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
                                                 <Users className="w-4 h-4 text-brand" />
@@ -2661,7 +2582,7 @@ ${formattedItems}
                                                 </span>
                                               </div>
                                               
-                                              <div className="flex items-center gap-6 text-right">
+                                              <div className="flex items-center gap-3 sm:gap-4 md:gap-6 text-right">
                                                 <div className="border-r border-gray-300 pr-4">
                                                   <span className="block text-[8px] text-gray-500 font-bold">نسبة حضور الأعضاء الكليين</span>
                                                   <span className="text-[10.5px] font-extrabold text-slate-800 block">
@@ -2925,7 +2846,7 @@ ${formattedItems}
 										};
 										
 										return (
-											<div className="flex flex-col gap-4 font-sans text-right">
+											<div className="flex flex-col gap-2.5 sm:gap-3 md:gap-4 font-sans text-right">
 												<div className="flex items-center justify-between pb-2 border-b border-gray-100 order-1">
 													<h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
 														<Sliders className="w-4 h-4 text-brand" />
@@ -3174,7 +3095,7 @@ ${formattedItems}
 												<div className="order-3">
 													<span className="block text-[10px] text-slate-800 font-black mb-1.5">أجندة جدول الأعمال المسجلة للفعالية حتى الآن ({agenda.length})</span>
 													{agenda.length === 0 ? (
-														<div className="text-center p-6 border rounded-lg bg-gray-50 text-gray-500 text-[10px] font-bold border-gray-200">
+														<div className="text-center p-3 sm:p-4 md:p-6 border rounded-lg bg-gray-50 text-gray-500 text-[10px] font-bold border-gray-200">
 															لا يوجد بنود أعمال حالية في الفعالية. يرجى استخدام النموذج أعلاه لإدراج الأجندة وفتح المحضر.
 														</div>
 													) : (
@@ -3275,7 +3196,7 @@ ${formattedItems}
                                             </div>
 
                                             {agenda.length === 0 ? (
-                                              <div className="text-center p-6 border border-yellow-250 rounded-lg bg-yellow-50 text-amber-700 text-[10px] font-bold">
+                                              <div className="text-center p-3 sm:p-4 md:p-6 border border-yellow-250 rounded-lg bg-yellow-50 text-amber-700 text-[10px] font-bold">
                                                 ⚠ تنبيه: لم يتم تسجيل أي بنود في الأجندة بعد. يرجى ملء جدول الأعمال في (الخطوة 4) أولاً.
                                               </div>
                                             ) : (
@@ -3403,7 +3324,7 @@ ${formattedItems}
                                                 <button
                                                   type="button"
                                                   onClick={() => updateEventWorkflow(evt.id, { minutesSaved: true, minutesExportChecked: true })}
-                                                  className="px-5 py-2.5 bg-emerald-600 border-transparent hover:bg-emerald-555 text-white font-extrabold rounded-lg text-[10px] flex items-center gap-1.5 cursor-pointer transition-all shadow-md shadow-emerald-500/10"
+                                                  className="px-3 sm:px-4 md:px-5 py-2.5 bg-emerald-600 border-transparent hover:bg-emerald-555 text-white font-extrabold rounded-lg text-[10px] flex items-center gap-1.5 cursor-pointer transition-all shadow-md shadow-emerald-500/10"
                                                 >
                                                   <CheckCircle className="w-4 h-4" />
                                                   حفظ وتثبيت وقائع المحضر بالكامل
@@ -3482,7 +3403,7 @@ ${formattedItems}
                                             </div>
 
                                             {!evt.minutesSaved ? (
-                                              <div className="text-center p-6 border border-orange-250 rounded-lg bg-orange-50 text-orange-700 text-[10px] font-bold">
+                                              <div className="text-center p-3 sm:p-4 md:p-6 border border-orange-250 rounded-lg bg-orange-50 text-orange-700 text-[10px] font-bold">
                                                 ⚠ يرجى حفظ وتثبيت وقائع المحضر بالكامل أولاً في (الخطوة 5).
                                               </div>
                                             ) : (
@@ -3504,7 +3425,7 @@ ${formattedItems}
                                                     </div>
                                                     <div className="space-y-1 text-[9px]">
                                                       {existingMeetingRecs.map((dbRec) => (
-                                                        <div key={dbRec.id} className="p-2 bg-white rounded border border-gray-150 flex items-center justify-between gap-4 font-bold text-gray-600">
+                                                        <div key={dbRec.id} className="p-2 bg-white rounded border border-gray-150 flex items-center justify-between gap-2.5 sm:gap-3 md:gap-4 font-bold text-gray-600">
                                                           <div className="flex flex-col">
                                                             <span className="text-slate-800">توصية محفوظة: {dbRec.description}</span>
                                                             <span className="text-[8px] text-slate-400">المكلف: {dbRec.assignedTo} | المدة: {dbRec.duration}</span>
@@ -3525,7 +3446,7 @@ ${formattedItems}
                                                   </div>
                                                   
                                                   {recsToExport.length === 0 ? (
-                                                    <div className="p-6 text-center space-y-4">
+                                                    <div className="p-3 sm:p-4 md:p-6 text-center space-y-4">
                                                       <div className="text-gray-500 text-[10px] font-bold">
                                                         لم يتم تدوين أي توصيات في بنود المحضر لهذا الاجتماع. هل ترغب في إقفال المحضر واعتماده مباشرة بدون توصيات لإنهاء الفعالية بالكامل وتحويل الحالة إلى مكتمل؟
                                                       </div>
@@ -3547,7 +3468,7 @@ ${formattedItems}
                                                               if (success) showGlobalToast("تم إنشاء ملف الفعالية بنجاح في درايف", "success");
                                                               else showGlobalToast("حدث خطأ أثناء مزامنة درايف", "error");
                                                             }}
-                                                            className="px-5 py-2.5 bg-slate-900 border-transparent hover:bg-slate-800 text-white font-black rounded-lg text-[10.5px] flex items-center gap-2 cursor-pointer transition-all shadow-md"
+                                                            className="px-3 sm:px-4 md:px-5 py-2.5 bg-slate-900 border-transparent hover:bg-slate-800 text-white font-black rounded-lg text-[10.5px] flex items-center gap-2 cursor-pointer transition-all shadow-md"
                                                           >
                                                             <Lock className="w-4 h-4 text-brand shadow animate-pulse" />
                                                             إقفال المحضر واعتماده مباشرة بدون توصيات
@@ -3575,7 +3496,7 @@ ${formattedItems}
                                                               className="w-4.5 h-4.5 rounded border-gray-300 text-brand focus:ring-brand mt-0.5 cursor-pointer shrink-0"
                                                             />
                                                             <div className="flex-1 flex flex-col gap-1.5 leading-snug">
-                                                              <div className="flex items-start justify-between gap-4">
+                                                              <div className="flex items-start justify-between gap-2.5 sm:gap-3 md:gap-4">
                                                                 <span className="font-extrabold text-slate-950">توصية البند {index + 1}: {rec.recommendation}</span>
                                                                 
                                                                 {/* Status badges */}
@@ -3620,7 +3541,7 @@ ${formattedItems}
                                                       <button
                                                         type="button"
                                                         onClick={handleConfirmExportFinal}
-                                                        className="px-5 py-2.5 bg-slate-900 border-transparent hover:bg-slate-800 text-white font-black rounded-lg text-[10.5px] flex items-center gap-2 cursor-pointer transition-all shadow-md"
+                                                        className="px-3 sm:px-4 md:px-5 py-2.5 bg-slate-900 border-transparent hover:bg-slate-800 text-white font-black rounded-lg text-[10.5px] flex items-center gap-2 cursor-pointer transition-all shadow-md"
                                                       >
                                                         <Sparkles className="w-4 h-4 text-brand shadow animate-pulse" />
                                                         تأكيد وإتمام ترحيل التوصيات المقترحة لصفحة التوصيات الرسمية
@@ -3672,9 +3593,9 @@ ${formattedItems}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 15, opacity: 0 }}
               transition={{ type: "spring", damping: 20, stiffness: 280 }}
-              className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right flex flex-col max-h-[90vh]"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right flex flex-col max-h-[90vh]"
             >
-              <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
+              <div className="bg-[#e8e4e4] p-3 sm:p-4 md:p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-600 text-white rounded-xl">
                     {editingEvent ? <Edit2 className="w-5 h-5 stroke-[2.5]" /> : <Plus className="w-5 h-5 stroke-[2.5]" />}
@@ -3695,7 +3616,7 @@ ${formattedItems}
                 </button>
               </div>
 
-              <div className="overflow-y-auto p-6">
+              <div className="overflow-y-auto p-3 sm:p-4 md:p-6">
                 <form onSubmit={handleSubmit} className="space-y-4">
                 
                 <AnimatePresence>
@@ -3746,7 +3667,7 @@ ${formattedItems}
                     </h4>
                     
                     {generatedSchedules.length === 0 ? (
-                      <div className="text-center p-8 bg-gray-50 rounded-xl border border-gray-200">
+                      <div className="text-center p-4 sm:p-6 md:p-8 bg-gray-50 rounded-xl border border-gray-200">
                         <p className="text-sm font-bold text-gray-500">لا توجد فعاليات مطابقة ضمن النطاق الزمني المحدد.</p>
                       </div>
                     ) : (
@@ -3802,14 +3723,14 @@ ${formattedItems}
                         type="button"
                         onClick={handleInsertSeries}
                         disabled={selectedSchedules.length === 0}
-                        className="px-6 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand/90 transition-colors shadow-lg shadow-brand/20 disabled:opacity-50"
+                        className="px-3 sm:px-4 md:px-6 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand/90 transition-colors shadow-lg shadow-brand/20 disabled:opacity-50"
                       >
                         إدراج ({selectedSchedules.length}) سجل
                       </button>
                       <button
                         type="button"
                         onClick={() => setIsConfirmingSeries(false)}
-                        className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors"
+                        className="px-3 sm:px-4 md:px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors"
                       >
                         تراجع للتعديل
                       </button>
@@ -3818,13 +3739,13 @@ ${formattedItems}
                 ) : (
                   
 <div key="filter-popover-1784704070979-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-right mb-6" dir="rtl">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-4 md:gap-5 text-right mb-6" dir="rtl">
                       <div className="md:col-span-full flex justify-end">
                         <div className="bg-gray-100 p-1 rounded-xl flex shadow-inner">
                           <button
                             type="button"
                             onClick={() => setNewType("مفردة")}
-                            className={`px-6 py-2 rounded-lg font-black text-xs transition-all ${
+                            className={`px-3 sm:px-4 md:px-6 py-2 rounded-lg font-black text-xs transition-all ${
                               newType === "مفردة" ? "bg-blue-600 text-white shadow" : "text-gray-500 hover:text-gray-700"
                             }`}
                           >
@@ -3833,7 +3754,7 @@ ${formattedItems}
                           <button
                             type="button"
                             onClick={() => setNewType("متسلسلة")}
-                            className={`px-6 py-2 rounded-lg font-black text-xs transition-all ${
+                            className={`px-3 sm:px-4 md:px-6 py-2 rounded-lg font-black text-xs transition-all ${
                               newType === "متسلسلة" ? "bg-blue-600 text-white shadow" : "text-gray-500 hover:text-gray-700"
                             }`}
                           >
@@ -3843,7 +3764,7 @@ ${formattedItems}
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-right" dir="rtl">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-4 md:gap-5 text-right" dir="rtl">
                       
                       {newType === "مفردة" && (
                         
@@ -3863,7 +3784,7 @@ ${formattedItems}
                                   setSeriesAssignedEmployee(matched.specialist);
                                 }
                               }}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value={0} disabled>اختر اللجنة</option>
                               {committees.map(c => (
@@ -3881,7 +3802,7 @@ ${formattedItems}
                                   setSingleClassification("");
                                 }
                               }}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value="" disabled>اختر نوع الفعالية</option>
                               {EVENT_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
@@ -3893,7 +3814,7 @@ ${formattedItems}
                               value={singleClassification}
                               onChange={(e) => setSingleClassification(e.target.value)}
                               disabled={singleKind !== "اجتماع"}
-                              className={`w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand ${singleKind !== "اجتماع" ? "opacity-50 cursor-not-allowed" : ""}`}
+                              className={`w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand ${singleKind !== "اجتماع" ? "opacity-50 cursor-not-allowed" : ""}`}
                             >
                               <option value="">اختر نوع التصنيف</option>
                               {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c}</option>)}
@@ -3910,7 +3831,7 @@ ${formattedItems}
                                 setSingleEventNumber(e.target.value);
                                 setIsSeqManuallyEdited(true);
                               }}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                               placeholder="مثال: الأول، الثاني..."
                             />
                           </div>
@@ -3921,7 +3842,7 @@ ${formattedItems}
                               required
                               value={singleTime}
                               onChange={(e) => setSingleTime(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             />
                           </div>
                           <div className="space-y-1">
@@ -3931,7 +3852,7 @@ ${formattedItems}
                               required
                               value={newDate}
                               onChange={(e) => setNewDate(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             />
                             {isWeekend(newDate) && <p className="text-red-500 text-[10px] font-bold mt-1">تنبيه: هذا التاريخ يوافق إجازة نهاية الأسبوع</p>}
                           </div>
@@ -3942,7 +3863,7 @@ ${formattedItems}
                             <select
                               value={singleEmployee}
                               onChange={(e) => setSingleEmployee(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               {dynamicEmployees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
                             </select>
@@ -3952,7 +3873,7 @@ ${formattedItems}
                             <select
                               value={singleRoom}
                               onChange={(e) => setSingleRoom(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value="" disabled>اختر قاعة...</option>
                               {ROOMS.map(rm => <option key={rm} value={rm}>{rm}</option>)}
@@ -3969,7 +3890,7 @@ ${formattedItems}
                                 setNewTitle(e.target.value);
                                 setIsTitleManuallyEdited(true);
                               }}
-                              className="w-full bg-gray-50 text-gray-900 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 text-gray-900 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                               placeholder="أدخل عنوان الفعالية أو قم بتعديله يدوياً..."
                             />
                           </div>
@@ -3990,7 +3911,7 @@ ${formattedItems}
                                   setSeriesClassification("");
                                 }
                               }}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value="" disabled>اختر نوع الفعالية</option>
                               {EVENT_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
@@ -4003,7 +3924,7 @@ ${formattedItems}
                               value={seriesClassification}
                               onChange={(e) => setSeriesClassification(e.target.value)}
                               disabled={seriesKind !== "اجتماع"}
-                              className={`w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand ${seriesKind !== "اجتماع" ? "opacity-50 cursor-not-allowed" : ""}`}
+                              className={`w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand ${seriesKind !== "اجتماع" ? "opacity-50 cursor-not-allowed" : ""}`}
                             >
                               <option value="">اختر نوع التصنيف</option>
                               {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c}</option>)}
@@ -4026,7 +3947,7 @@ ${formattedItems}
                                   setSeriesAssignedEmployee(dynamicEmployees[(val - 1) % dynamicEmployees.length] || dynamicEmployees[0] );
                                 }
                               }}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value={0} disabled>اختر اللجنة</option>
                               {committees.map(c => (
@@ -4041,7 +3962,7 @@ ${formattedItems}
                             <select
                               value={seriesAssignedEmployee}
                               onChange={(e) => setSeriesAssignedEmployee(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value="">تحديد الموظف...</option>
                               {dynamicEmployees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
@@ -4053,7 +3974,7 @@ ${formattedItems}
                             <select
                               value={seriesDayOfWeek}
                               onChange={(e) => setSeriesDayOfWeek(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
                             </select>
@@ -4064,7 +3985,7 @@ ${formattedItems}
                             <select
                               value={seriesWeekOfMonth}
                               onChange={(e) => setSeriesWeekOfMonth(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               {Object.keys(WEEKSMap).map(w => <option key={w} value={w}>{w}</option>)}
                             </select>
@@ -4078,7 +3999,7 @@ ${formattedItems}
                               required
                               value={seriesStartDate}
                               onChange={(e) => setSeriesStartDate(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             />
                             {isWeekend(seriesStartDate) && <p className="text-red-500 text-[10px] font-bold mt-1">تنبيه: هذا التاريخ يوافق إجازة نهاية الأسبوع</p>}
                           </div>
@@ -4089,7 +4010,7 @@ ${formattedItems}
                               required
                               value={seriesEndDate}
                               onChange={(e) => setSeriesEndDate(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             />
                             {isWeekend(seriesEndDate) && <p className="text-red-500 text-[10px] font-bold mt-1">تنبيه: هذا التاريخ يوافق إجازة نهاية الأسبوع</p>}
                           </div>
@@ -4100,7 +4021,7 @@ ${formattedItems}
                               type="time"
                               value={seriesTime}
                               onChange={(e) => setSeriesTime(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             />
                           </div>
 
@@ -4111,7 +4032,7 @@ ${formattedItems}
                               <select 
                                 value={selectedRoom}
                                 onChange={(e) => setSelectedRoom(e.target.value)}
-                                className="flex-1 bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                                className="flex-1 bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                               >
                                 <option value="" disabled>اختر قاعة...</option>
                                 {ROOMS.map(rm => <option key={rm} value={rm}>{rm}</option>)}
@@ -4157,7 +4078,7 @@ ${formattedItems}
                       value={newNotes}
                       onChange={(e) => setNewNotes(e.target.value)}
                       rows={3}
-                      className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand resize-none"
+                      className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand resize-none"
                     ></textarea>
                   </div>
 
@@ -4166,14 +4087,14 @@ ${formattedItems}
                 <div className="mt-8 pt-5 border-t border-gray-100 flex items-center justify-end flex-row-reverse gap-3">
                   <button
                     type="submit"
-                    className="px-6 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand/90 transition-colors shadow-lg shadow-brand/20 active:scale-95"
+                    className="px-3 sm:px-4 md:px-6 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand/90 transition-colors shadow-lg shadow-brand/20 active:scale-95"
                   >
                     {newType === "متسلسلة" ? "استعراض الجدول" : (editingEvent ? "حفظ التعديلات" : "إضافة الفعالية")}
                   </button>
                   <button
                     type="button"
                     onClick={() => setIsAddOpen(false)}
-                    className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors"
+                    className="px-3 sm:px-4 md:px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors"
                   >
                     إلغاء
                   </button>
@@ -4197,12 +4118,12 @@ ${formattedItems}
              />
              <motion.div 
                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-               className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-sm relative z-10 text-center border border-gray-100"
+               className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl shadow-2xl p-3 sm:p-4 md:p-6 w-full max-w-sm relative z-10 text-center border border-gray-100"
              >
-               <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
+               <div className="w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
                  <AlertTriangle className="w-8 h-8" />
                </div>
-               <h3 className="text-xl font-black text-gray-900 mb-2">تأكيد الحذف</h3>
+               <h3 className="text-base sm:text-lg md:text-xl font-black text-gray-900 mb-2">تأكيد الحذف</h3>
                <p className="text-sm font-bold text-gray-500 mb-6">
                  هل أنت متأكد من حذف {selectedEventIds.length} فعالية؟
                </p>
@@ -4240,12 +4161,12 @@ ${formattedItems}
              />
              <motion.div 
                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-               className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-sm relative z-10 text-center border border-gray-100"
+               className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl shadow-2xl p-3 sm:p-4 md:p-6 w-full max-w-sm relative z-10 text-center border border-gray-100"
              >
-               <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
+               <div className="w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
                  <AlertTriangle className="w-8 h-8" />
                </div>
-               <h3 className="text-xl font-black text-gray-900 mb-2">تأكيد الحذف</h3>
+               <h3 className="text-base sm:text-lg md:text-xl font-black text-gray-900 mb-2">تأكيد الحذف</h3>
                <p className="text-sm font-bold text-gray-500 mb-6">
                  هل أنت متأكد من حذف الفعالية "{deletingEvent.title}"؟ 
                </p>

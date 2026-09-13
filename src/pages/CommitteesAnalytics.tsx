@@ -275,17 +275,17 @@ export default function CommitteesAnalytics() {
   return (
     <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500 font-sans" dir="rtl">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 bg-gradient-to-l from-slate-900 to-slate-800 p-6 sm:p-8 rounded-3xl border border-slate-700 shadow-2xl relative overflow-hidden text-white">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-2.5 sm:gap-3 md:gap-4 bg-gradient-to-l from-slate-900 to-slate-800 p-3 sm:p-4 md:p-6 sm:p-8 rounded-xl sm:rounded-2xl sm:rounded-3xl border border-slate-700 shadow-2xl relative overflow-hidden text-white">
         <div className="absolute -left-24 -top-24 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute right-0 bottom-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 pointer-events-none"></div>
         
-        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between w-full gap-4">
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between w-full gap-2.5 sm:gap-3 md:gap-4">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-3 bg-white/10 backdrop-blur-md text-white rounded-2xl shadow-xl border border-white/10">
+              <div className="p-3 bg-white/10 backdrop-blur-md text-white rounded-xl sm:rounded-2xl shadow-xl border border-white/10">
                 <Activity className="w-6 h-6" />
               </div>
-              <h2 className="text-2xl sm:text-3xl font-black tracking-tight drop-shadow-md">الداش بورد الاستراتيجي</h2>
+              <h2 className="text-sm sm:text-base md:text-lg sm:text-xl md:text-2xl sm:text-3xl font-black tracking-tight drop-shadow-md">الداش بورد الاستراتيجي</h2>
             </div>
             <p className="text-sm font-bold text-slate-300 mr-2 max-w-xl leading-relaxed">مركز القيادة والتحكم: نظرة تحليلية شاملة ومتقدمة لقياس أداء اللجان، إنتاجية الكادر الإداري، ومدى تفاعل الأعضاء ومقارنتها بمعايير 2026.</p>
           </div>
@@ -293,7 +293,7 @@ export default function CommitteesAnalytics() {
           <div className="flex gap-2">
             <button
               onClick={() => showGlobalToast("تم تصدير الموجز بنجاح", "success")}
-              className="shrink-0 flex items-center gap-2 px-5 py-3 rounded-xl transition-all font-black text-xs border border-white/20 bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm shadow-lg"
+              className="shrink-0 flex items-center gap-2 px-3 sm:px-4 md:px-5 py-3 rounded-xl transition-all font-black text-xs border border-white/20 bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm shadow-lg"
             >
               <Download className="w-4 h-4" />
               تصدير الموجز
@@ -301,7 +301,7 @@ export default function CommitteesAnalytics() {
             <button
               onClick={handleRefreshData}
               disabled={isRefreshing}
-              className={`shrink-0 flex items-center gap-2 px-5 py-3 rounded-xl transition-all font-black text-xs border shadow-lg ${
+              className={`shrink-0 flex items-center gap-2 px-3 sm:px-4 md:px-5 py-3 rounded-xl transition-all font-black text-xs border shadow-lg ${
                 isRefreshing 
                   ? 'bg-slate-700 text-slate-400 border-slate-600 cursor-not-allowed' 
                   : 'bg-blue-600 text-white border-blue-500 hover:bg-blue-500 hover:scale-105'
@@ -315,14 +315,14 @@ export default function CommitteesAnalytics() {
       </div>
 
       {/* 1. شريط العدادات القياسية الرباعي */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 md:gap-4">
         {/* بطاقة اللجان */}
-        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-lg shadow-slate-200/50 relative overflow-hidden group hover:border-blue-200 transition-colors">
-           <div className="absolute -left-4 -top-4 w-16 h-16 bg-blue-50 rounded-full blur-xl group-hover:bg-blue-100 transition-colors"></div>
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-100 p-3 sm:p-4 md:p-5 shadow-lg shadow-slate-200/50 relative overflow-hidden group hover:border-blue-200 transition-colors">
+           <div className="absolute -left-4 -top-4 w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-blue-50 rounded-full blur-xl group-hover:bg-blue-100 transition-colors"></div>
            <div className="relative z-10 flex justify-between items-start mb-4">
               <div>
                  <span className="block text-[11px] font-black text-slate-500 mb-1">اللجان القطاعية</span>
-                 <h3 className="text-3xl font-black text-slate-800">{stats.committees.total}</h3>
+                 <h3 className="text-base sm:text-lg md:text-xl sm:text-2xl md:text-3xl font-black text-slate-800">{stats.committees.total}</h3>
               </div>
               <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
                  <Layers className="w-5 h-5" />
@@ -341,12 +341,12 @@ export default function CommitteesAnalytics() {
         </div>
 
         {/* بطاقة الأعضاء */}
-        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-lg shadow-slate-200/50 relative overflow-hidden group hover:border-purple-200 transition-colors">
-           <div className="absolute -left-4 -top-4 w-16 h-16 bg-purple-50 rounded-full blur-xl group-hover:bg-purple-100 transition-colors"></div>
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-100 p-3 sm:p-4 md:p-5 shadow-lg shadow-slate-200/50 relative overflow-hidden group hover:border-purple-200 transition-colors">
+           <div className="absolute -left-4 -top-4 w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-purple-50 rounded-full blur-xl group-hover:bg-purple-100 transition-colors"></div>
            <div className="relative z-10 flex justify-between items-start mb-4">
               <div>
                  <span className="block text-[11px] font-black text-slate-500 mb-1">إجمالي الأعضاء</span>
-                 <h3 className="text-3xl font-black text-slate-800">{stats.members.total}</h3>
+                 <h3 className="text-base sm:text-lg md:text-xl sm:text-2xl md:text-3xl font-black text-slate-800">{stats.members.total}</h3>
               </div>
               <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
                  <Users className="w-5 h-5" />
@@ -368,12 +368,12 @@ export default function CommitteesAnalytics() {
         </div>
 
         {/* بطاقة التوصيات */}
-        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-lg shadow-slate-200/50 relative overflow-hidden group hover:border-emerald-200 transition-colors">
-           <div className="absolute -left-4 -top-4 w-16 h-16 bg-emerald-50 rounded-full blur-xl group-hover:bg-emerald-100 transition-colors"></div>
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-100 p-3 sm:p-4 md:p-5 shadow-lg shadow-slate-200/50 relative overflow-hidden group hover:border-emerald-200 transition-colors">
+           <div className="absolute -left-4 -top-4 w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-emerald-50 rounded-full blur-xl group-hover:bg-emerald-100 transition-colors"></div>
            <div className="relative z-10 flex justify-between items-start mb-4">
               <div>
                  <span className="block text-[11px] font-black text-slate-500 mb-1">حجم التوصيات</span>
-                 <h3 className="text-3xl font-black text-slate-800">{stats.recs.total}</h3>
+                 <h3 className="text-base sm:text-lg md:text-xl sm:text-2xl md:text-3xl font-black text-slate-800">{stats.recs.total}</h3>
               </div>
               <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
                  <CheckCircle2 className="w-5 h-5" />
@@ -396,12 +396,12 @@ export default function CommitteesAnalytics() {
         </div>
 
         {/* بطاقة التقييم */}
-        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-lg shadow-slate-200/50 relative overflow-hidden group hover:border-amber-200 transition-colors">
-           <div className="absolute -left-4 -top-4 w-16 h-16 bg-amber-50 rounded-full blur-xl group-hover:bg-amber-100 transition-colors"></div>
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-100 p-3 sm:p-4 md:p-5 shadow-lg shadow-slate-200/50 relative overflow-hidden group hover:border-amber-200 transition-colors">
+           <div className="absolute -left-4 -top-4 w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-amber-50 rounded-full blur-xl group-hover:bg-amber-100 transition-colors"></div>
            <div className="relative z-10 flex justify-between items-start mb-4">
               <div>
                  <span className="block text-[11px] font-black text-slate-500 mb-1">تقييم الأداء 2026</span>
-                 <h3 className="text-3xl font-black text-slate-800">{stats.kpis.avg}<span className="text-sm text-slate-400 font-bold">%</span></h3>
+                 <h3 className="text-base sm:text-lg md:text-xl sm:text-2xl md:text-3xl font-black text-slate-800">{stats.kpis.avg}<span className="text-sm text-slate-400 font-bold">%</span></h3>
               </div>
               <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
                  <Target className="w-5 h-5" />
@@ -415,9 +415,9 @@ export default function CommitteesAnalytics() {
       </div>
 
       {/* الموجز التنفيذي السريع */}
-      <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5 shadow-inner">
+      <div className="bg-indigo-50 border border-indigo-100 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 shadow-inner">
          <h3 className="text-xs font-black text-indigo-900 mb-3 flex items-center gap-2"><Zap className="w-4 h-4 fill-indigo-600 text-indigo-600" /> موجز القيادة التنفيذية (Executive Snapshot)</h3>
-         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+         <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4 text-xs">
             <div className="bg-white p-3 rounded-xl border border-indigo-100 shadow-sm">
                <span className="block text-indigo-400 font-bold mb-1 text-[10px]">🏆 أبرز إنجاز</span>
                <p className="font-black text-slate-800 leading-relaxed">تحقيق نسبة إنجاز {stats.recs.rate}% في التوصيات خلال الربع الحالي.</p>
@@ -433,9 +433,9 @@ export default function CommitteesAnalytics() {
          </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
         {/* 2. إحصائيات وإنتاجية الكادر الإداري */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col">
+        <div className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl border border-slate-200 p-3 sm:p-4 md:p-6 shadow-sm flex flex-col">
           <div className="flex items-center justify-between mb-6">
              <div className="flex items-center gap-3">
                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
@@ -513,8 +513,8 @@ export default function CommitteesAnalytics() {
         </div>
 
         {/* 3. مصفوفة تفاعل الأعضاء */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
+        <div className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl border border-slate-200 p-3 sm:p-4 md:p-6 shadow-sm flex flex-col">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2.5 sm:gap-3 md:gap-4">
              <div className="flex items-center gap-3">
                <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
                  <Users className="w-5 h-5" />
@@ -593,15 +593,15 @@ export default function CommitteesAnalytics() {
       </div>
 
       {/* المحاور التحليلية المتقدمة */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+      <div className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl border border-slate-200 p-3 sm:p-4 md:p-6 shadow-sm">
          <h3 className="font-extrabold text-slate-900 text-sm mb-6 flex items-center gap-2">
             <Lightbulb className="w-5 h-5 text-amber-500 fill-amber-500" />
             المحاور التحليلية المتقدمة (Advanced Analytical Axes)
          </h3>
          
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 md:gap-4">
             {/* المحور 1 */}
-            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 hover:border-blue-300 transition-colors cursor-pointer group">
+            <div className="bg-slate-50 rounded-xl sm:rounded-2xl p-4 border border-slate-200 hover:border-blue-300 transition-colors cursor-pointer group">
                <div className="w-10 h-10 bg-white rounded-xl shadow-sm border border-slate-200 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                   <TrendingUp className="w-5 h-5 text-blue-600" />
                </div>
@@ -617,7 +617,7 @@ export default function CommitteesAnalytics() {
             </div>
 
             {/* المحور 2 */}
-            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 hover:border-purple-300 transition-colors cursor-pointer group">
+            <div className="bg-slate-50 rounded-xl sm:rounded-2xl p-4 border border-slate-200 hover:border-purple-300 transition-colors cursor-pointer group">
                <div className="w-10 h-10 bg-white rounded-xl shadow-sm border border-slate-200 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                   <LayoutGrid className="w-5 h-5 text-purple-600" />
                </div>
@@ -633,7 +633,7 @@ export default function CommitteesAnalytics() {
             </div>
 
             {/* المحور 3 */}
-            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 hover:border-rose-300 transition-colors cursor-pointer group">
+            <div className="bg-slate-50 rounded-xl sm:rounded-2xl p-4 border border-slate-200 hover:border-rose-300 transition-colors cursor-pointer group">
                <div className="w-10 h-10 bg-white rounded-xl shadow-sm border border-slate-200 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                   <Clock className="w-5 h-5 text-rose-600" />
                </div>
@@ -649,7 +649,7 @@ export default function CommitteesAnalytics() {
             </div>
 
             {/* المحور 4 */}
-            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 hover:border-emerald-300 transition-colors cursor-pointer group">
+            <div className="bg-slate-50 rounded-xl sm:rounded-2xl p-4 border border-slate-200 hover:border-emerald-300 transition-colors cursor-pointer group">
                <div className="w-10 h-10 bg-white rounded-xl shadow-sm border border-slate-200 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                   <ExternalLink className="w-5 h-5 text-emerald-600" />
                </div>

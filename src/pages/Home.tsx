@@ -203,7 +203,7 @@ const CustomTooltip = ({ active, payload }: any) => {
             {data.name}
           </span>
         </div>
-        <div className="flex items-center justify-between gap-4 mt-1">
+        <div className="flex items-center justify-between gap-2.5 sm:gap-3 md:gap-4 mt-1">
           <span className="text-[10px] text-gray-400 font-bold">القيمة الحالية</span>
           <span className="text-xs font-black text-white font-mono">{data.value}</span>
         </div>
@@ -1547,10 +1547,10 @@ export default function Home() {
 
 
       {/* -------------------- مركز الإشعارات والموظفين المتصلين -------------------- */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 print:hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-2.5 sm:gap-3 md:gap-4 print:hidden">
         
         {/* أ) مركز التنبيهات - يغطي 3 أعمدة */}
-        <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-250 shadow-sm overflow-hidden flex flex-col justify-between">
+        <div className="lg:col-span-3 bg-white rounded-xl sm:rounded-2xl border border-gray-250 shadow-sm overflow-hidden flex flex-col justify-between">
           
           {/* ترويسة مركز التنبيهات مع فلاتر سريعة */}
           <div className="p-4 bg-slate-50 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-right animate-fade-in">
@@ -1725,7 +1725,7 @@ export default function Home() {
                       <button
                         type="button"
                         onClick={() => setSelectedAlarm(a)}
-                        className="px-2.5 py-1.5 bg-brand hover:bg-brand/90 text-white rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer"
+                        className="px-2.5 py-1.5 bg-brand hover:!bg-brand/90 text-white rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" />
                         <span>عرض التفاصيل للتوجيه</span>
@@ -1811,7 +1811,7 @@ export default function Home() {
               type="button"
               onClick={handleResetIgnoredAlarms}
               title="إعادة إظهار كافة التنبيهات المهملة والمسكوتة فوراً دون انتظار المدة المحددة"
-              className="flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-brand hover:text-white text-gray-600 rounded-lg border border-gray-255 transition-all font-black select-none cursor-pointer shadow-sm group"
+              className="flex items-center gap-1.5 px-3 py-1 bg-white hover:!bg-brand hover:text-white text-gray-600 rounded-lg border border-gray-255 transition-all font-black select-none cursor-pointer shadow-sm group"
             >
               <RefreshCw className="w-3.5 h-3.5 text-brand group-hover:text-white shrink-0" />
               <span>إجمالي تنبيهات النظام المبرمجة:</span>
@@ -1827,7 +1827,7 @@ export default function Home() {
         </div>
 
         {/* ب) الموظفون المتصلون حالياً بالنظام */}
-        <div className="bg-white rounded-2xl border border-gray-250 shadow-sm overflow-hidden flex flex-col justify-between">
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-250 shadow-sm overflow-hidden flex flex-col justify-between">
           <div className="p-3 bg-slate-50 border-b border-gray-200 text-right">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-ping shrink-0" />
@@ -1916,8 +1916,8 @@ export default function Home() {
       {/* ---------------------------------------------------------------------------------- */}
 
       {/* 1. Meetings Schedule Card */}
-      <div className="group bg-[#e8e4e4] rounded-2xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-300 hover:shadow-md hover:border-gray-300 print:border-none print:shadow-none">
-        <div className="w-full flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 bg-[#e8e4e4] transition-colors duration-300 print:hidden">
+      <div className="group bg-[#e8e4e4] rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-300 hover:shadow-md hover:border-gray-300 print:border-none print:shadow-none">
+        <div className="w-full flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-3 md:gap-4 p-4 bg-[#e8e4e4] transition-colors duration-300 print:hidden">
           
           {/* قسم العنوان وقابلية الطي */}
           <div 
@@ -2100,8 +2100,8 @@ export default function Home() {
             >
               <div className="p-4 md:p-6 space-y-6">
                 {filteredMeetings.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 px-4 bg-white rounded-2xl border border-gray-200 text-center space-y-3">
-                    <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+                  <div className="flex flex-col items-center justify-center py-12 px-4 bg-white rounded-xl sm:rounded-2xl border border-gray-200 text-center space-y-3">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
                       <Calendar className="w-6 h-6" />
                     </div>
                     <div className="space-y-1">
@@ -2113,7 +2113,7 @@ export default function Home() {
                   </div>
                 ) : meetingsViewMode === "table" ? (
                   /* 2. عرض سجل الاجتماعات (Table Register Layout) */
-                  <div className="bg-[#e8e4e4] rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-right">
+                  <div className="bg-[#e8e4e4] rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-right">
                     <div className="overflow-x-auto custom-scrollbar font-sans">
                       <table className="w-full text-xs font-semibold text-gray-700 select-none border-collapse text-right">
                         <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
@@ -2208,15 +2208,15 @@ export default function Home() {
                 ) : (
                   /* 3. عرض البطائق العادي (Cards Layout) - للوضعين: "cards" أو "sorting" */
                   filteredMeetings.map((mtg, i) => (
-                    <div key={i} className="group relative bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-brand/20 transition-all duration-300 overflow-hidden">
+                    <div key={i} className="group relative bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-brand/20 transition-all duration-300 overflow-hidden">
                       <div className="flex flex-col lg:flex-row items-stretch min-h-[100px]">
                         
                         {/* القسم الأول: الفعالية والوقت (50%) - في أقصى اليمين */}
-                        <div className="lg:w-1/2 p-4 flex items-center gap-5 border-l border-gray-100 bg-white">
+                        <div className="lg:w-1/2 p-4 flex items-center gap-2.5 sm:gap-4 md:gap-5 border-l border-gray-100 bg-white">
                           {/* كتلة التاريخ */}
-                          <div className="w-16 h-16 shrink-0 bg-brand/5 rounded-xl flex flex-col items-center justify-center border border-brand/5 group-hover:bg-brand/10 transition-colors">
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 shrink-0 bg-brand/5 rounded-xl flex flex-col items-center justify-center border border-brand/5 group-hover:!bg-brand/10 transition-colors">
                             <span className="text-xs font-black text-brand/60 uppercase" style={{ fontSize: '12px', marginBottom: '0px' }}>{mtg.day}</span>
-                            <span className="text-2xl font-black text-brand leading-none">{mtg.date.split('/')[2]}</span>
+                            <span className="text-sm sm:text-base md:text-lg sm:text-xl md:text-2xl font-black text-brand leading-none">{mtg.date.split('/')[2]}</span>
                             <span className="text-xs font-black text-gray-400 font-sans" style={{ fontSize: '11px' }}>{mtg.monthName}</span>
                           </div>
                           
@@ -2302,7 +2302,7 @@ export default function Home() {
       </div>
 
       {/* 2. Charts Card */}
-      <div className="group bg-[#e8e4e4] rounded-2xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-300 hover:shadow-md hover:border-gray-300">
+      <div className="group bg-[#e8e4e4] rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-300 hover:shadow-md hover:border-gray-300">
         <button 
           onClick={() => toggleCard('charts')}
           className="w-full flex items-center justify-between p-4 bg-[#e8e4e4] transition-colors duration-300 group/title select-none"
@@ -2373,7 +2373,7 @@ export default function Home() {
       </div>
 
       {/* 3. Stats Card */}
-      <div className="group bg-[#e8e4e4] rounded-2xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-300 hover:shadow-md hover:border-gray-300">
+      <div className="group bg-[#e8e4e4] rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-300 hover:shadow-md hover:border-gray-300">
         <button 
           onClick={() => toggleCard('stats')}
           className="w-full flex items-center justify-between p-4 bg-[#e8e4e4] transition-colors duration-300 group/title select-none"
@@ -2395,7 +2395,7 @@ export default function Home() {
               className="border-t border-gray-100 bg-[#e8e4e4]"
             >
               <div className="p-4 bg-[#e8e4e4]">
-                <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
                   {[...chartData].reverse().map((stat, i) => {
                     const originalIndex = chartData.length - 1 - i;
                     const isActive = activeIndex === originalIndex;
@@ -2423,7 +2423,7 @@ export default function Home() {
                         </div>
                         {/* Value Part (Lighter) */}
                         <div className={`h-1/2 flex items-center justify-center transition-colors ${isActive ? 'bg-white' : 'bg-gray-50'}`}>
-                          <span className="text-xl font-black transition-colors" style={{ color: stat.color }}>
+                          <span className="text-base sm:text-lg md:text-xl font-black transition-colors" style={{ color: stat.color }}>
                             {stat.value}
                           </span>
                         </div>
@@ -2448,10 +2448,10 @@ export default function Home() {
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 15, opacity: 0 }}
               transition={{ type: "spring", damping: 22, stiffness: 280 }}
-              className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-150 relative overflow-hidden z-10 text-right font-sans flex flex-col max-h-[90vh]"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-150 relative overflow-hidden z-10 text-right font-sans flex flex-col max-h-[90vh]"
             >
               {/* Header block (Matched exact style of Committees Details) */}
-              <div className="bg-[#e8e4e4] p-6 border-b border-gray-200 flex items-center justify-between shrink-0">
+              <div className="bg-[#e8e4e4] p-3 sm:p-4 md:p-6 border-b border-gray-200 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <div className={`p-2.5 rounded-xl ${
                     selectedAlarm.type === "task" ? "bg-blue-100 text-blue-700" :
@@ -2464,7 +2464,7 @@ export default function Home() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-extrabold text-gray-900 text-lg leading-tight">
+                      <h3 className="font-extrabold text-gray-900 text-sm sm:text-base md:text-lg leading-tight">
                         متابعة الإجراء: {resolvedDetails.itemNumber}
                       </h3>
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black ${
@@ -2494,13 +2494,13 @@ export default function Home() {
               </div>
 
               {/* Content Body (Matched exact layout gap and color choices) */}
-              <div className="p-6 space-y-6 overflow-y-auto text-right">
+              <div className="p-3 sm:p-4 md:p-6 space-y-6 overflow-y-auto text-right">
                 
                 {/* 1. Header Metadata Section */}
-                <div className="bg-[#fcfbfb] border border-[#d2cece] rounded-2xl p-4 shadow-sm space-y-4">
+                <div className="bg-[#fcfbfb] border border-[#d2cece] rounded-xl sm:rounded-2xl p-4 shadow-sm space-y-4">
                   <h4 className="text-xs font-black text-gray-400 tracking-wider">البيانات الإدارية والتنظيمية</h4>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4 text-xs font-medium">
                     <div className="flex items-center gap-3">
                       <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
                         <Users2 className="w-5 h-5 text-brand" />
@@ -2547,7 +2547,7 @@ export default function Home() {
                 <div className="space-y-4">
                   <h4 className="text-xs font-black text-gray-400 tracking-wider">تفاصيل وقائع ومقررات البند</h4>
                   
-                  <div className="bg-[#fcfbfb] border border-[#d2cece] rounded-2xl p-4 shadow-inner space-y-4">
+                  <div className="bg-[#fcfbfb] border border-[#d2cece] rounded-xl sm:rounded-2xl p-4 shadow-inner space-y-4">
                     <div>
                       <span className="text-[10px] text-gray-400 font-black block mb-1">موضوع البند:</span>
                       <p className="text-xs font-extrabold text-blue-900 bg-blue-50/50 p-2.5 rounded-lg border border-blue-100">
@@ -2575,7 +2575,7 @@ export default function Home() {
                 {resolvedDetails.auditLogs && resolvedDetails.auditLogs.length > 0 && (
                   <div className="space-y-4">
                     <h4 className="text-xs font-black text-gray-400 tracking-wider">سجل مسار التوصية</h4>
-                    <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm space-y-3 max-h-48 overflow-y-auto">
+                    <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl p-4 shadow-sm space-y-3 max-h-48 overflow-y-auto">
                       {resolvedDetails.auditLogs.map((log: any, index: number) => (
                         <div key={index} className="flex gap-3 text-right border-b border-gray-100 last:border-0 pb-3 last:pb-0">
                           <div className="mt-1 w-2 h-2 rounded-full bg-brand shrink-0"></div>
@@ -2607,7 +2607,7 @@ export default function Home() {
                     </motion.div>
                   )}
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4">
                     {/* Status update selector */}
                     <div className="space-y-1">
                       <label className="text-[11px] font-black text-slate-700 block">
@@ -2692,7 +2692,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => handleForwardToAssistantSecGen()}
-                    className="px-5 py-2 text-xs font-extrabold text-white rounded-xl flex items-center gap-1.5 transition-all outline-none bg-emerald-600 hover:bg-emerald-700 cursor-pointer"
+                    className="px-3 sm:px-4 md:px-5 py-2 text-xs font-extrabold text-white rounded-xl flex items-center gap-1.5 transition-all outline-none bg-emerald-600 hover:bg-emerald-700 cursor-pointer"
                   >
                     <Send className="w-4 h-4 stroke-[2.5]" />
                     <span>إحالة لمساعد الأمين العام</span>
@@ -2701,7 +2701,7 @@ export default function Home() {
                     type="button"
                     onClick={handleSubmitReferral}
                     disabled={!referStaff}
-                    className={`px-5 py-2 text-xs font-extrabold text-white rounded-xl flex items-center gap-1.5 transition-all outline-none ${
+                    className={`px-3 sm:px-4 md:px-5 py-2 text-xs font-extrabold text-white rounded-xl flex items-center gap-1.5 transition-all outline-none ${
                       referStaff 
                         ? "bg-brand hover:shadow-md hover:brightness-105 cursor-pointer" 
                         : "bg-gray-400 cursor-not-allowed opacity-60"
@@ -2728,7 +2728,7 @@ export default function Home() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: "spring", duration: 0.4 }}
-              className="bg-white border-2 border-[#b59410]/20 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative flex flex-col"
+              className="bg-white border-2 border-[#b59410]/20 rounded-xl sm:rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative flex flex-col"
             >
               {/* Header */}
               <div className="bg-[#b59410] text-white p-4 flex items-center justify-between border-b border-[#a4840d]">
@@ -2766,7 +2766,7 @@ export default function Home() {
                   <span className="w-6 h-6 rounded-full bg-slate-300 text-slate-700 font-black text-[9px] flex items-center justify-center shrink-0">
                     م س
                   </span>
-                  <div className="bg-white border border-gray-150 p-2.5 rounded-2xl rounded-tr-none text-xs text-slate-800 leading-snug shadow-sm max-w-[80%]">
+                  <div className="bg-white border border-gray-150 p-2.5 rounded-xl sm:rounded-2xl rounded-tr-none text-xs text-slate-800 leading-snug shadow-sm max-w-[80%]">
                     <p className="font-extrabold mb-0.5 text-slate-500 text-[9px]">أخصائي النظام المعاون:</p>
                     السلام عليكم، حياكم الله أستاذ باسم. نأمل العمل والتواصل بشأن المعاملات وتوصيات اللجان المعلقة بالنظام والمحالة اليوم.
                   </div>

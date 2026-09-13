@@ -5,7 +5,7 @@
 
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import React, { useState, useEffect, Suspense } from "react";
-import { db, doc, onSnapshot } from "./lib/firebase";
+import { db, doc, onSnapshot, auth } from "./lib/firebase";
 import Layout from "./components/Layout";
 import AuthGate from "./components/AuthGate";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -122,22 +122,45 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkUser = () => {
+            let isInitialCheck = true;
+    const unsubscribeAuth = auth?.onAuthStateChanged?.((firebaseUser: any) => {
       const stored = localStorage.getItem("current_user");
-      if (stored) {
+      
+      // If we are using mock auth (dummy_firestore or similar fallback without real auth)
+      const isMockAuth = auth && auth.currentUser === null && !auth.onAuthStateChanged;
+      
+      if (stored && (firebaseUser || isMockAuth)) {
         try {
           const parsedUser = JSON.parse(stored);
           setUser(parsedUser);
-          import("./lib/workspaceSync").then(m => m.syncUserWorkspace(parsedUser));
+          if (firebaseUser) {
+            import("./lib/workspaceSync").then(m => m.syncUserWorkspace(parsedUser));
+          }
         } catch (e) {
           setUser(null);
         }
       } else {
         setUser(null);
       }
-      setLoading(false);
-    };
-    checkUser();
+      
+      if (isInitialCheck) {
+        setLoading(false);
+        isInitialCheck = false;
+      }
+    });
+
+    if (auth && auth.currentUser === null && !auth.onAuthStateChanged) {
+        const stored = localStorage.getItem("current_user");
+        if (stored) {
+          try {
+            setUser(JSON.parse(stored));
+          } catch (e) {
+            setUser(null);
+          }
+        }
+        setLoading(false);
+    }
+
     
     const syncInterval = setInterval(() => {
       const stored = localStorage.getItem("current_user");
@@ -149,9 +172,9 @@ export default function App() {
       }
     }, 5 * 60 * 1000); // Every 5 minutes
     
-    window.addEventListener("storage", checkUser);
+    
     return () => {
-      window.removeEventListener("storage", checkUser);
+      if (unsubscribeAuth) unsubscribeAuth();
       clearInterval(syncInterval);
     };
   }, []);
@@ -179,6 +202,10 @@ export default function App() {
               }
               setUser(freshUser);
             }
+          } else {
+            // User was deleted from the database
+            localStorage.removeItem("current_user");
+            setUser(null);
           }
         });
       }

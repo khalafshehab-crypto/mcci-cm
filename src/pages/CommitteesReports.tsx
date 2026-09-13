@@ -649,14 +649,14 @@ export default function CommitteesReports() {
     <div className="space-y-6 pb-16 text-right font-sans" dir="rtl">
       
       {/* -------------------- الهيدر القياسي الموحد للنظام -------------------- */}
-      <div className="bg-[#e8e4e4] rounded-2xl p-6 border border-gray-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 print:hidden">
+      <div className="bg-[#e8e4e4] rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 border border-gray-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-2.5 sm:gap-3 md:gap-4 print:hidden">
         <div>
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100/80 text-[#0ea5e9] rounded-xl border border-blue-200 shadow-sm">
               <BarChart2 className="w-7 h-7 text-[#0ea5e9]" />
             </div>
             <div>
-              <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">بوابة التقارير والمؤشرات</h1>
+              <h1 className="text-sm sm:text-base md:text-lg sm:text-xl md:text-2xl font-extrabold text-gray-900 tracking-tight">بوابة التقارير والمؤشرات</h1>
               <p className="text-gray-500 text-xs font-semibold mt-1">توليد التقارير الدورية بالذكاء الاصطناعي وتسكين مصفوفة تقييم الأداء على Google Sheets</p>
             </div>
           </div>
@@ -807,17 +807,17 @@ export default function CommitteesReports() {
       {activeTab === "reports" && (
         <div className="space-y-6">
           {filteredReports.length === 0 ? (
-            <div className="text-center py-20 flex flex-col items-center justify-center bg-[#e8e4e4] rounded-2xl border border-dashed border-gray-300">
-              <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-gray-200 mb-4 transform -rotate-3">
+            <div className="text-center py-20 flex flex-col items-center justify-center bg-[#e8e4e4] rounded-xl sm:rounded-2xl border border-dashed border-gray-300">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-white rounded-xl sm:rounded-2xl flex items-center justify-center shadow-sm border border-gray-200 mb-4 transform -rotate-3">
                 <FileText className="w-8 h-8 text-gray-400" />
               </div>
-              <h3 className="text-lg font-extrabold text-gray-800">لا توجد تقارير حالياً</h3>
+              <h3 className="text-sm sm:text-base md:text-lg font-extrabold text-gray-800">لا توجد تقارير حالياً</h3>
               <p className="text-gray-500 mt-1 max-w-md font-medium text-sm">يمكنك البدء بتوليد تقارير دورية لمتابعة أداء الإدارة واللجان وأرشفتها بالسحابة.</p>
             </div>
           ) : viewMode === "cards" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4 md:gap-5">
               {filteredReports.map((rep) => (
-                <div key={rep.id} className="bg-[#e8e4e4] hover:bg-[#e2dede] transition-all duration-300 rounded-2xl p-5 border border-gray-200 shadow-sm hover:shadow-md relative overflow-hidden flex flex-col justify-between group">
+                <div key={rep.id} className="bg-[#e8e4e4] hover:bg-[#e2dede] transition-all duration-300 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 border border-gray-200 shadow-sm hover:shadow-md relative overflow-hidden flex flex-col justify-between group">
                   <div className="absolute top-0 right-0 w-1.5 h-full bg-[#0ea5e9]"></div>
                   
                   <div>
@@ -883,35 +883,35 @@ export default function CommitteesReports() {
               ))}
             </div>
           ) : (
-            <div className="box-border border border-gray-200 rounded-2xl overflow-hidden bg-[#e8e4e4] shadow-sm">
+            <div className="box-border border border-gray-200 rounded-xl sm:rounded-2xl overflow-hidden bg-[#e8e4e4] shadow-sm">
               <div className="overflow-x-auto custom-scrollbar">
                 <table className="w-full text-right border-collapse">
                   <thead className="bg-[#dfdada] text-gray-700 font-extrabold text-sm border-b border-gray-300">
                     <tr>
-                      <th className="py-4 px-5 whitespace-nowrap">العنوان</th>
-                      <th className="py-4 px-5 whitespace-nowrap">الدورية / الربع</th>
-                      <th className="py-4 px-5 whitespace-nowrap">بواسطة</th>
-                      <th className="py-4 px-5 whitespace-nowrap">الحالة</th>
-                      <th className="py-4 px-5 whitespace-nowrap">تاريخ الإنشاء</th>
-                      <th className="py-4 px-5 text-center whitespace-nowrap">إجراءات</th>
+                      <th className="py-4 px-3 sm:px-4 md:px-5 whitespace-nowrap">العنوان</th>
+                      <th className="py-4 px-3 sm:px-4 md:px-5 whitespace-nowrap">الدورية / الربع</th>
+                      <th className="py-4 px-3 sm:px-4 md:px-5 whitespace-nowrap">بواسطة</th>
+                      <th className="py-4 px-3 sm:px-4 md:px-5 whitespace-nowrap">الحالة</th>
+                      <th className="py-4 px-3 sm:px-4 md:px-5 whitespace-nowrap">تاريخ الإنشاء</th>
+                      <th className="py-4 px-3 sm:px-4 md:px-5 text-center whitespace-nowrap">إجراءات</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200/60">
                     {filteredReports.map((report) => (
                       <tr key={report.id} className="hover:bg-white/40 transition-colors text-sm font-semibold text-gray-800">
-                        <td className="py-4 px-5 font-bold flex items-center gap-2">
+                        <td className="py-4 px-3 sm:px-4 md:px-5 font-bold flex items-center gap-2">
                            <FileBarChart className="w-4 h-4 text-[#0ea5e9]" />
                            {report.title}
                         </td>
-                        <td className="py-4 px-5 text-gray-600">{report.quarterFolder || report.periodType}</td>
-                        <td className="py-4 px-5 text-gray-600">{report.generatedBy}</td>
-                        <td className="py-4 px-5">
+                        <td className="py-4 px-3 sm:px-4 md:px-5 text-gray-600">{report.quarterFolder || report.periodType}</td>
+                        <td className="py-4 px-3 sm:px-4 md:px-5 text-gray-600">{report.generatedBy}</td>
+                        <td className="py-4 px-3 sm:px-4 md:px-5">
                            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200">
                               {report.status}
                            </span>
                         </td>
-                        <td className="py-4 px-5 font-black text-gray-500">{report.date}</td>
-                        <td className="py-4 px-5">
+                        <td className="py-4 px-3 sm:px-4 md:px-5 font-black text-gray-500">{report.date}</td>
+                        <td className="py-4 px-3 sm:px-4 md:px-5">
                           <div className="flex items-center justify-center gap-2">
                             <a href={report.cloudUrl || "https://drive.google.com/drive/folders/1rNsyfoD-rNhc9Sjh0pC0fwikfZRJT3oV"} target="_blank" rel="noreferrer" className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg shadow-sm" title="فتح سحابي">
                               <ExternalLink className="w-4 h-4" />
@@ -969,9 +969,9 @@ export default function CommitteesReports() {
           </div>
 
           {viewMode === "cards" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4 md:gap-5">
               {filteredKpis.map(kpi => (
-                <div key={kpi.id} className="bg-[#e8e4e4] hover:bg-[#e2dede] transition-all duration-300 rounded-2xl p-5 border border-gray-200 shadow-sm hover:shadow-md relative overflow-hidden flex flex-col justify-between group">
+                <div key={kpi.id} className="bg-[#e8e4e4] hover:bg-[#e2dede] transition-all duration-300 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 border border-gray-200 shadow-sm hover:shadow-md relative overflow-hidden flex flex-col justify-between group">
                   <div className="absolute top-0 right-0 w-1.5 h-full bg-indigo-500"></div>
                   
                   <div>
@@ -1047,30 +1047,30 @@ export default function CommitteesReports() {
               ))}
             </div>
           ) : (
-            <div className="box-border border border-gray-200 rounded-2xl overflow-hidden bg-[#e8e4e4] shadow-sm">
+            <div className="box-border border border-gray-200 rounded-xl sm:rounded-2xl overflow-hidden bg-[#e8e4e4] shadow-sm">
               <div className="overflow-x-auto custom-scrollbar">
                 <table className="w-full text-right border-collapse">
                   <thead className="bg-[#dfdada] text-gray-700 font-extrabold text-sm border-b border-gray-300">
                     <tr>
                       <th className="py-4 px-4 whitespace-nowrap">المعيار والمحور</th>
-                      <th className="py-4 px-5 whitespace-nowrap">مؤشر الأداء</th>
+                      <th className="py-4 px-3 sm:px-4 md:px-5 whitespace-nowrap">مؤشر الأداء</th>
                       <th className="py-4 px-4 whitespace-nowrap">الإدارة</th>
                       <th className="py-4 px-3 text-center whitespace-nowrap">المستهدف</th>
                       <th className="py-4 px-3 text-center whitespace-nowrap">المحقق</th>
                       <th className="py-4 px-3 text-center whitespace-nowrap">نسبة الإنجاز</th>
-                      <th className="py-4 px-5 text-center whitespace-nowrap">إجراءات</th>
+                      <th className="py-4 px-3 sm:px-4 md:px-5 text-center whitespace-nowrap">إجراءات</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200/60">
                     {filteredKpis.map((kpi) => (
                       <tr key={kpi.id} className="hover:bg-white/40 transition-colors text-sm font-semibold text-gray-800">
                         <td className="py-4 px-4 font-bold text-[#133E87]">{kpi.pillar}</td>
-                        <td className="py-4 px-5 font-black text-gray-900 max-w-xs">{kpi.indicator}</td>
+                        <td className="py-4 px-3 sm:px-4 md:px-5 font-black text-gray-900 max-w-xs">{kpi.indicator}</td>
                         <td className="py-4 px-4 text-gray-600">{kpi.department}</td>
                         <td className="py-4 px-3 text-center font-black">{kpi.targetValue}</td>
                         <td className="py-4 px-3 text-center font-black text-blue-700">{kpi.achievedValue}</td>
                         <td className="py-4 px-3 text-center font-black text-emerald-700">{kpi.achievementRate}%</td>
-                        <td className="py-4 px-5">
+                        <td className="py-4 px-3 sm:px-4 md:px-5">
                           <div className="flex items-center justify-center gap-2">
                             <button onClick={() => openEditKpi(kpi)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-white rounded-lg transition-colors shadow-sm" title="تعديل">
                               <Edit2 className="w-4 h-4" />
@@ -1102,15 +1102,15 @@ export default function CommitteesReports() {
       <AnimatePresence>
         {isEditReportModalOpen && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-2xl shadow-2xl border w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-              <div className="p-5 border-b flex items-center justify-between bg-gray-50/50">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl sm:rounded-2xl shadow-2xl border w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="p-3 sm:p-4 md:p-5 border-b flex items-center justify-between bg-gray-50/50">
                 <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
                   <Edit2 className="w-5 h-5 text-blue-600" /> تعديل التقرير وتحديث بياناته
                 </h3>
                 <button onClick={() => setIsEditReportModalOpen(false)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg"><X className="w-4 h-4" /></button>
               </div>
 
-              <form onSubmit={handleSaveEditedReport} className="p-6 overflow-y-auto space-y-4">
+              <form onSubmit={handleSaveEditedReport} className="p-3 sm:p-4 md:p-6 overflow-y-auto space-y-4">
                 {/* زر إعادة قراءة وتحديث بيانات النظام */}
                 <div className="bg-blue-50/80 p-3.5 rounded-xl border border-blue-200 flex items-center justify-between">
                   <div>
@@ -1130,7 +1130,7 @@ export default function CommitteesReports() {
 
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1.5">عنوان التقرير</label>
-                  <input type="text" value={editRepTitle} onChange={e => setEditRepTitle(e.target.value)} required className="w-full px-4 py-2.5 border rounded-xl font-bold text-xs" />
+                  <input type="text" value={editRepTitle} onChange={e => setEditRepTitle(e.target.value)} required className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border rounded-xl font-bold text-xs" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -1171,7 +1171,7 @@ export default function CommitteesReports() {
 
                 <div className="pt-3 border-t flex justify-end gap-2">
                   <button type="button" onClick={() => setIsEditReportModalOpen(false)} className="px-4 py-2 bg-gray-100 rounded-xl text-xs font-bold text-gray-700">إلغاء</button>
-                  <button type="submit" disabled={isLoading} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-sm flex items-center gap-1.5">
+                  <button type="submit" disabled={isLoading} className="px-3 sm:px-4 md:px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-sm flex items-center gap-1.5">
                     <Check className="w-4 h-4" /> حفظ التعديلات
                   </button>
                 </div>
@@ -1185,22 +1185,22 @@ export default function CommitteesReports() {
       <AnimatePresence>
         {isKpiModalOpen && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-2xl shadow-2xl border w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-              <div className="p-5 border-b flex items-center justify-between bg-gray-50/50">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl sm:rounded-2xl shadow-2xl border w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="p-3 sm:p-4 md:p-5 border-b flex items-center justify-between bg-gray-50/50">
                 <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
                   <Activity className="w-5 h-5 text-indigo-600" /> {editingKpi ? "تعديل طلب المؤشر والمعيار" : "إضافة طلب مؤشر ومعيار جديد"}
                 </h3>
                 <button onClick={() => setIsKpiModalOpen(false)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg"><X className="w-4 h-4" /></button>
               </div>
 
-              <form onSubmit={handleSaveKpi} className="p-6 overflow-y-auto space-y-4">
+              <form onSubmit={handleSaveKpi} className="p-3 sm:p-4 md:p-6 overflow-y-auto space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1.5">مؤشر الأداء المستهدف (طلب البحث والتصنيف)</label>
-                  <input type="text" value={kpiIndicator} onChange={e => setKpiIndicator(e.target.value)} required className="w-full px-4 py-2.5 border rounded-xl font-bold text-xs" placeholder="مثال: عدد الفعاليات وورش العمل المنفذة" />
+                  <input type="text" value={kpiIndicator} onChange={e => setKpiIndicator(e.target.value)} required className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border rounded-xl font-bold text-xs" placeholder="مثال: عدد الفعاليات وورش العمل المنفذة" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1.5">المعيار والمطابقة</label>
-                  <input type="text" value={kpiStandard} onChange={e => setKpiStandard(e.target.value)} required className="w-full px-4 py-2.5 border rounded-xl font-bold text-xs" placeholder="مثال: تقارير الفعاليات وأعداد الحضور" />
+                  <input type="text" value={kpiStandard} onChange={e => setKpiStandard(e.target.value)} required className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border rounded-xl font-bold text-xs" placeholder="مثال: تقارير الفعاليات وأعداد الحضور" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -1240,7 +1240,7 @@ export default function CommitteesReports() {
 
                 <div className="pt-3 border-t flex justify-end gap-2">
                   <button type="button" onClick={() => setIsKpiModalOpen(false)} className="px-4 py-2 bg-gray-100 rounded-xl text-xs font-bold text-gray-700">إلغاء</button>
-                  <button type="submit" disabled={isLoading} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-sm flex items-center gap-1.5">
+                  <button type="submit" disabled={isLoading} className="px-3 sm:px-4 md:px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-sm flex items-center gap-1.5">
                     <Check className="w-4 h-4" /> {editingKpi ? "تحديث المؤشر" : "تسكين وإضافة المؤشر"}
                   </button>
                 </div>
@@ -1253,11 +1253,11 @@ export default function CommitteesReports() {
       {/* -------------------- معالج توليد التقارير الذكية (Google Slides Wizard) -------------------- */}
       <AnimatePresence>
         {isReportWizardOpen && (
-          <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl shadow-2xl border w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh]" dir="rtl">
-              <div className="p-5 border-b flex items-center justify-between bg-gradient-to-l from-blue-50/70 to-white shrink-0">
+          <div className="fixed inset-0 z-[130] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl shadow-2xl border w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh]" dir="rtl">
+              <div className="p-3 sm:p-4 md:p-5 border-b flex items-center justify-between bg-gradient-to-l from-blue-50/70 to-white shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl sm:rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center">
                     <Sparkles className="w-5 h-5" />
                   </div>
                   <div>
@@ -1268,10 +1268,10 @@ export default function CommitteesReports() {
                 <button onClick={() => setIsReportWizardOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"><X className="w-5 h-5" /></button>
               </div>
 
-              <div className="p-6 overflow-y-auto space-y-5 bg-gray-50/50 flex-1">
+              <div className="p-3 sm:p-4 md:p-6 overflow-y-auto space-y-5 bg-gray-50/50 flex-1">
                 {wizardStep === 1 && (
                   <div className="space-y-4">
-                    <div className="bg-white p-5 rounded-2xl border space-y-3">
+                    <div className="bg-white p-3 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border space-y-3">
                       <h4 className="font-extrabold text-sm text-gray-900 border-b pb-2">1. نطاق اللجان المستهدفة في التقرير</h4>
                       <div className="grid grid-cols-2 gap-3">
                         <label className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${wizReportScope === "all" ? "bg-blue-50 border-blue-500 text-blue-900 font-bold" : "bg-white border-gray-200"}`}>
@@ -1307,7 +1307,7 @@ export default function CommitteesReports() {
                       )}
                     </div>
 
-                    <div className="bg-white p-5 rounded-2xl border space-y-3">
+                    <div className="bg-white p-3 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border space-y-3">
                       <h4 className="font-extrabold text-sm text-gray-900 border-b pb-2">2. الفترة الزمنية ومجلد الأرشفة في Google Drive</h4>
                       <div className="flex items-center gap-2 flex-wrap pb-1">
                         <span className="text-xs font-bold text-gray-500">فترات سريعة:</span>
@@ -1349,7 +1349,7 @@ export default function CommitteesReports() {
 
                 {wizardStep === 2 && (
                   <div className="space-y-3">
-                    <div className="bg-blue-50/80 border border-blue-200 rounded-2xl p-4 flex items-center justify-between">
+                    <div className="bg-blue-50/80 border border-blue-200 rounded-xl sm:rounded-2xl p-4 flex items-center justify-between">
                       <div>
                         <h4 className="text-xs font-black text-blue-950">بطاقة مراجعة وتأكيد الشواهد والسجلات المنفذة</h4>
                         <p className="text-[11px] text-blue-800 font-medium">حدد العناصر التي تود إدراجها وتصميمها في عرض Google Slides النهائي.</p>
@@ -1370,7 +1370,7 @@ export default function CommitteesReports() {
                               if (isSelected) setWizSelectedItems(wizSelectedItems.filter(id => id !== item.id));
                               else setWizSelectedItems([...wizSelectedItems, item.id]);
                             }}
-                            className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
+                            className={`p-3.5 rounded-xl sm:rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
                               isSelected ? "bg-white border-blue-500 shadow-sm" : "bg-gray-50/80 border-gray-200 opacity-60"
                             }`}
                           >
@@ -1396,12 +1396,12 @@ export default function CommitteesReports() {
                 )}
 
                 {wizardStep === 3 && (
-                  <div className="text-center py-10 space-y-5 bg-white p-8 rounded-3xl border">
-                    <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-sm">
+                  <div className="text-center py-10 space-y-5 bg-white p-4 sm:p-6 md:p-8 rounded-xl sm:rounded-2xl sm:rounded-3xl border">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-sm">
                       <Check className="w-8 h-8 stroke-[2.5]" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-black text-gray-900">تم إنشاء وأرشفة التقرير في Google Drive بنجاح!</h3>
+                      <h3 className="text-sm sm:text-base md:text-lg font-black text-gray-900">تم إنشاء وأرشفة التقرير في Google Drive بنجاح!</h3>
                       <p className="text-xs text-gray-500 font-bold mt-1">تم حفظ العرض التقديمي داخل مجلد: <span className="text-blue-700 font-black">التقارير والمؤشرات / التقارير / {wizQuarterFolder}</span></p>
                     </div>
 
@@ -1410,7 +1410,7 @@ export default function CommitteesReports() {
                         href={generatedSlidesUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="px-6 py-3 bg-[#133E87] hover:bg-[#0B2545] text-white rounded-xl text-xs font-black shadow-md flex items-center gap-2 transition-all"
+                        className="px-3 sm:px-4 md:px-6 py-3 bg-[#133E87] hover:bg-[#0B2545] text-white rounded-xl text-xs font-black shadow-md flex items-center gap-2 transition-all"
                       >
                         <ExternalLink className="w-4 h-4" />
                         <span>فتح العرض في Google Slides للمراجعة والتعديل</span>
@@ -1420,10 +1420,10 @@ export default function CommitteesReports() {
                 )}
               </div>
 
-              <div className="p-5 border-t bg-white flex items-center justify-between shrink-0">
+              <div className="p-3 sm:p-4 md:p-5 border-t bg-white flex items-center justify-between shrink-0">
                 <div>
                   {wizardStep > 1 && wizardStep < 3 && (
-                    <button type="button" onClick={() => setWizardStep(wizardStep - 1)} className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                    <button type="button" onClick={() => setWizardStep(wizardStep - 1)} className="px-3 sm:px-4 md:px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold flex items-center gap-1.5">
                       <ChevronRight className="w-4 h-4" /> رجوع
                     </button>
                   )}
@@ -1458,7 +1458,7 @@ export default function CommitteesReports() {
       <AnimatePresence>
         {selectedDetailsItem && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-2xl shadow-2xl border w-full max-w-lg overflow-hidden flex flex-col p-6 space-y-4">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl sm:rounded-2xl shadow-2xl border w-full max-w-lg overflow-hidden flex flex-col p-3 sm:p-4 md:p-6 space-y-4">
               <div className="flex items-center justify-between border-b pb-3">
                 <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
                   <Eye className="w-5 h-5 text-blue-600" /> تفاصيل {selectedDetailsItem.type === 'report' ? 'التقرير الدوري' : 'المؤشر والمعيار'}
@@ -1496,7 +1496,7 @@ export default function CommitteesReports() {
 
                 {selectedDetailsItem.type === 'report' && (
                    <div className="space-y-3 mt-4 border-t pt-4 border-gray-100">
-                     <div className="grid grid-cols-2 gap-4">
+                     <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:gap-4">
                         <div>
                            <span className="block font-bold text-gray-400 text-[10px]">نطاق اللجان المستهدفة</span>
                            <div className="flex flex-wrap gap-1 mt-1 max-h-12 overflow-y-auto custom-scrollbar pr-1">
@@ -1510,7 +1510,7 @@ export default function CommitteesReports() {
                            <p className="font-bold text-gray-800 mt-1">{selectedDetailsItem.item.generationType || 'عام'}</p>
                         </div>
                      </div>
-                     <div className="grid grid-cols-2 gap-4 bg-gray-50/50 p-2 rounded-lg">
+                     <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:gap-4 bg-gray-50/50 p-2 rounded-lg">
                         <div>
                            <span className="block font-bold text-gray-400 text-[10px]">تاريخ بداية الاستخراج</span>
                            <p className="font-bold text-gray-800 mt-1">{selectedDetailsItem.item.startDate || 'غير متوفر'}</p>
@@ -1520,7 +1520,7 @@ export default function CommitteesReports() {
                            <p className="font-bold text-gray-800 mt-1">{selectedDetailsItem.item.endDate || 'غير متوفر'}</p>
                         </div>
                      </div>
-                     <div className="grid grid-cols-2 gap-4">
+                     <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:gap-4">
                         <div>
                            <span className="block font-bold text-gray-400 text-[10px]">منشئ التقرير (الأخصائي)</span>
                            <p className="font-bold text-gray-800 mt-1">{selectedDetailsItem.item.generatedBy || 'النظام'}</p>
@@ -1571,7 +1571,7 @@ export default function CommitteesReports() {
               </div>
 
               <div className="pt-3 border-t flex justify-end gap-2">
-                <a href={selectedDetailsItem.item.cloudUrl || "https://drive.google.com/drive/folders/1rNsyfoD-rNhc9Sjh0pC0fwikfZRJT3oV"} target="_blank" rel="noreferrer" className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm">
+                <a href={selectedDetailsItem.item.cloudUrl || "https://drive.google.com/drive/folders/1rNsyfoD-rNhc9Sjh0pC0fwikfZRJT3oV"} target="_blank" rel="noreferrer" className="px-3 sm:px-4 md:px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm">
                   <ExternalLink className="w-4 h-4" /> فتح المجلد في Google Drive
                 </a>
                 <button onClick={() => setSelectedDetailsItem(null)} className="px-4 py-2 bg-gray-100 rounded-xl text-xs font-bold text-gray-700">إغلاق</button>
@@ -1585,7 +1585,7 @@ export default function CommitteesReports() {
       <AnimatePresence>
         {deleteTarget && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-2xl shadow-xl border w-full max-w-sm overflow-hidden flex flex-col p-6">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl sm:rounded-2xl shadow-xl border w-full max-w-sm overflow-hidden flex flex-col p-3 sm:p-4 md:p-6">
               <h3 className="text-base font-bold text-slate-800 mb-2">تأكيد حذف {deleteTarget.type === 'report' ? 'التقرير' : 'المؤشر'}</h3>
               <p className="text-xs text-slate-500 mb-3">الرجاء إدخال سبب الحذف لتأكيد العملية والتوثيق:</p>
               <input 
@@ -1598,7 +1598,7 @@ export default function CommitteesReports() {
               />
               <div className="flex justify-end gap-2">
                 <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 bg-slate-100">إلغاء</button>
-                <button disabled={isLoading || !deleteReason.trim()} onClick={confirmDelete} className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 flex items-center gap-1.5">
+                <button disabled={isLoading || !deleteReason.trim()} onClick={confirmDelete} className="px-3 sm:px-4 md:px-5 py-2 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 flex items-center gap-1.5">
                   <Trash2 className="w-3.5 h-3.5" /> تأكيد الحذف
                 </button>
               </div>

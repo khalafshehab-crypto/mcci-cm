@@ -10,9 +10,9 @@ export default function AssistantSecGen() {
   return (
     <div className="space-y-6" dir="rtl">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-3 md:gap-4">
         <div>
-          <h1 className="text-2xl font-black text-gray-900 flex items-center gap-2">
+          <h1 className="text-sm sm:text-base md:text-lg sm:text-xl md:text-2xl font-black text-gray-900 flex items-center gap-2">
             <UserCheck className="w-7 h-7 text-brand" />
             مساعد الأمين العام
           </h1>
@@ -25,12 +25,12 @@ export default function AssistantSecGen() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center"
+        className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 md:p-8 text-center"
       >
         <div className="text-gray-400 mb-4 flex justify-center">
-          <UserCheck className="w-16 h-16 opacity-20" />
+          <UserCheck className="w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 opacity-20" />
         </div>
-        <h2 className="text-lg font-bold text-gray-800 mb-2">مساحة عمل جديدة</h2>
+        <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-800 mb-2">مساحة عمل جديدة</h2>
         <p className="text-sm text-gray-500 max-w-md mx-auto leading-relaxed">
           تم إنشاء هذه الصفحة المستقلة لتكون خاصة بإدارة مساعد الأمين العام. يمكنك الآن تزويدي بالمتطلبات والميزات والشاشات التي تريد إضافتها هنا.
         </p>

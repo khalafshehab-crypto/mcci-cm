@@ -1,19 +1,20 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, getDocs } from "firebase/firestore";
+import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
 import fs from "fs";
 
-const configSource = fs.readFileSync("firebase-applet-config.json", "utf8");
-const config = JSON.parse(configSource);
-
-const app = initializeApp(config);
-const db = getFirestore(app, config.firestoreDatabaseId || "(default)");
+const firebaseConfig = JSON.parse(fs.readFileSync('firebase-applet-config.json', 'utf8'));
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 async function run() {
-  const querySnapshot = await getDocs(collection(db, "join_requests"));
-  console.log("Found", querySnapshot.size, "join requests");
-  querySnapshot.forEach((doc) => {
-    console.log(doc.id, " => ", doc.data());
-  });
+  try {
+     console.log("Checking token");
+     const tokenRef = doc(db, "employee_tokens", "abdulaziz@example.com");
+     const snap = await getDoc(tokenRef);
+     console.log("abdulaziz token exists:", snap.exists());
+  } catch (e) {
+     console.log("Error:", e.message);
+  }
+  process.exit(0);
 }
-
 run();

@@ -34,12 +34,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-right" dir="rtl">
-          <div className="bg-slate-800 border border-red-500/20 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4">
-            <div className="w-12 h-12 bg-red-500/10 text-red-400 rounded-full flex items-center justify-center mx-auto mb-2 font-black text-xl">
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-3 sm:p-4 md:p-6 text-right" dir="rtl">
+          <div className="bg-slate-800 border border-red-500/20 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 max-w-lg w-full shadow-2xl space-y-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-500/10 text-red-400 rounded-full flex items-center justify-center mx-auto mb-2 font-black text-base sm:text-lg md:text-xl">
               ⚠️
             </div>
-            <h2 className="text-lg font-black text-slate-100 text-center">حدثت مشكلة غير متوقعة في العرض</h2>
+            <h2 className="text-sm sm:text-base md:text-lg font-black text-slate-100 text-center">حدثت مشكلة غير متوقعة في العرض</h2>
             <p className="text-xs text-slate-400 font-bold leading-relaxed text-center">
               تم اكتشاف خطأ برمجي طفيف في هذه الشاشة. لمساعدتك، لحسن الحظ جرى حصر المشكلة بنجاح عبر جدار الحماية التلقائي دون تعطل بقية النظام.
             </p>
@@ -50,7 +50,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
               </p>
             </div>
 
-            <div className="flex gap-4 pt-2">
+            <div className="flex gap-2.5 sm:gap-3 md:gap-4 pt-2">
               <button
                 type="button"
                 onClick={() => {

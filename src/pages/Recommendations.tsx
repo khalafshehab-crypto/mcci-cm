@@ -253,7 +253,7 @@ export default function Events() {
   const { data: rawCommittees } = useFirestoreCollection<any>("committees", []);
   const { data: allMembers } = useFirestoreCollection<Member>("members", []);
   const { data: dbEmployees } = useFirestoreCollection<any>("employees", []);
-  const { data: allDbRecommendations, addDocument: addFirebaseRecommendation, deleteDocument: deleteFirebaseRecommendation } = useFirestoreCollection<any>("recommendations", []);
+  const { data: allDbRecommendations, addDocument: addFirebaseRecommendation, updateDocument: updateFirebaseRecommendation, deleteDocument: deleteFirebaseRecommendation } = useFirestoreCollection<any>("recommendations", []);
 
   const committees = rawCommittees.map(comm => {
      if (!comm) return comm;
@@ -275,23 +275,6 @@ export default function Events() {
      return sourceList.map(e => e.name).filter(Boolean);
   }, [dbEmployees]);
 
-  const setEvents = (action: React.SetStateAction<EventItem[]>) => {
-    let nextEvents = typeof action === 'function' ? action(events) : action;
-    events.forEach(existing => {
-       if (!nextEvents.find(e => String(e.id) === String(existing.id))) {
-          deleteFirebaseEvent(String(existing.id));
-       }
-    });
-
-    nextEvents.forEach(nextT => {
-       const existing = events.find(e => String(e.id) === String(nextT.id));
-       if (!existing) {
-          updateFirebaseEvent(String(nextT.id), nextT);
-       } else if (JSON.stringify(existing) !== JSON.stringify(nextT)) {
-          updateFirebaseEvent(String(nextT.id), nextT);
-       }
-    });
-  };
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterQuery, setFilterQuery] = useState("");
@@ -436,8 +419,8 @@ export default function Events() {
       alert("عذراً، لا تملك الصلاحية لتعديل فعاليات هذه اللجنة. يمكنك فقط إدارة فعاليات اللجان المكلف بها.");
       return;
     }
-    setEvents(prev => prev.map(evt => {
-      if (String(evt.id) === String(eventId)) {
+    const evt = events.find(e => String(e.id) === String(eventId));
+    if (evt) {
         const updated = { ...evt, ...updates };
         
         if ('confirmedAttendees' in updates) {
@@ -454,10 +437,8 @@ export default function Events() {
             updated.status = "تأكيد الحضور";
           }
         }
-        return updated;
-      }
-      return evt;
-    }));
+        if (updated.isAgendaSource) { updateFirebaseRecommendation(String(eventId), updated); } else { updateFirebaseEvent(String(eventId), updated); }
+    }
   };
 
   const getGeneratedInvitation = (e: EventItem) => {
@@ -1104,7 +1085,7 @@ ${formattedItems}
     return null;
   };
 
-  const handleInsertSeries = () => {
+  const handleInsertSeries = async () => {
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
     const selectedGen = generatedSchedules.filter(s => selectedSchedules.includes(s.id));
     
@@ -1132,7 +1113,7 @@ ${formattedItems}
       exportedRecommendationsToPage: true,
     }));
 
-    setEvents([...newEventsList, ...events]);
+    newEventsList.forEach(async (ev) => { await setDoc(doc(db, "events", String(ev.id)), ev); });
     setIsConfirmingSeries(false);
     setIsAddOpen(false);
     setShowSuccessMsg(true);
@@ -1174,7 +1155,7 @@ ${formattedItems}
         preparationsText: newRecText,
         preparationsAttachments: newRecAttachments.length > 0 ? newRecAttachments.map((att, index) => ({ id: String(index + 1), name: att.name, url: att.url })) : (editingEvent.preparationsAttachments || [])
       };
-      setEvents(events.map(ev => ev.id === editingEvent.id ? updatedRec : ev));
+      updateFirebaseEvent(String(editingEvent.id), updatedRec);
     } else {
       const recEventId = Date.now();
       const newRec: any = {
@@ -1206,7 +1187,7 @@ ${formattedItems}
         preparationsAttachments: newRecAttachments.length > 0 ? newRecAttachments.map((att, index) => ({ id: String(index + 1), name: att.name, url: att.url })) : []
       };
 
-      setEvents([newRec, ...events]);
+      addFirebaseEvent(newRec);
     }
     
     setNewRecTitle("");
@@ -1238,7 +1219,11 @@ ${formattedItems}
         }
       }
       
-      setEvents(events.filter((e) => e.id !== deletingEvent.id));
+      try {
+        await deleteDoc(doc(db, "events", String(deletingEvent.id)));
+      } catch (err) {
+        console.error(err);
+      }
       setDeletingEvent(null);
     }
   };
@@ -1567,12 +1552,12 @@ ${formattedItems}
         initial={{ opacity: 0, height: 0 }} 
         animate={{ opacity: 1, height: "auto" }} 
         exit={{ opacity: 0, height: 0 }}
-        className="px-6 py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-y border-gray-200 text-right font-sans relative"
+        className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-y border-gray-200 text-right font-sans relative"
       >
         {!canUserEditCommittee(evt.committeeName) && (
           <div className="absolute inset-0 z-[60] bg-slate-50/40 cursor-not-allowed rounded-lg" title="ليس لديك صلاحية لتعديل هذه التوصية" />
         )}
-        <div className={`flex flex-col md:flex-row gap-6 relative ${!canUserEditCommittee(evt.committeeName) ? "opacity-80 pointer-events-none grayscale-[10%]" : ""}`}>
+        <div className={`flex flex-col md:flex-row gap-3 sm:gap-4 md:gap-6 relative ${!canUserEditCommittee(evt.committeeName) ? "opacity-80 pointer-events-none grayscale-[10%]" : ""}`}>
           {/* Right Column: Steps Stepper / Timeline Sidebar */}
           <div className="w-full md:w-1/3 flex flex-col gap-2.5 bg-white p-4 rounded-xl border border-gray-200 shadow-sm shrink-0">
             <div className="pb-3 border-b border-gray-100 flex items-center justify-between">
@@ -1656,7 +1641,7 @@ ${formattedItems}
           </div>
 
           {/* Left Column: Active Step Form Content */}
-          <div className="flex-1 bg-white p-5 rounded-xl border border-gray-200 shadow-sm relative text-right min-h-[300px]">
+          <div className="flex-1 bg-white p-3 sm:p-4 md:p-5 rounded-xl border border-gray-200 shadow-sm relative text-right min-h-[300px]">
             {(() => {
               const currentTab = activeStepTab[evt.id] ?? getStepIndex(nextStep);
               switch (currentTab) {
@@ -1788,8 +1773,372 @@ ${formattedItems}
 
   // The main component render ends here:
   return (
-    <div className="w-full text-center p-10 text-xl font-bold">
-      حدث خطأ في النظام. يرجى التحديث.
+    <div className="space-y-6 pb-16 text-right" dir="rtl">
+      {/* Dynamic Header Toolbar */}
+      <div className="bg-[#e8e4e4] rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 border border-gray-200 shadow-sm flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2.5 sm:gap-3 md:gap-4">
+        <div className="flex items-center gap-2.5 sm:gap-3 md:gap-4.5">
+          <div className="w-13 h-13 rounded-2.5xl bg-brand/10 border border-[#dfba6b]/30 flex items-center justify-center text-brand shrink-0">
+            <Sliders className="w-6.5 h-6.5" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-sm sm:text-base md:text-lg sm:text-xl md:text-2xl font-extrabold text-gray-900 tracking-tight">
+              <span>سجل التوصيات</span>
+            </h2>
+            <p className="text-gray-650 text-xs font-semibold">
+              التوصيات الصادرة عن الاجتماعات أو بالتمرير.
+            </p>
+          </div>
+        </div>
+
+        {/* Actions & Stats Group Controls */}
+        <div className="flex flex-wrap items-center gap-3 justify-center md:justify-end">
+          
+          {/* 1. Toggleable Search with Input */}
+          <div className="flex items-center gap-2 relative">
+            <AnimatePresence>
+              {showSuccessMsg && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute left-0 -top-12 bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap shadow-md z-10 flex items-center gap-2"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  تم إضافة التوصية بنجاح
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <AnimatePresence>
+              {isSearchExpanded && (
+                <motion.form
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 170, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  onSubmit={handleSearchCommit}
+                  className="relative overflow-hidden"
+                >
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      if (e.target.value === "") {
+                        setFilterQuery("");
+                      }
+                    }}
+                    placeholder="ابحث عن توصية..."
+                    autoFocus
+                    className="w-full h-10 pr-3 pl-8 bg-white border border-gray-300 rounded-xl text-xs font-bold placeholder-gray-400 text-right focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={handleResetSearch}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-650 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </motion.form>
+              )}
+            </AnimatePresence>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (isSearchExpanded) {
+                  setFilterQuery(searchQuery);
+                  setIsSearchExpanded(false);
+                } else {
+                  setIsSearchExpanded(true);
+                }
+              }}
+              className={`p-2.5 rounded-xl transition-all duration-200 cursor-pointer border ${
+                isSearchExpanded || filterQuery
+                  ? "bg-blue-50 text-blue-600 border-blue-200 shadow-sm"
+                  : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+              }`}
+              title="البحث عن اللجان"
+            >
+              <Search className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* View Mode Switcher */}
+          <div className="flex bg-white p-1 rounded-xl border border-gray-250 select-none" style={{ borderWidth: '0px' }}>
+            <button
+              type="button"
+              onClick={() => setViewMode("grid")}
+              className={`px-3 py-1.5 rounded-lg font-black text-xs transition-all flex items-center gap-1 cursor-pointer ${
+                viewMode === "grid"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>بطائق</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("table")}
+              className={`px-3 py-1.5 rounded-lg font-black text-xs transition-all flex items-center gap-1 cursor-pointer ${
+                viewMode === "table"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-gray-550 hover:text-gray-750"
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>سجل</span>
+            </button>
+          </div>
+          
+          {/* Add Event Button */}
+          <button
+            type="button"
+            onClick={handleOpenAdd}
+            className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer shrink-0"
+          >
+            <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
+            <span>إضافة توصية</span>
+          </button>
+
+          {selectedEventIds.length > 0 && viewMode === "table" && (
+            <button
+              type="button"
+              onClick={() => setIsBulkDeleting(true)}
+              className="h-10 px-4 bg-red-650 hover:bg-red-750 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer shrink-0"
+            >
+              <Trash2 className="w-4.5 h-4.5 stroke-[2.5]" />
+              <span>حذف المحدد ({selectedEventIds.length})</span>
+            </button>
+          )}
+
+          {/* Vertical divider */}
+          <div className="h-8 w-px bg-gray-300 hidden sm:block mx-1"></div>
+
+          {/* Brief Quick Statistic Badge */}
+          <div className="flex gap-2">
+            <div className="bg-white px-3.5 py-1.5 rounded-xl text-center shadow-inner" style={{ borderWidth: '0px' }}>
+              <span className="text-[10px] font-black text-gray-400 block leading-tight">إجمالي التوصيات</span>
+              <span className="text-sm sm:text-base md:text-lg font-black text-brand leading-none font-mono">{events.length}</span>
+            </div>
+            <div className="bg-white px-3.5 py-1.5 rounded-xl text-center shadow-inner" style={{ borderWidth: '0px' }}>
+              <span className="text-[10px] font-black text-gray-400 block leading-tight">منتهية</span>
+              <span className="text-sm sm:text-base md:text-lg font-black text-emerald-600 leading-none font-mono">
+                {events.filter(e => isEventCompleted(e) || e.status === "منتهية").length}
+              </span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {filteredEvents.length === 0 ? (
+        <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl p-12 text-center space-y-3">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mx-auto">
+            <Search className="w-7 h-7" />
+          </div>
+          <p className="text-gray-500 font-extrabold text-base">لم يعثر على أية نتائج مخصصة لعملية البحث الحالية.</p>
+          <button
+            onClick={handleResetSearch}
+            className="text-brand font-black text-xs hover:underline"
+          >
+            عرض كافة التوصيات المسجلة
+          </button>
+        </div>
+      ) : viewMode === "grid" ? (
+        <div className="space-y-6 text-right">
+          {/* Intelligent Breadcrumbs Navigator */}
+          <div className="bg-[#e8e4e4] border border-gray-200 rounded-xl sm:rounded-2xl p-4 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-2.5 sm:gap-3 md:gap-4 font-sans">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-black text-gray-700">
+              <button
+                onClick={() => {
+                  setSelectedCommIdForCards(null);
+                  setSelectedEventIdForCards(null);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  selectedCommIdForCards === null
+                    ? "bg-brand text-white shadow-sm"
+                    : "bg-white/80 text-gray-700 hover:bg-white border border-gray-300/65"
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>الرئيسية (لوحة اللجان)</span>
+              </button>
+
+              {selectedCommIdForCards !== null && (
+                
+<React.Fragment>
+                  <span className="text-gray-400 font-bold font-mono">/</span>
+                  <button
+                    onClick={() => {
+                      setSelectedEventIdForCards(null);
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                      selectedEventIdForCards === null
+                        ? "bg-[#dfba6b] text-[#1e293b] shadow-sm font-black animate-pulse"
+                        : "bg-white/80 text-gray-750 hover:bg-white border border-gray-300/65"
+                    }`}
+                  >
+                    <Users2 className="w-3.5 h-3.5" />
+                    <span>
+                      {committees.find((c) => c.id === selectedCommIdForCards)?.name || "التحميل..."}
+                    </span>
+                  </button>
+                </React.Fragment>
+              )}
+
+              {selectedCommIdForCards !== null && selectedEventIdForCards !== null && (
+                
+<React.Fragment>
+                  <span className="text-gray-400 font-bold font-mono">/</span>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white shadow-sm font-black animate-bounce">
+                    <Sliders className="w-3.5 h-3.5" />
+                    <span>
+                      {(() => {
+                        const recEvt = events.find((e) => e.id === selectedEventIdForCards);
+                        return recEvt ? recEvt.title : "تفاصيل التوصيات";
+                      })()}
+                    </span>
+                  </div>
+                </React.Fragment>
+              )}
+            </div>
+
+            <div className="text-[11px] text-gray-600 font-bold">
+              مجموع النتائج الحالية:{" "}
+              <span className="text-brand font-black">
+                {(() => {
+                  if (selectedCommIdForCards === null) {
+                    return committees.length;
+                  }
+                  if (selectedEventIdForCards === null) {
+                    return filteredEvents.filter((e) => e.committeeId === selectedCommIdForCards).length;
+                  }
+                  const chosenEvent = events.find((e) => e.id === selectedEventIdForCards);
+                  const dbRecommendationsCount = allDbRecommendations.filter((rec: any) =>
+                    String(rec.id).startsWith(`custom-rec-${selectedEventIdForCards}-`) ||
+                    (rec.eventName && rec.eventName === chosenEvent?.title)
+                  ).length;
+
+                  return dbRecommendationsCount;
+                })()}
+              </span>
+            </div>
+          </div>
+          {selectedCommIdForCards === null && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
+              {committees.map((comm) => {
+                const commRecsCount = filteredEvents.filter(e => e.committeeId === comm.id).length;
+                return (
+                  <button
+                    key={comm.id}
+                    onClick={() => setSelectedCommIdForCards(comm.id as number)}
+                    className="flex flex-col gap-2.5 sm:gap-3 md:gap-4 bg-white border border-gray-200 p-3 sm:p-4 md:p-6 rounded-xl sm:rounded-2xl hover:border-brand hover:shadow-md transition-all text-right group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-slate-50 flex items-center justify-center group-hover:bg-brand/5 group-hover:text-brand transition-colors text-slate-400">
+                        <Users2 className="w-6 h-6" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-extrabold text-gray-800 text-sm">{comm.name}</h3>
+                        <p className="text-xs text-gray-500 font-bold mt-1">فعاليات التوصيات: {commRecsCount}</p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {selectedCommIdForCards !== null && selectedEventIdForCards === null && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
+              {filteredEvents.filter(e => e.committeeId === selectedCommIdForCards).map((evt) => {
+                const recsCount = (evt.agenda || []).filter(item => item.recommendation && item.recommendation.trim() !== "").length;
+                return (
+                  <button
+                    key={evt.id}
+                    onClick={() => setSelectedEventIdForCards(evt.id)}
+                    className="flex flex-col gap-2.5 sm:gap-3 md:gap-4 bg-white border border-gray-200 p-3 sm:p-4 md:p-6 rounded-xl sm:rounded-2xl hover:border-emerald-500 hover:shadow-md transition-all text-right group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                        <Presentation className="w-6 h-6" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-extrabold text-gray-800 text-sm">{evt.title}</h3>
+                        <p className="text-xs text-gray-500 font-bold mt-1">التوصيات: {recsCount}</p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {selectedCommIdForCards !== null && selectedEventIdForCards !== null && (
+            <div>
+              {events.filter(e => e.id === selectedEventIdForCards).map(evt => (
+                <div key={evt.id}>
+                  {renderPreparationPlatform(evt)}
+                </div>
+              ))}
+            </div>
+          )}
+
+        </div>
+      ) : viewMode === "table" ? (
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-right font-sans">
+          <div className="overflow-x-auto">
+            <table className="w-full text-right">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 font-black">
+                  <th className="px-4 py-4 pr-6">#</th>
+                  <th className="px-4 py-4 w-1/3">الموضوع / التوصية</th>
+                  <th className="px-4 py-4">اللجنة والفعالية</th>
+                  <th className="px-4 py-4">المسؤول</th>
+                  <th className="px-4 py-4">المدة</th>
+                  <th className="px-4 py-4 pl-6 text-left">الحالة</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {tableRecommendations.map((rec: any, index: number) => (
+                  <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-4 pr-6">
+                      <span className="text-xs font-bold text-gray-400">{index + 1}</span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="font-extrabold text-gray-800 text-sm">{rec.title}</div>
+                      <div className="text-xs text-gray-500 mt-1 line-clamp-2">{rec.description}</div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="text-xs font-bold text-gray-700">{rec.committeeName}</div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">{rec.eventName || rec.date}</div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-md">{rec.assignedTo}</span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="text-[11px] font-bold text-gray-500">{rec.duration}</span>
+                    </td>
+                    <td className="px-4 py-4 pl-6 text-left">
+                      <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-[10px] font-black ${
+                        rec.status === 'منتهية' || rec.status === 'مكتملة' ? 'bg-emerald-50 text-emerald-700' :
+                        rec.status === 'متأخرة' ? 'bg-red-50 text-red-700' :
+                        'bg-amber-50 text-amber-700'
+                      }`}>
+                        {rec.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      ) : null}
     </div>
   );
 }
+

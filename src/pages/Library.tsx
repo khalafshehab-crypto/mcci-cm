@@ -884,13 +884,13 @@ ${t.description}
   return (
     <div className="space-y-6 pb-16 text-right">
       {/* -------------------- Page Action Header -------------------- */}
-      <div className="bg-[#e8e4e4] rounded-2xl p-6 border border-gray-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 print:hidden">
+      <div className="bg-[#e8e4e4] rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 border border-gray-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-2.5 sm:gap-3 md:gap-4 print:hidden">
         <div>
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100/80 text-[#0ea5e9] rounded-xl border border-blue-200">
               <LibraryIcon className="w-7 h-7 text-[#0ea5e9]" />
             </div>
-            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight font-sans">
+            <h1 className="text-sm sm:text-base md:text-lg sm:text-xl md:text-2xl font-extrabold text-gray-900 tracking-tight font-sans">
               المكتبة الرقمية للقوالب
             </h1>
           </div>
@@ -1097,7 +1097,7 @@ ${t.description}
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="bg-white rounded-2xl border border-gray-250 shadow-lg p-5 print:hidden space-y-4"
+            className="bg-white rounded-xl sm:rounded-2xl border border-gray-250 shadow-lg p-3 sm:p-4 md:p-5 print:hidden space-y-4"
           >
             <div className="flex items-center justify-between border-b pb-3">
               <div>
@@ -1129,11 +1129,11 @@ ${t.description}
 
       <div className="min-h-[400px]">
         {filteredTemplates.length === 0 ? (
-          <div className="col-span-full py-20 flex flex-col items-center justify-center bg-[#e8e4e4] rounded-2xl border border-dashed border-gray-300">
-            <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-gray-200 mb-4 transform -rotate-2">
+          <div className="col-span-full py-20 flex flex-col items-center justify-center bg-[#e8e4e4] rounded-xl sm:rounded-2xl border border-dashed border-gray-300">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-white rounded-xl sm:rounded-2xl flex items-center justify-center shadow-sm border border-gray-200 mb-4 transform -rotate-2">
               <Search className="w-8 h-8 text-gray-400" />
             </div>
-            <h3 className="text-lg font-extrabold text-gray-800">
+            <h3 className="text-sm sm:text-base md:text-lg font-extrabold text-gray-800">
               لا توجد قوالب متطابقة
             </h3>
             <p className="text-gray-500 mt-1 max-w-md font-medium text-sm">
@@ -1141,11 +1141,11 @@ ${t.description}
             </p>
           </div>
         ) : viewMode === "cards" ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4 md:gap-5">
             {filteredTemplates.map((t, i) => (
               <div
                 key={`${t.id}-${i}`}
-                className="bg-[#e8e4e4] hover:bg-[#e2dede] transition-all duration-300 rounded-2xl p-5 border border-gray-200 shadow-sm hover:shadow-md relative overflow-hidden flex flex-col justify-between group"
+                className="bg-[#e8e4e4] hover:bg-[#e2dede] transition-all duration-300 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 border border-gray-200 shadow-sm hover:shadow-md relative overflow-hidden flex flex-col justify-between group"
               >
                 {/* Top Indicator */}
                 <div
@@ -1190,7 +1190,7 @@ ${t.description}
                     </div>
                   </div>
 
-                  <h3 className="font-extrabold text-gray-900 text-lg mb-1.5 line-clamp-2">
+                  <h3 className="font-extrabold text-gray-900 text-sm sm:text-base md:text-lg mb-1.5 line-clamp-2">
                     {t.title}
                   </h3>
                   <p className="text-xs font-semibold text-gray-500 line-clamp-2 leading-relaxed mb-4">
@@ -1249,18 +1249,18 @@ ${t.description}
             ))}
           </div>
         ) : (
-          <div className="box-border border border-gray-200 rounded-2xl overflow-hidden bg-[#e8e4e4] shadow-sm">
+          <div className="box-border border border-gray-200 rounded-xl sm:rounded-2xl overflow-hidden bg-[#e8e4e4] shadow-sm">
             <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full text-right border-collapse">
                 <thead className="bg-[#dfdada] text-gray-700 font-extrabold text-sm border-b border-gray-300">
                   <tr>
-                    <th className="whitespace-nowrap py-4 px-5 whitespace-nowrap w-12">النوع</th>
-                    <th className="whitespace-nowrap py-4 px-5 whitespace-nowrap">
+                    <th className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5 whitespace-nowrap w-12">النوع</th>
+                    <th className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5 whitespace-nowrap">
                       اسم القالب المرجعي
                     </th>
-                    <th className="whitespace-nowrap py-4 px-5 whitespace-nowrap">الوصف</th>
-                    <th className="whitespace-nowrap py-4 px-5 whitespace-nowrap">المنشئ</th>
-                    <th className="whitespace-nowrap py-4 px-5 text-center whitespace-nowrap">
+                    <th className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5 whitespace-nowrap">الوصف</th>
+                    <th className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5 whitespace-nowrap">المنشئ</th>
+                    <th className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5 text-center whitespace-nowrap">
                       إجراءات
                     </th>
                   </tr>
@@ -1271,18 +1271,18 @@ ${t.description}
                       key={`${t.id}-${i}`}
                       className="hover:bg-white/40 transition-colors text-sm font-semibold text-gray-800"
                     >
-                      <td className="whitespace-nowrap py-4 px-5 font-bold">
+                      <td className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5 font-bold">
                         <div className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-100 inline-flex items-center justify-center">
                           {getIconForType(t.type)}
                         </div>
                       </td>
-                      <td className="whitespace-nowrap py-4 px-5 font-bold text-gray-900">
+                      <td className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5 font-bold text-gray-900">
                         {t.title}
                       </td>
-                      <td className="whitespace-nowrap py-4 px-5 text-gray-500 text-xs w-1/3 leading-relaxed">
+                      <td className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5 text-gray-500 text-xs w-1/3 leading-relaxed">
                         <span className="line-clamp-1">{t.description}</span>
                       </td>
-                      <td className="whitespace-nowrap py-4 px-5 font-black text-gray-500">
+                      <td className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5 font-black text-gray-500">
                         <div className="flex items-center gap-2">
                           <span className="w-6 h-6 rounded bg-gray-200 flex items-center justify-center text-gray-600 text-[10px] uppercase font-black tracking-wider">
                             {(t.creator || "  ").substring(0, 2)}
@@ -1290,7 +1290,7 @@ ${t.description}
                           {t.creator}
                         </div>
                       </td>
-                      <td className="whitespace-nowrap py-4 px-5">
+                      <td className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5">
                         <div className="flex items-center justify-center gap-2">
                           <a
                             href={t.cloudUrl}
@@ -1348,7 +1348,7 @@ ${t.description}
       {/* Add Modal */}
       <AnimatePresence>
         {isAddOpen && (
-          <div key="comm-isAddOpen-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pb-20">
+          <div key="comm-isAddOpen-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 md:p-6 pb-20">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1360,10 +1360,10 @@ ${t.description}
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-xl relative z-10 overflow-hidden flex flex-col max-h-[90vh]"
+              className="bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-slate-100 w-full max-w-xl relative z-10 overflow-hidden flex flex-col max-h-[90vh]"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gray-50/50">
-                <h2 className="text-xl font-extrabold text-gray-900 flex items-center gap-2">
+              <div className="flex items-center justify-between p-3 sm:p-4 md:p-5 border-b border-gray-100 bg-gray-50/50">
+                <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900 flex items-center gap-2">
                   إدارة واستيراد وتصدير النماذج الجاهزة
                 </h2>
                 <button
@@ -1406,7 +1406,7 @@ ${t.description}
               {modalTab === "import" ? (
                 <form
                   onSubmit={handleSave}
-                  className="p-6 overflow-y-auto space-y-4"
+                  className="p-3 sm:p-4 md:p-6 overflow-y-auto space-y-4"
                 >
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1.5">
@@ -1540,14 +1540,14 @@ ${t.description}
                     <button
                       type="button"
                       onClick={() => setIsAddOpen(false)}
-                      className="px-5 py-3 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 transition-colors"
+                      className="px-3 sm:px-4 md:px-5 py-3 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 transition-colors"
                     >
                       إلغاء
                     </button>
                     <button
                       disabled={formIsSaving}
                       type="submit"
-                      className="px-6 py-3 rounded-xl text-sm font-bold text-white bg-[#121212] hover:bg-black flex items-center gap-2 shadow-sm transition-all disabled:opacity-70"
+                      className="px-3 sm:px-4 md:px-6 py-3 rounded-xl text-sm font-bold text-white bg-[#121212] hover:bg-black flex items-center gap-2 shadow-sm transition-all disabled:opacity-70"
                     >
                       {formIsSaving ? (
                         <RefreshCw className="w-5 h-5 animate-spin" />
@@ -1559,7 +1559,7 @@ ${t.description}
                   </div>
                 </form>
               ) : (
-                <div className="p-6 overflow-y-auto space-y-4">
+                <div className="p-3 sm:p-4 md:p-6 overflow-y-auto space-y-4">
                   <p
                     className="text-xs text-gray-500 font-bold leading-relaxed border-r-2 border-blue-500 pr-2.5 text-right font-sans"
                     dir="rtl"
@@ -1674,7 +1674,7 @@ ${t.description}
                     <button
                       type="button"
                       onClick={() => setIsAddOpen(false)}
-                      className="px-5 py-2 hover:bg-gray-100 rounded-xl text-xs font-extrabold text-gray-500 cursor-pointer"
+                      className="px-3 sm:px-4 md:px-5 py-2 hover:bg-gray-100 rounded-xl text-xs font-extrabold text-gray-500 cursor-pointer"
                     >
                       إغلاق النافذة
                     </button>
@@ -1689,7 +1689,7 @@ ${t.description}
       {/* Share Modal */}
       <AnimatePresence>
         {isShareOpen && templateToShare && (
-          <div key="share-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pb-20">
+          <div key="share-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 md:p-6 pb-20">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1701,10 +1701,10 @@ ${t.description}
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-sm relative z-10 overflow-hidden flex flex-col"
+              className="bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-gray-100 w-full max-w-sm relative z-10 overflow-hidden flex flex-col"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gray-50/50">
-                <h2 className="text-lg font-extrabold text-gray-900 flex items-center gap-2">
+              <div className="flex items-center justify-between p-3 sm:p-4 md:p-5 border-b border-gray-100 bg-gray-50/50">
+                <h2 className="text-sm sm:text-base md:text-lg font-extrabold text-gray-900 flex items-center gap-2">
                   إرسال قالب عبر البريد السريع
                 </h2>
                 <button
@@ -1715,7 +1715,7 @@ ${t.description}
                 </button>
               </div>
 
-              <form onSubmit={handleShareSubmit} className="p-5 space-y-4">
+              <form onSubmit={handleShareSubmit} className="p-3 sm:p-4 md:p-5 space-y-4">
                 <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
                   <p className="text-xs font-bold text-gray-500 text-center mb-1">
                     القالب المحدد:
@@ -1756,22 +1756,22 @@ ${t.description}
       {/* AI Generator Modal - New Gemini Style Implementation */}
       <AnimatePresence>
         {isAIGenOpen && (
-          <div key="comm-isAIGenOpen-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+          <div key="comm-isAIGenOpen-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 md:p-6">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsAIGenOpen(false)} />
             <motion.div
               key="ai-generator-modal"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl shadow-2xl overflow-hidden w-full max-w-5xl z-10 flex flex-col max-h-[95vh]"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden w-full max-w-5xl z-10 flex flex-col max-h-[95vh]"
             >
-              <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-l from-emerald-50/50 to-white shrink-0">
+              <div className="p-3 sm:p-4 md:p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-l from-emerald-50/50 to-white shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm">
                     <Sparkles className="w-6 h-6" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-gray-900">صياغة الخطابات بالذكاء الاصطناعي</h2>
+                    <h2 className="text-base sm:text-lg md:text-xl font-black text-gray-900">صياغة الخطابات بالذكاء الاصطناعي</h2>
                     <p className="text-gray-500 text-sm font-medium mt-1">
                       الخطوة {aiGenStep} من 3
                     </p>
@@ -1788,27 +1788,27 @@ ${t.description}
               <div className="flex-1 overflow-y-auto bg-gray-50/50">
                 
                 {aiGenStep === 1 && (
-                  <div className="max-w-3xl mx-auto space-y-6 p-6">
-                    <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+                  <div className="max-w-3xl mx-auto space-y-6 p-3 sm:p-4 md:p-6">
+                    <div className="bg-white p-3 sm:p-4 md:p-6 rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm">
                       <label className="block text-sm font-bold text-gray-800 mb-4 text-center">اختر خدمة Google Workspace لإنشاء القالب:</label>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
                         <button
                           onClick={() => setAiGenStep(2)}
-                          className={`flex flex-col items-center justify-center p-5 border-2 rounded-2xl cursor-pointer transition-all hover:shadow-md border-blue-500 bg-blue-50 ring-1 ring-blue-500 shadow-sm`}
+                          className={`flex flex-col items-center justify-center p-3 sm:p-4 md:p-5 border-2 rounded-xl sm:rounded-2xl cursor-pointer transition-all hover:shadow-md border-blue-500 bg-blue-50 ring-1 ring-blue-500 shadow-sm`}
                         >
-                          <div className={`w-12 h-12 rounded-xl mb-3 flex items-center justify-center bg-blue-50 text-blue-600`}>
+                          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl mb-3 flex items-center justify-center bg-blue-50 text-blue-600`}>
                             <FileText className="w-6 h-6" />
                           </div>
                           <span className="font-extrabold text-gray-800 text-sm">تعميم (مستندات)</span>
                         </button>
                         
                         {/* تعطيل باقي الخيارات مؤقتاً */}
-                        <button onClick={() => showGlobalToast("سيتم برمجة هذا المسار لاحقاً", "success")} className="flex flex-col items-center justify-center p-5 border-2 rounded-2xl cursor-pointer transition-all hover:shadow-md border-gray-100 hover:border-gray-300 bg-white opacity-60">
-                           <div className="w-12 h-12 rounded-xl mb-3 flex items-center justify-center bg-amber-50 text-amber-600"><Presentation className="w-6 h-6" /></div>
+                        <button onClick={() => showGlobalToast("سيتم برمجة هذا المسار لاحقاً", "success")} className="flex flex-col items-center justify-center p-3 sm:p-4 md:p-5 border-2 rounded-xl sm:rounded-2xl cursor-pointer transition-all hover:shadow-md border-gray-100 hover:border-gray-300 bg-white opacity-60">
+                           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl mb-3 flex items-center justify-center bg-amber-50 text-amber-600"><Presentation className="w-6 h-6" /></div>
                            <span className="font-extrabold text-gray-800 text-sm">عروض تقديمية</span>
                         </button>
-                        <button onClick={() => showGlobalToast("سيتم برمجة هذا المسار لاحقاً", "success")} className="flex flex-col items-center justify-center p-5 border-2 rounded-2xl cursor-pointer transition-all hover:shadow-md border-gray-100 hover:border-gray-300 bg-white opacity-60">
-                           <div className="w-12 h-12 rounded-xl mb-3 flex items-center justify-center bg-emerald-50 text-emerald-600"><FileSpreadsheet className="w-6 h-6" /></div>
+                        <button onClick={() => showGlobalToast("سيتم برمجة هذا المسار لاحقاً", "success")} className="flex flex-col items-center justify-center p-3 sm:p-4 md:p-5 border-2 rounded-xl sm:rounded-2xl cursor-pointer transition-all hover:shadow-md border-gray-100 hover:border-gray-300 bg-white opacity-60">
+                           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl mb-3 flex items-center justify-center bg-emerald-50 text-emerald-600"><FileSpreadsheet className="w-6 h-6" /></div>
                            <span className="font-extrabold text-gray-800 text-sm">جداول بيانات</span>
                         </button>
                       </div>
@@ -1817,8 +1817,8 @@ ${t.description}
                 )}
 
                 {aiGenStep === 2 && (
-                  <div className="max-w-2xl mx-auto space-y-6 p-6">
-                    <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-5">
+                  <div className="max-w-2xl mx-auto space-y-6 p-3 sm:p-4 md:p-6">
+                    <div className="bg-white p-3 sm:p-4 md:p-6 rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm space-y-5">
                       <div>
                         <label className="block text-sm font-bold text-gray-800 mb-3">حدد نوع الإجراء المطلوب:</label>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1856,7 +1856,7 @@ ${t.description}
                     </div>
 
                     {aiGenMode === "new" ? (
-                      <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                      <div className="bg-white p-3 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm space-y-4">
                         <h3 className="font-bold text-gray-800 border-b border-gray-100 pb-3 flex items-center gap-2">
                           <Plus className="w-4 h-4 text-emerald-600" />
                           بيانات التعميم الجديد
@@ -1886,7 +1886,7 @@ ${t.description}
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        <div className="bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm space-y-4">
+                        <div className="bg-white p-3 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border border-indigo-100 shadow-sm space-y-4">
                           <h3 className="font-bold text-indigo-800 border-b border-indigo-50 pb-3 flex items-center gap-2">
                             <BookOpen className="w-4 h-4 text-indigo-600" />
                             قراءة المعاملة الواردة
@@ -1916,7 +1916,7 @@ ${t.description}
                           </div>
                         </div>
 
-                        <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 shadow-sm space-y-4">
+                        <div className="bg-emerald-50 p-3 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border border-emerald-100 shadow-sm space-y-4">
                           <h4 className="font-bold text-emerald-800 flex items-center gap-2">
                             <Wand2 className="w-4 h-4"/> ماذا تريد في التعميم المبني على المرفق؟
                           </h4>
@@ -1933,7 +1933,7 @@ ${t.description}
                     <div className="flex justify-end gap-3">
                       <button
                         onClick={() => setAiGenStep(1)}
-                        className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-300 transition-colors"
+                        className="px-3 sm:px-4 md:px-6 py-3 bg-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-300 transition-colors"
                       >
                         السابق
                       </button>
@@ -1957,7 +1957,7 @@ ${t.description}
 
                 {/* الخطوة 3: قالب معاينة التعميم الحي (بمقاس 4:3) */}
                 {aiGenStep === 3 && (
-                  <div className="flex flex-col h-full space-y-4 p-6">
+                  <div className="flex flex-col h-full space-y-4 p-3 sm:p-4 md:p-6">
                     <div className="flex items-center justify-between">
                       <h3 className="font-bold text-gray-800 flex items-center gap-2">
                         <CheckCircle2 className="w-5 h-5 text-emerald-500" />
@@ -1975,7 +1975,7 @@ ${t.description}
                     </div>
                     
                     {/* الحاوية البصرية للقالب (4:3 Preview) */}
-                    <div className="flex-1 bg-gray-300 p-6 rounded-xl flex items-center justify-center overflow-auto min-h-[600px] relative shadow-inner">
+                    <div className="flex-1 bg-gray-300 p-3 sm:p-4 md:p-6 rounded-xl flex items-center justify-center overflow-auto min-h-[600px] relative shadow-inner">
                       <div className="w-full max-w-[800px] aspect-[4/3] bg-white shadow-2xl relative flex flex-col overflow-hidden border border-gray-300 transform md:scale-100 origin-top">
                          {/* Top Bar */}
                          <div className="h-3 w-full flex shrink-0">
@@ -2010,9 +2010,9 @@ ${t.description}
                          <div className="px-8 shrink-0"><div className="w-full h-px bg-gray-200"></div></div>
                          
                          {/* Body */}
-                         <div className="flex-1 px-12 py-6 flex flex-col overflow-hidden relative">
+                         <div className="flex-1 px-12 py-3 sm:py-4 md:py-6 flex flex-col overflow-hidden relative">
                             <div className="text-center mb-6 shrink-0 relative z-10">
-                               <h1 className="text-xl font-black text-[#0B2D4F] underline decoration-[#C39C5D] decoration-2 underline-offset-8">تــعــمــيــم</h1>
+                               <h1 className="text-base sm:text-lg md:text-xl font-black text-[#0B2D4F] underline decoration-[#C39C5D] decoration-2 underline-offset-8">تــعــمــيــم</h1>
                                <input type="text" value={aiGenSubject} onChange={e=>setAiGenSubject(e.target.value)} className="mt-4 w-full text-center text-sm font-bold text-gray-800 bg-transparent border-b border-dashed border-gray-300 focus:border-[#0B2D4F] outline-none" placeholder="عنوان التعميم..." />
                             </div>
                             
@@ -2031,7 +2031,7 @@ ${t.description}
                          
                          {/* Footer */}
                          <div className="shrink-0 bg-gray-50 border-t border-gray-200 px-8 py-3 flex justify-between items-center text-[10px] font-bold text-gray-500 z-10">
-                            <div className="flex gap-4">
+                            <div className="flex gap-2.5 sm:gap-3 md:gap-4">
                               <span>makkahchamber.sa</span>
                               <span>info@makkahchamber.sa</span>
                               <span>920000000</span>
@@ -2044,12 +2044,12 @@ ${t.description}
                 )}
               </div>
 
-              <div className="p-5 border-t border-gray-100 bg-gray-50 flex items-center justify-between shrink-0 rounded-b-3xl">
+              <div className="p-3 sm:p-4 md:p-5 border-t border-gray-100 bg-gray-50 flex items-center justify-between shrink-0 rounded-b-3xl">
                 <div>
                   {aiGenStep > 1 && !isAIGenGenerating && (
                     <button
                       onClick={() => setAiGenStep(aiGenStep - 1)}
-                      className="px-6 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-50 transition-colors flex items-center gap-2"
+                      className="px-3 sm:px-4 md:px-6 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-50 transition-colors flex items-center gap-2"
                     >
                       <ChevronRight className="w-4 h-4" /> رجوع
                     </button>
@@ -2066,13 +2066,13 @@ ${t.description}
                           printWin.document.close();
                         }
                       }}
-                      className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm"
+                      className="px-3 sm:px-4 md:px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm"
                     >
                       <Printer className="w-4 h-4" /> تصدير PDF / طباعة
                     </button>
                     <button
                       onClick={saveAIGeneratedLetter}
-                      className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-sm"
+                      className="px-3 sm:px-4 md:px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-sm"
                     >
                       <Check className="w-4 h-4" /> حفظ وأرشفة التعميم
                     </button>

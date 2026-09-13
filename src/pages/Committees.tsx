@@ -1,5 +1,6 @@
 import React, { useState, useEffect, FormEvent, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { Skeleton } from "../components/ui/skeleton";
 import { 
   Users2, 
   Search, 
@@ -50,7 +51,7 @@ const EMPLOYEES = [
 ];
 
 export default function Committees() {
-  const { data: dbCommittees, updateDocument: updateFirebaseComm, deleteDocument: deleteFirebaseComm } = useFirestoreCollection<Committee>("committees", []);
+  const { data: dbCommittees, loading: committeesLoading, updateDocument: updateFirebaseComm, deleteDocument: deleteFirebaseComm } = useFirestoreCollection<Committee>("committees", []);
   const { data: dbMembers } = useFirestoreCollection<any>("members", []);
   const { data: dbEvents } = useFirestoreCollection<any>("events", []);
   const { data: dbRecs } = useFirestoreCollection<any>("recommendations", []);
@@ -638,9 +639,9 @@ export default function Committees() {
   return (
     <div className="space-y-6 pb-16">
       {/* Page Header Area */}
-      <div className="bg-[#e8e4e4] rounded-2xl p-6 border border-gray-200 shadow-sm flex flex-col xl:flex-row items-center justify-between gap-4">
+      <div className="bg-[#e8e4e4] rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 border border-gray-200 shadow-sm flex flex-col xl:flex-row items-center justify-between gap-2.5 sm:gap-3 md:gap-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
+          <h2 className="text-sm sm:text-base md:text-lg sm:text-xl md:text-2xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
             <Users2 className="w-7 h-7 text-brand" />
             <span>تشكيل اللجان</span>
           </h2>
@@ -764,11 +765,11 @@ export default function Committees() {
           <div className="flex gap-2">
             <div className="bg-white px-3.5 py-1.5 rounded-xl text-center shadow-inner" style={{ borderWidth: '0px' }}>
               <span className="text-[10px] font-black text-gray-400 block leading-tight">إجمالي اللجان</span>
-              <span className="text-lg font-black text-brand leading-none font-mono">{synchronizedCommittees.length}</span>
+              <span className="text-sm sm:text-base md:text-lg font-black text-brand leading-none font-mono">{synchronizedCommittees.length}</span>
             </div>
             <div className="bg-white px-3.5 py-1.5 rounded-xl text-center shadow-inner" style={{ borderWidth: '0px' }}>
               <span className="text-[10px] font-black text-gray-400 block leading-tight">الأعضاء المشاركون</span>
-              <span className="text-lg font-black text-emerald-600 leading-none font-mono">
+              <span className="text-sm sm:text-base md:text-lg font-black text-emerald-600 leading-none font-mono">
                 {synchronizedCommittees.reduce((acc, c) => acc + c.membersCount, 0)}
               </span>
             </div>
@@ -778,9 +779,28 @@ export default function Committees() {
       </div>
 
       {/* COMMITTEES DISPLAY GRID OR TABLE */}
-      {filteredCommittees.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center space-y-3">
-          <div className="w-16 h-16 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mx-auto">
+      {committeesLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="bg-[#e8e4e4] rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 border border-gray-200 min-h-[300px] flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <Skeleton className="h-6 w-32" />
+                <Skeleton className="h-6 w-6 rounded-lg" />
+              </div>
+              <div className="mt-4 space-y-4">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <div className="grid grid-cols-2 gap-2">
+                  <Skeleton className="h-8 w-full rounded-xl" />
+                  <Skeleton className="h-8 w-full rounded-xl" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : filteredCommittees.length === 0 ? (
+        <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl p-12 text-center space-y-3">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mx-auto">
             <Search className="w-7 h-7" />
           </div>
           <p className="text-gray-500 font-extrabold text-base">لم يعثر على أية نتائج مخصصة لعملية البحث الحالية.</p>
@@ -792,7 +812,7 @@ export default function Committees() {
           </button>
         </div>
       ) : viewMode === "cards" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
           <AnimatePresence mode="popLayout">
             {filteredCommittees.map((comm) => (
               <motion.div key={comm.id}
@@ -800,7 +820,7 @@ export default function Committees() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ duration: 0.3 }}
-                className={`bg-[#e8e4e4] hover:bg-[#e2dede] transition-colors duration-300 rounded-2xl p-5 border shadow-sm hover:shadow-md relative group flex flex-col justify-between ${!comm.active ? "opacity-50 grayscale-[30%] border-gray-300" : "border-gray-200"}`}
+                className={`bg-[#e8e4e4] hover:bg-[#e2dede] transition-colors duration-300 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 border shadow-sm hover:shadow-md relative group flex flex-col justify-between ${!comm.active ? "opacity-50 grayscale-[30%] border-gray-300" : "border-gray-200"}`}
               >
                 {/* ⚙️ Settings Gear Button */}
                 <div className="absolute top-4 left-4 z-20">
@@ -946,7 +966,7 @@ export default function Committees() {
         </div>
       ) : (
         /* TABLE REGISTER VIEW LAYOUT */
-        <div className="bg-[#e8e4e4] rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-right">
+        <div className="bg-[#e8e4e4] rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-right">
           <div className="overflow-x-auto custom-scrollbar font-sans pb-36">
             <table className="w-full text-xs font-semibold text-gray-700 select-none border-collapse text-right">
               <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
@@ -1099,9 +1119,9 @@ export default function Committees() {
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 15, opacity: 0 }}
               transition={{ type: "spring", damping: 20, stiffness: 280 }}
-              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right max-h-[90vh] flex flex-col"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-lg shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right max-h-[90vh] flex flex-col"
             >
-              <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
+              <div className="bg-[#e8e4e4] p-3 sm:p-4 md:p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-600 text-white rounded-xl">
                     {editingComm ? <Edit2 className="w-5 h-5 stroke-[2.5]" /> : <Plus className="w-5 h-5 stroke-[2.5]" />}
@@ -1122,7 +1142,7 @@ export default function Committees() {
                 </button>
               </div>
 
-              <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+              <div className="p-3 sm:p-4 md:p-6 overflow-y-auto custom-scrollbar flex-1">
                 <form onSubmit={handleFormSubmit} className="space-y-4">
                   {newMtgError && (
                     <div className="bg-red-50 border border-red-100 text-red-700 p-3 rounded-xl text-[11px] font-bold text-right flex items-center gap-2">
@@ -1132,7 +1152,7 @@ export default function Committees() {
                   )}
 
                   {editingComm && (
-                    <div className="space-y-1.5 bg-amber-50/60 p-3.5 rounded-2xl border border-amber-200 text-right">
+                    <div className="space-y-1.5 bg-amber-50/60 p-3.5 rounded-xl sm:rounded-2xl border border-amber-200 text-right">
                       <label className="block text-xs font-black text-amber-800 mb-1">
                         سبب التعديل <span className="text-red-500">*</span>
                       </label>
@@ -1159,7 +1179,7 @@ export default function Committees() {
                     />
                   </div>
 
-                  <div className={editingComm ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "w-full"}>
+                  <div className={editingComm ? "grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4" : "w-full"}>
                     {editingComm && (
                       <div className="space-y-1.5">
                         <label className="block text-xs font-black text-gray-700">رئيس اللجنة</label>
@@ -1347,7 +1367,7 @@ export default function Committees() {
                 </form>
               </div>
 
-              <div className="p-5 border-t border-gray-100 shrink-0">
+              <div className="p-3 sm:p-4 md:p-5 border-t border-gray-100 shrink-0">
                 <div className="flex items-center gap-3">
                   <button
                     type="submit"
@@ -1373,7 +1393,7 @@ export default function Committees() {
                     type="button"
                     disabled={isUploading}
                     onClick={() => setIsAddOpen(false)}
-                    className="px-6 h-11 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-750 font-extrabold text-sm rounded-xl transition-all cursor-pointer"
+                    className="px-3 sm:px-4 md:px-6 h-11 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-750 font-extrabold text-sm rounded-xl transition-all cursor-pointer"
                   >
                     إلغاء الأمر
                   </button>
@@ -1400,7 +1420,7 @@ export default function Committees() {
               initial={{ scale: 0.9, y: 15, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 15, opacity: 0 }}
-              className="bg-white rounded-3xl w-full max-w-md shadow-2xl p-6 relative overflow-hidden z-10 text-right space-y-4 border border-red-100"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-md shadow-2xl p-3 sm:p-4 md:p-6 relative overflow-hidden z-10 text-right space-y-4 border border-red-100"
             >
               <div className="flex items-center gap-3 border-b border-gray-100 pb-3">
                 <div className="p-2 bg-red-100 text-red-600 rounded-xl">
@@ -1450,7 +1470,7 @@ export default function Committees() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl sm:rounded-2xl p-4 space-y-2">
                     <div className="flex items-center gap-2 text-amber-850 font-black text-xs">
                       <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
                       <span>تنبيه: تم تغيير حالة اللجنة بنجاح لتكون غير نشطة 🔴</span>
@@ -1526,16 +1546,16 @@ export default function Committees() {
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 15, opacity: 0 }}
               transition={{ type: "spring", damping: 22, stiffness: 280 }}
-              className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-150 relative overflow-hidden z-10 text-right font-sans"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-150 relative overflow-hidden z-10 text-right font-sans"
             >
-              <div className="bg-[#e8e4e4] p-6 border-b border-gray-200 flex items-center justify-between">
+              <div className="bg-[#e8e4e4] p-3 sm:p-4 md:p-6 border-b border-gray-200 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
                     <Users2 className="w-6 h-6 text-brand" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-extrabold text-gray-900 text-lg leading-tight">
+                      <h3 className="font-extrabold text-gray-900 text-sm sm:text-base md:text-lg leading-tight">
                         {detailsComm.name}
                       </h3>
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black ${
@@ -1557,18 +1577,18 @@ export default function Committees() {
                 </button>
               </div>
 
-              <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
+              <div className="p-3 sm:p-4 md:p-6 space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
                 
                 <div className="space-y-2 text-right">
                   <h4 className="text-xs font-black text-gray-400 tracking-wider">وصف اللجنة ومسؤولياتها الرئيسية</h4>
-                  <div className="bg-[#fcfbfb] border border-[#d2cece] rounded-2xl p-4 text-sm font-medium text-gray-800 leading-relaxed shadow-inner">
+                  <div className="bg-[#fcfbfb] border border-[#d2cece] rounded-xl sm:rounded-2xl p-4 text-sm font-medium text-gray-800 leading-relaxed shadow-inner">
                     {detailsComm.desc || "لم يتم إدخال وصف تفصيلي للجنة بعد."}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4">
                   <div className="space-y-4">
-                    <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-2xl p-4 space-y-3">
+                    <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-xl sm:rounded-2xl p-4 space-y-3">
                       <h5 className="text-xs font-black text-gray-500 border-b border-gray-200/60 pb-1.5">هيكل اللجنة</h5>
                       
                       {detailsComm.president && (
@@ -1609,42 +1629,42 @@ export default function Committees() {
 
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-2xl p-4 flex flex-col justify-between text-right">
+                      <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-xl sm:rounded-2xl p-4 flex flex-col justify-between text-right">
                         <div>
                           <Users className="w-5 h-5 text-blue-600 mb-2" />
                           <span className="text-[10px] text-gray-400 font-black block leading-tight">أعضاء اللجنة</span>
                         </div>
-                        <span className="text-xl font-black text-gray-900 font-mono mt-2">{detailsComm.membersCount}</span>
+                        <span className="text-base sm:text-lg md:text-xl font-black text-gray-900 font-mono mt-2">{detailsComm.membersCount}</span>
                       </div>
 
-                      <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-2xl p-4 flex flex-col justify-between text-right">
+                      <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-xl sm:rounded-2xl p-4 flex flex-col justify-between text-right">
                         <div>
                           <Calendar className="w-5 h-5 text-amber-600 mb-2" />
                           <span className="text-[10px] text-gray-400 font-black block leading-tight">الاجتماعات المنجزة</span>
                         </div>
-                        <span className="text-xl font-black text-gray-900 font-mono mt-2">{detailsComm.meetingsCount}</span>
+                        <span className="text-base sm:text-lg md:text-xl font-black text-gray-900 font-mono mt-2">{detailsComm.meetingsCount}</span>
                       </div>
 
-                      <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-2xl p-4 flex flex-col justify-between text-right">
+                      <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-xl sm:rounded-2xl p-4 flex flex-col justify-between text-right">
                         <div>
                           <CheckCircle className="w-5 h-5 text-emerald-600 mb-2" />
                           <span className="text-[10px] text-gray-400 font-black block leading-tight">التوصيات الصادرة</span>
                         </div>
-                        <span className="text-xl font-black text-emerald-700 font-mono mt-2">{detailsComm.recommendationsCount || 0}</span>
+                        <span className="text-base sm:text-lg md:text-xl font-black text-emerald-700 font-mono mt-2">{detailsComm.recommendationsCount || 0}</span>
                       </div>
 
-                      <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-2xl p-4 flex flex-col justify-between text-right">
+                      <div className="bg-[#e8e4e4]/40 border border-gray-200 rounded-xl sm:rounded-2xl p-4 flex flex-col justify-between text-right">
                         <div>
                           <FileText className="w-5 h-5 text-purple-600 mb-2" />
                           <span className="text-[10px] text-gray-400 font-black block leading-tight">الفعاليات المنجزة</span>
                         </div>
-                        <span className="text-xl font-black text-purple-700 font-mono mt-2">{detailsComm.eventsCount || 0}</span>
+                        <span className="text-base sm:text-lg md:text-xl font-black text-purple-700 font-mono mt-2">{detailsComm.eventsCount || 0}</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="border border-gray-150 rounded-2xl p-4 bg-orange-50/20 text-right space-y-2">
+                <div className="border border-gray-150 rounded-xl sm:rounded-2xl p-4 bg-orange-50/20 text-right space-y-2">
                   <div className="flex items-center gap-2 text-xs font-black text-amber-800">
                     <CheckCircle className="w-4 h-4 text-emerald-600" />
                     <span>مقر ومستوى الحوكمة للجنة</span>
@@ -1655,7 +1675,7 @@ export default function Committees() {
                 </div>
 
                 {/* روابط المرفقات المؤرشفة (إن وجدت) */}
-                <div className="border border-gray-200 rounded-2xl p-4 bg-white text-right space-y-3">
+                <div className="border border-gray-200 rounded-xl sm:rounded-2xl p-4 bg-white text-right space-y-3">
                   <h5 className="text-xs font-black text-gray-500 border-b border-gray-200/60 pb-1.5 flex items-center gap-2">
                     <FileSpreadsheet className="w-4 h-4 text-brand" />
                     المستندات المؤرشفة (Drive)
@@ -1689,7 +1709,7 @@ export default function Committees() {
 
               </div>
 
-              <div className="bg-gray-50 px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3 shrink-0">
+              <div className="bg-gray-50 px-3 sm:px-4 md:px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3 shrink-0">
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -1718,7 +1738,7 @@ export default function Committees() {
                 <button
                   type="button"
                   onClick={() => setDetailsComm(null)}
-                  className="px-5 h-10 bg-gray-200 hover:bg-gray-300 text-gray-750 font-extrabold text-xs rounded-xl transition-all cursor-pointer"
+                  className="px-3 sm:px-4 md:px-5 h-10 bg-gray-200 hover:bg-gray-300 text-gray-750 font-extrabold text-xs rounded-xl transition-all cursor-pointer"
                 >
                   إغلاق النافذة
                 </button>
@@ -1744,9 +1764,9 @@ export default function Committees() {
               initial={{ scale: 0.9, y: 15, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 15, opacity: 0 }}
-              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right text-slate-800"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-lg shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right text-slate-800"
             >
-              <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between">
+              <div className="bg-[#e8e4e4] p-3 sm:p-4 md:p-5 border-b border-gray-200 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-emerald-600 text-white rounded-xl">
                     <FileSpreadsheet className="w-5 h-5" />
@@ -1767,7 +1787,7 @@ export default function Committees() {
                 </button>
               </div>
 
-              <div className="p-6 space-y-4">
+              <div className="p-3 sm:p-4 md:p-6 space-y-4">
                 <p className="text-xs font-semibold text-gray-650 leading-relaxed bg-emerald-50 text-emerald-800 p-3 rounded-xl border border-emerald-100">
                   سيتم فرز وتصدير اللجان المحددة أبجدياً مع جلب كافة الإحصائيات الفعالة تلقائياً من النظام.
                 </p>
@@ -1793,7 +1813,7 @@ export default function Committees() {
                 </div>
               </div>
 
-              <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex gap-3">
+              <div className="p-3 sm:p-4 md:p-6 border-t border-gray-100 bg-gray-50/50 flex gap-3">
                 <button
                   type="button"
                   onClick={handleExportToGoogleSheets}
@@ -1805,7 +1825,7 @@ export default function Committees() {
                 <button
                   type="button"
                   onClick={() => setIsExportOpen(false)}
-                  className="px-5 h-11 bg-gray-200 hover:bg-gray-300 text-gray-750 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  className="px-3 sm:px-4 md:px-5 h-11 bg-gray-200 hover:bg-gray-300 text-gray-750 font-bold text-xs rounded-xl transition-all cursor-pointer"
                 >
                   إلغاء
                 </button>

@@ -9,5 +9,5 @@ export default function Dump() {
       setData(snap.docs.map(d => ({ _id: d.id, ...d.data() })));
     });
   }, []);
-  return <pre className="p-10">{JSON.stringify(data, null, 2)}</pre>;
+  return <pre className="p-5 sm:p-8 md:p-10">{JSON.stringify(data, null, 2)}</pre>;
 }

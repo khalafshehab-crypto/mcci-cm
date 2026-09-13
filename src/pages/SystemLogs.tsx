@@ -28,21 +28,21 @@ export default function SystemLogs() {
   return (
     <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500 font-sans pb-20" dir="rtl">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 bg-[#e8e4e4] p-5 sm:p-6 rounded-3xl border border-gray-200 shadow-sm relative overflow-hidden">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-2.5 sm:gap-3 md:gap-4 bg-[#e8e4e4] p-3 sm:p-4 md:p-5 sm:p-6 rounded-xl sm:rounded-2xl sm:rounded-3xl border border-gray-200 shadow-sm relative overflow-hidden">
         <div className="absolute -left-24 -top-24 w-48 h-48 bg-brand/5 rounded-full blur-3xl pointer-events-none"></div>
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2.5 bg-gray-900 text-white rounded-xl shadow-lg shadow-gray-900/30">
               <ShieldCheck className="w-5 h-5" />
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">سجل الحركات الشامل</h2>
+            <h2 className="text-base sm:text-lg md:text-xl sm:text-2xl font-black text-gray-900 tracking-tight">سجل الحركات الشامل</h2>
           </div>
           <p className="text-sm font-bold text-gray-500">مراقبة أمنية وتتبع لكافة العمليات التي تتم في النظام</p>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row gap-4">
+      <div className="bg-white p-4 rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row gap-2.5 sm:gap-3 md:gap-4">
         <div className="relative flex-1">
           <Search className="w-5 h-5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input 
@@ -72,31 +72,31 @@ export default function SystemLogs() {
       </div>
 
       {/* Logs Table */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-gray-500 font-bold">جاري تحميل السجلات...</div>
+          <div className="p-4 sm:p-6 md:p-8 text-center text-gray-500 font-bold">جاري تحميل السجلات...</div>
         ) : filteredLogs.length === 0 ? (
-          <div className="p-8 text-center text-gray-500 font-bold">لا توجد حركات مسجلة تطابق بحثك.</div>
+          <div className="p-4 sm:p-6 md:p-8 text-center text-gray-500 font-bold">لا توجد حركات مسجلة تطابق بحثك.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-right text-sm">
               <thead className="bg-gray-50 text-gray-600 font-black border-b border-gray-200 text-xs">
                 <tr>
-                  <th className="px-6 py-4">التاريخ والوقت</th>
-                  <th className="px-6 py-4">الموظف (المستخدم)</th>
-                  <th className="px-6 py-4">القسم (Module)</th>
-                  <th className="px-6 py-4">نوع الإجراء</th>
-                  <th className="px-6 py-4">التفاصيل</th>
+                  <th className="px-3 sm:px-4 md:px-6 py-4">التاريخ والوقت</th>
+                  <th className="px-3 sm:px-4 md:px-6 py-4">الموظف (المستخدم)</th>
+                  <th className="px-3 sm:px-4 md:px-6 py-4">القسم (Module)</th>
+                  <th className="px-3 sm:px-4 md:px-6 py-4">نوع الإجراء</th>
+                  <th className="px-3 sm:px-4 md:px-6 py-4">التفاصيل</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 font-bold">
                 {filteredLogs.map((log: any) => (
                   <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 text-gray-500 text-xs flex items-center gap-1.5 whitespace-nowrap">
+                    <td className="px-3 sm:px-4 md:px-6 py-4 text-gray-500 text-xs flex items-center gap-1.5 whitespace-nowrap">
                       <Clock className="w-3.5 h-3.5" />
                       {new Date(log.timestamp).toLocaleString('ar-SA')}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 sm:px-4 md:px-6 py-4">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-600">
                           <User className="w-3.5 h-3.5" />
@@ -104,18 +104,18 @@ export default function SystemLogs() {
                         <span className="text-gray-900">{log.userName}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-gray-600">
+                    <td className="px-3 sm:px-4 md:px-6 py-4 text-gray-600">
                       <div className="flex items-center gap-1.5">
                         <FileText className="w-4 h-4 text-gray-400" />
                         {log.moduleName}
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 sm:px-4 md:px-6 py-4">
                       <span className={`px-2.5 py-1 rounded-md text-[10px] font-black ${getActionColor(log.actionType)}`}>
                         {log.actionType}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-gray-700 max-w-md truncate" title={log.details}>
+                    <td className="px-3 sm:px-4 md:px-6 py-4 text-gray-700 max-w-md truncate" title={log.details}>
                       {log.details}
                     </td>
                   </tr>

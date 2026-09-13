@@ -21,8 +21,8 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import UserProfileModal from "./UserProfileModal";
-import { Link, useLocation } from "react-router-dom";import NotificationCenter from "./NotificationCenter";
-import { subscribeToFirestoreBlocked } from "../lib/firebaseUtils";
+import { Link, useLocation } from "react-router-dom";
+import NotificationCenter from "./NotificationCenter";
  
 interface LayoutProps {
   user?: any;
@@ -47,12 +47,6 @@ export default function Layout({ children, user }: LayoutProps) {
   const [userPhoto, setUserPhoto] = useState<string | null>(null);
   const [currentUserObj, setCurrentUserObj] = useState<any>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
-
-  useEffect(() => {
-    return subscribeToFirestoreBlocked((blocked) => {
-      setIsDatabaseBlocked(blocked);
-    });
-  }, []);
  
   useEffect(() => {
     try {
@@ -284,13 +278,13 @@ export default function Layout({ children, user }: LayoutProps) {
     : "قطاع اللجان والمراكز";
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#cccccc] p-4 md:p-6 text-gray-800 font-sans">
+    <div dir="rtl" className="min-h-screen bg-[#cccccc] p-2 sm:p-4 md:p-6 text-gray-800 font-sans">
       
       {/* Header Bar */}
-      <header className="bg-[#e8e4e4] rounded-2xl shadow-sm border border-gray-200 p-2 flex flex-col lg:flex-row items-stretch xl:items-center justify-between gap-4">
+      <header className="bg-[#e8e4e4] rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 p-2 sm:p-3 flex flex-col md:flex-row items-center justify-between gap-3 md:gap-4">
         
         {/* RIGHT: Logo & Main Navigation */}
-        <div className="flex items-center gap-4 flex-shrink-0">
+        <div className="flex items-center justify-between w-full md:w-auto gap-2.5 sm:gap-3 md:gap-4 flex-shrink-0">
           <div className="relative dropdown-container flex-shrink-0 z-50">
             <button 
               onClick={() => toggleDropdown('mainMenu')} 
@@ -310,9 +304,9 @@ export default function Layout({ children, user }: LayoutProps) {
                   }}
                 />
               </div>
-              <div className="hidden sm:block text-right pr-2">
-                <h1 className="text-[13px] font-black text-gray-900 leading-tight">قطاع اللجان والمراكز</h1>
-                <p className="text-[10px] font-bold text-gray-500 mt-0.5 flex items-center gap-1">
+              <div className="block text-right pr-2 overflow-hidden">
+                <h1 className="text-[12px] sm:text-[13px] font-black text-gray-900 leading-tight truncate max-w-[140px] sm:max-w-none">قطاع اللجان والمراكز</h1>
+                <p className="text-[9px] sm:text-[10px] font-bold text-gray-500 mt-0.5 flex items-center gap-1 truncate max-w-[140px] sm:max-w-none">
                   {headerSubtitle} <ChevronDown className={`w-3 h-3 transition-transform ${activeDropdown === 'mainMenu' ? 'rotate-180' : ''}`} />
                 </p>
               </div>
@@ -324,7 +318,7 @@ export default function Layout({ children, user }: LayoutProps) {
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 5 }}
-                  className="absolute top-full right-0 mt-2 w-[280px] sm:w-80 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden flex flex-col"
+                  className="absolute top-full right-0 mt-2 w-[90vw] sm:w-80 max-w-sm bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden flex flex-col"
                   style={{ maxHeight: '80vh' }}
                 >
                   <div className="p-1.5 space-y-1 overflow-y-auto flex-1">
@@ -430,34 +424,38 @@ export default function Layout({ children, user }: LayoutProps) {
               )}
             </AnimatePresence>
           </div>
+          <div className="block md:hidden">
+            <NotificationCenter />
+          </div>
         </div>
-
-        <div className="flex-grow"></div>
+        <div className="flex-grow hidden md:block"></div>
 
         {/* LEFT: Date/Time */}
-        <div className="flex flex-col md:flex-row-reverse items-stretch md:items-center gap-2">
+        <div className="flex flex-col md:flex-row-reverse items-center justify-center w-full md:w-auto gap-2">
           {/* Date & Time */}
-          <div className="flex flex-row-reverse items-center gap-2 pr-0 pt-2 md:pt-0">
-            <NotificationCenter />
+          <div className="flex flex-row-reverse flex-wrap items-center justify-center gap-2 pr-0 w-full md:w-auto">
+            <div className="hidden md:block">
+              <NotificationCenter />
+            </div>
             {/* 1. Date Cards */}
-            <div id="datetime-card" className="flex flex-col gap-1">
-              <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-gray-100 shadow-sm min-w-0 sm:min-w-[150px]">
+            <div id="datetime-card" className="flex flex-row md:flex-col gap-2 md:gap-1 w-full md:w-auto justify-center">
+              <div className="flex items-center justify-between md:justify-center gap-2 bg-white px-2 sm:px-3 py-1 rounded-lg border border-gray-100 shadow-sm min-w-0 sm:min-w-[150px] flex-1 md:flex-none">
                 <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded shadow-inner font-black">AD</span>
                 <span className="text-[10px] font-bold text-gray-700 uppercase tracking-tight">{gregorianDate} </span>
               </div>
-              <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-brand/20 shadow-sm min-w-0 sm:min-w-[150px]">
+              <div className="flex items-center justify-between md:justify-center gap-2 bg-white px-2 sm:px-3 py-1 rounded-lg border border-brand/20 shadow-sm min-w-0 sm:min-w-[150px] flex-1 md:flex-none">
                 <span className="text-[9px] bg-brand/10 text-brand px-1.5 py-0.5 rounded shadow-inner font-black">HI</span>
                 <span className="text-[10px] font-bold text-brand uppercase tracking-tight">{hijriDate} </span>
               </div>
             </div>
 
             {/* 2. Time Card */}
-            <div className="flex flex-col gap-1 hidden sm:flex">
-              <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-gray-100 shadow-sm min-w-0 sm:min-w-[150px]">
+            <div className="flex flex-row md:flex-col gap-2 md:gap-1 w-full md:w-auto justify-center">
+              <div className="flex items-center justify-between md:justify-center gap-2 bg-white px-2 sm:px-3 py-1 rounded-lg border border-gray-100 shadow-sm min-w-0 sm:min-w-[150px] flex-1 md:flex-none">
                 <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded shadow-inner font-black">DAY</span>
                 <span className="text-[10px] font-bold text-gray-700 uppercase tracking-tight">{dayName}</span>
               </div>
-              <div className="flex items-center justify-center gap-2 bg-white px-3 py-1 rounded-lg border border-gray-100 shadow-sm min-w-0 sm:min-w-[150px]">
+              <div className="flex items-center justify-between md:justify-center gap-2 bg-white px-2 sm:px-3 py-1 rounded-lg border border-gray-100 shadow-sm min-w-0 sm:min-w-[150px] flex-1 md:flex-none">
                 <span className="text-[9px] bg-brand/10 text-brand px-1.5 py-0.5 rounded shadow-inner font-black">TIME</span>
                 <span className="text-[10px] font-bold text-brand uppercase tracking-tight font-mono">{timeStr}</span>
               </div>
@@ -470,16 +468,16 @@ export default function Layout({ children, user }: LayoutProps) {
       {/* Main Content Area */}
       <main className="w-full mt-6 space-y-4">
         {allPages.some(p => p.path === location.pathname) && !filteredPages.some(p => p.path === location.pathname) ? (
-          <div className="bg-white rounded-3xl border border-red-150 p-10 text-center space-y-4 max-w-xl mx-auto shadow-xl my-10 animate-fadeIn">
-            <div className="w-20 h-20 bg-red-50 text-red-600 rounded-full flex items-center justify-center text-4xl mx-auto font-black shadow-inner border border-red-100">
+          <div className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl border border-red-150 p-5 sm:p-8 md:p-10 text-center space-y-4 max-w-xl mx-auto shadow-xl my-10 animate-fadeIn">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 bg-red-50 text-red-600 rounded-full flex items-center justify-center text-sm sm:text-base md:text-lg sm:text-xl md:text-2xl sm:text-3xl md:text-4xl mx-auto font-black shadow-inner border border-red-100">
               🚫
             </div>
-            <h2 className="text-xl font-black text-gray-900">عذراً، هذه الصفحة غير مصرحة لحسابك</h2>
+            <h2 className="text-base sm:text-lg md:text-xl font-black text-gray-900">عذراً، هذه الصفحة غير مصرحة لحسابك</h2>
             <p className="text-gray-500 text-xs leading-relaxed max-w-md mx-auto">
               تلقينا توجيهاً إدارياً بتقييد وصول حسابك لورقة العمل الحالية. يرجى مراجعة <strong>مدير النظام الأعلى</strong> أو الأخصائي لتهيئة وإضافة علامة الصح الخاصة بملفك الشخصي.
             </p>
             <div className="pt-4 flex justify-center gap-3">
-              <Link to="/" className="px-6 py-2.5 bg-brand text-white font-black text-xs rounded-xl hover:bg-brand/90 transition-all inline-block shadow-md">
+              <Link to="/" className="px-3 sm:px-4 md:px-6 py-2.5 bg-brand text-white font-black text-xs rounded-xl hover:bg-brand/90 transition-all inline-block shadow-md">
                 العودة للوحة الرئيسية
               </Link>
             </div>

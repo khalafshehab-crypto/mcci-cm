@@ -1,0 +1,6 @@
+{
+  "appId": "com.makkahchamber.committees",
+  "appName": "بوابة اللجان القطاعية",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}

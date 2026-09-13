@@ -111,15 +111,15 @@ export default function UserProfileModal({ user, onClose, onUpdate }: { user: an
       <motion.div
         initial={{ scale: 0.9, opacity: 0, y: 15 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
-        className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] border border-gray-100 overflow-hidden"
+        className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] border border-gray-100 overflow-hidden"
       >
-        <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50">
+        <div className="flex items-center justify-between p-3 sm:p-4 md:p-6 border-b border-gray-100 bg-gray-50/50">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-brand/10 rounded-xl flex items-center justify-center text-brand">
               <User className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-extrabold text-gray-900 text-lg">بياناتي الشخصية</h3>
+              <h3 className="font-extrabold text-gray-900 text-sm sm:text-base md:text-lg">بياناتي الشخصية</h3>
               <p className="text-xs font-semibold text-gray-500">يرجى استكمال البيانات الرئيسية للبطاقة الوظيفية</p>
             </div>
           </div>
@@ -128,7 +128,7 @@ export default function UserProfileModal({ user, onClose, onUpdate }: { user: an
           </button>
         </div>
 
-        <form onSubmit={handleSave} className="p-6 overflow-y-auto custom-scrollbar space-y-6">
+        <form onSubmit={handleSave} className="p-3 sm:p-4 md:p-6 overflow-y-auto custom-scrollbar space-y-6">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-650 px-4 py-3 rounded-xl text-xs font-bold text-center">
               {error}
@@ -137,8 +137,8 @@ export default function UserProfileModal({ user, onClose, onUpdate }: { user: an
 
           {/* Photo Upload */}
           <div className="flex flex-col items-center justify-center">
-            <div className="relative w-24 h-24 mb-2">
-              <div className="w-full h-full rounded-2xl border-4 border-white shadow-md overflow-hidden bg-gray-50 flex items-center justify-center">
+            <div className="relative w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 mb-2">
+              <div className="w-full h-full rounded-xl sm:rounded-2xl border-4 border-white shadow-md overflow-hidden bg-gray-50 flex items-center justify-center">
                 {formPhoto ? <img src={formPhoto} alt="Avatar" className="w-full h-full object-cover" /> : <User className="w-10 h-10 text-gray-300" />}
               </div>
               <label className="absolute bottom-[-8px] right-[-8px] w-8 h-8 bg-brand rounded-full border-2 border-white flex items-center justify-center text-white cursor-pointer hover:bg-blue-700 transition-colors">
@@ -155,7 +155,7 @@ export default function UserProfileModal({ user, onClose, onUpdate }: { user: an
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-4 md:gap-5">
             <div className="space-y-4">
               <div>
                 <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">الرقم الوظيفي</label>
@@ -270,7 +270,7 @@ export default function UserProfileModal({ user, onClose, onUpdate }: { user: an
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-2.5 bg-brand hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all flex items-center gap-2 disabled:opacity-50"
+              className="px-3 sm:px-4 md:px-6 py-2.5 bg-brand hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all flex items-center gap-2 disabled:opacity-50"
             >
               {loading ? (
                 <>جاري الحفظ...</>

@@ -108,6 +108,8 @@ const executeWithFallback = async (operationBuilder: (modelName: string) => Prom
 
       const responseData = await response.text();
       if (!response.ok) {
+        console.error("[Google Proxy] Error:", response.status, responseData);
+        require("fs").appendFileSync("proxy_errors.log", new Date().toISOString() + " " + response.status + " " + responseData + "\n");
         return res.status(response.status).json({ error: { message: responseData } });
       }
 

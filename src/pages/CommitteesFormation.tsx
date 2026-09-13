@@ -13,90 +13,11 @@ import { showGlobalToast, clearGlobalToast } from "../lib/toastUtils";
 import { getCachedAccessToken, getSharedAccessToken, createAndPopulateSheet, getOrCreateFolder, subscribeToAccessToken, triggerAuthModal, uploadBinaryFileToDrive } from "../lib/googleApi";
 
 
+import { AttachmentInput } from "../components/AttachmentInput";
 
-interface AttachmentInputProps {
-  label: string;
-  value: File | string | null;
-  onChange: (val: File | string | null) => void;
-  id: string;
-}
+import { GooglePickerButton } from "../components/GooglePickerButton";
 
-function AttachmentInput({ label, value, onChange, id }: AttachmentInputProps) {
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      onChange(e.target.files[0]);
-    }
-  };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      onChange(e.dataTransfer.files[0]);
-    }
-  };
-
-  const displayValue = (value && typeof value === "object" && "name" in value) ? (value as any).name : value;
-
-  return (
-    <div
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      className={`border-2 border-dashed rounded-2xl p-3.5 text-center transition-all relative ${
-        value
-          ? "border-emerald-300 bg-emerald-50/40"
-          : "border-gray-200 bg-gray-50/50 hover:bg-gray-100/70"
-      }`}
-    >
-      <input
-        type="file"
-        id={id}
-        className="hidden"
-        onChange={handleFileChange}
-      />
-      {value ? (
-        <div className="flex flex-col items-center gap-1.5">
-          <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
-            <Check className="w-4 h-4 text-emerald-600" />
-          </div>
-          <span className="text-[10px] font-bold text-emerald-800 max-w-full truncate px-2">{displayValue}</span>
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); onChange(null); }}
-            className="text-[9px] text-rose-500 hover:text-rose-600 font-bold underline mt-1"
-          >
-            حذف المرفق
-          </button>
-        </div>
-      ) : (
-        <label htmlFor={id} className="cursor-pointer flex flex-col items-center gap-1.5">
-          <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
-            <Upload className="w-4 h-4 text-blue-500" />
-          </div>
-          <span className="text-[10px] font-bold text-gray-600">
-            {label}
-          </span>
-          <span className="text-[8.5px] text-gray-400">سحب وإفلات أو تصفح</span>
-        </label>
-      )}
-      {!value && (
-        <div className="mt-2 pt-2 border-t border-gray-200/50">
-          <input 
-            type="text" 
-            placeholder="أو ضع رابط جوجل درايف هنا..." 
-            className="w-full text-[9px] p-1.5 rounded-lg border border-gray-200 focus:border-blue-500 outline-none text-right font-mono"
-            onChange={(e) => {
-              if(e.target.value) onChange(e.target.value);
-            }}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
 
 export interface Committee {
   id: number | string;
@@ -201,9 +122,9 @@ function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenE
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.9, y: 15, opacity: 0 }}
         transition={{ type: "spring", damping: 22, stiffness: 280 }}
-        className="bg-white rounded-3xl w-full max-w-5xl shadow-2xl border border-gray-150 relative overflow-hidden z-10 text-right font-sans h-[90vh] flex flex-col"
+        className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-5xl shadow-2xl border border-gray-150 relative overflow-hidden z-10 text-right font-sans h-[90vh] flex flex-col"
       >
-        <div className="bg-[#e8e4e4] px-6 py-4 border-b border-gray-200 shrink-0">
+        <div className="bg-[#e8e4e4] px-3 sm:px-4 md:px-6 py-4 border-b border-gray-200 shrink-0">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
@@ -211,7 +132,7 @@ function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenE
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-extrabold text-gray-900 text-lg leading-tight">
+                  <h3 className="font-extrabold text-gray-900 text-sm sm:text-base md:text-lg leading-tight">
                     {detailsComm.name}
                   </h3>
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black ${
@@ -260,47 +181,47 @@ function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenE
           </div>
         </div>
 
-        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 bg-gray-50/50">
+        <div className="p-3 sm:p-4 md:p-6 overflow-y-auto custom-scrollbar flex-1 bg-gray-50/50">
           
           {activeTab === "overview" && (
             <div className="space-y-6">
               <div className="space-y-2 text-right">
                 <h4 className="text-xs font-black text-gray-400 tracking-wider">وصف اللجنة ومسؤولياتها الرئيسية</h4>
-                <div className="bg-[#fcfbfb] border border-[#d2cece] rounded-2xl p-4 text-sm font-medium text-gray-800 leading-relaxed shadow-inner">
+                <div className="bg-[#fcfbfb] border border-[#d2cece] rounded-xl sm:rounded-2xl p-4 text-sm font-medium text-gray-800 leading-relaxed shadow-inner">
                   {detailsComm.desc || "لم يتم إدخال وصف تفصيلي للجنة بعد."}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col justify-between text-right shadow-sm">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
+                <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 flex flex-col justify-between text-right shadow-sm">
                   <div>
                     <Users className="w-5 h-5 text-blue-600 mb-2" />
                     <span className="text-[10px] text-gray-400 font-black block leading-tight">أعضاء اللجنة</span>
                   </div>
-                  <span className="text-xl font-black text-gray-900 font-mono mt-2">{commMembers.length}</span>
+                  <span className="text-base sm:text-lg md:text-xl font-black text-gray-900 font-mono mt-2">{commMembers.length}</span>
                 </div>
 
-                <div className="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col justify-between text-right shadow-sm">
+                <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 flex flex-col justify-between text-right shadow-sm">
                   <div>
                     <FileText className="w-5 h-5 text-purple-600 mb-2" />
                     <span className="text-[10px] text-gray-400 font-black block leading-tight">الفعاليات</span>
                   </div>
-                  <span className="text-xl font-black text-purple-700 font-mono mt-2">{commEvents.length}</span>
+                  <span className="text-base sm:text-lg md:text-xl font-black text-purple-700 font-mono mt-2">{commEvents.length}</span>
                 </div>
 
-                <div className="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col justify-between text-right shadow-sm">
+                <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 flex flex-col justify-between text-right shadow-sm">
                   <div>
                     <CheckCircle className="w-5 h-5 text-emerald-600 mb-2" />
                     <span className="text-[10px] text-gray-400 font-black block leading-tight">التوصيات</span>
                   </div>
-                  <span className="text-xl font-black text-emerald-700 font-mono mt-2">{commRecs.length}</span>
+                  <span className="text-base sm:text-lg md:text-xl font-black text-emerald-700 font-mono mt-2">{commRecs.length}</span>
                 </div>
               </div>
 
               {(detailsComm.strategicPlan || detailsComm.ratingIssues) && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4">
                   {detailsComm.strategicPlan && (
-                    <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4 shadow-sm">
+                    <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl sm:rounded-2xl p-4 shadow-sm">
                       <div className="flex items-center gap-2 mb-2 text-emerald-700">
                         <List className="w-4 h-4" />
                         <span className="text-[11px] font-black">الخطة الاستراتيجية المعتمدة</span>
@@ -309,7 +230,7 @@ function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenE
                     </div>
                   )}
                   {detailsComm.ratingIssues && (
-                    <div className="bg-amber-50/50 border border-amber-100 rounded-2xl p-4 shadow-sm">
+                    <div className="bg-amber-50/50 border border-amber-100 rounded-xl sm:rounded-2xl p-4 shadow-sm">
                       <div className="flex items-center gap-2 mb-2 text-amber-700">
                         <TriangleAlert className="w-4 h-4" />
                         <span className="text-[11px] font-black">قضايا التقدير والمخاطر</span>
@@ -320,9 +241,9 @@ function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenE
                 </div>
               )}
 
-              <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-4">
+              <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 shadow-sm space-y-4">
                 <h5 className="text-xs font-black text-gray-500 border-b border-gray-100 pb-2">قيادات اللجنة</h5>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
@@ -419,9 +340,9 @@ function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenE
                 </div>
               </div>
 
-              <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-4">
+              <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 shadow-sm space-y-4">
                 <h5 className="text-xs font-black text-gray-500 border-b border-gray-100 pb-2">مرفقات اللجنة</h5>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 md:gap-4">
                   {[
                     { label: "قرار التشكيل", value: detailsComm.formationLetter },
                     { label: "اعتماد الأعضاء", value: detailsComm.membersApproval },
@@ -543,7 +464,7 @@ function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenE
                   ))}
                 </div>
               ) : (
-                <div className="text-sm text-gray-500 text-center py-8 bg-white rounded-2xl border border-gray-200">لا يوجد أعضاء مسجلين لهذه اللجنة حتى الآن.</div>
+                <div className="text-sm text-gray-500 text-center py-8 bg-white rounded-xl sm:rounded-2xl border border-gray-200">لا يوجد أعضاء مسجلين لهذه اللجنة حتى الآن.</div>
               )}
             </div>
           )}
@@ -572,7 +493,7 @@ function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenE
                   ))}
                 </div>
               ) : (
-                <div className="text-sm text-gray-500 text-center py-8 bg-white rounded-2xl border border-gray-200">لا يوجد فعاليات أو أعمال مسجلة.</div>
+                <div className="text-sm text-gray-500 text-center py-8 bg-white rounded-xl sm:rounded-2xl border border-gray-200">لا يوجد فعاليات أو أعمال مسجلة.</div>
               )}
             </div>
           )}
@@ -584,7 +505,7 @@ function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenE
                 <div className="grid grid-cols-1 gap-3">
                   {commRecs.map((r: any) => (
                     <div key={r.id} className={`bg-white p-4 rounded-xl border flex flex-col gap-3 shadow-sm ${getStatusColor(r.status)}`}>
-                      <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start justify-between gap-2.5 sm:gap-3 md:gap-4">
                         <div className="space-y-1.5 flex-1">
                           <span className="text-xs font-bold text-gray-800">{r.title || r.description}</span>
                           <div className="flex items-center gap-3 text-[10px] text-gray-500 font-mono">
@@ -604,14 +525,14 @@ function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenE
                   ))}
                 </div>
               ) : (
-                <div className="text-sm text-gray-500 text-center py-8 bg-white rounded-2xl border border-gray-200">لا يوجد توصيات مسجلة لهذه اللجنة.</div>
+                <div className="text-sm text-gray-500 text-center py-8 bg-white rounded-xl sm:rounded-2xl border border-gray-200">لا يوجد توصيات مسجلة لهذه اللجنة.</div>
               )}
             </div>
           )}
 
         </div>
 
-        <div className="bg-gray-50 px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3 shrink-0">
+        <div className="bg-gray-50 px-3 sm:px-4 md:px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3 shrink-0">
           <div className="flex gap-2">
             <button
               type="button"
@@ -639,7 +560,7 @@ function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenE
           <button
             type="button"
             onClick={() => setDetailsComm(null)}
-            className="px-5 h-10 bg-gray-200 hover:bg-gray-300 text-gray-750 font-extrabold text-xs rounded-xl transition-all cursor-pointer"
+            className="px-3 sm:px-4 md:px-5 h-10 bg-gray-200 hover:bg-gray-300 text-gray-750 font-extrabold text-xs rounded-xl transition-all cursor-pointer"
           >
             إغلاق النافذة
           </button>
@@ -648,6 +569,7 @@ function CommitteeDetailsModalContent({ detailsComm, setDetailsComm, handleOpenE
     </div>
   );
 }
+
 
 export default function CommitteesFormation() {
   const { data: dbCommittees, addDocument: addFirebaseComm, updateDocument: updateFirebaseComm, deleteDocument: deleteFirebaseComm } = useFirestoreCollection<Committee>("committees", []);
@@ -1576,9 +1498,9 @@ export default function CommitteesFormation() {
   return (
     <div className="space-y-6 pb-16">
       {/* Page Header Area */}
-      <div className="bg-[#e8e4e4] rounded-2xl p-6 border border-gray-200 shadow-sm flex flex-col xl:flex-row items-center justify-between gap-4">
+      <div className="bg-[#e8e4e4] rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 border border-gray-200 shadow-sm flex flex-col xl:flex-row items-center justify-between gap-2.5 sm:gap-3 md:gap-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
+          <h2 className="text-sm sm:text-base md:text-lg sm:text-xl md:text-2xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
             <Users2 className="w-7 h-7 text-brand" />
             <span>تشكيل اللجان</span>
           </h2>
@@ -1630,10 +1552,10 @@ export default function CommitteesFormation() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-6 flex flex-col"
+              className="bg-white rounded-xl sm:rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-3 sm:p-4 md:p-6 flex flex-col"
             >
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-800 flex items-center gap-2">
                   <Mail className="w-5 h-5 text-brand" />
                   تعاميم لجنة {activeCircularsComm.name}
                 </h2>
@@ -1642,15 +1564,15 @@ export default function CommitteesFormation() {
                 </button>
               </div>
 
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2.5 sm:gap-3 md:gap-4">
                 {dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).length === 0 ? (
                   <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                    <Mail className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                    <Mail className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-gray-300 mb-3" />
                     لا توجد تعاميم مرسلة لهذه اللجنة بعد.
                   </div>
                 ) : (
                   dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).map((circ: any) => (
-                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-4">
+                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-2.5 sm:gap-3 md:gap-4">
                       <div className="flex-1">
                         <h4 className="font-bold text-gray-800 mb-1">{circ.title || "بدون عنوان"}</h4>
                         <div className="text-xs text-gray-500 mb-3">{circ.lastUpdated}</div>
@@ -1823,10 +1745,10 @@ export default function CommitteesFormation() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-6 flex flex-col"
+              className="bg-white rounded-xl sm:rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-3 sm:p-4 md:p-6 flex flex-col"
             >
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-800 flex items-center gap-2">
                   <Mail className="w-5 h-5 text-brand" />
                   تعاميم لجنة {activeCircularsComm.name}
                 </h2>
@@ -1835,15 +1757,15 @@ export default function CommitteesFormation() {
                 </button>
               </div>
 
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2.5 sm:gap-3 md:gap-4">
                 {dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).length === 0 ? (
                   <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                    <Mail className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                    <Mail className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-gray-300 mb-3" />
                     لا توجد تعاميم مرسلة لهذه اللجنة بعد.
                   </div>
                 ) : (
                   dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).map((circ: any) => (
-                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-4">
+                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-2.5 sm:gap-3 md:gap-4">
                       <div className="flex-1">
                         <h4 className="font-bold text-gray-800 mb-1">{circ.title || "بدون عنوان"}</h4>
                         <div className="text-xs text-gray-500 mb-3">{circ.lastUpdated}</div>
@@ -1924,11 +1846,11 @@ export default function CommitteesFormation() {
           <div className="flex gap-2">
             <div className="bg-white px-3.5 py-1.5 rounded-xl text-center shadow-inner" style={{ borderWidth: '0px' }}>
               <span className="text-[10px] font-black text-gray-400 block leading-tight">إجمالي اللجان</span>
-              <span className="text-lg font-black text-brand leading-none font-mono">{synchronizedCommittees.length}</span>
+              <span className="text-sm sm:text-base md:text-lg font-black text-brand leading-none font-mono">{synchronizedCommittees.length}</span>
             </div>
             <div className="bg-white px-3.5 py-1.5 rounded-xl text-center shadow-inner" style={{ borderWidth: '0px' }}>
               <span className="text-[10px] font-black text-gray-400 block leading-tight">الأعضاء المشاركون</span>
-              <span className="text-lg font-black text-emerald-600 leading-none font-mono">
+              <span className="text-sm sm:text-base md:text-lg font-black text-emerald-600 leading-none font-mono">
                 {synchronizedCommittees.reduce((acc, c) => acc + c.membersCount, 0)}
               </span>
             </div>
@@ -1939,8 +1861,8 @@ export default function CommitteesFormation() {
 
       {/* COMMITTEES DISPLAY GRID OR TABLE (فرز العرض: بطائق أو سجل) */}
       {filteredCommittees.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center space-y-3">
-          <div className="w-16 h-16 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mx-auto">
+        <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl p-12 text-center space-y-3">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mx-auto">
             <Search className="w-7 h-7" />
           </div>
           <p className="text-gray-500 font-extrabold text-base">لم يعثر على أية نتائج مخصصة لعملية البحث الحالية.</p>
@@ -1952,7 +1874,7 @@ export default function CommitteesFormation() {
           </button>
         </div>
       ) : viewMode === "cards" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
           <AnimatePresence mode="popLayout">
             {filteredCommittees.map((comm) => (
               <motion.div key={comm.id}
@@ -1960,7 +1882,7 @@ export default function CommitteesFormation() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ duration: 0.3 }}
-                className={`bg-white border-2 hover:border-[#dfba6b]/60 hover:shadow-lg transition-all duration-300 rounded-3xl p-6 relative group flex flex-col justify-between space-y-4 ${!comm.active ? "opacity-50 grayscale-[30%] border-gray-300" : "border-slate-100"}`}
+                className={`bg-white border-2 hover:border-[#dfba6b]/60 hover:shadow-lg transition-all duration-300 rounded-xl sm:rounded-2xl sm:rounded-3xl p-3 sm:p-4 md:p-6 relative group flex flex-col justify-between space-y-4 ${!comm.active ? "opacity-50 grayscale-[30%] border-gray-300" : "border-slate-100"}`}
               >
                 {/* ⚙️ Settings Gear Button with Dropdown logic */}
                 <div className="absolute top-4 left-4 z-20 flex gap-2">
@@ -2118,10 +2040,10 @@ export default function CommitteesFormation() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-6 flex flex-col"
+              className="bg-white rounded-xl sm:rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-3 sm:p-4 md:p-6 flex flex-col"
             >
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-800 flex items-center gap-2">
                   <Mail className="w-5 h-5 text-brand" />
                   تعاميم لجنة {activeCircularsComm.name}
                 </h2>
@@ -2130,15 +2052,15 @@ export default function CommitteesFormation() {
                 </button>
               </div>
 
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2.5 sm:gap-3 md:gap-4">
                 {dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).length === 0 ? (
                   <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                    <Mail className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                    <Mail className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-gray-300 mb-3" />
                     لا توجد تعاميم مرسلة لهذه اللجنة بعد.
                   </div>
                 ) : (
                   dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).map((circ: any) => (
-                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-4">
+                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-2.5 sm:gap-3 md:gap-4">
                       <div className="flex-1">
                         <h4 className="font-bold text-gray-800 mb-1">{circ.title || "بدون عنوان"}</h4>
                         <div className="text-xs text-gray-500 mb-3">{circ.lastUpdated}</div>
@@ -2199,7 +2121,7 @@ export default function CommitteesFormation() {
         </div>
       ) : (
         /* TABLE REGISTER VIEW LAYOUT (سجل اللجان) */
-        <div className="bg-[#e8e4e4] rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-right">
+        <div className="bg-[#e8e4e4] rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-right">
           <div className="overflow-x-auto custom-scrollbar font-sans pb-36">
             <table className="w-full text-xs font-semibold text-gray-700 select-none border-collapse text-right">
               <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
@@ -2389,10 +2311,10 @@ export default function CommitteesFormation() {
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 15, opacity: 0 }}
               transition={{ type: "spring", damping: 20, stiffness: 280 }}
-              className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right flex flex-col max-h-[85vh]"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right flex flex-col max-h-[85vh]"
             >
               {/* Header block with solid header representation */}
-              <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
+              <div className="bg-[#e8e4e4] p-3 sm:p-4 md:p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-600 text-white rounded-xl">
                     {editingComm ? <Edit2 className="w-5 h-5 stroke-[2.5]" /> : actionType === "إضافة" ? <Plus className="w-5 h-5 stroke-[2.5]" /> : <FileSpreadsheet className="w-5 h-5 stroke-[2.5]" />}
@@ -2418,7 +2340,7 @@ export default function CommitteesFormation() {
               {/* Form Content */}
               <div className="flex flex-col h-full overflow-hidden">
                 {!editingComm && (
-                  <div className="px-6 pt-6 shrink-0">
+                  <div className="px-3 sm:px-4 md:px-6 pt-6 shrink-0">
                     <div className="bg-gray-100 p-1 rounded-xl flex shadow-inner text-right" dir="rtl">
                       <button
                         type="button"
@@ -2453,7 +2375,7 @@ export default function CommitteesFormation() {
 
                 {actionType === "إضافة" || editingComm ? (
                   <form onSubmit={handleFormSubmit} className="flex flex-col flex-1 overflow-hidden">
-                    <div className="p-6 space-y-4 overflow-y-auto flex-1">
+                    <div className="p-3 sm:p-4 md:p-6 space-y-4 overflow-y-auto flex-1">
                       {newMtgError && (
                         <div className="bg-red-50 border border-red-100 text-red-700 p-3 rounded-xl text-[11px] font-bold text-right flex items-center gap-2">
                           <span className="w-2 h-2 shrink-0 rounded-full bg-red-600 animate-pulse"></span>
@@ -2463,7 +2385,7 @@ export default function CommitteesFormation() {
 
                       {/* Submitting context reason (ONLY required when editing) */}
                       {editingComm && (
-                        <div className="space-y-1.5 bg-amber-50/60 p-3.5 rounded-2xl border border-amber-200 text-right">
+                        <div className="space-y-1.5 bg-amber-50/60 p-3.5 rounded-xl sm:rounded-2xl border border-amber-200 text-right">
                           <label className="block text-xs font-black text-amber-800 mb-1">
                             سبب التعديل <span className="text-red-500">*</span>
                           </label>
@@ -2492,7 +2414,7 @@ export default function CommitteesFormation() {
                       </div>
 
                       {/* President & Strategic Plan Row */}
-                      <div className={editingComm ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "w-full"}>
+                      <div className={editingComm ? "grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4" : "w-full"}>
                         {editingComm && (
                           <div className="space-y-1.5">
                             <label className="block text-xs font-black text-gray-700">الرئيس<span className="text-red-500">*</span></label>
@@ -2519,7 +2441,7 @@ export default function CommitteesFormation() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4">
                         {/* Member Count Field */}
                         <div className="space-y-1.5">
                           <label className="block text-xs font-black text-gray-700">عدد الأعضاء <span className="text-gray-400">(الافتراضي 10)</span></label>
@@ -2551,10 +2473,17 @@ export default function CommitteesFormation() {
 
                       {/* Google Drive Library Link */}
                       <div className="space-y-1.5">
-                        <label className="block text-xs font-black text-gray-700 flex items-center justify-end gap-1.5">
-                          <span>رابط المكتبة الرقمية للجنة (Google Drive)</span>
-                          <FolderOutput className="w-3.5 h-3.5 text-blue-500" />
-                        </label>
+                        <div className="flex items-center justify-between">
+                          <GooglePickerButton 
+                            onPick={(url) => setGoogleDriveUrl(url)} 
+                            viewId="FOLDERS"
+                            label="اختيار من درايف"
+                          />
+                          <label className="block text-xs font-black text-gray-700 flex items-center justify-end gap-1.5">
+                            <span>رابط المكتبة الرقمية للجنة (Google Drive)</span>
+                            <FolderOutput className="w-3.5 h-3.5 text-blue-500" />
+                          </label>
+                        </div>
                         <input
                           type="url"
                           value={googleDriveUrl}
@@ -2612,7 +2541,7 @@ export default function CommitteesFormation() {
                     </div>
 
                     {/* Footer Actions (Submit / Cancel) */}
-                    <div className="p-5 border-t border-gray-100 bg-gray-50/50 flex flex-row-reverse gap-3 shrink-0">
+                    <div className="p-3 sm:p-4 md:p-5 border-t border-gray-100 bg-gray-50/50 flex flex-row-reverse gap-3 shrink-0">
                       <button
                         type="submit"
                         className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 text-white font-black text-sm rounded-xl transition-all cursor-pointer shadow-sm hover:shadow active:scale-95"
@@ -2622,7 +2551,7 @@ export default function CommitteesFormation() {
                       <button
                         type="button"
                         onClick={() => setIsAddOpen(false)}
-                        className="px-6 h-11 bg-white hover:bg-gray-100 border border-gray-200 text-gray-750 font-bold text-sm rounded-xl transition-all cursor-pointer"
+                        className="px-3 sm:px-4 md:px-6 h-11 bg-white hover:bg-gray-100 border border-gray-200 text-gray-750 font-bold text-sm rounded-xl transition-all cursor-pointer"
                       >
                         إلغاء
                       </button>
@@ -2630,7 +2559,7 @@ export default function CommitteesFormation() {
                   </form>
                 ) : (
                   <div className="flex flex-col flex-1 overflow-hidden">
-                    <div className="p-6 space-y-4 overflow-y-auto flex-1">
+                    <div className="p-3 sm:p-4 md:p-6 space-y-4 overflow-y-auto flex-1">
                       <p className="text-xs font-semibold text-gray-650 leading-relaxed bg-emerald-50 text-emerald-800 p-3 rounded-xl border border-emerald-100">
                         {actionType === 'تصدير' ? 'سيتم فرز وتصدير اللجان المحددة أبجدياً مع جلب كافة الإحصائيات النشطة تلقائياً.' : 'للاستيراد، يرجى اختيار ملف CSV مطابق للأعمدة المحددة.'}
                       </p>
@@ -2656,7 +2585,7 @@ export default function CommitteesFormation() {
                       </div>
                     </div>
 
-                    <div className="p-5 border-t border-gray-100 bg-gray-50/50 flex flex-row-reverse gap-3 shrink-0">
+                    <div className="p-3 sm:p-4 md:p-5 border-t border-gray-100 bg-gray-50/50 flex flex-row-reverse gap-3 shrink-0">
                       {actionType === 'تصدير' ? (
                         <button
                           type="button"
@@ -2681,7 +2610,7 @@ export default function CommitteesFormation() {
                       <button
                         type="button"
                         onClick={() => setIsAddOpen(false)}
-                        className="px-6 h-11 bg-white hover:bg-gray-100 border border-gray-200 text-gray-750 font-bold text-sm rounded-xl transition-all cursor-pointer"
+                        className="px-3 sm:px-4 md:px-6 h-11 bg-white hover:bg-gray-100 border border-gray-200 text-gray-750 font-bold text-sm rounded-xl transition-all cursor-pointer"
                       >
                         إلغاء
                       </button>
@@ -2699,10 +2628,10 @@ export default function CommitteesFormation() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-6 flex flex-col"
+              className="bg-white rounded-xl sm:rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-3 sm:p-4 md:p-6 flex flex-col"
             >
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-800 flex items-center gap-2">
                   <Mail className="w-5 h-5 text-brand" />
                   تعاميم لجنة {activeCircularsComm.name}
                 </h2>
@@ -2711,15 +2640,15 @@ export default function CommitteesFormation() {
                 </button>
               </div>
 
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2.5 sm:gap-3 md:gap-4">
                 {dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).length === 0 ? (
                   <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                    <Mail className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                    <Mail className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-gray-300 mb-3" />
                     لا توجد تعاميم مرسلة لهذه اللجنة بعد.
                   </div>
                 ) : (
                   dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).map((circ: any) => (
-                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-4">
+                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-2.5 sm:gap-3 md:gap-4">
                       <div className="flex-1">
                         <h4 className="font-bold text-gray-800 mb-1">{circ.title || "بدون عنوان"}</h4>
                         <div className="text-xs text-gray-500 mb-3">{circ.lastUpdated}</div>
@@ -2796,7 +2725,7 @@ export default function CommitteesFormation() {
               initial={{ scale: 0.9, y: 15, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 15, opacity: 0 }}
-              className="bg-white rounded-3xl w-full max-w-md shadow-2xl p-6 relative overflow-hidden z-10 text-right space-y-4 border border-red-100"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-md shadow-2xl p-3 sm:p-4 md:p-6 relative overflow-hidden z-10 text-right space-y-4 border border-red-100"
             >
               <div className="flex items-center gap-3 border-b border-gray-100 pb-3">
                 <div className="p-2 bg-red-100 text-red-600 rounded-xl">
@@ -2848,7 +2777,7 @@ export default function CommitteesFormation() {
               ) : (
                 /* STEP 2: Non-active setting indicator and double confirm deletion */
                 <div className="space-y-4">
-                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl sm:rounded-2xl p-4 space-y-2">
                     <div className="flex items-center gap-2 text-amber-850 font-black text-xs">
                       <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
                       <span>تنبيه: تم تغيير حالة اللجنة بنجاح لتكون غير نشطة 🔴</span>
@@ -2912,10 +2841,10 @@ export default function CommitteesFormation() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-6 flex flex-col"
+              className="bg-white rounded-xl sm:rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-3 sm:p-4 md:p-6 flex flex-col"
             >
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-800 flex items-center gap-2">
                   <Mail className="w-5 h-5 text-brand" />
                   تعاميم لجنة {activeCircularsComm.name}
                 </h2>
@@ -2924,15 +2853,15 @@ export default function CommitteesFormation() {
                 </button>
               </div>
 
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2.5 sm:gap-3 md:gap-4">
                 {dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).length === 0 ? (
                   <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                    <Mail className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                    <Mail className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-gray-300 mb-3" />
                     لا توجد تعاميم مرسلة لهذه اللجنة بعد.
                   </div>
                 ) : (
                   dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).map((circ: any) => (
-                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-4">
+                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-2.5 sm:gap-3 md:gap-4">
                       <div className="flex-1">
                         <h4 className="font-bold text-gray-800 mb-1">{circ.title || "بدون عنوان"}</h4>
                         <div className="text-xs text-gray-500 mb-3">{circ.lastUpdated}</div>
@@ -3011,10 +2940,10 @@ export default function CommitteesFormation() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-6 flex flex-col"
+              className="bg-white rounded-xl sm:rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-3 sm:p-4 md:p-6 flex flex-col"
             >
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-800 flex items-center gap-2">
                   <Mail className="w-5 h-5 text-brand" />
                   تعاميم لجنة {activeCircularsComm.name}
                 </h2>
@@ -3023,15 +2952,15 @@ export default function CommitteesFormation() {
                 </button>
               </div>
 
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2.5 sm:gap-3 md:gap-4">
                 {dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).length === 0 ? (
                   <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                    <Mail className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                    <Mail className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-gray-300 mb-3" />
                     لا توجد تعاميم مرسلة لهذه اللجنة بعد.
                   </div>
                 ) : (
                   dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).map((circ: any) => (
-                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-4">
+                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-2.5 sm:gap-3 md:gap-4">
                       <div className="flex-1">
                         <h4 className="font-bold text-gray-800 mb-1">{circ.title || "بدون عنوان"}</h4>
                         <div className="text-xs text-gray-500 mb-3">{circ.lastUpdated}</div>
@@ -3112,10 +3041,10 @@ export default function CommitteesFormation() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right text-slate-800 flex flex-col max-h-[85vh]"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-3xl shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right text-slate-800 flex flex-col max-h-[85vh]"
             >
               {/* Header */}
-              <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50 shrink-0">
+              <div className="flex items-center justify-between p-3 sm:p-4 md:p-6 border-b border-gray-100 bg-gray-50/50 shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
                     <FileSpreadsheet className="w-5 h-5" />
@@ -3139,7 +3068,7 @@ export default function CommitteesFormation() {
               </div>
 
               {/* Body */}
-              <div className="p-6 overflow-y-auto space-y-4">
+              <div className="p-3 sm:p-4 md:p-6 overflow-y-auto space-y-4">
                 <div className="bg-amber-50 text-amber-800 p-4 rounded-xl text-xs font-bold border border-amber-200">
                   <p>اللجان المتعارضة تظهر بلون باهت وغير محددة لتجنب الازدواجية.</p>
                 </div>
@@ -3181,18 +3110,18 @@ export default function CommitteesFormation() {
               </div>
 
               {/* Footer */}
-              <div className="p-5 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3 shrink-0">
+              <div className="p-3 sm:p-4 md:p-5 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => setImportPreviewOpen(false)}
-                  className="px-5 h-11 bg-gray-200 hover:bg-gray-300 text-gray-750 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  className="px-3 sm:px-4 md:px-5 h-11 bg-gray-200 hover:bg-gray-300 text-gray-750 font-bold text-xs rounded-xl transition-all cursor-pointer"
                 >
                   إلغاء
                 </button>
                 <button
                   onClick={confirmImport}
                   disabled={!importedCommittees.some(c => c.selected)}
-                  className="px-6 h-11 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-black text-xs rounded-xl transition-all cursor-pointer flex items-center gap-2"
+                  className="px-3 sm:px-4 md:px-6 h-11 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-black text-xs rounded-xl transition-all cursor-pointer flex items-center gap-2"
                 >
                   <Check className="w-4 h-4" />
                   <span>تأكيد استيراد ({importedCommittees.filter(c => c.selected).length}) لجنة</span>
@@ -3208,10 +3137,10 @@ export default function CommitteesFormation() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-6 flex flex-col"
+              className="bg-white rounded-xl sm:rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 p-3 sm:p-4 md:p-6 flex flex-col"
             >
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-800 flex items-center gap-2">
                   <Mail className="w-5 h-5 text-brand" />
                   تعاميم لجنة {activeCircularsComm.name}
                 </h2>
@@ -3220,15 +3149,15 @@ export default function CommitteesFormation() {
                 </button>
               </div>
 
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2.5 sm:gap-3 md:gap-4">
                 {dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).length === 0 ? (
                   <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                    <Mail className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                    <Mail className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-gray-300 mb-3" />
                     لا توجد تعاميم مرسلة لهذه اللجنة بعد.
                   </div>
                 ) : (
                   dbTemplates.filter((t: any) => t.type === "تعميم" && t.committeeId === activeCircularsComm.id).map((circ: any) => (
-                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-4">
+                    <div key={circ.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand/40 transition-colors bg-white shadow-sm flex items-start justify-between gap-2.5 sm:gap-3 md:gap-4">
                       <div className="flex-1">
                         <h4 className="font-bold text-gray-800 mb-1">{circ.title || "بدون عنوان"}</h4>
                         <div className="text-xs text-gray-500 mb-3">{circ.lastUpdated}</div>

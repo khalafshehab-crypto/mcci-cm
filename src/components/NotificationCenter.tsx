@@ -126,6 +126,33 @@ export default function NotificationCenter() {
       });
     });
 
+    // 4. Listen to system alerts explicitly targeted to the user
+    const qAlerts = query(
+      collection(db, "system_alerts"),
+      where("targetUser", "==", userName)
+    );
+
+    const unsubAlerts = onSnapshot(qAlerts, (snap: any) => {
+      const activeAlerts: NotificationItem[] = [];
+      snap.forEach((docSnap: any) => {
+        const data = docSnap.data();
+        activeAlerts.push({
+          id: `alert_${docSnap.id}`,
+          type: data.type || "alert",
+          title: data.title || "تنبيه",
+          message: data.message || "",
+          date: data.createdAt || new Date().toISOString(),
+          isUrgent: true,
+          link: data.link || "#",
+          rawDocId: docSnap.id
+        });
+      });
+      setNotifications(prev => {
+        const filtered = prev.filter(p => !p.id.startsWith("alert_"));
+        return [...filtered, ...activeAlerts];
+      });
+    });
+
     // 3. Listen to events for user's committees (coming in 7 days)
     const qEvents = query(
       collection(db, "events"),
@@ -169,6 +196,7 @@ export default function NotificationCenter() {
       unsubTasks();
       unsubRecs();
       unsubEvents();
+      unsubAlerts();
     };
   }, []);
 
@@ -212,7 +240,7 @@ export default function NotificationCenter() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="absolute left-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 text-right"
+            className="absolute left-0 mt-2 w-[90vw] max-w-sm sm:w-96 bg-white rounded-xl sm:rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 text-right"
             style={{ direction: "rtl" }}
           >
             <div className="p-4 border-b border-gray-50 bg-gray-50/50 flex items-center justify-between">
@@ -229,8 +257,8 @@ export default function NotificationCenter() {
 
             <div className="max-h-80 overflow-y-auto custom-scrollbar">
               {displayNotifs.length === 0 ? (
-                <div className="p-8 text-center text-gray-500 flex flex-col items-center">
-                  <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mb-3">
+                <div className="p-4 sm:p-6 md:p-8 text-center text-gray-500 flex flex-col items-center">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-50 rounded-full flex items-center justify-center mb-3">
                     <Check className="w-6 h-6 text-gray-300" />
                   </div>
                   <p className="text-sm font-bold text-gray-600">لا توجد تنبيهات جديدة</p>

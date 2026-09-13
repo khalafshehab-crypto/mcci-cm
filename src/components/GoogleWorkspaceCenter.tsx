@@ -671,10 +671,10 @@ ${(targetEmployee.committees || []).length > 0
   };
 
   return (
-    <div className="bg-[#e8e4e4] border border-gray-250 shadow-sm rounded-3xl p-5 md:p-6 text-right space-y-5 animate-fadeIn">
+    <div className="bg-[#e8e4e4] border border-gray-250 shadow-sm rounded-xl sm:rounded-2xl sm:rounded-3xl p-3 sm:p-4 md:p-5 md:p-6 text-right space-y-5 animate-fadeIn">
       
       {/* Header with Google color bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-300 pb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-3 md:gap-4 border-b border-gray-300 pb-4">
         <div className="flex items-center gap-3">
           <div className="bg-white p-2.5 rounded-full border border-gray-150 shadow-inner flex items-center justify-center gap-1">
             <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#EA4335" }} />
@@ -732,7 +732,7 @@ ${(targetEmployee.committees || []).length > 0
 
       {/* Operational guidelines warnings */}
       {!token && (
-        <div className="bg-blue-50 border border-blue-200/60 rounded-2xl p-4 flex items-start gap-3 text-xs leading-relaxed text-blue-900">
+        <div className="bg-blue-50 border border-blue-200/60 rounded-xl sm:rounded-2xl p-4 flex items-start gap-3 text-xs leading-relaxed text-blue-900">
           <Shield className="w-5 h-5 text-brand shrink-0 mt-0.5" />
           <div className="space-y-1">
             <p className="font-extrabold">مستوى الأمان وحوكمة الاتصال التلقائي:</p>
@@ -845,7 +845,7 @@ ${(targetEmployee.committees || []).length > 0
 
       {/* Tab select menu for connecting utilities */}
       {token && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-9 gap-1.5 bg-white/70 p-1 rounded-2xl border border-gray-300/40">
+        <div className="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-9 gap-1.5 bg-white/70 p-1 rounded-xl sm:rounded-2xl border border-gray-300/40">
           {[
             { id: "drive", label: "جوجل درايف", icon: <HardDrive className="w-4 h-4" /> },
             { id: "sheets", label: "جداول البيانات", icon: <FileSpreadsheet className="w-4 h-4" /> },
@@ -888,10 +888,10 @@ ${(targetEmployee.committees || []).length > 0
                 تصفح وأرشف ملفات ومحاضر اجتماعات اللجان القطاعية، مع ربط مباشر وحصري لمجلدات Google Drive السحابية لكل لجنة لضمان الوصول الآمن.
               </p>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4 pt-2">
                 
                 {/* 1. Integration console: Archive Template to Committee s Google Drive */}
-                <div className="border border-gray-200 rounded-2xl p-5 bg-gradient-to-r from-blue-50/20 to-indigo-50/20 space-y-4 md:col-span-2">
+                <div className="border border-gray-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 bg-gradient-to-r from-blue-50/20 to-indigo-50/20 space-y-4 md:col-span-2">
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">
                       <Sparkles className="w-4 h-4" />
@@ -899,9 +899,9 @@ ${(targetEmployee.committees || []).length > 0
                     <h5 className="font-extrabold text-xs text-gray-900">ربط مستندات ومجلدات اللجان سحابياً</h5>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
                     {/* Step 1: Select Target Committee */}
-                    <div className="space-y-1.5 p-3.5 bg-white rounded-2xl border border-gray-150">
+                    <div className="space-y-1.5 p-3.5 bg-white rounded-xl sm:rounded-2xl border border-gray-150">
                       <label className="block text-[10.5px] text-gray-700 font-black">1. اختر اللجنة المستهدفة بالربط</label>
                       <p className="text-[9.5px] text-gray-400 font-semibold leading-normal">حدد اللجنة لإرفاق وأرشفة المخرجات الفنية في مجلدها المخصص.</p>
                       <select
@@ -936,7 +936,7 @@ ${(targetEmployee.committees || []).length > 0
                     </div>
 
                     {/* Step 2: Create & Path OR Paste Link */}
-                    <div className="space-y-1.5 p-3.5 bg-white rounded-2xl border border-gray-150 md:col-span-2">
+                    <div className="space-y-1.5 p-3.5 bg-white rounded-xl sm:rounded-2xl border border-gray-150 md:col-span-2">
                       <label className="block text-[10.5px] text-gray-700 font-black">2. الملف والمسار في جوجل درايف</label>
                       <p className="text-[9.5px] text-gray-400 font-semibold leading-normal">أدخل مواصفات الإنشاء والمسار السحابي، أو ألصق رابط مجلد اللجنة المعتمد مباشرة:</p>
                       
@@ -1028,7 +1028,7 @@ ${(targetEmployee.committees || []).length > 0
                         const targetUrl = driveFolderPasteLink || "https://drive.google.com/drive/my-drive";
                         window.open(targetUrl, "_blank");
                       }}
-                      className="px-6 py-3 bg-slate-800 text-white hover:bg-slate-900 border border-transparent shadow shadow-slate-900/10 font-bold text-xs rounded-xl flex items-center gap-2 cursor-pointer transition-all w-full sm:w-auto justify-center"
+                      className="px-3 sm:px-4 md:px-6 py-3 bg-slate-800 text-white hover:bg-slate-900 border border-transparent shadow shadow-slate-900/10 font-bold text-xs rounded-xl flex items-center gap-2 cursor-pointer transition-all w-full sm:w-auto justify-center"
                     >
                       <ExternalLink className="w-4.5 h-4.5 text-yellow-500 animate-pulse" />
                       <span>3. استعراض اللجنة في جوجل درايف</span>
@@ -1051,7 +1051,7 @@ ${(targetEmployee.committees || []).length > 0
               </p>
 
               {!showSheetsCard ? (
-                <div className="bg-slate-50 border border-gray-200 rounded-2xl p-5 flex flex-col items-center justify-center text-center space-y-3.5">
+                <div className="bg-slate-50 border border-gray-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 flex flex-col items-center justify-center text-center space-y-3.5">
                   <div className="p-3 bg-emerald-50 text-emerald-600 rounded-full">
                     <FileSpreadsheet className="w-8 h-8 animate-pulse" />
                   </div>
@@ -1064,14 +1064,14 @@ ${(targetEmployee.committees || []).length > 0
                     onClick={() => {
                       setShowSheetsCard(true);
                     }}
-                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2"
+                    className="px-3 sm:px-4 md:px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2"
                   >
                     <Plus className="w-4 h-4" />
                     <span>زر إنشاء نموذج</span>
                   </button>
                 </div>
               ) : (
-                <div className="border border-gray-200 rounded-2xl p-4.5 bg-white space-y-4">
+                <div className="border border-gray-200 rounded-xl sm:rounded-2xl p-4.5 bg-white space-y-4">
                   {!createdSheetUrl ? (
                     <div className="space-y-3">
                       <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-150 space-y-2">
@@ -1150,7 +1150,7 @@ ${(targetEmployee.committees || []).length > 0
                                 }
                               }
                             }}
-                            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm"
+                            className="px-3 sm:px-4 md:px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm"
                           >
                             توجيه وتأكيد الفتح والربط 📊
                           </button>
@@ -1158,7 +1158,7 @@ ${(targetEmployee.committees || []).length > 0
                       </div>
                     </div>
                   ) : (
-                    <div className="bg-emerald-50/45 border border-emerald-250 p-4 rounded-2.5xl flex flex-col md:flex-row items-center justify-between gap-4 animate-scaleUp">
+                    <div className="bg-emerald-50/45 border border-emerald-250 p-4 rounded-2.5xl flex flex-col md:flex-row items-center justify-between gap-2.5 sm:gap-3 md:gap-4 animate-scaleUp">
                       <div className="flex items-center gap-3">
                         <div className="p-2.5 bg-white border border-emerald-200 text-emerald-600 rounded-full shadow-inner">
                           <FileSpreadsheet className="w-7 h-7" />
@@ -1184,7 +1184,7 @@ ${(targetEmployee.committees || []).length > 0
                         <button
                           type="button"
                           onClick={() => window.open(createdSheetUrl, "_blank")}
-                          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] rounded-xl flex items-center gap-1.5 shadow animate-pulse"
+                          className="px-3 sm:px-4 md:px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] rounded-xl flex items-center gap-1.5 shadow animate-pulse"
                         >
                           <ExternalLink className="w-4 h-4" />
                           <span>فتح بطاقة جوجل شيت الآن 📊</span>
@@ -1209,7 +1209,7 @@ ${(targetEmployee.committees || []).length > 0
               </p>
 
               {!showMailCard ? (
-                <div className="bg-slate-50 border border-gray-200 rounded-2xl p-5 flex flex-col items-center justify-center text-center space-y-3.5">
+                <div className="bg-slate-50 border border-gray-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 flex flex-col items-center justify-center text-center space-y-3.5">
                   <div className="p-3 bg-red-50 text-red-600 rounded-full">
                     <Mail className="w-8 h-8 animate-pulse" />
                   </div>
@@ -1224,14 +1224,14 @@ ${(targetEmployee.committees || []).length > 0
                     onClick={() => {
                       setShowMailCard(true);
                     }}
-                    className="px-6 py-2.5 bg-red-600 hover:bg-red-750 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2"
+                    className="px-3 sm:px-4 md:px-6 py-2.5 bg-red-600 hover:bg-red-750 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2"
                   >
                     <Plus className="w-4 h-4" />
                     <span>زر إنشاء بريد إلكتروني</span>
                   </button>
                 </div>
               ) : (
-                <form onSubmit={handleSendGmail} className="border border-gray-200 rounded-2xl p-4.5 bg-white space-y-4">
+                <form onSubmit={handleSendGmail} className="border border-gray-200 rounded-xl sm:rounded-2xl p-4.5 bg-white space-y-4">
                   <div className="space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
@@ -1282,7 +1282,7 @@ ${(targetEmployee.committees || []).length > 0
                       <button
                         type="submit"
                         disabled={loading}
-                        className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-black text-xs rounded-xl shadow-sm flex items-center gap-1.5"
+                        className="px-3 sm:px-4 md:px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-black text-xs rounded-xl shadow-sm flex items-center gap-1.5"
                       >
                         {loading ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1389,7 +1389,7 @@ ${(targetEmployee.committees || []).length > 0
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl cursor-pointer flex items-center gap-1.5 shadow-md shadow-brand/15"
+                  className="px-3 sm:px-4 md:px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl cursor-pointer flex items-center gap-1.5 shadow-md shadow-brand/15"
                 >
                   <Calendar className="w-3.5 h-3.5" />
                   <span>جدولة وإشراك الفعالية بالتقويم 🗓️</span>
@@ -1410,7 +1410,7 @@ ${(targetEmployee.committees || []).length > 0
               </p>
 
               {!showDocsCard ? (
-                <div className="bg-slate-50 border border-gray-200 rounded-2xl p-5 flex flex-col items-center justify-center text-center space-y-3.5">
+                <div className="bg-slate-50 border border-gray-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 flex flex-col items-center justify-center text-center space-y-3.5">
                   <div className="p-3 bg-indigo-50 text-indigo-600 rounded-full">
                     <FileText className="w-8 h-8 animate-pulse" />
                   </div>
@@ -1423,14 +1423,14 @@ ${(targetEmployee.committees || []).length > 0
                     onClick={() => {
                       setShowDocsCard(true);
                     }}
-                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2"
+                    className="px-3 sm:px-4 md:px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2"
                   >
                     <Plus className="w-4 h-4" />
                     <span>زر إنشاء خطاب رسمي</span>
                   </button>
                 </div>
               ) : (
-                <div className="border border-gray-200 rounded-2xl p-4.5 bg-white space-y-4">
+                <div className="border border-gray-200 rounded-xl sm:rounded-2xl p-4.5 bg-white space-y-4">
                   {!createdDocUrl ? (
                     <div className="space-y-3">
                       <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-150 space-y-2">
@@ -1499,7 +1499,7 @@ ${(targetEmployee.committees || []).length > 0
                                 }
                               }
                             }}
-                            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl shadow-sm"
+                            className="px-3 sm:px-4 md:px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl shadow-sm"
                           >
                             توجيه وتأكيد الفتح والربط 📝
                           </button>
@@ -1507,7 +1507,7 @@ ${(targetEmployee.committees || []).length > 0
                       </div>
                     </div>
                   ) : (
-                    <div className="bg-indigo-50/45 border border-indigo-250 p-4 rounded-2.5xl flex flex-col md:flex-row items-center justify-between gap-4 animate-scaleUp">
+                    <div className="bg-indigo-50/45 border border-indigo-250 p-4 rounded-2.5xl flex flex-col md:flex-row items-center justify-between gap-2.5 sm:gap-3 md:gap-4 animate-scaleUp">
                       <div className="flex items-center gap-3">
                         <div className="p-2.5 bg-white border border-indigo-200 text-indigo-600 rounded-full shadow-inner">
                           <FileText className="w-7 h-7" />
@@ -1533,7 +1533,7 @@ ${(targetEmployee.committees || []).length > 0
                         <button
                           type="button"
                           onClick={() => window.open(createdDocUrl, "_blank")}
-                          className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[11px] rounded-xl flex items-center gap-1.5 shadow animate-pulse"
+                          className="px-3 sm:px-4 md:px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[11px] rounded-xl flex items-center gap-1.5 shadow animate-pulse"
                         >
                           <ExternalLink className="w-4 h-4" />
                           <span>فتح بطاقة خطابات جوجل الآن 🔗</span>
@@ -1558,7 +1558,7 @@ ${(targetEmployee.committees || []).length > 0
               </p>
 
               {!showSlidesCard ? (
-                <div className="bg-slate-50 border border-gray-200 rounded-2xl p-5 flex flex-col items-center justify-center text-center space-y-3.5">
+                <div className="bg-slate-50 border border-gray-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 flex flex-col items-center justify-center text-center space-y-3.5">
                   <div className="p-3 bg-amber-50 text-amber-600 rounded-full">
                     <Presentation className="w-8 h-8 animate-pulse" />
                   </div>
@@ -1571,14 +1571,14 @@ ${(targetEmployee.committees || []).length > 0
                     onClick={() => {
                       setShowSlidesCard(true);
                     }}
-                    className="px-6 py-2.5 bg-amber-650 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2"
+                    className="px-3 sm:px-4 md:px-6 py-2.5 bg-amber-650 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2"
                   >
                     <Plus className="w-4 h-4" />
                     <span>زر إنشاء نموذج</span>
                   </button>
                 </div>
               ) : (
-                <div className="border border-gray-200 rounded-2xl p-4.5 bg-white space-y-4">
+                <div className="border border-gray-200 rounded-xl sm:rounded-2xl p-4.5 bg-white space-y-4">
                   {!createdSlidesUrl ? (
                     <div className="space-y-3">
                       <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-150 space-y-2">
@@ -1650,7 +1650,7 @@ ${(targetEmployee.committees || []).length > 0
                                 }
                               }
                             }}
-                            className="px-5 py-2.5 bg-amber-650 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-sm"
+                            className="px-3 sm:px-4 md:px-5 py-2.5 bg-amber-650 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-sm"
                           >
                             توجيه وتأكيد الفتح والربط 🎬
                           </button>
@@ -1658,7 +1658,7 @@ ${(targetEmployee.committees || []).length > 0
                       </div>
                     </div>
                   ) : (
-                    <div className="bg-amber-50/45 border border-amber-250 p-4 rounded-2.5xl flex flex-col md:flex-row items-center justify-between gap-4 animate-scaleUp">
+                    <div className="bg-amber-50/45 border border-amber-250 p-4 rounded-2.5xl flex flex-col md:flex-row items-center justify-between gap-2.5 sm:gap-3 md:gap-4 animate-scaleUp">
                       <div className="flex items-center gap-3">
                         <div className="p-2.5 bg-white border border-amber-200 text-amber-600 rounded-full shadow-inner">
                           <Presentation className="w-7 h-7" />
@@ -1684,7 +1684,7 @@ ${(targetEmployee.committees || []).length > 0
                         <button
                           type="button"
                           onClick={() => window.open(createdSlidesUrl, "_blank")}
-                          className="px-5 py-2.5 bg-amber-650 hover:bg-amber-700 text-white font-black text-[11px] rounded-xl flex items-center gap-1.5 shadow"
+                          className="px-3 sm:px-4 md:px-5 py-2.5 bg-amber-650 hover:bg-amber-700 text-white font-black text-[11px] rounded-xl flex items-center gap-1.5 shadow"
                         >
                           <ExternalLink className="w-4 h-4" />
                           <span>فتح بطاقة العروض التقديمية الآن 🔗</span>
@@ -1745,7 +1745,7 @@ ${(targetEmployee.committees || []).length > 0
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-5 py-2.5 bg-brand text-white font-black text-xs rounded-xl hover:bg-brand/90 cursor-pointer flex items-center gap-1.5 shadow-md"
+                  className="px-3 sm:px-4 md:px-5 py-2.5 bg-brand text-white font-black text-xs rounded-xl hover:bg-brand/90 cursor-pointer flex items-center gap-1.5 shadow-md"
                 >
                   <CheckSquare className="w-3.5 h-3.5" />
                   <span>تأكيد الإرسال والمزامنة مع Google Tasks</span>
@@ -1821,7 +1821,7 @@ ${(targetEmployee.committees || []).length > 0
                 <button
                   type="submit"
                   disabled={loading || !selectedSpace}
-                  className="px-5 py-2.5 bg-indigo-650 hover:bg-indigo-700 text-white font-black text-xs rounded-xl cursor-pointer flex items-center gap-1.5 shadow-md shadow-brand/15"
+                  className="px-3 sm:px-4 md:px-5 py-2.5 bg-indigo-650 hover:bg-indigo-700 text-white font-black text-xs rounded-xl cursor-pointer flex items-center gap-1.5 shadow-md shadow-brand/15"
                 >
                   <MessageSquare className="w-3.5 h-3.5" />
                   <span>إرسال وتحديث رسائل Google Chat</span>
@@ -1842,7 +1842,7 @@ ${(targetEmployee.committees || []).length > 0
               </p>
 
               {!showFormsCard ? (
-                <div className="bg-slate-50 border border-gray-200 rounded-2xl p-5 flex flex-col items-center justify-center text-center space-y-3.5">
+                <div className="bg-slate-50 border border-gray-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 flex flex-col items-center justify-center text-center space-y-3.5">
                   <div className="p-3 bg-purple-50 text-purple-600 rounded-full">
                     <FileCheck className="w-8 h-8 animate-pulse" />
                   </div>
@@ -1855,14 +1855,14 @@ ${(targetEmployee.committees || []).length > 0
                     onClick={() => {
                       setShowFormsCard(true);
                     }}
-                    className="px-6 py-2.5 bg-purple-650 hover:bg-purple-750 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2"
+                    className="px-3 sm:px-4 md:px-6 py-2.5 bg-purple-650 hover:bg-purple-750 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2"
                   >
                     <Plus className="w-4 h-4" />
                     <span>زر إنشاء نموذج</span>
                   </button>
                 </div>
               ) : (
-                <div className="border border-gray-200 rounded-2xl p-4.5 bg-white space-y-4">
+                <div className="border border-gray-200 rounded-xl sm:rounded-2xl p-4.5 bg-white space-y-4">
                   {!createdFormUrl ? (
                     <div className="space-y-3">
                       <div className="bg-purple-50/50 p-3 rounded-xl border border-purple-150 space-y-2">
@@ -1932,7 +1932,7 @@ ${(targetEmployee.committees || []).length > 0
                                 }
                               }
                             }}
-                            className="px-5 py-2.5 bg-purple-650 hover:bg-purple-700 text-white font-black text-xs rounded-xl shadow-sm"
+                            className="px-3 sm:px-4 md:px-5 py-2.5 bg-purple-650 hover:bg-purple-700 text-white font-black text-xs rounded-xl shadow-sm"
                           >
                             توجيه وتأكيد الفتح والربط 📝
                           </button>
@@ -1940,7 +1940,7 @@ ${(targetEmployee.committees || []).length > 0
                       </div>
                     </div>
                   ) : (
-                    <div className="bg-purple-50/45 border border-purple-250 p-4 rounded-2.5xl flex flex-col md:flex-row items-center justify-between gap-4 animate-scaleUp">
+                    <div className="bg-purple-50/45 border border-purple-250 p-4 rounded-2.5xl flex flex-col md:flex-row items-center justify-between gap-2.5 sm:gap-3 md:gap-4 animate-scaleUp">
                       <div className="flex items-center gap-3">
                         <div className="p-2.5 bg-white border border-purple-200 text-purple-600 rounded-full shadow-inner">
                           <FileCheck className="w-7 h-7" />
@@ -1966,7 +1966,7 @@ ${(targetEmployee.committees || []).length > 0
                         <button
                           type="button"
                           onClick={() => window.open(createdFormUrl, "_blank")}
-                          className="px-5 py-2.5 bg-purple-650 hover:bg-purple-700 text-white font-black text-[11px] rounded-xl flex items-center gap-1.5 shadow animate-pulse"
+                          className="px-3 sm:px-4 md:px-5 py-2.5 bg-purple-650 hover:bg-purple-700 text-white font-black text-[11px] rounded-xl flex items-center gap-1.5 shadow animate-pulse"
                         >
                           <ExternalLink className="w-4 h-4" />
                           <span>فتح بطاقة نماذج جوجل الآن 🔗</span>

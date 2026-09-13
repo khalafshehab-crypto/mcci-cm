@@ -53,6 +53,7 @@ import { db } from "../lib/firebase";
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from "../lib/firebase";
 import { motion, AnimatePresence } from "motion/react";
 import GoogleWorkspaceCenter from "../components/GoogleWorkspaceCenter";
+import { AttachmentInput } from "../components/AttachmentInput";
 
 export interface TemplateItem {
   committeeUrls?: Record<string, string>;
@@ -74,99 +75,7 @@ export interface TemplateItem {
   committeeName?: string;
 }
 
-interface AttachmentInputProps {
-  label: string;
-  value: File | string | null;
-  onChange: (val: File | string | null) => void;
-  id: string;
-}
 
-function AttachmentInput({ label, value, onChange, id }: AttachmentInputProps) {
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      onChange(e.target.files[0]);
-    }
-  };
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      onChange(e.dataTransfer.files[0]);
-    }
-  };
-  const displayValue = (value && typeof value === "object" && "name" in value) ? (value as any).name : value;
-  
-  return (
-    <div
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      className={`relative w-full flex flex-col items-center justify-center p-3 border-2 border-dashed rounded-xl transition-all ${
-        value
-          ? "border-emerald-300 bg-emerald-50/40"
-          : "border-gray-200 bg-gray-50/50 hover:bg-gray-100/70"
-      }`}
-    >
-      <input
-        type="file"
-        id={id}
-        className="hidden"
-        onChange={handleFileChange}
-      />
-      {value ? (
-        <div className="flex flex-col items-center gap-1.5 w-full">
-          <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
-            <Check className="w-4 h-4 text-emerald-600" />
-          </div>
-          <span className="text-[10px] font-bold text-emerald-800 max-w-full truncate px-2">{displayValue}</span>
-          <div className="flex items-center gap-2 mt-1 w-full">
-            <input 
-              type="text" 
-              placeholder="إعادة التسمية (اختياري)" 
-              className="flex-1 text-[9px] p-1 border border-gray-200 rounded"
-              onChange={(e) => {
-                if (typeof value === 'object' && value !== null) {
-                  const newFile = new File([value], e.target.value || value.name, { type: value.type });
-                  onChange(newFile);
-                }
-              }}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); onChange(null); }}
-            className="text-[9px] text-rose-500 hover:text-rose-600 font-bold underline mt-1"
-          >
-            حذف المرفق
-          </button>
-        </div>
-      ) : (
-        <label htmlFor={id} className="cursor-pointer flex flex-col items-center gap-1.5 w-full">
-          <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
-            <Upload className="w-4 h-4 text-blue-500" />
-          </div>
-          <span className="text-[10px] font-bold text-gray-600">
-            {label}
-          </span>
-          <span className="text-[8.5px] text-gray-400">سحب وإفلات أو تصفح</span>
-        </label>
-      )}
-      {!value && (
-        <div className="mt-2 pt-2 border-t border-gray-200/50 w-full">
-          <input 
-             type="text" 
-             placeholder="أو ضع رابط هنا..." 
-             className="w-full text-[9px] p-1.5 rounded-lg border border-gray-200 focus:border-blue-500 outline-none text-right font-mono bg-white/50"
-            onChange={(e) => {
-              if(e.target.value) onChange(e.target.value);
-            }}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function CommitteesLibrary() {
   const [templates, setTemplates] = useState<TemplateItem[]>([]);
@@ -1299,13 +1208,13 @@ ${t.description}
   return (
     <div className="space-y-6 pb-16 text-right font-sans" dir="rtl">
       {/* -------------------- Page Action Header -------------------- */}
-      <div className="bg-[#e8e4e4] rounded-2xl p-6 border border-gray-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 print:hidden">
+      <div className="bg-[#e8e4e4] rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 border border-gray-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-2.5 sm:gap-3 md:gap-4 print:hidden">
         <div>
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100/80 text-[#0ea5e9] rounded-xl border border-blue-200">
               <LibraryIcon className="w-7 h-7 text-[#0ea5e9]" />
             </div>
-            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">
+            <h1 className="text-sm sm:text-base md:text-lg sm:text-xl md:text-2xl font-extrabold text-gray-900 tracking-tight">
               المكتبة الرقمية للقوالب والتعاميم
             </h1>
           </div>
@@ -1572,16 +1481,16 @@ ${t.description}
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl relative z-10 overflow-hidden flex flex-col max-h-[90vh]"
+              className="bg-white rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-2xl relative z-10 overflow-hidden flex flex-col max-h-[90vh]"
             >
-              <div className="bg-gradient-to-l from-purple-900 to-indigo-800 p-6 text-white shrink-0">
+              <div className="bg-gradient-to-l from-purple-900 to-indigo-800 p-3 sm:p-4 md:p-6 text-white shrink-0">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm shadow-inner border border-white/30">
                       <Sparkles className="w-5 h-5 text-purple-100" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-extrabold text-white">تحليل واستخراج البيانات</h2>
+                      <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-white">تحليل واستخراج البيانات</h2>
                       <p className="text-purple-200 text-xs mt-1">الذكاء الاصطناعي لاستخراج المهام من المستندات</p>
                     </div>
                   </div>
@@ -1591,7 +1500,7 @@ ${t.description}
                 </div>
               </div>
 
-              <div className="p-6 overflow-y-auto font-sans" dir="rtl">
+              <div className="p-3 sm:p-4 md:p-6 overflow-y-auto font-sans" dir="rtl">
                 {!analyzeUploadedFile && analyzedTasks.length === 0 ? (
                   <div className="space-y-4">
                     <p className="text-sm text-gray-600 font-bold mb-2">الخطوة الأولى: أرفق المستند (نفس آلية إرفاق خطاب التشكيل)</p>
@@ -1641,7 +1550,7 @@ ${t.description}
                           }
                         }}
                         disabled={!analyzeUploadedFile || isAnalyzing}
-                        className="h-10 px-6 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-70"
+                        className="h-10 px-3 sm:px-4 md:px-6 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-70"
                       >
                         {isAnalyzing ? (
                           <><RefreshCw className="w-4 h-4 animate-spin" /> جاري التحليل...</>
@@ -1653,7 +1562,7 @@ ${t.description}
                   </div>
                 ) : isAnalyzing ? (
                   <div className="flex flex-col items-center justify-center py-12">
-                    <div className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-4" />
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-4" />
                     <p className="text-gray-800 font-extrabold">جاري تحليل المستند...</p>
                     <p className="text-gray-500 text-xs mt-2">يتم الآن قراءة المحتوى واستخلاص التوجيهات والمهام</p>
                   </div>
@@ -1699,7 +1608,7 @@ ${t.description}
                   </div>
                 ) : (
                     <div className="text-center py-10">
-                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
                             <AlertTriangle className="w-8 h-8 text-amber-500" />
                         </div>
                         <h4 className="font-bold text-gray-800">لم يتم العثور على مهام</h4>
@@ -1726,7 +1635,7 @@ ${t.description}
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="bg-white rounded-2xl border border-gray-250 shadow-lg p-5 print:hidden space-y-4"
+            className="bg-white rounded-xl sm:rounded-2xl border border-gray-250 shadow-lg p-3 sm:p-4 md:p-5 print:hidden space-y-4"
           >
             <div className="flex items-center justify-between border-b pb-3">
               <div>
@@ -1757,11 +1666,11 @@ ${t.description}
 
       <div className="min-h-[400px]">
         {filteredTemplates.length === 0 ? (
-          <div className="col-span-full py-20 flex flex-col items-center justify-center bg-[#e8e4e4] rounded-2xl border border-dashed border-gray-300">
-            <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-gray-200 mb-4 transform -rotate-2">
+          <div className="col-span-full py-20 flex flex-col items-center justify-center bg-[#e8e4e4] rounded-xl sm:rounded-2xl border border-dashed border-gray-300">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-white rounded-xl sm:rounded-2xl flex items-center justify-center shadow-sm border border-gray-200 mb-4 transform -rotate-2">
               <Search className="w-8 h-8 text-gray-400" />
             </div>
-            <h3 className="text-lg font-extrabold text-gray-800">
+            <h3 className="text-sm sm:text-base md:text-lg font-extrabold text-gray-800">
               لا توجد قوالب أو تعاميم متطابقة
             </h3>
             <p className="text-gray-500 mt-1 max-w-md font-medium text-sm">
@@ -1769,11 +1678,11 @@ ${t.description}
             </p>
           </div>
         ) : viewMode === "cards" ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4 md:gap-5">
             {filteredTemplates.map((t, i) => (
               <div
                 key={`${t.id}-${i}`}
-                className="bg-[#e8e4e4] hover:bg-[#e2dede] transition-all duration-300 rounded-2xl p-5 border border-gray-200 shadow-sm hover:shadow-md relative overflow-hidden flex flex-col justify-between group"
+                className="bg-[#e8e4e4] hover:bg-[#e2dede] transition-all duration-300 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 border border-gray-200 shadow-sm hover:shadow-md relative overflow-hidden flex flex-col justify-between group"
               >
                 {/* Top Indicator */}
                 <div
@@ -1827,7 +1736,7 @@ ${t.description}
                     </div>
                   </div>
 
-                  <h3 className="font-extrabold text-gray-900 text-lg mb-1.5 line-clamp-2">
+                  <h3 className="font-extrabold text-gray-900 text-sm sm:text-base md:text-lg mb-1.5 line-clamp-2">
                     {t.title}
                   </h3>
                   <p className="text-xs font-semibold text-gray-500 line-clamp-2 leading-relaxed mb-4">
@@ -1901,16 +1810,16 @@ ${t.description}
             ))}
           </div>
         ) : (
-          <div className="box-border border border-gray-200 rounded-2xl overflow-hidden bg-[#e8e4e4] shadow-sm">
+          <div className="box-border border border-gray-200 rounded-xl sm:rounded-2xl overflow-hidden bg-[#e8e4e4] shadow-sm">
             <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full text-right border-collapse">
                 <thead className="bg-[#dfdada] text-gray-700 font-extrabold text-sm border-b border-gray-300">
                   <tr>
-                    <th className="whitespace-nowrap py-4 px-5 w-12">النوع</th>
-                    <th className="whitespace-nowrap py-4 px-5">اسم القالب المرجعي</th>
-                    <th className="whitespace-nowrap py-4 px-5">الوصف</th>
-                    <th className="whitespace-nowrap py-4 px-5">المنشئ</th>
-                    <th className="whitespace-nowrap py-4 px-5 text-center">إجراءات</th>
+                    <th className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5 w-12">النوع</th>
+                    <th className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5">اسم القالب المرجعي</th>
+                    <th className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5">الوصف</th>
+                    <th className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5">المنشئ</th>
+                    <th className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5 text-center">إجراءات</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200/60">
@@ -1919,18 +1828,18 @@ ${t.description}
                       key={`${t.id}-${i}`}
                       className="hover:bg-white/40 transition-colors text-sm font-semibold text-gray-800"
                     >
-                      <td className="whitespace-nowrap py-4 px-5 font-bold">
+                      <td className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5 font-bold">
                         <div className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-100 inline-flex items-center justify-center">
                           {getIconForType(t.type)}
                         </div>
                       </td>
-                      <td className="whitespace-nowrap py-4 px-5 font-bold text-gray-900">
+                      <td className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5 font-bold text-gray-900">
                         {t.title}
                       </td>
-                      <td className="whitespace-nowrap py-4 px-5 text-gray-500 text-xs w-1/3 leading-relaxed">
+                      <td className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5 text-gray-500 text-xs w-1/3 leading-relaxed">
                         <span className="line-clamp-1">{t.description}</span>
                       </td>
-                      <td className="whitespace-nowrap py-4 px-5 font-black text-gray-500">
+                      <td className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5 font-black text-gray-500">
                         <div className="flex items-center gap-2">
                           <span className="w-6 h-6 rounded bg-gray-200 flex items-center justify-center text-gray-600 text-[10px] uppercase font-black tracking-wider">
                             {(t.creator || "  ").substring(0, 2)}
@@ -1938,7 +1847,7 @@ ${t.description}
                           {t.creator}
                         </div>
                       </td>
-                      <td className="whitespace-nowrap py-4 px-5">
+                      <td className="whitespace-nowrap py-4 px-3 sm:px-4 md:px-5">
                         <div className="flex items-center justify-center gap-2">
                           <a
                             href={t.cloudUrl}
@@ -2006,10 +1915,10 @@ ${t.description}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-6 left-6 z-[99999] max-w-sm w-full bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden font-sans"
+            className="fixed bottom-6 left-6 z-[99999] max-w-sm w-full bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-gray-100 overflow-hidden font-sans"
             dir="rtl"
           >
-            <div className="bg-gray-50/80 backdrop-blur border-b border-gray-100 px-5 py-4 flex items-center justify-between">
+            <div className="bg-gray-50/80 backdrop-blur border-b border-gray-100 px-3 sm:px-4 md:px-5 py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                  <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
                     <Upload className="w-5 h-5" />
@@ -2047,7 +1956,7 @@ ${t.description}
       {/* Add / Import / Export Modal */}
       <AnimatePresence>
         {isAddOpen && (
-          <div key="comm-isAddOpen-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pb-20">
+          <div key="comm-isAddOpen-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 md:p-6 pb-20">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2059,10 +1968,10 @@ ${t.description}
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-xl relative z-10 overflow-hidden flex flex-col max-h-[90vh]"
+              className="bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-slate-100 w-full max-w-xl relative z-10 overflow-hidden flex flex-col max-h-[90vh]"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gray-50/50">
-                <h2 className="text-xl font-extrabold text-gray-900 flex items-center gap-2">
+              <div className="flex items-center justify-between p-3 sm:p-4 md:p-5 border-b border-gray-100 bg-gray-50/50">
+                <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900 flex items-center gap-2">
                   إدارة واستيراد وتصدير النماذج والتعاميم
                 </h2>
                 <button
@@ -2104,7 +2013,7 @@ ${t.description}
               {modalTab === "import" ? (
                 <form
                   onSubmit={handleSave}
-                  className="p-6 overflow-y-auto space-y-4"
+                  className="p-3 sm:p-4 md:p-6 overflow-y-auto space-y-4"
                 >
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1.5">
@@ -2174,14 +2083,14 @@ ${t.description}
                     <button
                       type="button"
                       onClick={() => setIsAddOpen(false)}
-                      className="px-5 py-3 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 transition-colors"
+                      className="px-3 sm:px-4 md:px-5 py-3 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 transition-colors"
                     >
                       إلغاء
                     </button>
                     <button
                       disabled={formIsSaving}
                       type="submit"
-                      className="px-6 py-3 rounded-xl text-sm font-bold text-white bg-[#121212] hover:bg-black flex items-center gap-2 shadow-sm transition-all disabled:opacity-70"
+                      className="px-3 sm:px-4 md:px-6 py-3 rounded-xl text-sm font-bold text-white bg-[#121212] hover:bg-black flex items-center gap-2 shadow-sm transition-all disabled:opacity-70"
                     >
                       {formIsSaving ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
                       تأكيد حفظ المعيار
@@ -2189,7 +2098,7 @@ ${t.description}
                   </div>
                 </form>
               ) : (
-                <div className="p-6 overflow-y-auto space-y-4">
+                <div className="p-3 sm:p-4 md:p-6 overflow-y-auto space-y-4">
                   <p className="text-xs text-gray-500 font-bold leading-relaxed border-r-2 border-blue-500 pr-2.5 text-right">
                     حدد النماذج التي تود تصديرها من القائمة أدناه:
                   </p>
@@ -2264,15 +2173,15 @@ ${t.description}
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100"
+              className="relative w-full max-w-md bg-white rounded-xl sm:rounded-2xl shadow-xl overflow-hidden border border-gray-100"
             >
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-red-50/50">
+              <div className="p-3 sm:p-4 md:p-6 border-b border-gray-100 flex items-center justify-between bg-red-50/50">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600">
                     <Trash2 className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-black text-gray-900">تأكيد حذف النموذج</h3>
+                    <h3 className="text-sm sm:text-base md:text-lg font-black text-gray-900">تأكيد حذف النموذج</h3>
                     <p className="text-sm font-medium text-red-600 mt-1">هذا الإجراء لا يمكن التراجع عنه</p>
                   </div>
                 </div>
@@ -2287,7 +2196,7 @@ ${t.description}
                 </button>
               </div>
 
-              <div className="p-6 space-y-4">
+              <div className="p-3 sm:p-4 md:p-6 space-y-4">
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                   <p className="text-sm text-gray-600 font-medium">هل أنت متأكد من حذف النموذج:</p>
                   <p className="text-base text-gray-900 font-bold mt-1">{deleteTarget.title}</p>
@@ -2305,20 +2214,20 @@ ${t.description}
                 </div>
               </div>
 
-              <div className="p-5 border-t border-gray-100 bg-gray-50 flex items-center gap-3 justify-end shrink-0">
+              <div className="p-3 sm:p-4 md:p-5 border-t border-gray-100 bg-gray-50 flex items-center gap-3 justify-end shrink-0">
                 <button
                   onClick={() => {
                     setDeleteTarget(null);
                     setDeleteReason("");
                   }}
-                  className="px-5 py-2.5 bg-white text-gray-700 font-bold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors text-sm"
+                  className="px-3 sm:px-4 md:px-5 py-2.5 bg-white text-gray-700 font-bold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors text-sm"
                 >
                   إلغاء
                 </button>
                 <button
                   onClick={confirmDelete}
                   disabled={formIsSaving || !deleteReason.trim()}
-                  className="px-6 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors text-sm disabled:opacity-50 flex items-center gap-2 shadow-sm"
+                  className="px-3 sm:px-4 md:px-6 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors text-sm disabled:opacity-50 flex items-center gap-2 shadow-sm"
                 >
                   {formIsSaving ? "جاري الحذف..." : "تأكيد الحذف"}
                 </button>
@@ -2337,15 +2246,15 @@ ${t.description}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
               dir="rtl"
             >
-              <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <div className="p-3 sm:p-4 md:p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
                     <Info className="w-5 h-5" />
                   </div>
-                  <h2 className="text-xl font-bold text-gray-900">
+                  <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900">
                     تفاصيل التعميم
                   </h2>
                 </div>
@@ -2357,9 +2266,9 @@ ${t.description}
                 </button>
               </div>
 
-              <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+              <div className="p-3 sm:p-4 md:p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
                 {circularDetailsOpen.circularDetails ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4">
                     <div>
                       <label className="block text-xs font-bold text-gray-500 mb-1">الموضوع</label>
                       <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-gray-800 font-bold text-sm">
@@ -2460,7 +2369,7 @@ ${t.description}
               <div className="p-4 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3">
                 <button
                   onClick={() => setCircularDetailsOpen(null)}
-                  className="px-6 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-bold transition-colors"
+                  className="px-3 sm:px-4 md:px-6 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-bold transition-colors"
                 >
                   إغلاق
                 </button>
@@ -2473,7 +2382,7 @@ ${t.description}
       {/* Share Modal */}
       <AnimatePresence>
         {isShareOpen && templateToShare && (
-          <div key="share-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pb-20">
+          <div key="share-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 md:p-6 pb-20">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2485,10 +2394,10 @@ ${t.description}
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-sm relative z-10 overflow-hidden flex flex-col"
+              className="bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-gray-100 w-full max-w-sm relative z-10 overflow-hidden flex flex-col"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gray-50/50">
-                <h2 className="text-lg font-extrabold text-gray-900 flex items-center gap-2">
+              <div className="flex items-center justify-between p-3 sm:p-4 md:p-5 border-b border-gray-100 bg-gray-50/50">
+                <h2 className="text-sm sm:text-base md:text-lg font-extrabold text-gray-900 flex items-center gap-2">
                   إرسال قالب عبر البريد السريع
                 </h2>
                 <button
@@ -2499,7 +2408,7 @@ ${t.description}
                 </button>
               </div>
 
-              <form onSubmit={handleShareSubmit} className="p-5 space-y-4">
+              <form onSubmit={handleShareSubmit} className="p-3 sm:p-4 md:p-5 space-y-4">
                 <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
                   <p className="text-xs font-bold text-gray-500 text-center mb-1">القالب المحدد:</p>
                   <p className="text-sm font-extrabold text-gray-800 text-center">{templateToShare.title}</p>
@@ -2531,22 +2440,22 @@ ${t.description}
       {/* -------------------- AI Generator Wizard Modal (مع بطاقة التعميم المعتمدة) -------------------- */}
       <AnimatePresence>
         {isAIGenOpen && (
-          <div key="comm-isAIGenOpen-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+          <div key="comm-isAIGenOpen-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 md:p-6">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsAIGenOpen(false)} />
             <motion.div
               key="ai-generator-modal"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl shadow-2xl overflow-hidden w-full max-w-5xl z-10 flex flex-col max-h-[95vh]"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden w-full max-w-5xl z-10 flex flex-col max-h-[95vh]"
             >
-              <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-l from-[#133E87]/10 via-white to-white shrink-0">
+              <div className="p-3 sm:p-4 md:p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-l from-[#133E87]/10 via-white to-white shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-[#133E87]/10 text-[#133E87] flex items-center justify-center shadow-sm">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[#133E87]/10 text-[#133E87] flex items-center justify-center shadow-sm">
                     <Sparkles className="w-6 h-6" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-gray-900">
+                    <h2 className="text-base sm:text-lg md:text-xl font-black text-gray-900">
                       {workspaceService === "circular" ? "إنشاء وتوليد بطاقة تعميم رسمية" : "إنشاء نموذج مخصص للمهام"}
                     </h2>
                     <p className="text-gray-500 text-sm font-medium mt-1">
@@ -2562,13 +2471,13 @@ ${t.description}
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
+              <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 bg-gray-50/50">
                 
                 {/* STEP 1: اختيار النوع واللجان */}
                 {aiGenStep === 1 && (
                   <div className="max-w-4xl mx-auto space-y-6">
-                    <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-5">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-white p-3 sm:p-4 md:p-6 rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm space-y-5">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
                         <div>
                            <label className="block text-sm font-bold text-gray-800 mb-2">نوع النموذج / الإجراء</label>
                            <select 
@@ -2650,7 +2559,7 @@ ${t.description}
                         {workspaceService === "circular" && (
                           <div>
                              <label className="block text-sm font-bold text-gray-800 mb-2">وسيلة إرسال وتوجيه التعميم</label>
-                             <div className="flex gap-4 items-center mt-2">
+                             <div className="flex gap-2.5 sm:gap-3 md:gap-4 items-center mt-2">
                                <label className="flex items-center gap-2 cursor-pointer">
                                  <input type="checkbox" checked={circularViaEmail} onChange={e => setCircularViaEmail(e.target.checked)} className="w-4 h-4 text-[#133E87] rounded border-gray-300" />
                                  <span className="text-sm font-bold text-gray-700">البريد الإلكتروني</span>
@@ -2683,10 +2592,10 @@ ${t.description}
 
                 {/* STEP 2: رفع الخطاب والمعطيات */}
                 {aiGenStep === 2 && (
-                  <div className="flex flex-col lg:flex-row gap-6">
+                  <div className="flex flex-col lg:flex-row gap-3 sm:gap-4 md:gap-6">
                     <div className="flex-1 space-y-5">
                       {workspaceService === "circular" ? (
-                        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                        <div className="bg-white p-3 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm space-y-4">
                           <h3 className="font-bold text-gray-800 border-b border-gray-100 pb-3 flex items-center gap-2">
                             <Plus className="w-4 h-4 text-[#133E87]" />
                             مرفقات المعاملة أو الخطاب الوارد
@@ -2719,7 +2628,7 @@ ${t.description}
                           </div>
                         </div>
                       ) : aiGenMode === "new" ? (
-                        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                        <div className="bg-white p-3 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm space-y-4">
                           <h3 className="font-bold text-gray-800 border-b border-gray-100 pb-3 flex items-center gap-2">
                             <Plus className="w-4 h-4 text-emerald-600" />
                             بيانات الخطاب الجديد
@@ -2741,8 +2650,8 @@ ${t.description}
                       ) : null}
                     </div>
 
-                    <div className="lg:w-1/3 flex flex-col gap-4">
-                      <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                    <div className="lg:w-1/3 flex flex-col gap-2.5 sm:gap-3 md:gap-4">
+                      <div className="bg-white p-3 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm space-y-4">
                         <h3 className="font-bold text-gray-800 border-b border-gray-100 pb-3 flex items-center gap-2">
                           <Settings className="w-4 h-4 text-gray-400" />
                           إعدادات التواصل والتوقيع
@@ -2762,7 +2671,7 @@ ${t.description}
                         </div>
                       </div>
 
-                      <div className="mt-auto bg-blue-50/50 p-4 rounded-2xl border border-blue-100 text-center">
+                      <div className="mt-auto bg-blue-50/50 p-4 rounded-xl sm:rounded-2xl border border-blue-100 text-center">
                         <button
                           onClick={handleGenerateNewLetter}
                           disabled={isAIGenGenerating || (workspaceService === 'circular' ? !circularMainFile : (!aiGenSubject && !aiGenDetails))}
@@ -2807,10 +2716,10 @@ ${t.description}
                     </div>
                     
                     {workspaceService === "circular" ? (
-                      <div className="flex flex-col lg:flex-row gap-6 h-full">
+                      <div className="flex flex-col lg:flex-row gap-3 sm:gap-4 md:gap-6 h-full">
                         {/* لوحة تحرير الحقول على اليمين */}
-                        <div className="lg:w-1/3 flex flex-col gap-4 overflow-y-auto pr-1 max-h-[70vh]">
-                          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-3">
+                        <div className="lg:w-1/3 flex flex-col gap-2.5 sm:gap-3 md:gap-4 overflow-y-auto pr-1 max-h-[70vh]">
+                          <div className="bg-white p-3 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm space-y-3">
                             <h4 className="font-bold text-[#133E87] border-b border-gray-100 pb-2 text-sm flex items-center gap-2">
                               <Sparkles className="w-4 h-4 text-[#C5A880]" />
                               بيانات التعميم المستخرجة
@@ -2887,10 +2796,10 @@ ${t.description}
                         </div>
 
                         {/* بطاقة المعاينة الفورية بالنمط الهجين الفاخر */}
-                        <div className="lg:w-2/3 bg-slate-300/80 rounded-2xl overflow-hidden flex justify-center items-center min-h-[70vh] max-h-[70vh] border border-gray-300 relative">
+                        <div className="lg:w-2/3 bg-slate-300/80 rounded-xl sm:rounded-2xl overflow-hidden flex justify-center items-center min-h-[70vh] max-h-[70vh] border border-gray-300 relative">
                           <div className="scale-[0.50] xl:scale-[0.60] origin-center">
                             <div 
-                              className="w-[1123px] h-[794px] min-w-[1123px] min-h-[794px] max-h-[794px] rounded-2xl shadow-2xl overflow-hidden border border-slate-200/90 relative transition-all flex flex-col justify-between shrink-0"
+                              className="w-[1123px] h-[794px] min-w-[1123px] min-h-[794px] max-h-[794px] rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden border border-slate-200/90 relative transition-all flex flex-col justify-between shrink-0"
                               style={{ 
                                 background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 50%, #FAF8F5 100%)',
                                 boxShadow: '0 20px 40px -15px rgba(11, 37, 69, 0.08), 0 0 0 1px rgba(197, 168, 128, 0.25)' 
@@ -2901,9 +2810,9 @@ ${t.description}
                             <div className="h-2 w-full shrink-0" style={{ background: 'linear-gradient(90deg, #0B2545 0%, #133E87 35%, #C5A880 50%, #133E87 65%, #0B2545 100%)' }}></div>
 
                             {/* منطقة الترويسة الزجاجية المغلفة بشريط كامل */}
-                            <div className="px-8 py-5 shrink-0">
+                            <div className="px-8 py-3 sm:py-4 md:py-5 shrink-0">
                               <div 
-                                className="flex justify-between items-center px-6 py-4 rounded-3xl text-right text-xs shadow-sm border border-slate-200/90"
+                                className="flex justify-between items-center px-3 sm:px-4 md:px-6 py-4 rounded-xl sm:rounded-2xl sm:rounded-3xl text-right text-xs shadow-sm border border-slate-200/90"
                                 style={{ background: 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(8px)' }}
                               >
                                 <div className="text-right">
@@ -2920,7 +2829,7 @@ ${t.description}
                                 </div>
 
                                 <div className="text-center relative">
-                                  <h1 className="text-4xl text-[#133E87] tracking-widest leading-none font-black" >
+                                  <h1 className="text-sm sm:text-base md:text-lg sm:text-xl md:text-2xl sm:text-3xl md:text-4xl text-[#133E87] tracking-widest leading-none font-black" >
                                     تـعـمـيـم
                                   </h1>
                                   <div className="w-20 h-1 bg-gradient-to-r from-transparent via-[#C5A880] to-transparent mx-auto mt-2.5 rounded-full"></div>
@@ -2946,7 +2855,7 @@ ${t.description}
 
                             {/* شريط الوارد والمرجعية */}
                             <div className="mx-8 my-2 shrink-0 mt-6">
-                              <div className="px-6 py-2.5 rounded-xl flex justify-between items-center text-xs font-bold shadow-sm border border-[#133E87]/20 bg-[#133E87]/10 text-[#133E87]">
+                              <div className="px-3 sm:px-4 md:px-6 py-2.5 rounded-xl flex justify-between items-center text-xs font-bold shadow-sm border border-[#133E87]/20 bg-[#133E87]/10 text-[#133E87]">
                                 <span className="flex items-center gap-1.5">
                                   <span className="w-2 h-2 rounded-full bg-[#C5A880]"></span>
                                   <strong className="text-[#133E87]">الوارد من:</strong> 
@@ -2959,19 +2868,19 @@ ${t.description}
 
                             {/* متن التعميم / الموضوع الرئيسي - بطاقة زجاجية عائمة */}
                             <div 
-                              className="mx-8 my-3 py-8 px-8 text-center flex-1 flex items-center justify-center rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden"
+                              className="mx-8 my-3 py-8 px-8 text-center flex-1 flex items-center justify-center rounded-xl sm:rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden"
                               style={{ 
                                 background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.85) 100%)',
                                 backdropFilter: 'blur(12px)'
                               }}
                             >
-                              <div className="text-2xl font-black text-[#0B2545] leading-relaxed max-w-[700px] mx-auto z-10">
+                              <div className="text-sm sm:text-base md:text-lg sm:text-xl md:text-2xl font-black text-[#0B2545] leading-relaxed max-w-[700px] mx-auto z-10">
                                 {circularSubject || "—"}
                               </div>
                             </div>
 
                             {/* 5. التذييل: المرفقات أعلى بيانات التواصل */}
-                            <div className="mx-8 mb-4 mt-1 pt-3 border-t border-slate-200/80 flex flex-col gap-4 shrink-0">
+                            <div className="mx-8 mb-4 mt-1 pt-3 border-t border-slate-200/80 flex flex-col gap-2.5 sm:gap-3 md:gap-4 shrink-0">
                               {/* المرفقات (بالأعلى) */}
                               <div className="flex items-center gap-2.5 w-full">
                                 <span className="text-[11px] font-black text-[#133E87] uppercase tracking-wider bg-[#133E87]/10 px-3 py-1.5 rounded-lg border border-[#133E87]/20">
@@ -3065,11 +2974,11 @@ ${t.description}
                       </h3>
                     </div>
                     
-                    <div className="flex-1 bg-slate-300/80 rounded-2xl overflow-hidden flex justify-center items-center min-h-[75vh] border border-gray-300 relative">
+                    <div className="flex-1 bg-slate-300/80 rounded-xl sm:rounded-2xl overflow-hidden flex justify-center items-center min-h-[75vh] border border-gray-300 relative">
                       <div className="scale-[0.55] xl:scale-[0.65] 2xl:scale-[0.80] origin-center">
                         <div 
                           ref={circularPrintRef}
-                          className="w-[1123px] h-[794px] min-w-[1123px] min-h-[794px] max-h-[794px] rounded-2xl shadow-2xl overflow-hidden relative shrink-0 flex flex-col justify-between font-sans"
+                          className="w-[1123px] h-[794px] min-w-[1123px] min-h-[794px] max-h-[794px] rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden relative shrink-0 flex flex-col justify-between font-sans"
                         style={{ 
                           boxSizing: 'border-box',
                           background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 50%, #FAF8F5 100%)',
@@ -3084,7 +2993,7 @@ ${t.description}
                         {/* 2. الترويسة الرسمية المغلفة بشريط كامل */}
                         <div className="px-12 pt-7 pb-3 shrink-0">
                           <div 
-                            className="flex justify-between items-center px-8 py-5 rounded-3xl shadow-sm border border-slate-200/90"
+                            className="flex justify-between items-center px-8 py-3 sm:py-4 md:py-5 rounded-xl sm:rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200/90"
                             style={{ background: 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(10px)' }}
                           >
                             {/* اليمين: ملصق تعميم الغرفة */}
@@ -3134,7 +3043,7 @@ ${t.description}
 
                         {/* 3. شريط الوارد والمرجعية */}
                         <div className="mx-12 my-2 shrink-0 mt-8">
-                          <div className="px-8 py-3.5 rounded-2xl flex justify-between items-center text-sm shadow-sm border border-[#133E87]/20 bg-[#133E87]/10 text-[#133E87]">
+                          <div className="px-8 py-3.5 rounded-xl sm:rounded-2xl flex justify-between items-center text-sm shadow-sm border border-[#133E87]/20 bg-[#133E87]/10 text-[#133E87]">
                             <div className="flex items-center gap-2.5">
                               <span className="text-xs font-bold text-[#C5A880] bg-[#133E87]/10 px-2.5 py-1 rounded-lg">وارد من</span>
                               <span className="font-black text-[#133E87] border-b border-dashed border-[#133E87]/40 pb-0.5">{circularIncomingFrom || "—"}</span>
@@ -3152,19 +3061,19 @@ ${t.description}
 
                         {/* 4. متن التعميم / الموضوع الرئيسي - بطاقة زجاجية فخمة */}
                         <div 
-                          className="flex-1 flex flex-col justify-center items-center px-16 py-6 mx-12 my-2 rounded-2xl relative overflow-hidden shrink-0 border border-slate-200/90 shadow-sm"
+                          className="flex-1 flex flex-col justify-center items-center px-16 py-3 sm:py-4 md:py-6 mx-12 my-2 rounded-xl sm:rounded-2xl relative overflow-hidden shrink-0 border border-slate-200/90 shadow-sm"
                           style={{ 
                             background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.85) 100%)',
                             backdropFilter: 'blur(16px)'
                           }}
                         >
-                          <div className="text-center text-3xl font-black text-[#0B2545] leading-relaxed max-w-[920px] z-10">
+                          <div className="text-center text-base sm:text-lg md:text-xl sm:text-2xl md:text-3xl font-black text-[#0B2545] leading-relaxed max-w-[920px] z-10">
                             {circularSubject || "—"}
                           </div>
                         </div>
 
                         {/* 5. التذييل: المرفقات أعلى بيانات التواصل */}
-                        <div className="mx-12 mb-6 mt-2 pt-4 border-t border-slate-200/80 flex flex-col gap-5 shrink-0">
+                        <div className="mx-12 mb-6 mt-2 pt-4 border-t border-slate-200/80 flex flex-col gap-2.5 sm:gap-4 md:gap-5 shrink-0">
                           {/* المرفقات (بالأعلى) */}
                           <div className="flex items-center gap-3 w-full">
                             <span className="text-sm font-black text-[#133E87] uppercase tracking-wider bg-[#133E87]/10 px-4 py-2 rounded-xl border border-[#133E87]/20">
@@ -3217,7 +3126,7 @@ ${t.description}
                           </div>
 
                           {/* بيانات التواصل (بالأسفل) */}
-                          <div className="flex items-center justify-between w-full bg-slate-50/80 p-4 rounded-2xl border border-slate-200/70 shadow-sm">
+                          <div className="flex items-center justify-between w-full bg-slate-50/80 p-4 rounded-xl sm:rounded-2xl border border-slate-200/70 shadow-sm">
                             <div className="flex items-center gap-3">
                               <span className="w-10 h-10 rounded-full bg-[#133E87]/10 flex items-center justify-center text-[#133E87]">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
@@ -3261,12 +3170,12 @@ ${t.description}
               </div>
 
               {/* أزرار التحكم السفلية بالمعالج */}
-              <div className="p-5 border-t border-gray-100 bg-gray-50 flex items-center justify-between shrink-0 rounded-b-3xl">
+              <div className="p-3 sm:p-4 md:p-5 border-t border-gray-100 bg-gray-50 flex items-center justify-between shrink-0 rounded-b-3xl">
                 <div>
                   {aiGenStep > 1 && !isAIGenGenerating && (
                     <button
                       onClick={() => setAiGenStep(aiGenStep - 1)}
-                      className="px-6 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-50 transition-colors flex items-center gap-2"
+                      className="px-3 sm:px-4 md:px-6 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-50 transition-colors flex items-center gap-2"
                     >
                       <ChevronRight className="w-4 h-4" /> رجوع
                     </button>
@@ -3276,7 +3185,7 @@ ${t.description}
                 {aiGenStep === 2 && !isAIGenGenerating && (
                   <button
                     onClick={() => setAiGenStep(3)}
-                    className="px-6 py-2.5 bg-white border border-gray-200 text-[#133E87] rounded-xl text-sm font-bold hover:bg-gray-50 transition-colors flex items-center gap-2 shadow-sm"
+                    className="px-3 sm:px-4 md:px-6 py-2.5 bg-white border border-gray-200 text-[#133E87] rounded-xl text-sm font-bold hover:bg-gray-50 transition-colors flex items-center gap-2 shadow-sm"
                   >
                     التالي (تعبئة يدوية) <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -3292,16 +3201,16 @@ ${t.description}
                 )}
 
                 {aiGenStep === 4 && workspaceService === "circular" && (
-                  <div className="flex flex-col md:flex-row items-center gap-4 w-full">                    <div className="flex-1"></div>
+                  <div className="flex flex-col md:flex-row items-center gap-2.5 sm:gap-3 md:gap-4 w-full">                    <div className="flex-1"></div>
                     <div className="flex items-center gap-3">
                     <button
                       onClick={handleDownloadPDF}
-                      className="px-6 py-2.5 bg-[#133E87] text-white rounded-xl text-sm font-bold hover:bg-[#0B2545] transition-colors flex items-center gap-2 shadow-md"
+                      className="px-3 sm:px-4 md:px-6 py-2.5 bg-[#133E87] text-white rounded-xl text-sm font-bold hover:bg-[#0B2545] transition-colors flex items-center gap-2 shadow-md"
                     >
                       <Download className="w-4 h-4" /> تصدير PDF
                     </button>
                     <button
-                      onClick={saveAIGeneratedLetter} disabled={isSavingAIGen} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-md ${isSavingAIGen ? "bg-gray-400 text-white cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-700 text-white"}`}
+                      onClick={saveAIGeneratedLetter} disabled={isSavingAIGen} className={`px-3 sm:px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-md ${isSavingAIGen ? "bg-gray-400 text-white cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-700 text-white"}`}
                      
                     >
                       <Check className="w-4 h-4" /> حفظ وأرشفة بالدرايف
@@ -3313,7 +3222,7 @@ ${t.description}
                 {aiGenStep === 3 && workspaceService !== "circular" && (
                   <div className="flex items-center gap-3">
                     <button
-                      onClick={saveAIGeneratedLetter} disabled={isSavingAIGen} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-md ${isSavingAIGen ? "bg-gray-400 text-white cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-700 text-white"}`}
+                      onClick={saveAIGeneratedLetter} disabled={isSavingAIGen} className={`px-3 sm:px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-md ${isSavingAIGen ? "bg-gray-400 text-white cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-700 text-white"}`}
                      
                     >
                       <Check className="w-4 h-4" /> حفظ وأرشفة بالدرايف

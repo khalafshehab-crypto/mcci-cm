@@ -11,17 +11,27 @@ const tokenListeners = new Set<(token: string | null) => void>();
 
 
 // --- Global Auth Modal Logic ---
+let activeAuthPromise: Promise<string> | null = null;
 export let authResolve: ((token: string) => void) | null = null;
 export let authReject: ((err: any) => void) | null = null;
 
 export function triggerAuthModal(): Promise<string> {
-  return new Promise((resolve, reject) => {
-    authResolve = resolve;
-    authReject = reject;
+  if (activeAuthPromise) return activeAuthPromise;
+  
+  activeAuthPromise = new Promise((resolve, reject) => {
+    authResolve = (token: string) => {
+      activeAuthPromise = null;
+      resolve(token);
+    };
+    authReject = (err: any) => {
+      activeAuthPromise = null;
+      reject(err);
+    };
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent('show-google-auth-modal'));
     }
   });
+  return activeAuthPromise;
 }
 
 export function resolveAuthModal(token: string) {
@@ -134,13 +144,26 @@ export async function connectGoogleWorkspace(): Promise<string> {
   
   setCachedAccessToken(credential.accessToken);
   
+  // Try to update personal token
+  try {
+    if (result.user?.email) {
+       const tokenRef = doc(db, "employee_tokens", result.user.email.toLowerCase());
+       await setDoc(tokenRef, {
+         token: credential.accessToken,
+         timestamp: Date.now()
+       }, { merge: true });
+    }
+  } catch(e) {
+    console.warn("Failed to update personal token", e);
+  }
+  
   // Save to Firestore so other employees can use it
   try {
      const docRef = doc(db, "system_settings", "google_workspace");
      await setDoc(docRef, {
        token: credential.accessToken,
        timestamp: Date.now()
-     });
+     }, { merge: true });
   } catch(e) {
      console.warn("Failed to share token in Firestore", e);
   }
@@ -241,7 +264,9 @@ async function fetchGoogleAPI(endpoint: string, options: RequestInit = {}, maxRe
     }
 
     if (response.status === 204) return null;
-    return response.json();
+    const text = await response.text();
+    if (!text) return null;
+    try { return JSON.parse(text); } catch (e) { return text; }
   }
   
   const errObj = await lastError.json().catch(() => ({}));
@@ -373,7 +398,7 @@ export async function populateSpreadsheet(spreadsheetId: string, range: string, 
   return fetchGoogleAPI(`sheets/v4/spreadsheets/${spreadsheetId}/values/${range}?valueInputOption=RAW`, {
     method: "PUT",
     body: JSON.stringify({
-      values,
+      values
     }),
   });
 }
@@ -650,33 +675,35 @@ interface GoogleTaskPayload {
 
 
 
-export async function createGoogleTask(task: GoogleTaskPayload, employeeEmail?: string): Promise<any> {
-  let tokenToUse: string | undefined = undefined;
-  
-  if (employeeEmail) {
-    try {
-      const tokenRef = doc(db, "employee_tokens", employeeEmail.toLowerCase());
-      const snap = await getDoc(tokenRef);
-      if (snap.exists() && snap.data().token) {
-        tokenToUse = snap.data().token;
-      } else {
-        throw new Error("لم يقم هذا الموظف بتسجيل الدخول للسماح باستقبال المهام بعد.");
-      }
-    } catch (e) {
-      console.warn("Failed to fetch employee token", e);
-      throw e;
-    }
-  }
 
+export async function updateGoogleTask(taskId: string, task: GoogleTaskPayload, employeeEmail?: string): Promise<any> {
+  return fetchGoogleAPI(`tasks/v1/lists/@default/tasks/${taskId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      id: taskId,
+      title: task.title,
+      notes: task.notes || "",
+      due: task.due || undefined
+    }),
+  }, 5);
+}
+
+export async function deleteGoogleTask(taskId: string, employeeEmail?: string): Promise<any> {
+  return fetchGoogleAPI(`tasks/v1/lists/@default/tasks/${taskId}`, {
+    method: "DELETE",
+  }, 5);
+}
+
+export async function createGoogleTask(task: GoogleTaskPayload, employeeEmail?: string): Promise<any> {
   // First list or pick pre-existing task list, fallback to "@default"
   return fetchGoogleAPI("tasks/v1/lists/@default/tasks", {
     method: "POST",
     body: JSON.stringify({
       title: task.title,
       notes: task.notes || "",
-      due: task.due || undefined,
+      due: task.due || undefined
     }),
-  }, 5, tokenToUse);
+  }, 5);
 }
 
 /**
@@ -700,7 +727,7 @@ export async function sendChatMessage(spaceId: string, text: string): Promise<an
   return fetchGoogleAPI(`chat/v1/${spaceId}/messages`, {
     method: "POST",
     body: JSON.stringify({
-      text,
+      text
     }),
   });
 }
@@ -895,32 +922,40 @@ export interface GoogleCalendarEventPayload {
     date?: string;
     timeZone?: string;
   };
+  attendees?: { email: string }[];
 }
 
 export async function createGoogleCalendarEvent(event: GoogleCalendarEventPayload, employeeEmail?: string): Promise<any> {
-  let tokenToUse: string | undefined = undefined;
-  if (employeeEmail) {
-    try {
-      const tokenRef = doc(db, "employee_tokens", employeeEmail.toLowerCase());
-      const snap = await getDoc(tokenRef);
-      if (snap.exists() && snap.data().token) {
-        tokenToUse = snap.data().token;
-      } else {
-        throw new Error("لم يقم هذا الموظف بتسجيل الدخول للسماح باستقبال المواعيد بعد.");
-      }
-    } catch (e) {
-      console.warn("Failed to fetch employee token", e);
-      throw e;
-    }
-  }
-
-  return fetchGoogleAPI("calendar/v3/calendars/primary/events", {
+  return fetchGoogleAPI("calendar/v3/calendars/primary/events?sendUpdates=all", {
     method: "POST",
     body: JSON.stringify({
       summary: event.summary,
       description: event.description || "",
       start: event.start,
       end: event.end,
+      attendees: event.attendees || [],
+      guestsCanModify: true
     }),
-  }, 5, tokenToUse);
+  }, 5);
 }
+
+export async function updateGoogleCalendarEvent(eventId: string, event: GoogleCalendarEventPayload, employeeEmail?: string): Promise<any> {
+  return fetchGoogleAPI(`calendar/v3/calendars/primary/events/${eventId}?sendUpdates=all`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      summary: event.summary,
+      description: event.description || "",
+      start: event.start,
+      end: event.end,
+      attendees: event.attendees || [],
+      guestsCanModify: true
+    }),
+  }, 5);
+}
+
+export async function deleteGoogleCalendarEvent(eventId: string, employeeEmail?: string): Promise<any> {
+  return fetchGoogleAPI(`calendar/v3/calendars/primary/events/${eventId}?sendUpdates=all`, {
+    method: "DELETE"
+  }, 5);
+}
+

@@ -206,7 +206,7 @@ const CustomTooltip = ({ active, payload }: any) => {
             {data.name}
           </span>
         </div>
-        <div className="flex items-center justify-between gap-4 mt-1">
+        <div className="flex items-center justify-between gap-2.5 sm:gap-3 md:gap-4 mt-1">
           <span className="text-[10px] text-gray-400 font-bold">القيمة الحالية</span>
           <span className="text-xs font-black text-white font-mono">{data.value}</span>
         </div>
@@ -1192,7 +1192,35 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
     window.print();
   };
 
-  const meetings = (dbEvents || []).map((e: any) => ({ ...e, dateObj: e.date ? new Date(e.date) : new Date(0) }));
+  const getArabicDayName = (dateString: string) => {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return "";
+    const days = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+    return days[d.getDay()];
+  };
+
+  const getArabicMonthName = (dateString: string) => {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return "";
+    const months = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+    return months[d.getMonth()];
+  };
+
+  const meetings = (dbEvents || []).map((e: any) => {
+    const dObj = e.date ? new Date(e.date) : new Date(0);
+    return { 
+      ...e, 
+      dateObj: dObj,
+      event: e.title || "بدون عنوان",
+      section: e.committeeName || "جهة غير محددة",
+      dept: e.type || "فعالية",
+      responsible: (e.employees && e.employees.length > 0) ? e.employees[0] : "غير محدد",
+      room: e.location || "غير محدد",
+      day: getArabicDayName(e.date),
+      monthName: getArabicMonthName(e.date),
+      category: "event"
+    };
+  });
   const filteredMeetings = meetings.filter(mtg => {
     // Filter by timeframe
     const showCurrent = activeTimeframes.includes("current");
@@ -1224,10 +1252,10 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
 
 
       {/* -------------------- مركز الإشعارات -------------------- */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 print:hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-2.5 sm:gap-3 md:gap-4 print:hidden">
         
         {/* أ) مركز التنبيهات - يغطي 3 أعمدة */}
-        <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-250 shadow-sm overflow-hidden flex flex-col justify-between">
+        <div className="lg:col-span-3 bg-white rounded-xl sm:rounded-2xl border border-gray-250 shadow-sm overflow-hidden flex flex-col justify-between">
           
           {/* ترويسة مركز التنبيهات مع فلاتر سريعة */}
           <div className="p-4 bg-slate-50 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-right animate-fade-in">
@@ -1458,7 +1486,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
                         <div className="flex items-center gap-1 relative">
                           {activeGearMenuId === a.id ? (
                              <div className="flex items-center gap-1 bg-white border border-gray-200 p-1 rounded-xl shadow-sm animate-fade-in absolute left-0 z-50">
-                              <button onClick={() => { setSelectedAlarm(a); setActiveGearMenuId(null); setShowReferralSelect(false); }} className="px-2 py-1.5 bg-brand hover:bg-brand/90 text-white rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                              <button onClick={() => { setSelectedAlarm(a); setActiveGearMenuId(null); setShowReferralSelect(false); }} className="px-2 py-1.5 bg-brand hover:!bg-brand/90 text-white rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap">
                                 <Eye className="w-3.5 h-3.5" /><span>عرض التفاصيل والتوجيه</span>
                               </button>
                               <button onClick={(e) => { handleMarkUrgent(a, e); setActiveGearMenuId(null); }} className={`px-2 py-1.5 rounded-lg text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 border whitespace-nowrap ${manuallyUrgentAlarms[a.id] ? "bg-red-600 text-white border-red-650" : "bg-red-50 hover:bg-red-105 text-red-700 border-red-200"}`}>
@@ -1498,7 +1526,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
               type="button"
               onClick={handleResetIgnoredAlarms}
               title="إعادة إظهار كافة التنبيهات المهملة والمسكوتة فوراً دون انتظار المدة المحددة"
-              className="flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-brand hover:text-white text-gray-600 rounded-lg border border-gray-255 transition-all font-black select-none cursor-pointer shadow-sm group"
+              className="flex items-center gap-1.5 px-3 py-1 bg-white hover:!bg-brand hover:text-white text-gray-600 rounded-lg border border-gray-255 transition-all font-black select-none cursor-pointer shadow-sm group"
             >
               <RefreshCw className="w-3.5 h-3.5 text-brand group-hover:text-white shrink-0" />
               <span>إجمالي تنبيهات النظام المبرمجة:</span>
@@ -1514,7 +1542,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
         </div>
 
         {/* ب) الموظفون المتصلون حالياً بالنظام */}
-        <div className="bg-white rounded-2xl border border-gray-250 shadow-sm overflow-hidden flex flex-col justify-between">
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-250 shadow-sm overflow-hidden flex flex-col justify-between">
           <div className="p-3 bg-slate-50 border-b border-gray-200 text-right">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-ping shrink-0" />
@@ -1594,8 +1622,8 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
       {/* ---------------------------------------------------------------------------------- */}
 
       {/* 1. Meetings Schedule Card */}
-      <div className="group bg-[#e8e4e4] rounded-2xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-300 hover:shadow-md hover:border-gray-300 print:border-none print:shadow-none">
-        <div className="w-full flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 bg-[#e8e4e4] transition-colors duration-300 print:hidden">
+      <div className="group bg-[#e8e4e4] rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-300 hover:shadow-md hover:border-gray-300 print:border-none print:shadow-none">
+        <div className="w-full flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-3 md:gap-4 p-4 bg-[#e8e4e4] transition-colors duration-300 print:hidden">
           
           {/* قسم العنوان وقابلية الطي */}
           <div 
@@ -1775,10 +1803,10 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
               exit={{ height: 0, opacity: 0 }}
               className="border-t border-gray-100 bg-[#e8e4e4]"
             >
-              <div className="p-4 md:p-6 space-y-6">
+              <div className="p-4 md:p-4 sm:p-6 space-y-6">
                 {filteredMeetings.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 px-4 bg-white rounded-2xl border border-gray-200 text-center space-y-3">
-                    <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+                  <div className="flex flex-col items-center justify-center py-12 px-4 bg-white rounded-xl sm:rounded-2xl border border-gray-200 text-center space-y-3">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
                       <Calendar className="w-6 h-6" />
                     </div>
                     <div className="space-y-1">
@@ -1790,7 +1818,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
                   </div>
                 ) : meetingsViewMode === "table" ? (
                   /* 2. عرض سجل الاجتماعات (Table Register Layout) */
-                  <div className="bg-[#e8e4e4] rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-right">
+                  <div className="bg-[#e8e4e4] rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-right">
                     <div className="overflow-x-auto custom-scrollbar font-sans">
                       <table className="w-full text-xs font-semibold text-gray-700 select-none border-collapse text-right">
                         <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
@@ -1885,15 +1913,15 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
                 ) : (
                   /* 3. عرض البطائق العادي (Cards Layout) - للوضعين: "cards" أو "sorting" */
                   filteredMeetings.map((mtg, i) => (
-                    <div key={i} className="group relative bg-white rounded-2xl border border-gray-101 shadow-sm hover:shadow-md hover:border-brand/20 transition-all duration-300 overflow-hidden">
+                    <div key={i} className="group relative bg-white rounded-xl sm:rounded-2xl border border-gray-101 shadow-sm hover:shadow-md hover:border-brand/20 transition-all duration-300 overflow-hidden">
                       <div className="flex flex-col lg:flex-row items-stretch min-h-[100px]">
                         
                         {/* القسم الأول: الفعالية والوقت (50%) - في أقصى اليمين */}
-                        <div className="lg:w-1/2 p-4 flex items-center gap-5 border-l border-gray-100 bg-white">
+                        <div className="lg:w-1/2 p-4 flex items-center gap-2.5 sm:gap-4 md:gap-5 border-l border-gray-100 bg-white">
                           {/* كتلة التاريخ */}
-                          <div className="w-16 h-16 shrink-0 bg-brand/5 rounded-xl flex flex-col items-center justify-center border border-brand/5 group-hover:bg-brand/10 transition-colors">
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 shrink-0 bg-brand/5 rounded-xl flex flex-col items-center justify-center border border-brand/5 group-hover:!bg-brand/10 transition-colors">
                             <span className="text-xs font-black text-brand/60 uppercase" style={{ fontSize: '12px', marginBottom: '0px' }}>{mtg.day}</span>
-                            <span className="text-2xl font-black text-brand leading-none">{mtg.date.split('/')[2]}</span>
+                            <span className="text-sm sm:text-base md:text-lg sm:text-xl md:text-2xl font-black text-brand leading-none">{mtg.dateObj.getDate()}</span>
                             <span className="text-xs font-black text-gray-400 font-sans" style={{ fontSize: '11px' }}>{mtg.monthName}</span>
                           </div>
                           
@@ -1979,7 +2007,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
       </div>
 
       {/* 2. Charts Card */}
-      <div className="group bg-[#e8e4e4] rounded-2xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-300 hover:shadow-md hover:border-gray-300">
+      <div className="group bg-[#e8e4e4] rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-300 hover:shadow-md hover:border-gray-300">
         <button 
           onClick={() => toggleCard('charts')}
           className="w-full flex items-center justify-between p-4 bg-[#e8e4e4] transition-colors duration-300 group/title select-none"
@@ -2050,7 +2078,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
       </div>
 
       {/* 3. Stats Card */}
-      <div className="group bg-[#e8e4e4] rounded-2xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-300 hover:shadow-md hover:border-gray-300">
+      <div className="group bg-[#e8e4e4] rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-300 hover:shadow-md hover:border-gray-300">
         <button 
           onClick={() => toggleCard('stats')}
           className="w-full flex items-center justify-between p-4 bg-[#e8e4e4] transition-colors duration-300 group/title select-none"
@@ -2072,7 +2100,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
               className="border-t border-gray-100 bg-[#e8e4e4]"
             >
               <div className="p-4 bg-[#e8e4e4]">
-                <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
                   {[...chartData].reverse().map((stat, i) => {
                     const originalIndex = chartData.length - 1 - i;
                     const isActive = activeIndex === originalIndex;
@@ -2100,7 +2128,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
                         </div>
                         {/* Value Part (Lighter) */}
                         <div className={`h-1/2 flex items-center justify-center transition-colors ${isActive ? 'bg-white' : 'bg-gray-50'}`}>
-                          <span className="text-xl font-black transition-colors" style={{ color: stat.color }}>
+                          <span className="text-base sm:text-lg md:text-xl font-black transition-colors" style={{ color: stat.color }}>
                             {stat.value}
                           </span>
                         </div>
@@ -2125,10 +2153,10 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 15, opacity: 0 }}
               transition={{ type: "spring", damping: 22, stiffness: 280 }}
-              className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-150 relative overflow-hidden z-10 text-right font-sans flex flex-col max-h-[90vh]"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-150 relative overflow-hidden z-10 text-right font-sans flex flex-col max-h-[90vh]"
             >
               {/* Header block (Matched exact style of Committees Details) */}
-              <div className="bg-[#e8e4e4] p-6 border-b border-gray-200 flex items-center justify-between shrink-0">
+              <div className="bg-[#e8e4e4] p-3 sm:p-4 md:p-6 border-b border-gray-200 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <div className={`p-2.5 rounded-xl ${
                     selectedAlarm.type === "task" ? "bg-blue-100 text-blue-700" :
@@ -2141,7 +2169,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
                   </div>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-extrabold text-gray-900 text-lg leading-tight">
+                      <h3 className="font-extrabold text-gray-900 text-sm sm:text-base md:text-lg leading-tight">
                         {selectedAlarm.type === "task" ? "متابعة مسار المهمة" :
                          selectedAlarm.type === "recommendation" ? "متابعة مسار التوصية" :
                          "متابعة الفعالية"}
@@ -2173,17 +2201,17 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
               </div>
 
               {/* Content Body (Matched exact layout gap and color choices) */}
-              <div className="p-6 space-y-6 overflow-y-auto text-right">
+              <div className="p-3 sm:p-4 md:p-6 space-y-6 overflow-y-auto text-right">
                 
                 {/* 1. Header Metadata Section */}
-                <div className="bg-[#fcfbfb] border border-[#d2cece] rounded-2xl p-4 shadow-sm space-y-4">
+                <div className="bg-[#fcfbfb] border border-[#d2cece] rounded-xl sm:rounded-2xl p-4 shadow-sm space-y-4">
                   {selectedAlarm.type === "task" ? (() => {
                     const matchedTask = dbTasks.find((t: any) => String(t.id) === String(selectedAlarm.id).replace("task-", ""));
                     return (
                       <div key="filter-popover-1784704070969-2">
                         <h4 className="text-xs font-black text-gray-400 tracking-wider">تفاصيل مسار المهمة</h4>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4 text-xs font-medium">
                           <div className="flex items-center gap-3">
                             <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
                               <UserCheck className="w-5 h-5 text-brand" />
@@ -2232,7 +2260,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
                       <div key="filter-popover-1784704070969-3">
                         <h4 className="text-xs font-black text-gray-400 tracking-wider">تفاصيل مسار التوصية</h4>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4 text-xs font-medium">
                           <div className="flex items-center gap-3">
                             <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
                               <UserCheck className="w-5 h-5 text-brand" />
@@ -2279,7 +2307,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
                     <div key="filter-popover-1784704070969-4">
                       <h4 className="text-xs font-black text-gray-400 tracking-wider">البيانات الإدارية والتنظيمية</h4>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4 text-xs font-medium">
                         <div className="flex items-center gap-3">
                           <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
                             <Users2 className="w-5 h-5 text-brand" />
@@ -2327,7 +2355,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
                 <div className="space-y-4">
                   <h4 className="text-xs font-black text-gray-400 tracking-wider">التفاصيل وسجل التتبع</h4>
                   
-                  <div className="bg-[#fcfbfb] border border-[#d2cece] rounded-2xl p-4 shadow-inner space-y-4">
+                  <div className="bg-[#fcfbfb] border border-[#d2cece] rounded-xl sm:rounded-2xl p-4 shadow-inner space-y-4">
                     {selectedAlarm.type === "task" ? (
                       <div>
                         <span className="text-[10px] text-gray-400 font-black block mb-1">وصف المهمة:</span>
@@ -2425,7 +2453,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
                     </motion.div>
                   )}
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4">
                     <div className="space-y-1">
                       <label className="text-[11px] font-black text-slate-700 block">
                         تحديث الحالة <span className="text-red-500">*</span>
@@ -2546,7 +2574,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
                          setTimeout(() => setReferToast(null), 3000);
                        }
                     }}
-                    className="px-5 py-2 text-xs font-extrabold text-white bg-brand hover:shadow-md hover:brightness-105 rounded-xl flex items-center gap-1.5 transition-all outline-none cursor-pointer"
+                    className="px-3 sm:px-4 md:px-5 py-2 text-xs font-extrabold text-white bg-brand hover:shadow-md hover:brightness-105 rounded-xl flex items-center gap-1.5 transition-all outline-none cursor-pointer"
                   >
                     <Check className="w-4 h-4 stroke-[2.5]" />
                     <span>حفظ المستجدات</span>
@@ -2566,7 +2594,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
                         handleSubmitReferral();
                       }
                     }}
-                    className="px-5 py-2 text-xs font-extrabold text-white rounded-xl flex items-center gap-1.5 transition-all outline-none bg-emerald-600 hover:bg-emerald-700 cursor-pointer"
+                    className="px-3 sm:px-4 md:px-5 py-2 text-xs font-extrabold text-white rounded-xl flex items-center gap-1.5 transition-all outline-none bg-emerald-600 hover:bg-emerald-700 cursor-pointer"
                   >
                     <Send className="w-4 h-4 stroke-[2.5]" />
                     <span>{showReferralSelect ? "تأكيد الإحالة" : "إحالة"}</span>
@@ -2589,7 +2617,7 @@ const [meetingsViewMode, setMeetingsViewMode] = useState<"cards" | "table" | "ca
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: "spring", duration: 0.4 }}
-              className="bg-white border-2 border-[#b59410]/20 rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl relative flex flex-col"
+              className="bg-white border-2 border-[#b59410]/20 rounded-xl sm:rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl relative flex flex-col"
             >
               {/* Header */}
               <div className="bg-[#b59410] text-white p-4 flex items-center justify-between border-b border-[#a4840d]">

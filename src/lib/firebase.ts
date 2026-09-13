@@ -33,14 +33,12 @@ let auth: any = null;
 try {
   app = fbInitializeApp(firebaseConfig);
 } catch (e) {
-  console.warn("Firebase initializeApp failed, using empty configuration representation.", e);
-  app = {};
+  console.warn("Firebase initializeApp failed", e);
 }
 
 try {
-  db = fbInitializeFirestore(app, { experimentalForceLongPolling: true }, (firebaseAppletConfig as any).firestoreDatabaseId || "(default)");
+  db = fbInitializeFirestore(app, { experimentalForceLongPolling: true }, (firebaseAppletConfig as any).firestoreDatabaseId || "ai-studio-a65022e1-61ad-4fbc-9420-555fa8c23675");
   if (db) {
-    db.isBlocked = !db || db.type === "dummy_firestore";
     // Enable Offline Mode
     enableMultiTabIndexedDbPersistence(db).catch((err) => {
         if (err.code === 'failed-precondition') {
@@ -51,59 +49,13 @@ try {
     });
   }
 } catch (e) {
-  console.warn("Firebase getFirestore failed, using mock database implementation.", e);
-  db = {
-    type: "dummy_firestore",
-    app: app,
-    isBlocked: true,
-    disableNetwork: async () => {},
-    enableNetwork: async () => {},
-  };
+  console.warn("Firebase getFirestore failed", e);
 }
 
 try {
   auth = fbGetAuth(app);
 } catch (e) {
-  console.warn("Firebase getAuth failed, using mock authentication representation.", e);
-  auth = {
-    currentUser: null,
-    onAuthStateChanged: (callback: any) => {
-      callback(null);
-      return () => {};
-    },
-    signOut: async () => {},
-  };
-}
-
-let isFirestoreBlocked = !db || db.type === "dummy_firestore";
-const blockedListeners = new Set<(blocked: boolean) => void>();
-
-export function setFirestoreBlocked(blocked: boolean) {
-  if (db) {
-    db.isBlocked = blocked;
-  }
-  if (isFirestoreBlocked !== blocked) {
-    isFirestoreBlocked = blocked;
-    blockedListeners.forEach(listener => {
-      try {
-        listener(blocked);
-      } catch (e) {
-        console.error("Error invoking Firestore block listener:", e);
-      }
-    });
-  }
-}
-
-export function subscribeToFirestoreBlocked(listener: (blocked: boolean) => void) {
-  blockedListeners.add(listener);
-  listener(isFirestoreBlocked);
-  return () => {
-    blockedListeners.delete(listener);
-  };
-}
-
-export function isUseMock() {
-  return isFirestoreBlocked;
+  console.warn("Firebase getAuth failed", e);
 }
 
 export function collection(dbRef: any, collectionName: string): any {
@@ -119,29 +71,6 @@ export function doc(dbRef: any, nameOrPath: string, maybeId?: string): any {
 export function query(collectionRef: any, ...queryConstraints: any[]): any {
   return fbQuery(collectionRef, ...queryConstraints);
 
-}
-
-// Wrap core firebase promises with a timeout to prevent hanging on connection or rules issues
-async function withTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number
-): Promise<{ result: T | null; timedOut: boolean }> {
-  let timeoutId: any;
-  const timeoutPromise = new Promise<{ result: T | null; timedOut: boolean }>((resolve) => {
-    timeoutId = setTimeout(() => {
-      console.warn(`Firebase core operation timed out after ${timeoutMs}ms. Activating local mock database fallback.`);
-      setFirestoreBlocked(true);
-      resolve({ result: null, timedOut: true });
-    }, timeoutMs);
-  });
-
-  return Promise.race([
-    promise.then((res) => {
-      clearTimeout(timeoutId);
-      return { result: res, timedOut: false };
-    }),
-    timeoutPromise
-  ]);
 }
 
 export async function addDoc(collectionRef: any, data: any): Promise<any> {

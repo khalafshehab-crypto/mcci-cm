@@ -36,7 +36,7 @@ export default function GlobalToast() {
           initial={{ opacity: 0, y: 50, scale: 0.9 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 20, scale: 0.9 }}
-          className="fixed bottom-6 left-6 z-[99999] max-w-sm w-full bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden font-sans"
+          className="fixed bottom-6 left-6 z-[99999] max-w-sm w-full bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-gray-100 overflow-hidden font-sans"
         >
           <div className="p-4 flex items-start gap-3 relative">
             {toast.type === "error" && (

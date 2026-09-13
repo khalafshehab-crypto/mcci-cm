@@ -1,11 +1,11 @@
 import { extractAgendaClient } from "../lib/geminiClient";
 import { showGlobalToast } from "../lib/toastUtils";
-import { autoCreateEventDriveFolders, getOrCreateFolder, uploadBinaryFileToDrive, downloadDriveFileBase64, getCachedAccessToken } from "../lib/googleApi";
+import { autoCreateEventDriveFolders, createGoogleCalendarEvent, updateGoogleCalendarEvent, getOrCreateFolder, uploadBinaryFileToDrive, downloadDriveFileBase64, getCachedAccessToken, deleteGoogleCalendarEvent } from "../lib/googleApi";
 import React, { useState, useEffect, FormEvent } from "react";
 import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { 
-  Calendar, CheckCircle, Search, Plus, X, Users2, Trash2, Edit2, LayoutGrid, List, SlidersHorizontal, AlertTriangle, Check, BookOpen, Clock, Presentation, MapPin, AlignLeft, Send, PlayCircle, Filter, Users, Settings, Copy, ChevronDown, ChevronUp, CheckSquare, Sparkles, Activity, Sliders, Lock
+  RefreshCw, Calendar, CheckCircle, Search, Plus, X, Users2, Trash2, Edit2, LayoutGrid, List, SlidersHorizontal, AlertTriangle, Check, BookOpen, Clock, Presentation, MapPin, AlignLeft, Send, PlayCircle, Filter, Users, Settings, Copy, ChevronDown, ChevronUp, CheckSquare, Sparkles, Activity, Sliders, Lock
 , Upload, Paperclip, Wand2, Loader2 , CalendarDays, ChevronRight, ChevronLeft} from "lucide-react";
 import { Member } from "../data/initialMembers";
 import { formatCommitteeNameArabic } from "../lib/arabicUtils";
@@ -21,8 +21,10 @@ interface EventItem {
   status: "تجهيز الفعاليات" | "تأكيد الموعد مع رئيس اللجنة" | "إرسال الدعوات" | "تأكيد الحضور" | "محضر الاجتماع" | "التوصيات" | "منتهية" | string;
   location: "حضوري" | "عن بعد";
   employees: string[];
+  externalInvitees?: string[];
   members: number[]; // Array of member IDs
   notes: string;
+  googleEventIds?: Record<string, string>;
   
   // New workflow step fields
   committeeConfirmed?: boolean;
@@ -257,108 +259,11 @@ const exportRecommendationsToLocalStorage = async (evt: EventItem, selectedAgend
 
 import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc, setDoc } from '../lib/firebase';
 import { db } from '../lib/firebase';
-import { useFirestoreCollection } from '../lib/firebaseUtils';
+import { useFirestoreCollection, sendSystemAlert } from '../lib/firebaseUtils';
+import { AttachmentInput } from "../components/AttachmentInput";
 
 
-interface AttachmentInputProps {
-  label: string;
-  value: File | string | null;
-  onChange: (val: File | string | null) => void;
-  id: string;
-}
 
-function AttachmentInput({ label, value, onChange, id }: AttachmentInputProps) {
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      onChange(e.target.files[0]);
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      onChange(e.dataTransfer.files[0]);
-    }
-  };
-
-  const getDisplayValue = () => {
-    if (!value) return "";
-    if (typeof value === "string") {
-      return value.startsWith("http") ? "تم رفع الملف بنجاح (رابط)" : value;
-    }
-    if (typeof value === "object" && value !== null) {
-      return (value as any).name || "ملف مرفق";
-    }
-    return "ملف مرفق";
-  };
-  const displayValue = getDisplayValue();
-
-  return (
-    <div
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      className={`border-2 border-dashed rounded-2xl p-3.5 text-center transition-all relative ${
-        value
-          ? "border-emerald-300 bg-emerald-50/40"
-          : "border-gray-200 bg-gray-50/50 hover:bg-gray-100/70"
-      }`}
-    >
-      <input
-        type="file"
-        id={id}
-        className="hidden"
-        onChange={handleFileChange}
-      />
-      {value ? (
-        <div className="flex flex-col items-center gap-1.5">
-          <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
-            <Check className="w-4 h-4 text-emerald-600" />
-          </div>
-          <span className="text-[10px] font-bold text-gray-700 max-w-full overflow-hidden text-ellipsis whitespace-nowrap px-2">
-            {displayValue}
-          </span>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onChange(null);
-            }}
-            className="absolute top-2 left-2 p-1 bg-red-50 text-red-500 rounded-full hover:bg-red-100 transition-colors"
-          >
-            <X className="w-3 h-3" />
-          </button>
-        </div>
-      ) : (
-        <label htmlFor={id} className="cursor-pointer flex flex-col items-center gap-1.5">
-          <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
-            <Upload className="w-4 h-4 text-blue-500" />
-          </div>
-          <span className="text-[10px] font-bold text-gray-600">
-            {label}
-          </span>
-          <span className="text-[8.5px] text-gray-400">سحب وإفلات أو تصفح</span>
-        </label>
-      )}
-      {!value && (
-        <div className="mt-2 pt-2 border-t border-gray-200/50">
-          <input 
-            type="url" 
-            placeholder="أو ضع رابط درايف هنا..." 
-            className="w-full text-[9px] p-1.5 bg-white border border-gray-200 rounded text-center focus:ring-1 focus:ring-brand focus:border-brand"
-            onChange={(e) => {
-              if (e.target.value.trim()) onChange(e.target.value.trim());
-            }}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
 
 const readFileAsBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -481,7 +386,7 @@ function Step8Attachments({ evt, updateEventWorkflow }: { evt: any, updateEventW
         يرجى إرفاق روابط المستندات المطلوبة عبر جوجل درايف. (كشف الحضور ومحضر الاجتماع إلزامية).
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4 mt-4">
         <div className="space-y-1.5">
           <AttachmentInput
             id={`attendance-${evt.id}`}
@@ -545,7 +450,7 @@ function Step8Attachments({ evt, updateEventWorkflow }: { evt: any, updateEventW
           type="button"
           disabled={!isComplete || isUploading}
           onClick={handleFinalSave}
-          className={`px-5 py-2.5 rounded-lg text-[10.5px] font-black flex items-center gap-2 transition-all ${
+          className={`px-3 sm:px-4 md:px-5 py-2.5 rounded-lg text-[10.5px] font-black flex items-center gap-2 transition-all ${
             (isComplete && !isUploading)
               ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md cursor-pointer" 
               : "bg-gray-100 text-gray-400 cursor-not-allowed"
@@ -559,6 +464,102 @@ function Step8Attachments({ evt, updateEventWorkflow }: { evt: any, updateEventW
   );
 }
 
+
+
+
+
+const syncEventsToCalendar = async (eventsList: any[], dbEmployees: any[], collectionName: string) => {
+  let stats = { created: 0, updated: 0, failed: 0 };
+  for (const evt of eventsList) {
+    if (!evt.employees || evt.employees.length === 0) continue;
+    
+    let updatedGoogleEventIds = { ...(evt.googleEventIds || {}) };
+    let hasChanges = false;
+    
+    const mainEmpName = evt.employees[0];
+    const targetEmp = dbEmployees.find((e: any) => e.name === mainEmpName);
+    
+    const uniqueEmails = new Set<string>();
+    for (const name of evt.employees || []) {
+      const emp = dbEmployees.find((e: any) => e.name === name);
+      if (emp && emp.email) {
+        uniqueEmails.add(emp.email);
+      }
+    }
+    const attendees = Array.from(uniqueEmails).map(email => ({ email }));
+
+    try {
+      let startObj: any = { date: evt.date ? new Date(evt.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0] };
+      let endObj: any = { date: evt.date ? new Date(evt.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0] };
+      
+      if (evt.date && evt.time) {
+         const dt = new Date(`${evt.date}T${evt.time}:00+03:00`);
+         if (!isNaN(dt.getTime())) {
+            startObj = { dateTime: dt.toISOString() };
+            const endDt = new Date(dt.getTime() + 60*60*1000);
+            endObj = { dateTime: endDt.toISOString() };
+         }
+      }
+
+      const payload: any = {
+        summary: evt.title,
+        description: "وقت الاجتماع: " + (evt.time || 'غير محدد') + "\nالقاعة: " + (evt.location || 'غير محدد') + "\nملاحظات: " + (evt.notes || ''),
+        start: startObj,
+        end: endObj,
+        attendees: attendees
+      };
+
+      const targetEmail = targetEmp?.email;
+      
+      const existingEventId = Object.values(updatedGoogleEventIds)[0] as string | undefined;
+
+      if (existingEventId) {
+         try {
+           await updateGoogleCalendarEvent(existingEventId, payload);
+           stats.updated++;
+         } catch (updateErr: any) {
+           console.warn("Failed to update calendar event:", updateErr);
+           
+           // If update fails for any reason (e.g. 403 Forbidden due to missing guestsCanModify, or 404), forcefully recreate to guarantee sync
+           console.warn("Event update failed or was rejected. Attempting to forcefully recreate...");
+           try {
+             try { await deleteGoogleCalendarEvent(existingEventId); } catch (e) {}
+             const response = await createGoogleCalendarEvent(payload);
+             if (response && response.id) {
+               updatedGoogleEventIds = { "event_id": response.id };
+               hasChanges = true;
+               stats.created++;
+             } else {
+               stats.failed++;
+             }
+           } catch (recreateErr) {
+             console.error("Recreation also failed:", recreateErr);
+             stats.failed++;
+           }
+         }
+      } else {
+         const response = await createGoogleCalendarEvent(payload);
+         if (response && response.id) {
+           updatedGoogleEventIds = { "event_id": response.id };
+           hasChanges = true;
+           stats.created++;
+         }
+      }
+    } catch (err) {
+      console.warn("Failed to sync calendar for event", evt.title, err);
+      stats.failed++;
+    }
+    
+    if (hasChanges && collectionName) {
+      try {
+        await updateDoc(doc(db, collectionName, String(evt.id)), { googleEventIds: updatedGoogleEventIds });
+      } catch (e) {
+        console.warn("Failed to save googleEventIds", e);
+      }
+    }
+  }
+  return stats;
+};
 
 export default function CommitteesEvents() {
   const location = useLocation();
@@ -585,28 +586,11 @@ export default function CommitteesEvents() {
          e.id !== "01" && 
          e.name !== "شهاب الدين" && 
          e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && 
-         ((e.orgLevel1 && e.orgLevel1.match(/اللجان/)) || (e.orgLevel2 && e.orgLevel2.match(/اللجان/)) || (e.orgLevel3 && e.orgLevel3.match(/اللجان/)))
+         (e.orgLevel1 === "اللجان" || e.orgLevel2 === "اللجان" || e.orgLevel3 === "اللجان" || e.orgLevel4 === "اللجان" || e.orgLevel1 === "إدارة اللجان" || e.orgLevel2 === "إدارة اللجان" || e.orgLevel3 === "إدارة اللجان" || e.orgLevel4 === "إدارة اللجان")
      );
      return sourceList.map(e => e.name).filter(Boolean);
   }, [dbEmployees]);
 
-  const setEvents = (action: React.SetStateAction<EventItem[]>) => {
-    let nextEvents = typeof action === 'function' ? action(events) : action;
-    events.forEach(existing => {
-       if (!nextEvents.find(e => String(e.id) === String(existing.id))) {
-          deleteFirebaseEvent(String(existing.id));
-       }
-    });
-
-    nextEvents.forEach(nextT => {
-       const existing = events.find(e => String(e.id) === String(nextT.id));
-       if (!existing) {
-          updateFirebaseEvent(String(nextT.id), nextT); // Update actually creates if passing the explicit string ID using setDoc if we modify the helper. Let me modify useFirestoreCollection first!
-       } else if (JSON.stringify(existing) !== JSON.stringify(nextT)) {
-          updateFirebaseEvent(String(nextT.id), nextT);
-       }
-    });
-  };
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterQuery, setFilterQuery] = useState("");
@@ -615,6 +599,47 @@ export default function CommitteesEvents() {
   const [selectedFilterCommittees, setSelectedFilterCommittees] = useState<string[]>([]);
   
   const [currentDate, setCurrentDate] = useState(new Date());
+
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [eventsToSync, setEventsToSync] = useState<any[]>([]);
+  const [selectedEventsToSync, setSelectedEventsToSync] = useState<number[]>([]);
+
+  const handleManualSync = () => {
+    // Determine allowed events
+    let allowedEvents = events;
+    if (true) {
+       // Make sure we have a safe fallback if canUserEditCommittee fails or rejects all
+       allowedEvents = events.filter((e: any) => {
+         try {
+           return canUserEditCommittee(e.committeeName);
+         } catch(err) { return true; }
+       });
+       // If empty for some reason, just show all for the current section to avoid getting stuck
+       if (allowedEvents.length === 0 && JSON.parse(localStorage.getItem("current_user") || "{}")?.role === "مدير النظام") {
+          allowedEvents = events;
+       }
+    }
+    setEventsToSync(allowedEvents);
+    setSelectedEventsToSync(allowedEvents.map((e: any) => e.id));
+    setIsSyncModalOpen(true);
+  };
+
+  const confirmManualSync = async () => {
+    setIsSyncing(true);
+    const currentCollectionName = "events";
+    const toSync = eventsToSync.filter(e => selectedEventsToSync.includes(e.id));
+    showGlobalToast("جاري مزامنة التقويم، يرجى الانتظار...", "loading");
+    const stats = await syncEventsToCalendar(toSync, dbEmployees, currentCollectionName);
+    setIsSyncing(false);
+    setIsSyncModalOpen(false);
+    if (stats && (stats.created > 0 || stats.updated > 0 || stats.failed > 0)) {
+      showGlobalToast(`اكتملت المزامنة! تمت إضافة: ${stats.created}، وتحديث: ${stats.updated}، وفشل: ${stats.failed}`, "success");
+    } else {
+      showGlobalToast("لا توجد مواعيد جديدة للمزامنة.", "success");
+    }
+  };
   
   const getDaysInMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -1032,6 +1057,34 @@ ${formattedItems}
   const [singleTime, setSingleTime] = useState("");
   const [singleRoom, setSingleRoom] = useState("");
   const [singleEmployee, setSingleEmployee] = useState(dynamicEmployees[0] || "");
+  const [singleAdditionalInvitees, setSingleAdditionalInvitees] = useState<string[]>([]);
+  const [seriesAdditionalInvitees, setSeriesAdditionalInvitees] = useState<string[]>([]);
+  const [isSingleInviteesOpen, setIsSingleInviteesOpen] = useState(false);
+  const [isSeriesInviteesOpen, setIsSeriesInviteesOpen] = useState(false);
+  const [singleExternalInvitees, setSingleExternalInvitees] = useState<string[]>([]);
+  const [seriesExternalInvitees, setSeriesExternalInvitees] = useState<string[]>([]);
+  const [isSingleMembersOpen, setIsSingleMembersOpen] = useState(false);
+  const [isSeriesMembersOpen, setIsSeriesMembersOpen] = useState(false);
+  const [externalInput, setExternalInput] = useState("");
+  const [seriesExternalInput, setSeriesExternalInput] = useState("");
+
+  
+  const allGroupedEmployees = React.useMemo(() => {
+    const list = dbEmployees.filter((e: any) => 
+      e && e.role !== "SYS_ADMIN" && e.id !== "01" && e.name !== "شهاب الدين" && e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && e.active
+    );
+    const grouped = list.reduce((acc: any, emp: any) => {
+      const groupName = emp.orgLevel3 || emp.orgLevel2 || "أخرى";
+      if (!acc[groupName]) acc[groupName] = [];
+      acc[groupName].push({ name: emp.name, email: emp.email });
+      return acc;
+    }, {});
+    return grouped;
+  }, [dbEmployees]);
+
+  const allEmployeesNames = React.useMemo(() => {
+    return dbEmployees.filter((e: any) => e && e.role !== "SYS_ADMIN" && e.id !== "01" && e.name !== "شهاب الدين" && e.email?.trim().toLowerCase() !== "khalafshehab@gmail.com" && e.active).map((e: any) => e.name);
+  }, [dbEmployees]);
 
   useEffect(() => {
     setIsSeqManuallyEdited(false);
@@ -1243,6 +1296,7 @@ ${formattedItems}
     setSingleTime("");
     setSingleRoom("");
     setSingleEmployee(dynamicEmployees[0] || "");
+    setSingleExternalInvitees([]);
     
     // reset series
     setSeriesKind("");
@@ -1274,7 +1328,7 @@ ${formattedItems}
     setEditingEvent(evt);
     setNewTitle(evt.title);
     setIsTitleManuallyEdited(true);
-    setNewType(evt.type);
+    setNewType("مفردة"); // Force editing to behave as a single occurrence
     setNewDate(evt.date);
     setNewCommitteeId(evt.committeeId);
     setNewStatus(evt.status);
@@ -1283,16 +1337,49 @@ ${formattedItems}
     setNewMembers(evt.members || []);
     setNewNotes(evt.notes);
     
-    if (evt.type === "مفردة") {
-      setSingleTime(evt.time || "");
-      setSingleRoom(evt.location);
-      setSingleEmployee(evt.employees?.[0] || "");
-    } else {
-      setSeriesTime(evt.time || "");
-      setSeriesRooms(evt.location.split("،").map(s => s.trim()));
-      setSeriesAssignedEmployee(evt.employees?.[0] || "");
+    let matchedKind = "";
+    for (const k of ["اجتماع", "لقاء", "زيارة", "استضافة", "ورشة عمل", "ندوة", "حفل", "تدشين", "إطلاق مبادرة", "توقيع اتفاقية", "معرض", "دورة تدريبية", "ملتقى", "منتدى", "محاضرة"]) {
+      if (evt.title.includes(k)) {
+        matchedKind = k;
+        break;
+      }
     }
-
+    let matchedClass = "";
+    for (const c of ["دوري", "استثنائي", "طارئ", "فريق عمل"]) {
+      if (evt.title.includes(c)) {
+        matchedClass = c;
+        break;
+      }
+    }
+    let matchedNum = "الأول";
+    const ordinals = ["الأول", "الثاني", "الثالث", "الرابع", "الخامس", "السادس", "السابع", "الثامن", "التاسع", "العاشر", "الحادي عشر", "الثاني عشر", "الثالث عشر", "الرابع عشر", "الخامس عشر", "السادس عشر", "السابع عشر", "الثامن عشر", "التاسع عشر", "العشرون"];
+    for (const ord of ordinals) {
+      if (evt.title.includes(ord)) {
+        matchedNum = ord;
+        break;
+      }
+    }
+    if (evt.employees && evt.employees.length > 0) {
+      setSingleEmployee(evt.employees[0]);
+      if (evt.employees.length > 1) {
+        setSingleAdditionalInvitees(evt.employees.slice(1));
+      } else {
+        setSingleAdditionalInvitees([]);
+      }
+    } else {
+      setSingleEmployee("");
+      setSingleAdditionalInvitees([]);
+    }
+    
+    setSingleTime(evt.time || "");
+      setSingleExternalInvitees(evt.externalInvitees || []);
+      setSingleRoom(evt.location || "");
+      setSingleEmployee(evt.employees?.[0] || "");
+      setSingleAdditionalInvitees(evt.employees?.slice(1) || []);
+      setSingleKind(matchedKind);
+      setSingleClassification(matchedClass);
+      setSingleEventNumber(matchedNum);
+    
     setIsAddOpen(true);
   };
 
@@ -1378,7 +1465,7 @@ ${formattedItems}
     return null;
   };
 
-  const handleInsertSeries = () => {
+  const handleInsertSeries = async () => {
     if (!newCommitteeId || newCommitteeId === 0) { alert("يرجى اختيار اللجنة أولاً"); return; }
     const commName = committees.find(c => c.id === newCommitteeId)?.name || "";
     if (commName && !canUserEditCommittee(commName)) { alert("غير مصرح لك بجدولة فعاليات لهذه اللجنة"); return; }
@@ -1386,7 +1473,7 @@ ${formattedItems}
     
     // Check conflicts
     for (const gen of selectedGen) {
-      const conflict = checkConflict(gen.date, gen.time, seriesRooms, [seriesAssignedEmployee].filter(Boolean));
+      const conflict = checkConflict(gen.date, gen.time, seriesRooms, [seriesAssignedEmployee, ...seriesAdditionalInvitees].filter(Boolean));
       if (conflict) {
         setConflictWarning(conflict);
         return;
@@ -1403,12 +1490,19 @@ ${formattedItems}
       committeeName: commName,
       status: "تجهيز الفعاليات",
       location: seriesRooms.length > 0 ? seriesRooms.join("، ") : "حضوري",
-      employees: [seriesAssignedEmployee].filter(Boolean),
+      employees: Array.from(new Set([JSON.parse(localStorage.getItem("current_user") || "{}")?.name, seriesAssignedEmployee, ...seriesAdditionalInvitees].flat().filter(Boolean))),
       members: newMembers,
+      externalInvitees: newType === "متسلسلة" ? seriesExternalInvitees : singleExternalInvitees,
       notes: newNotes,
     }));
 
-    setEvents([...newEventsList, ...events]);
+    newEventsList.forEach(async (ev) => { await setDoc(doc(db, "events", String(ev.id)), ev); });
+    const stats = await syncEventsToCalendar(newEventsList, dbEmployees, "events");
+      if (stats.failed > 0) {
+        showGlobalToast("تم الحفظ في النظام، لكن فشلت مزامنة بعض الفعاليات مع جوجل.", "error");
+      } else {
+        showGlobalToast("تم إنشاء الفعاليات المتسلسلة ومحاولة مزامنتها مع تقويم جوجل للموظف", "success");
+      }
     setIsConfirmingSeries(false);
     setIsAddOpen(false);
     setShowSuccessMsg(true);
@@ -1416,7 +1510,7 @@ ${formattedItems}
     setTimeout(() => setShowSuccessMsg(false), 3000);
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setConflictWarning(null);
     
@@ -1438,8 +1532,8 @@ ${formattedItems}
     }
 
     if (editingEvent) {
-      setEvents(events.map(ev => ev.id === editingEvent.id ? {
-        ...ev,
+      const updatedEvent = {
+        ...editingEvent,
         title: newTitle,
         type: newType,
         date: newDate,
@@ -1448,13 +1542,30 @@ ${formattedItems}
         committeeName: commName,
         status: newStatus,
         location: singleRoom,
-        employees: [singleEmployee].filter(Boolean),
+        employees: Array.from(new Set([JSON.parse(localStorage.getItem("current_user") || "{}")?.name, singleEmployee, ...singleAdditionalInvitees].flat().filter(Boolean))),
         members: newMembers,
+      externalInvitees: newType === "متسلسلة" ? seriesExternalInvitees : singleExternalInvitees,
         notes: newNotes
-      } : ev));
+       };
+      try {
+        await updateDoc(doc(db, "events", String(editingEvent.id)), updatedEvent);
+        
+        if (editingEvent.date !== newDate || editingEvent.time !== singleTime) {
+          for (const emp of updatedEvent.employees) {
+            sendSystemAlert(emp, "تعديل موعد فعالية", `تم تعديل موعد فعالية "${updatedEvent.title}" إلى ${newDate} ${singleTime}`, "event_update", "/events");
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+      const stats = await syncEventsToCalendar([updatedEvent], dbEmployees, "events");
+      if (stats.failed > 0) {
+        showGlobalToast("تم تحديث الفعالية في النظام، لكن فشلت المزامنة مع جوجل (قد يكون بسبب تكرار إيميلات المدعوين أو خطأ في صيغة الوقت).", "error");
+      } else {
+        showGlobalToast("تم تحديث الفعالية ومحاولة مزامنتها مع تقويم جوجل للموظف", "success");
+      }
     } else {
-      setEvents([
-        {
+      const newEvent = {
           id: Date.now(),
           title: newTitle,
           type: newType,
@@ -1464,19 +1575,54 @@ ${formattedItems}
           committeeName: commName,
           status: newStatus,
           location: singleRoom,
-          employees: [singleEmployee].filter(Boolean),
+          employees: Array.from(new Set([JSON.parse(localStorage.getItem("current_user") || "{}")?.name, singleEmployee, ...singleAdditionalInvitees].flat().filter(Boolean))),
           members: newMembers,
+      externalInvitees: newType === "متسلسلة" ? seriesExternalInvitees : singleExternalInvitees,
           notes: newNotes
-        },
-        ...events
-      ]);
+        };
+      try {
+        await setDoc(doc(db, "events", String(newEvent.id)), newEvent);
+      } catch (err) {
+        console.error(err);
+      }
+      const stats = await syncEventsToCalendar([newEvent], dbEmployees, "events");
+      if (stats.failed > 0) {
+        showGlobalToast("تم إنشاء الفعالية في النظام، لكن فشلت المزامنة مع جوجل (قد يكون بسبب تكرار إيميلات المدعوين أو خطأ في صيغة الوقت).", "error");
+      } else {
+        showGlobalToast("تم إنشاء الفعالية ومحاولة مزامنتها مع تقويم جوجل للموظف", "success");
+      }
     }
     setIsAddOpen(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (deletingEvent) {
-      setEvents(events.filter((e) => e.id !== deletingEvent.id));
+      try {
+        await deleteDoc(doc(db, "events", String(deletingEvent.id)));
+        
+        // Delete from Google Calendar if exists
+        if (deletingEvent.googleEventIds) {
+          const existingEventId = Object.values(deletingEvent.googleEventIds)[0] || undefined;
+          if (existingEventId) {
+            try {
+              console.log("Attempting to delete Google Calendar event:", existingEventId);
+              await deleteGoogleCalendarEvent(existingEventId as string);
+              showGlobalToast("تم حذف الفعالية من النظام وتقويم جوجل بنجاح", "success");
+            } catch (err: any) {
+              console.error("Failed to delete Google Calendar event:", err);
+              showGlobalToast("تم حذف الفعالية من النظام، لكن فشل الحذف من تقويم جوجل: " + (err.message || ""), "error");
+            }
+          }
+        }
+        
+        if (deletingEvent.employees) {
+          for (const emp of deletingEvent.employees) {
+            sendSystemAlert(emp, "إلغاء فعالية", `تم إلغاء فعالية "${deletingEvent.title || deletingEvent.eventName}"`, "event_delete", "/events");
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
       setDeletingEvent(null);
     }
   };
@@ -1485,7 +1631,25 @@ ${formattedItems}
     if (selectedEventIds.length > 0) {
       setIsBulkDeletingLoading(true);
       const itemsToDelete = events.filter((e) => selectedEventIds.includes(e.id));
-      await Promise.all(itemsToDelete.map(e => deleteFirebaseEvent(String(e.id))));
+      await Promise.all(itemsToDelete.map(async (e) => {
+        await deleteFirebaseEvent(String(e.id));
+        if (e.googleEventIds) {
+          const existingEventId = Object.values(e.googleEventIds)[0] || undefined;
+          if (existingEventId) {
+            try {
+              await deleteGoogleCalendarEvent(existingEventId as string);
+            } catch (err: any) {
+              console.warn("Failed to delete Google Calendar event in bulk:", err);
+              showGlobalToast("فشل حذف إحدى الفعاليات من تقويم جوجل: " + (err.message || ""), "error");
+            }
+          }
+        }
+        if (e.employees) {
+          for (const emp of e.employees) {
+            sendSystemAlert(emp, "إلغاء فعالية", `تم إلغاء فعالية "${e.title || e.eventName}"`, "event_delete", "/events");
+          }
+        }
+      }));
       setSelectedEventIds([]);
       setIsBulkDeletingLoading(false);
       setIsBulkDeleting(false);
@@ -1598,9 +1762,9 @@ ${formattedItems}
   return (
     <div className="space-y-6 pb-16">
       {/* Page Header Area */}
-      <div className="bg-[#e8e4e4] rounded-2xl p-6 border border-gray-200 shadow-sm flex flex-col xl:flex-row items-center justify-between gap-4">
+      <div className="bg-[#e8e4e4] rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 border border-gray-200 shadow-sm flex flex-col xl:flex-row items-center justify-between gap-2.5 sm:gap-3 md:gap-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
+          <h2 className="text-sm sm:text-base md:text-lg sm:text-xl md:text-2xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
             <Calendar className="w-7 h-7 text-brand" />
             <span>سجل الفعاليات</span>
           </h2>
@@ -1787,14 +1951,50 @@ ${formattedItems}
           </div>
           
           {/* Add Event Button */}
-          <button
-            type="button"
-            onClick={handleOpenAdd}
-            className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer shrink-0"
-          >
-            <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
-            <span>إضافة فعالية</span>
-          </button>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsActionsMenuOpen(!isActionsMenuOpen)}
+              className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 cursor-pointer shrink-0"
+            >
+              <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
+              <span>إجراءات الفعاليات</span>
+              <ChevronDown className="w-4 h-4 mr-1 stroke-[2.5]" />
+            </button>
+
+            {isActionsMenuOpen && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40"
+                  onClick={() => setIsActionsMenuOpen(false)}
+                />
+                <div className="absolute top-full mt-2 left-0 w-48 bg-white border border-gray-100 rounded-xl shadow-lg z-50 overflow-hidden py-1">
+                  <button
+                    onClick={() => {
+                      setIsActionsMenuOpen(false);
+                      handleOpenAdd();
+                    }}
+                    className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-right text-xs font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4 text-gray-500 stroke-[2.5]" />
+                    <span>إضافة فعالية</span>
+                  </button>
+                  <div className="h-px w-full bg-gray-100 my-1" />
+                  <button
+                    onClick={() => {
+                      setIsActionsMenuOpen(false);
+                      handleManualSync();
+                    }}
+                    disabled={isSyncing}
+                    className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-right text-xs font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 text-gray-500 stroke-[2.5] ${isSyncing ? 'animate-spin' : ''}`} />
+                    <span>مزامنة التقويم</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
 
           {selectedEventIds.length > 0 && viewMode === "table" && (
             <button
@@ -1814,11 +2014,11 @@ ${formattedItems}
           <div className="flex gap-2">
             <div className="bg-white px-3.5 py-1.5 rounded-xl text-center shadow-inner" style={{ borderWidth: '0px' }}>
               <span className="text-[10px] font-black text-gray-400 block leading-tight">إجمالي الفعاليات</span>
-              <span className="text-lg font-black text-brand leading-none font-mono">{events.length}</span>
+              <span className="text-sm sm:text-base md:text-lg font-black text-brand leading-none font-mono">{events.length}</span>
             </div>
             <div className="bg-white px-3.5 py-1.5 rounded-xl text-center shadow-inner" style={{ borderWidth: '0px' }}>
               <span className="text-[10px] font-black text-gray-400 block leading-tight">منتهية</span>
-              <span className="text-lg font-black text-emerald-600 leading-none font-mono">
+              <span className="text-sm sm:text-base md:text-lg font-black text-emerald-600 leading-none font-mono">
                 {events.filter(e => getDisplayStatus(e) === "منتهية").length}
               </span>
             </div>
@@ -1828,8 +2028,8 @@ ${formattedItems}
       </div>
 
       {filteredEvents.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center space-y-3">
-          <div className="w-16 h-16 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mx-auto">
+        <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl p-12 text-center space-y-3">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mx-auto">
             <Search className="w-7 h-7" />
           </div>
           <p className="text-gray-500 font-extrabold text-base">لم يعثر على أية نتائج مخصصة لعملية البحث الحالية.</p>
@@ -1840,55 +2040,20 @@ ${formattedItems}
             عرض كافة الفعاليات المسجلة
           </button>
         </div>
-      ) : viewMode === "calendar" ? (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-6">
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                <button onClick={handlePrevMonth} className="p-2 rounded-xl hover:bg-white hover:shadow-sm transition-all text-gray-500 hover:text-brand"><ChevronRight className="w-5 h-5" /></button>
-                <h3 className="font-black text-gray-900 text-lg">{getMonthName(currentDate)}</h3>
-                <button onClick={handleNextMonth} className="p-2 rounded-xl hover:bg-white hover:shadow-sm transition-all text-gray-500 hover:text-brand"><ChevronLeft className="w-5 h-5" /></button>
-            </div>
-            <div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50/30">
-                {['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'].map(day => (
-                    <div key={day} className="py-3 text-center text-xs font-black text-gray-500">{day}</div>
-                ))}
-            </div>
-            <div className="grid grid-cols-7 auto-rows-fr">
-                {Array.from({ length: getFirstDayOfMonth(currentDate) }).map((_, i) => (
-                    <div key={`empty-${i}`} className="min-h-[120px] p-2 border-b border-l border-gray-100 bg-gray-50/20"></div>
-                ))}
-                {Array.from({ length: getDaysInMonth(currentDate) }).map((_, i) => {
-                    const day = i + 1;
-                    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                    const dayEvents = filteredEvents.filter((e: any) => e.date === dateStr);
-                    const isToday = new Date().toDateString() === new Date(currentDate.getFullYear(), currentDate.getMonth(), day).toDateString();
-                    
-                    return (
-                        <div key={day} className={`min-h-[120px] p-2 border-b border-l border-gray-100 relative transition-colors ${isToday ? 'bg-blue-50/30' : 'hover:bg-gray-50/50'}`}>
-                            <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold mb-2 ${isToday ? 'bg-brand text-white shadow-sm' : 'text-gray-600'}`}>
-                                {day}
-                            </span>
-                            <div className="space-y-1.5 overflow-y-auto max-h-[85px] custom-scrollbar">
-                                {dayEvents.map((evt: any) => (
-                                    <div 
-                                        key={evt.id} 
-                                        onClick={() => {}}
-                                        className="text-[10px] p-1.5 rounded-md font-bold truncate cursor-pointer transition-all hover:scale-[1.02]"
-                                        style={{ backgroundColor: `${evt.color}15`, color: evt.color, border: `1px solid ${evt.color}30` }}
-                                    >
-                                        <div className="truncate">{evt.time && <span className="opacity-70 ml-1">{evt.time}</span>}{evt.title || evt.eventName}</div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
+            ) : viewMode === "calendar" ? (
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-6 h-[700px]">
+          <iframe
+            src={`https://calendar.google.com/calendar/embed?src=${encodeURIComponent(JSON.parse(localStorage.getItem("current_user") || "{}")?.email || "")}&ctz=Asia/Riyadh&hl=ar&mode=MONTH&showTitle=0&showNav=1&showDate=1&showPrint=0&showTabs=1&showCalendars=0&showTz=0`}
+            style={{ border: 0, width: "100%", height: "100%" }}
+            frameBorder="0"
+            scrolling="no"
+            title="Google Calendar"
+          ></iframe>
         </div>
-    
       ) : viewMode === "grid" ? (
         <div className="space-y-6 text-right">
           {/* Elegant Breadcrumbs Navigator */}
-          <div className="bg-white border border-gray-150 rounded-2xl p-4 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4 font-sans">
+          <div className="bg-white border border-gray-150 rounded-xl sm:rounded-2xl p-4 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-2.5 sm:gap-3 md:gap-4 font-sans">
             <div className="flex flex-wrap items-center gap-2 text-xs font-black text-gray-700">
               <button
                 onClick={() => {
@@ -1985,7 +2150,7 @@ ${formattedItems}
 
           {/* Level 1: Committees List view */}
           {selectedCommIdForCards === null ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
               {committees.filter(c => selectedFilterCommittees.length === 0 || selectedFilterCommittees.includes(String(c.id))).map((comm) => {
                 const commEvents = filteredEvents.filter((e) => String(e.committeeId) === String(comm.id));
                 const president = allMembers.find((m) => String(m.committeeId) === String(comm.id) && m.active !== false && m.role === "رئيس")?.name || comm.president || "غير محدد";
@@ -1996,12 +2161,12 @@ ${formattedItems}
                     key={comm.id}
                     initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="bg-white border-2 border-slate-100 hover:border-[#dfba6b]/60 hover:shadow-lg transition-all duration-300 rounded-3xl p-6 relative group flex flex-col justify-between space-y-5"
+                    className="bg-white border-2 border-slate-100 hover:border-[#dfba6b]/60 hover:shadow-lg transition-all duration-300 rounded-xl sm:rounded-2xl sm:rounded-3xl p-3 sm:p-4 md:p-6 relative group flex flex-col justify-between space-y-5"
                   >
                     {/* Committee Header & Icon */}
                     <div className="space-y-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-2xl bg-brand/5 border border-brand/10 flex items-center justify-center text-brand shrink-0">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-brand/5 border border-brand/10 flex items-center justify-center text-brand shrink-0">
                           <Users2 className="w-6 h-6 font-black" />
                         </div>
                         <div className="min-w-0">
@@ -2015,7 +2180,7 @@ ${formattedItems}
                       </div>
 
                       {/* Committee Info details */}
-                      <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-100 space-y-2.5 text-xs">
+                      <div className="bg-slate-50/70 p-4 rounded-xl sm:rounded-2xl border border-slate-100 space-y-2.5 text-xs">
                         <div className="flex items-center justify-between">
                           <span className="text-gray-400 font-bold text-[10px]">رئيس اللجنة:</span>
                           <span className="text-gray-800 font-extrabold">{president}</span>
@@ -2058,14 +2223,14 @@ ${formattedItems}
 
                 if (uniqueKinds.length === 0) {
                   return (
-                    <div className="bg-white border border-gray-150 rounded-2xl p-10 text-center text-gray-500 font-bold text-sm">
+                    <div className="bg-white border border-gray-150 rounded-xl sm:rounded-2xl p-5 sm:p-8 md:p-10 text-center text-gray-500 font-bold text-sm">
                       لا توجد أية فعاليات مسجلة لهذه اللجنة حالياً.
                     </div>
                   );
                 }
 
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
                     {uniqueKinds.map((kind) => {
                       const count = commEvents.filter((e) => getEventKindStr(e.title) === kind).length;
                       return (
@@ -2073,10 +2238,10 @@ ${formattedItems}
                           key={kind}
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="bg-white border-2 border-slate-100 hover:border-[#dfba6b]/60 hover:shadow-lg transition-all duration-300 rounded-3xl p-6 relative group flex flex-col justify-between space-y-4"
+                          className="bg-white border-2 border-slate-100 hover:border-[#dfba6b]/60 hover:shadow-lg transition-all duration-300 rounded-xl sm:rounded-2xl sm:rounded-3xl p-3 sm:p-4 md:p-6 relative group flex flex-col justify-between space-y-4"
                         >
                           <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-2xl bg-blue-55/70 text-blue-800 border border-blue-100 flex items-center justify-center font-black">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-blue-55/70 text-blue-800 border border-blue-100 flex items-center justify-center font-black">
                               <Calendar className="w-6 h-6" />
                             </div>
                             <div>
@@ -2125,14 +2290,14 @@ ${formattedItems}
 
                 if (activeClassifications.length === 0) {
                   return (
-                    <div className="bg-white border border-gray-150 rounded-2xl p-10 text-center text-gray-500 font-bold text-sm">
+                    <div className="bg-white border border-gray-150 rounded-xl sm:rounded-2xl p-5 sm:p-8 md:p-10 text-center text-gray-500 font-bold text-sm">
                       لا يوجد أي تصنيف للفعاليات المدرجة حالياً.
                     </div>
                   );
                 }
 
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
                     {activeClassifications.map((cls) => {
                       const count = kindEvents.filter((e) => getEventClassification(e.title) === cls).length;
                       return (
@@ -2140,10 +2305,10 @@ ${formattedItems}
                           key={cls}
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="bg-white border-2 border-slate-100 hover:border-[#dfba6b]/60 hover:shadow-lg transition-all duration-300 rounded-3xl p-6 relative group flex flex-col justify-between space-y-4"
+                          className="bg-white border-2 border-slate-100 hover:border-[#dfba6b]/60 hover:shadow-lg transition-all duration-300 rounded-xl sm:rounded-2xl sm:rounded-3xl p-3 sm:p-4 md:p-6 relative group flex flex-col justify-between space-y-4"
                         >
                           <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-2xl bg-emerald-55/70 text-emerald-800 border border-emerald-100 flex items-center justify-center font-black animate-pulse">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-emerald-55/70 text-emerald-800 border border-emerald-100 flex items-center justify-center font-black animate-pulse">
                               <Sliders className="w-6 h-6" />
                             </div>
                             <div>
@@ -2206,14 +2371,14 @@ ${formattedItems}
 
                 if (finalList.length === 0) {
                   return (
-                    <div className="bg-white border border-gray-150 rounded-2xl p-10 text-center text-gray-500 font-bold text-sm">
+                    <div className="bg-white border border-gray-150 rounded-xl sm:rounded-2xl p-5 sm:p-8 md:p-10 text-center text-gray-500 font-bold text-sm">
                       لا تتوفر أية فعاليات تطابق شروط الفرز الحالية.
                     </div>
                   );
                 }
 
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
                     <AnimatePresence mode="popLayout">
                       {finalList.map((evt) => (
                         <motion.div
@@ -2223,7 +2388,7 @@ ${formattedItems}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.9 }}
                           transition={{ duration: 0.3 }}
-                          className="bg-[#e8e4e4] hover:bg-[#e2dede] transition-colors duration-300 rounded-3xl p-5 border border-gray-200 shadow-sm hover:shadow-md relative group flex flex-col justify-between"
+                          className="bg-[#e8e4e4] hover:bg-[#e2dede] transition-colors duration-300 rounded-xl sm:rounded-2xl sm:rounded-3xl p-3 sm:p-4 md:p-5 border border-gray-200 shadow-sm hover:shadow-md relative group flex flex-col justify-between"
                         >
                           {/* Title & Actions inside grid card */}
                           <div className="absolute top-4 left-4 z-20">
@@ -2335,7 +2500,7 @@ ${formattedItems}
         </div>
       ) : (
         /* TABLE REGISTER VIEW LAYOUT (سجل الفعاليات) */
-        <div className="bg-[#e8e4e4] rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-right">
+        <div className="bg-[#e8e4e4] rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-right">
           <div className="overflow-x-auto custom-scrollbar font-sans pb-36">
             <table className="w-full text-xs font-semibold text-gray-700 select-none border-collapse text-right">
               <thead className="bg-[#dfdada] border-b border-gray-300 text-gray-900">
@@ -2585,12 +2750,12 @@ ${formattedItems}
                               initial={{ opacity: 0, height: 0 }} 
                               animate={{ opacity: 1, height: "auto" }} 
                               exit={{ opacity: 0, height: 0 }}
-                              className="px-6 py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-y border-gray-200 text-right font-sans relative"
+                              className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-y border-gray-200 text-right font-sans relative"
                             >
                               {!canUserEditCommittee(evt.committeeName) && (
                                 <div className="absolute inset-0 z-[60] bg-slate-50/40 cursor-not-allowed rounded-lg" title="ليس لديك صلاحية لتعديل هذه الفعالية" />
                               )}
-                              <div className={`flex flex-col md:flex-row gap-6 relative ${!canUserEditCommittee(evt.committeeName) ? "opacity-80 pointer-events-none grayscale-[10%]" : ""}`}>
+                              <div className={`flex flex-col md:flex-row gap-3 sm:gap-4 md:gap-6 relative ${!canUserEditCommittee(evt.committeeName) ? "opacity-80 pointer-events-none grayscale-[10%]" : ""}`}>
                                 
                                 {/* Right Column: Steps Stepper / Timeline Sidebar */}
                                 <div className="w-full md:w-1/3 flex flex-col gap-2.5 bg-white p-4 rounded-xl border border-gray-200 shadow-sm shrink-0">
@@ -2691,7 +2856,7 @@ ${formattedItems}
                                 </div>
 
                                 {/* Left Column: Interactive Workspace for selected Step */}
-                                <div className="flex-1 bg-white p-5 rounded-xl border border-gray-200 shadow-sm min-w-0" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex-1 bg-white p-3 sm:p-4 md:p-5 rounded-xl border border-gray-200 shadow-sm min-w-0" onClick={(e) => e.stopPropagation()}>
                                   {(() => {
                                     const curTab = activeStepTab[evt.id] ?? getStepIndex(nextStep);
                                     
@@ -2842,7 +3007,7 @@ ${formattedItems}
                                         const quorumMet = ratioMet && leaderOk;
                                         
                                         return (
-                                          <div className="flex flex-col gap-4 text-right">
+                                          <div className="flex flex-col gap-2.5 sm:gap-3 md:gap-4 text-right">
                                             <div className="flex items-center justify-between pb-2 border-b border-gray-100 order-1">
                                               <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
                                                 <Users className="w-4 h-4 text-brand" />
@@ -2862,7 +3027,7 @@ ${formattedItems}
                                                 </span>
                                               </div>
                                               
-                                              <div className="flex items-center gap-6 text-right">
+                                              <div className="flex items-center gap-3 sm:gap-4 md:gap-6 text-right">
                                                 <div className="border-r border-gray-300 pr-4">
                                                   <span className="block text-[8px] text-gray-500 font-bold">نسبة حضور الأعضاء الكليين</span>
                                                   <span className="text-[10.5px] font-extrabold text-slate-800 block">
@@ -3126,7 +3291,7 @@ ${formattedItems}
 										};
 										
 										return (
-											<div className="flex flex-col gap-4 font-sans text-right">
+											<div className="flex flex-col gap-2.5 sm:gap-3 md:gap-4 font-sans text-right">
 												<div className="flex items-center justify-between pb-2 border-b border-gray-100 order-1">
 													<h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
 														<Sliders className="w-4 h-4 text-brand" />
@@ -3376,7 +3541,7 @@ ${formattedItems}
 												<div className="order-3">
 													<span className="block text-[10px] text-slate-800 font-black mb-1.5">أجندة جدول الأعمال المسجلة للفعالية حتى الآن ({agenda.length})</span>
 													{agenda.length === 0 ? (
-														<div className="text-center p-6 border rounded-lg bg-gray-50 text-gray-500 text-[10px] font-bold border-gray-200">
+														<div className="text-center p-3 sm:p-4 md:p-6 border rounded-lg bg-gray-50 text-gray-500 text-[10px] font-bold border-gray-200">
 															لا يوجد بنود أعمال حالية في الفعالية. يرجى استخدام النموذج أعلاه لإدراج الأجندة وفتح المحضر.
 														</div>
 													) : (
@@ -3479,7 +3644,7 @@ ${formattedItems}
 
 
                                             {agenda.length === 0 ? (
-                                              <div className="text-center p-6 border border-yellow-250 rounded-lg bg-yellow-50 text-amber-700 text-[10px] font-bold">
+                                              <div className="text-center p-3 sm:p-4 md:p-6 border border-yellow-250 rounded-lg bg-yellow-50 text-amber-700 text-[10px] font-bold">
                                                 ⚠ تنبيه: لم يتم تسجيل أي بنود في الأجندة بعد. يرجى ملء جدول الأعمال في (الخطوة 4) أولاً.
                                               </div>
                                             ) : (
@@ -3607,7 +3772,7 @@ ${formattedItems}
                                                 <button
                                                   type="button"
                                                   onClick={() => updateEventWorkflow(evt.id, { minutesSaved: true, minutesExportChecked: true })}
-                                                  className="px-5 py-2.5 bg-emerald-600 border-transparent hover:bg-emerald-555 text-white font-extrabold rounded-lg text-[10px] flex items-center gap-1.5 cursor-pointer transition-all shadow-md shadow-emerald-500/10"
+                                                  className="px-3 sm:px-4 md:px-5 py-2.5 bg-emerald-600 border-transparent hover:bg-emerald-555 text-white font-extrabold rounded-lg text-[10px] flex items-center gap-1.5 cursor-pointer transition-all shadow-md shadow-emerald-500/10"
                                                 >
                                                   <CheckCircle className="w-4 h-4" />
                                                   حفظ وتثبيت وقائع المحضر بالكامل
@@ -3690,7 +3855,7 @@ ${formattedItems}
                                             </div>
 
                                             {!evt.minutesSaved ? (
-                                              <div className="text-center p-6 border border-orange-250 rounded-lg bg-orange-50 text-orange-700 text-[10px] font-bold">
+                                              <div className="text-center p-3 sm:p-4 md:p-6 border border-orange-250 rounded-lg bg-orange-50 text-orange-700 text-[10px] font-bold">
                                                 ⚠ يرجى حفظ وتثبيت وقائع المحضر بالكامل أولاً في (الخطوة 5).
                                               </div>
                                             ) : (
@@ -3712,7 +3877,7 @@ ${formattedItems}
                                                     </div>
                                                     <div className="space-y-1 text-[9px]">
                                                       {existingMeetingRecs.map((dbRec) => (
-                                                        <div key={dbRec.id} className="p-2 bg-white rounded border border-gray-150 flex items-center justify-between gap-4 font-bold text-gray-600">
+                                                        <div key={dbRec.id} className="p-2 bg-white rounded border border-gray-150 flex items-center justify-between gap-2.5 sm:gap-3 md:gap-4 font-bold text-gray-600">
                                                           <div className="flex flex-col">
                                                             <span className="text-slate-800">توصية محفوظة: {dbRec.description}</span>
                                                             <span className="text-[8px] text-slate-400">المكلف: {dbRec.assignedTo} | المدة: {dbRec.duration}</span>
@@ -3733,7 +3898,7 @@ ${formattedItems}
                                                   </div>
                                                   
                                                   {recsToExport.length === 0 ? (
-                                                    <div className="p-6 text-center space-y-4">
+                                                    <div className="p-3 sm:p-4 md:p-6 text-center space-y-4">
                                                       <div className="text-gray-500 text-[10px] font-bold">
                                                         لم يتم تدوين أي توصيات في بنود المحضر لهذا الاجتماع. هل ترغب في إقفال المحضر واعتماده مباشرة بدون توصيات لإنهاء الفعالية بالكامل وتحويل الحالة إلى مكتمل؟
                                                       </div>
@@ -3755,7 +3920,7 @@ ${formattedItems}
                                                               if (success) showGlobalToast("تم إنشاء ملف الفعالية بنجاح في درايف", "success");
                                                               else showGlobalToast("حدث خطأ أثناء مزامنة درايف", "error");
                                                             }}
-                                                            className="px-5 py-2.5 bg-slate-900 border-transparent hover:bg-slate-800 text-white font-black rounded-lg text-[10.5px] flex items-center gap-2 cursor-pointer transition-all shadow-md"
+                                                            className="px-3 sm:px-4 md:px-5 py-2.5 bg-slate-900 border-transparent hover:bg-slate-800 text-white font-black rounded-lg text-[10.5px] flex items-center gap-2 cursor-pointer transition-all shadow-md"
                                                           >
                                                             <Lock className="w-4 h-4 text-brand shadow animate-pulse" />
                                                             إقفال المحضر واعتماده مباشرة بدون توصيات
@@ -3783,7 +3948,7 @@ ${formattedItems}
                                                               className="w-4.5 h-4.5 rounded border-gray-300 text-brand focus:ring-brand mt-0.5 cursor-pointer shrink-0"
                                                             />
                                                             <div className="flex-1 flex flex-col gap-1.5 leading-snug">
-                                                              <div className="flex items-start justify-between gap-4">
+                                                              <div className="flex items-start justify-between gap-2.5 sm:gap-3 md:gap-4">
                                                                 <span className="font-extrabold text-slate-950">توصية البند {getArabicOrdinalGlobal((evt.agenda || []).findIndex(a => a.id === rec.id) !== -1 ? (evt.agenda || []).findIndex(a => a.id === rec.id) + 1 : index + 1)} "{rec.title}"</span>
                                                                 
                                                                 {/* Status badges */}
@@ -3828,7 +3993,7 @@ ${formattedItems}
                                                       <button
                                                         type="button"
                                                         onClick={handleConfirmExportFinal}
-                                                        className="px-5 py-2.5 bg-slate-900 border-transparent hover:bg-slate-800 text-white font-black rounded-lg text-[10.5px] flex items-center gap-2 cursor-pointer transition-all shadow-md"
+                                                        className="px-3 sm:px-4 md:px-5 py-2.5 bg-slate-900 border-transparent hover:bg-slate-800 text-white font-black rounded-lg text-[10.5px] flex items-center gap-2 cursor-pointer transition-all shadow-md"
                                                       >
                                                         <Sparkles className="w-4 h-4 text-brand shadow animate-pulse" />
                                                         تأكيد وإتمام ترحيل التوصيات المقترحة لصفحة التوصيات الرسمية
@@ -3865,8 +4030,101 @@ ${formattedItems}
 
       {/* Add / Edit Modal */}
       <AnimatePresence>
-        {isAddOpen && (
-          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+        
+      {/* Sync Modal */}
+      {isSyncModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-3 sm:p-4 md:p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <h3 className="font-extrabold text-gray-900 text-sm sm:text-base md:text-lg flex items-center gap-2">
+                <RefreshCw className="w-5 h-5 text-blue-600" />
+                تأكيد مزامنة التقويم
+              </h3>
+              <button onClick={() => setIsSyncModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X className="w-5 h-5 stroke-[3]" />
+              </button>
+            </div>
+            
+            <div className="p-3 sm:p-4 md:p-6 overflow-y-auto custom-scrollbar flex-1">
+              <div className="mb-4">
+                  <h4 className="font-bold text-gray-800 text-sm mb-2">اللجان المشمولة بالمزامنة (حسب صلاحياتك):</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {Array.from(new Set(eventsToSync.map(e => e.committeeName))).map((cName: any) => (
+                        <span key={cName} className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-100">{cName || 'عام'}</span>
+                    ))}
+                    {eventsToSync.length === 0 && (
+                      <span className="text-xs text-gray-500">لا يوجد لجان مطابقة</span>
+                    )}
+                  </div>
+              </div>
+              
+              <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <h4 className="font-bold text-gray-800 text-sm">الفعاليات التي سيتم مزامنتها ({eventsToSync.length}):</h4>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <span className="text-xs font-bold text-gray-600">تحديد الكل</span>
+                      <input 
+                        type="checkbox" 
+                        checked={selectedEventsToSync.length === eventsToSync.length && eventsToSync.length > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedEventsToSync(eventsToSync.map(ev => ev.id));
+                          else setSelectedEventsToSync([]);
+                        }}
+                        className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      />
+                    </label>
+                  </div>
+                  <div className="space-y-2">
+                    {eventsToSync.map(evt => (
+                        <label key={evt.id} className="p-3 bg-gray-50 hover:bg-gray-100 transition-colors border border-gray-100 rounded-xl flex justify-between items-center cursor-pointer">
+                          <div className="flex items-center gap-3">
+                            <input 
+                              type="checkbox"
+                              checked={selectedEventsToSync.includes(evt.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) setSelectedEventsToSync([...selectedEventsToSync, evt.id]);
+                                else setSelectedEventsToSync(selectedEventsToSync.filter(id => id !== evt.id));
+                              }}
+                              className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                            />
+                            <div>
+                                <p className="text-sm font-bold text-gray-800">{evt.title}</p>
+                                <p className="text-xs text-gray-500 mt-1">{evt.date} | {evt.time}</p>
+                            </div>
+                          </div>
+                          <div className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                            {evt.type}
+                          </div>
+                        </label>
+                    ))}
+                    {eventsToSync.length === 0 && (
+                        <p className="text-sm text-gray-500 text-center py-4">لا توجد فعاليات ضمن صلاحياتك لمزامنتها.</p>
+                    )}
+                  </div>
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-gray-100 bg-gray-50/80 flex gap-3 justify-end">
+              <button
+                onClick={() => setIsSyncModalOpen(false)}
+                className="px-3 sm:px-4 md:px-5 py-2.5 rounded-xl font-bold text-sm text-gray-700 hover:bg-gray-200 transition-colors"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={confirmManualSync}
+                disabled={isSyncing || selectedEventsToSync.length === 0}
+                className="px-3 sm:px-4 md:px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                <span>تأكيد المزامنة ({selectedEventsToSync.length})</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {isAddOpen && (
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-2 sm:p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -3880,9 +4138,9 @@ ${formattedItems}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 15, opacity: 0 }}
               transition={{ type: "spring", damping: 20, stiffness: 280 }}
-              className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right flex flex-col max-h-[90vh]"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right flex flex-col max-h-[90vh]"
             >
-              <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
+              <div className="bg-[#e8e4e4] p-4 sm:p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-600 text-white rounded-xl">
                     {editingEvent ? <Edit2 className="w-5 h-5 stroke-[2.5]" /> : <Plus className="w-5 h-5 stroke-[2.5]" />}
@@ -3903,7 +4161,7 @@ ${formattedItems}
                 </button>
               </div>
 
-              <div className="overflow-y-auto p-6">
+              <div className="overflow-y-auto p-3 sm:p-4 md:p-6">
                 <form onSubmit={handleSubmit} className="space-y-4">
                 
                 <AnimatePresence>
@@ -3954,7 +4212,7 @@ ${formattedItems}
                     </h4>
                     
                     {generatedSchedules.length === 0 ? (
-                      <div className="text-center p-8 bg-gray-50 rounded-xl border border-gray-200">
+                      <div className="text-center p-4 sm:p-6 md:p-8 bg-gray-50 rounded-xl border border-gray-200">
                         <p className="text-sm font-bold text-gray-500">لا توجد فعاليات مطابقة ضمن النطاق الزمني المحدد.</p>
                       </div>
                     ) : (
@@ -4010,14 +4268,14 @@ ${formattedItems}
                         type="button"
                         onClick={handleInsertSeries}
                         disabled={selectedSchedules.length === 0}
-                        className="px-6 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand/90 transition-colors shadow-lg shadow-brand/20 disabled:opacity-50"
+                        className="px-3 sm:px-4 md:px-6 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand/90 transition-colors shadow-lg shadow-brand/20 disabled:opacity-50"
                       >
                         إدراج ({selectedSchedules.length}) سجل
                       </button>
                       <button
                         type="button"
                         onClick={() => setIsConfirmingSeries(false)}
-                        className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors"
+                        className="px-3 sm:px-4 md:px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors"
                       >
                         تراجع للتعديل
                       </button>
@@ -4026,13 +4284,13 @@ ${formattedItems}
                 ) : (
                   
 <div key="filter-popover-1784704070964-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-right mb-6" dir="rtl">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 md:gap-5 text-right mb-6" dir="rtl">
                       <div className="md:col-span-full flex justify-end">
                         <div className="bg-gray-100 p-1 rounded-xl flex shadow-inner">
                           <button
                             type="button"
                             onClick={() => setNewType("مفردة")}
-                            className={`px-6 py-2 rounded-lg font-black text-xs transition-all ${
+                            className={`px-3 sm:px-4 md:px-6 py-2 rounded-lg font-black text-xs transition-all ${
                               newType === "مفردة" ? "bg-blue-600 text-white shadow" : "text-gray-500 hover:text-gray-700"
                             }`}
                           >
@@ -4041,7 +4299,7 @@ ${formattedItems}
                           <button
                             type="button"
                             onClick={() => setNewType("متسلسلة")}
-                            className={`px-6 py-2 rounded-lg font-black text-xs transition-all ${
+                            className={`px-3 sm:px-4 md:px-6 py-2 rounded-lg font-black text-xs transition-all ${
                               newType === "متسلسلة" ? "bg-blue-600 text-white shadow" : "text-gray-500 hover:text-gray-700"
                             }`}
                           >
@@ -4051,7 +4309,7 @@ ${formattedItems}
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-right" dir="rtl">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3 md:gap-5 text-right" dir="rtl">
                       
                       {newType === "مفردة" && (
                         
@@ -4063,6 +4321,7 @@ ${formattedItems}
                               value={newCommitteeId}
                               onChange={(e) => {
                                 const val = e.target.value;
+                                setIsTitleManuallyEdited(false);
                                 setNewCommitteeId(val);
                                 setNewMembers([]);
                                 const matched = committees.find(c => String(c.id) === String(val));
@@ -4071,7 +4330,7 @@ ${formattedItems}
                                   setSeriesAssignedEmployee(matched.specialist);
                                 }
                               }}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value={0} disabled>اختر اللجنة</option>
                               {committees.filter(c => canUserEditCommittee(c.name)).map(c => (
@@ -4084,12 +4343,14 @@ ${formattedItems}
                             <select
                               value={singleKind}
                               onChange={(e) => {
-                                setSingleKind(e.target.value);
-                                if (e.target.value !== "اجتماع") {
+                                const newK = e.target.value;
+                                setSingleKind(newK);
+                                if (newK !== "اجتماع") {
                                   setSingleClassification("");
                                 }
+                                setIsTitleManuallyEdited(false);
                               }}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value="" disabled>اختر نوع الفعالية</option>
                               {EVENT_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
@@ -4099,9 +4360,13 @@ ${formattedItems}
                             <label className="text-[11px] font-black text-gray-500 block">التصنيف *</label>
                             <select
                               value={singleClassification}
-                              onChange={(e) => setSingleClassification(e.target.value)}
+                              onChange={(e) => {
+                                const newC = e.target.value;
+                                setSingleClassification(newC);
+                                setIsTitleManuallyEdited(false);
+                              }}
                               disabled={singleKind !== "اجتماع"}
-                              className={`w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand ${singleKind !== "اجتماع" ? "opacity-50 cursor-not-allowed" : ""}`}
+                              className={`w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand ${singleKind !== "اجتماع" ? "opacity-50 cursor-not-allowed" : ""}`}
                             >
                               <option value="">اختر نوع التصنيف</option>
                               {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c}</option>)}
@@ -4118,7 +4383,7 @@ ${formattedItems}
                                 setSingleEventNumber(e.target.value);
                                 setIsSeqManuallyEdited(true);
                               }}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                               placeholder="مثال: الأول، الثاني..."
                             />
                           </div>
@@ -4129,7 +4394,7 @@ ${formattedItems}
                               required
                               value={singleTime}
                               onChange={(e) => setSingleTime(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             />
                           </div>
                           <div className="space-y-1">
@@ -4139,7 +4404,7 @@ ${formattedItems}
                               required
                               value={newDate}
                               onChange={(e) => setNewDate(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             />
                             {isWeekend(newDate) && <p className="text-red-500 text-[10px] font-bold mt-1">تنبيه: هذا التاريخ يوافق إجازة نهاية الأسبوع</p>}
                           </div>
@@ -4150,7 +4415,7 @@ ${formattedItems}
                             <select
                               value={singleEmployee}
                               onChange={(e) => setSingleEmployee(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               {dynamicEmployees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
                             </select>
@@ -4160,11 +4425,138 @@ ${formattedItems}
                             <select
                               value={singleRoom}
                               onChange={(e) => setSingleRoom(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value="" disabled>اختر قاعة...</option>
                               {ROOMS.map(rm => <option key={rm} value={rm}>{rm}</option>)}
                             </select>
+                          </div>
+                                                    {/* Additional Invitees Single */}
+                          <div className="md:col-span-full border-t border-gray-200 mt-2 pt-4 space-y-4">
+                            <h4 className="text-xs font-bold text-gray-800">إدارة الدعوات</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
+                              {/* Internal Invitees */}
+                              <div className="space-y-1 relative">
+                                <label className="text-[11px] font-black text-gray-500 block">دعوات داخلية (إدارية)</label>
+                                <div 
+                                  onClick={() => setIsSingleInviteesOpen(!isSingleInviteesOpen)}
+                                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold cursor-pointer min-h-[44px] flex flex-wrap gap-1 items-center relative"
+                                >
+                                  {singleAdditionalInvitees.length === 0 && <span className="text-gray-400">اختر موظفين...</span>}
+                                  {singleAdditionalInvitees.map(name => (
+                                    <span key={name} className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-md text-xs font-bold flex items-center gap-1 z-10">
+                                      {name}
+                                      <button type="button" onClick={(e) => { e.stopPropagation(); setSingleAdditionalInvitees(prev => prev.filter(p => p !== name)); }} className="hover:text-blue-900"><X className="w-3 h-3"/></button>
+                                    </span>
+                                  ))}
+                                  <ChevronDown className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                                </div>
+                                {isSingleInviteesOpen && (
+                                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto custom-scrollbar">
+                                    <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 sticky top-0 z-20 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => {
+                                      if (singleAdditionalInvitees.length === allEmployeesNames.length) {
+                                        setSingleAdditionalInvitees([]);
+                                      } else {
+                                        setSingleAdditionalInvitees(allEmployeesNames);
+                                      }
+                                    }}>
+                                      <span className="text-[11px] font-bold text-gray-700">تحديد الكل</span>
+                                      <input type="checkbox" checked={singleAdditionalInvitees.length === allEmployeesNames.length && allEmployeesNames.length > 0} readOnly className="w-4 h-4 text-brand rounded border-gray-300 focus:ring-brand pointer-events-none" />
+                                    </div>
+                                    
+                                    {Object.entries(allGroupedEmployees).map(([group, emps]: [string, any]) => (
+                                      <div key={group}>
+                                        <div className="px-3 py-1.5 bg-gray-100 text-[10px] font-black text-gray-600 border-y border-gray-200 sticky top-0 z-10">{group}</div>
+                                        {emps.map((emp: any) => (
+                                          <label key={emp.name} className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-0 transition-colors">
+                                            <input type="checkbox" checked={singleAdditionalInvitees.includes(emp.name)} 
+                                              onChange={(e) => {
+                                                if (e.target.checked) setSingleAdditionalInvitees(prev => [...prev, emp.name]);
+                                                else setSingleAdditionalInvitees(prev => prev.filter(p => p !== emp.name));
+                                              }}
+                                            className="w-4 h-4 text-brand rounded border-gray-300 focus:ring-brand"/>
+                                            <span className="text-xs font-semibold text-gray-800">{emp.name}</span>
+                                          </label>
+                                        ))}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Committee Members */}
+                              <div className="space-y-1 relative">
+                                <label className="text-[11px] font-black text-gray-500 block">دعوات أعضاء اللجنة</label>
+                                <div 
+                                  onClick={() => setIsSingleMembersOpen(!isSingleMembersOpen)}
+                                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold cursor-pointer min-h-[44px] flex flex-wrap gap-1 items-center relative"
+                                >
+                                  {newMembers.length === 0 && <span className="text-gray-400">اختر أعضاء...</span>}
+                                  {newMembers.map(id => (
+                                    <span key={id} className="px-2 py-0.5 bg-brand/10 text-brand rounded-md text-xs font-bold flex items-center gap-1 z-10">
+                                      {allMembers.find(m => m.id === id)?.name || id}
+                                      <button type="button" onClick={(e) => { e.stopPropagation(); toggleMember(id); }} className="hover:text-brand-dark"><X className="w-3 h-3"/></button>
+                                    </span>
+                                  ))}
+                                  <ChevronDown className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                                </div>
+                                {isSingleMembersOpen && (
+                                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto custom-scrollbar">
+                                    {committeeMembers.length === 0 && <div className="p-3 text-xs text-gray-500 text-center">لا يوجد أعضاء مرتبطين بهذه اللجنة</div>}
+                                    {committeeMembers.length > 0 && (
+                                      <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 sticky top-0 z-20 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => {
+                                        if (newMembers.length === committeeMembers.length) {
+                                          setNewMembers([]);
+                                        } else {
+                                          setNewMembers(committeeMembers.map((m: any) => m.id));
+                                        }
+                                      }}>
+                                        <span className="text-[11px] font-bold text-gray-700">تحديد الكل</span>
+                                        <input type="checkbox" checked={newMembers.length === committeeMembers.length && committeeMembers.length > 0} readOnly className="w-4 h-4 text-brand rounded border-gray-300 focus:ring-brand pointer-events-none" />
+                                      </div>
+                                    )}
+                                    {committeeMembers.map((m: any) => (
+                                      <label key={m.id} className="flex items-center gap-2 px-3 py-2 hover:bg-brand/5 cursor-pointer border-b border-gray-50 last:border-0 transition-colors">
+                                        <input type="checkbox" checked={newMembers.includes(m.id)} 
+                                          onChange={() => toggleMember(m.id)}
+                                        className="w-4 h-4 text-brand rounded border-gray-300 focus:ring-brand"/>
+                                        <span className="text-xs font-semibold text-gray-800">{m.name}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* External */}
+                              <div className="space-y-1">
+                                <label className="text-[11px] font-black text-gray-500 block">دعوات خارجية (أشخاص / إيميلات)</label>
+                                <input 
+                                  type="text" 
+                                  value={externalInput}
+                                  onChange={(e) => setExternalInput(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && externalInput.trim()) {
+                                      e.preventDefault();
+                                      if (!singleExternalInvitees.includes(externalInput.trim())) {
+                                        setSingleExternalInvitees(prev => [...prev, externalInput.trim()]);
+                                      }
+                                      setExternalInput("");
+                                    }
+                                  }}
+                                  placeholder="اكتب واضغط Enter..."
+                                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                                />
+                                {singleExternalInvitees.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-2">
+                                    {singleExternalInvitees.map(ext => (
+                                      <span key={ext} className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded-md text-xs font-bold flex items-center gap-1">
+                                        {ext} <button type="button" onClick={() => setSingleExternalInvitees(prev => prev.filter(p => p !== ext))} className="hover:text-gray-900"><X className="w-3 h-3" /></button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           </div>
 
                           {/* Row 4 */}
@@ -4177,7 +4569,7 @@ ${formattedItems}
                                 setNewTitle(e.target.value);
                                 setIsTitleManuallyEdited(true);
                               }}
-                              className="w-full bg-gray-50 text-gray-900 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 text-gray-900 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                               placeholder="أدخل عنوان الفعالية أو قم بتعديله يدوياً..."
                             />
                           </div>
@@ -4198,7 +4590,7 @@ ${formattedItems}
                                   setSeriesClassification("");
                                 }
                               }}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value="" disabled>اختر نوع الفعالية</option>
                               {EVENT_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
@@ -4211,7 +4603,7 @@ ${formattedItems}
                               value={seriesClassification}
                               onChange={(e) => setSeriesClassification(e.target.value)}
                               disabled={seriesKind !== "اجتماع"}
-                              className={`w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand ${seriesKind !== "اجتماع" ? "opacity-50 cursor-not-allowed" : ""}`}
+                              className={`w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand ${seriesKind !== "اجتماع" ? "opacity-50 cursor-not-allowed" : ""}`}
                             >
                               <option value="">اختر نوع التصنيف</option>
                               {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c}</option>)}
@@ -4224,6 +4616,7 @@ ${formattedItems}
                               value={newCommitteeId}
                               onChange={(e) => {
                                 const val = e.target.value;
+                                setIsTitleManuallyEdited(false);
                                 setNewCommitteeId(val);
                                 setNewMembers([]); // Reset members when committee changes
                                 const matched = committees.find(c => String(c.id) === String(val));
@@ -4234,7 +4627,7 @@ ${formattedItems}
                                   setSeriesAssignedEmployee(dynamicEmployees[(val - 1) % dynamicEmployees.length] || dynamicEmployees[0] );
                                 }
                               }}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value={0} disabled>اختر اللجنة</option>
                               {committees.filter(c => canUserEditCommittee(c.name)).map(c => (
@@ -4249,19 +4642,145 @@ ${formattedItems}
                             <select
                               value={seriesAssignedEmployee}
                               onChange={(e) => setSeriesAssignedEmployee(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               <option value="">تحديد الموظف...</option>
                               {dynamicEmployees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
                             </select>
                           </div>
-                          
-                          <div className="space-y-1">
+                                                    {/* Additional Invitees Series */}
+                          <div className="md:col-span-full border-t border-gray-200 mt-2 pt-4 space-y-4">
+                            <h4 className="text-xs font-bold text-gray-800">إدارة الدعوات</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
+                              {/* Internal Invitees */}
+                              <div className="space-y-1 relative">
+                                <label className="text-[11px] font-black text-gray-500 block">دعوات داخلية (إدارية)</label>
+                                <div 
+                                  onClick={() => setIsSeriesInviteesOpen(!isSeriesInviteesOpen)}
+                                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold cursor-pointer min-h-[44px] flex flex-wrap gap-1 items-center relative"
+                                >
+                                  {seriesAdditionalInvitees.length === 0 && <span className="text-gray-400">اختر موظفين...</span>}
+                                  {seriesAdditionalInvitees.map(name => (
+                                    <span key={name} className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-md text-xs font-bold flex items-center gap-1 z-10">
+                                      {name}
+                                      <button type="button" onClick={(e) => { e.stopPropagation(); setSeriesAdditionalInvitees(prev => prev.filter(p => p !== name)); }} className="hover:text-blue-900"><X className="w-3 h-3"/></button>
+                                    </span>
+                                  ))}
+                                  <ChevronDown className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                                </div>
+                                {isSeriesInviteesOpen && (
+                                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto custom-scrollbar">
+                                    
+                                    <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 sticky top-0 z-20 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => {
+                                      if (seriesAdditionalInvitees.length === allEmployeesNames.length) {
+                                        setSeriesAdditionalInvitees([]);
+                                      } else {
+                                        setSeriesAdditionalInvitees(allEmployeesNames);
+                                      }
+                                    }}>
+                                      <span className="text-[11px] font-bold text-gray-700">تحديد الكل</span>
+                                      <input type="checkbox" checked={seriesAdditionalInvitees.length === allEmployeesNames.length && allEmployeesNames.length > 0} readOnly className="w-4 h-4 text-brand rounded border-gray-300 focus:ring-brand pointer-events-none" />
+                                    </div>
+                                    {Object.entries(allGroupedEmployees).map(([group, emps]: [string, any]) => (
+                                      <div key={group}>
+                                        <div className="px-3 py-1.5 bg-gray-100 text-[10px] font-black text-gray-600 border-y border-gray-200 sticky top-0 z-10">{group}</div>
+                                        {emps.map((emp: any) => (
+                                          <label key={emp.name} className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-0 transition-colors">
+                                            <input type="checkbox" checked={seriesAdditionalInvitees.includes(emp.name)} 
+                                              onChange={(e) => {
+                                                if (e.target.checked) setSeriesAdditionalInvitees(prev => [...prev, emp.name]);
+                                                else setSeriesAdditionalInvitees(prev => prev.filter(p => p !== emp.name));
+                                              }}
+                                            className="w-4 h-4 text-brand rounded border-gray-300 focus:ring-brand"/>
+                                            <span className="text-xs font-semibold text-gray-800">{emp.name}</span>
+                                          </label>
+                                        ))}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Committee Members */}
+                              <div className="space-y-1 relative">
+                                <label className="text-[11px] font-black text-gray-500 block">دعوات أعضاء اللجنة</label>
+                                <div 
+                                  onClick={() => setIsSeriesMembersOpen(!isSeriesMembersOpen)}
+                                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold cursor-pointer min-h-[44px] flex flex-wrap gap-1 items-center relative"
+                                >
+                                  {newMembers.length === 0 && <span className="text-gray-400">اختر أعضاء...</span>}
+                                  {newMembers.map(id => (
+                                    <span key={id} className="px-2 py-0.5 bg-brand/10 text-brand rounded-md text-xs font-bold flex items-center gap-1 z-10">
+                                      {allMembers.find(m => m.id === id)?.name || id}
+                                      <button type="button" onClick={(e) => { e.stopPropagation(); toggleMember(id); }} className="hover:text-brand-dark"><X className="w-3 h-3"/></button>
+                                    </span>
+                                  ))}
+                                  <ChevronDown className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                                </div>
+                                {isSeriesMembersOpen && (
+                                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto custom-scrollbar">
+                                    {committeeMembers.length === 0 && <div className="p-3 text-xs text-gray-500 text-center">لا يوجد أعضاء مرتبطين بهذه اللجنة</div>}
+                                    {committeeMembers.length > 0 && (
+                                      <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 sticky top-0 z-20 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => {
+                                        if (newMembers.length === committeeMembers.length) {
+                                          setNewMembers([]);
+                                        } else {
+                                          setNewMembers(committeeMembers.map((m: any) => m.id));
+                                        }
+                                      }}>
+                                        <span className="text-[11px] font-bold text-gray-700">تحديد الكل</span>
+                                        <input type="checkbox" checked={newMembers.length === committeeMembers.length && committeeMembers.length > 0} readOnly className="w-4 h-4 text-brand rounded border-gray-300 focus:ring-brand pointer-events-none" />
+                                      </div>
+                                    )}
+                                    {committeeMembers.map((m: any) => (
+                                      <label key={m.id} className="flex items-center gap-2 px-3 py-2 hover:bg-brand/5 cursor-pointer border-b border-gray-50 last:border-0 transition-colors">
+                                        <input type="checkbox" checked={newMembers.includes(m.id)} 
+                                          onChange={() => toggleMember(m.id)}
+                                        className="w-4 h-4 text-brand rounded border-gray-300 focus:ring-brand"/>
+                                        <span className="text-xs font-semibold text-gray-800">{m.name}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* External */}
+                              <div className="space-y-1">
+                                <label className="text-[11px] font-black text-gray-500 block">دعوات خارجية (أشخاص / إيميلات)</label>
+                                <input 
+                                  type="text" 
+                                  value={seriesExternalInput}
+                                  onChange={(e) => setSeriesExternalInput(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && seriesExternalInput.trim()) {
+                                      e.preventDefault();
+                                      if (!seriesExternalInvitees.includes(seriesExternalInput.trim())) {
+                                        setSeriesExternalInvitees(prev => [...prev, seriesExternalInput.trim()]);
+                                      }
+                                      setSeriesExternalInput("");
+                                    }
+                                  }}
+                                  placeholder="اكتب واضغط Enter..."
+                                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                                />
+                                {seriesExternalInvitees.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-2">
+                                    {seriesExternalInvitees.map(ext => (
+                                      <span key={ext} className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded-md text-xs font-bold flex items-center gap-1">
+                                        {ext} <button type="button" onClick={() => setSeriesExternalInvitees(prev => prev.filter(p => p !== ext))} className="hover:text-gray-900"><X className="w-3 h-3" /></button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                            <div className="space-y-1">
                             <label className="text-[11px] font-black text-gray-500 block">يوم الانعقاد *</label>
                             <select
                               value={seriesDayOfWeek}
                               onChange={(e) => setSeriesDayOfWeek(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
                             </select>
@@ -4272,7 +4791,7 @@ ${formattedItems}
                             <select
                               value={seriesWeekOfMonth}
                               onChange={(e) => setSeriesWeekOfMonth(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             >
                               {Object.keys(WEEKSMap).map(w => <option key={w} value={w}>{w}</option>)}
                             </select>
@@ -4286,7 +4805,7 @@ ${formattedItems}
                               required
                               value={seriesStartDate}
                               onChange={(e) => setSeriesStartDate(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             />
                             {isWeekend(seriesStartDate) && <p className="text-red-500 text-[10px] font-bold mt-1">تنبيه: هذا التاريخ يوافق إجازة نهاية الأسبوع</p>}
                           </div>
@@ -4297,7 +4816,7 @@ ${formattedItems}
                               required
                               value={seriesEndDate}
                               onChange={(e) => setSeriesEndDate(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             />
                             {isWeekend(seriesEndDate) && <p className="text-red-500 text-[10px] font-bold mt-1">تنبيه: هذا التاريخ يوافق إجازة نهاية الأسبوع</p>}
                           </div>
@@ -4308,7 +4827,7 @@ ${formattedItems}
                               type="time"
                               value={seriesTime}
                               onChange={(e) => setSeriesTime(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                             />
                           </div>
 
@@ -4319,7 +4838,7 @@ ${formattedItems}
                               <select 
                                 value={selectedRoom}
                                 onChange={(e) => setSelectedRoom(e.target.value)}
-                                className="flex-1 bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                                className="flex-1 bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
                               >
                                 <option value="" disabled>اختر قاعة...</option>
                                 {ROOMS.map(rm => <option key={rm} value={rm}>{rm}</option>)}
@@ -4365,7 +4884,7 @@ ${formattedItems}
                       value={newNotes}
                       onChange={(e) => setNewNotes(e.target.value)}
                       rows={3}
-                      className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand resize-none"
+                      className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand resize-none"
                     ></textarea>
                   </div>
 
@@ -4374,14 +4893,14 @@ ${formattedItems}
                 <div className="mt-8 pt-5 border-t border-gray-100 flex items-center justify-end flex-row-reverse gap-3">
                   <button
                     type="submit"
-                    className="px-6 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand/90 transition-colors shadow-lg shadow-brand/20 active:scale-95"
+                    className="px-3 sm:px-4 md:px-6 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand/90 transition-colors shadow-lg shadow-brand/20 active:scale-95"
                   >
                     {newType === "متسلسلة" ? "استعراض الجدول" : (editingEvent ? "حفظ التعديلات" : "إضافة الفعالية")}
                   </button>
                   <button
                     type="button"
                     onClick={() => setIsAddOpen(false)}
-                    className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors"
+                    className="px-3 sm:px-4 md:px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors"
                   >
                     إلغاء
                   </button>
@@ -4405,12 +4924,12 @@ ${formattedItems}
              />
              <motion.div 
                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-               className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-sm relative z-10 text-center border border-gray-100"
+               className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl shadow-2xl p-3 sm:p-4 md:p-6 w-full max-w-sm relative z-10 text-center border border-gray-100"
              >
-               <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
+               <div className="w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
                  <AlertTriangle className="w-8 h-8" />
                </div>
-               <h3 className="text-xl font-black text-gray-900 mb-2">تأكيد الحذف</h3>
+               <h3 className="text-base sm:text-lg md:text-xl font-black text-gray-900 mb-2">تأكيد الحذف</h3>
                <p className="text-sm font-bold text-gray-500 mb-6">
                  هل أنت متأكد من حذف {selectedEventIds.length} فعالية؟
                </p>
@@ -4448,12 +4967,12 @@ ${formattedItems}
              />
              <motion.div 
                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-               className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-sm relative z-10 text-center border border-gray-100"
+               className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl shadow-2xl p-3 sm:p-4 md:p-6 w-full max-w-sm relative z-10 text-center border border-gray-100"
              >
-               <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
+               <div className="w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
                  <AlertTriangle className="w-8 h-8" />
                </div>
-               <h3 className="text-xl font-black text-gray-900 mb-2">تأكيد الحذف</h3>
+               <h3 className="text-base sm:text-lg md:text-xl font-black text-gray-900 mb-2">تأكيد الحذف</h3>
                <p className="text-sm font-bold text-gray-500 mb-6">
                  هل أنت متأكد من حذف الفعالية "{deletingEvent.title}"؟ 
                </p>

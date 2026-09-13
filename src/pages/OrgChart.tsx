@@ -5,6 +5,7 @@ import {
   Users, 
   Search, 
   Plus, 
+  Minus,
   X, 
   UserCheck, 
   Edit2, 
@@ -205,7 +206,8 @@ export default function OrgChart() {
       alert("فشل الاستعلام من قاعدة البيانات: " + err.message);
     }
   };
-const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
   // Local state for administrative master data console
   const [selectedSubCol, setSelectedSubCol] = useState<string>("committees");
@@ -1481,9 +1483,9 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
     <div className="space-y-6 font-sans pb-12 text-right" dir="rtl">
       
       {/* 1. TOP HERO PANEL */}
-      <div className="bg-[#e8e4e4] rounded-2xl p-6 border border-gray-200 shadow-sm flex flex-col xl:flex-row items-center justify-between gap-4">
+      <div className="bg-[#e8e4e4] rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 border border-gray-200 shadow-sm flex flex-col xl:flex-row items-center justify-between gap-2.5 sm:gap-3 md:gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
+          <h1 className="text-sm sm:text-base md:text-lg sm:text-xl md:text-2xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
             <Users className="w-7 h-7 text-brand" />
             <span>الهيكل الإداري والرقابة الذكية</span>
           </h1>
@@ -1496,7 +1498,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
           {currentUserRole === "SYS_ADMIN" && (
             <button
               onClick={openAddModal}
-              className="px-4 py-2.5 bg-brand hover:bg-brand/90 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+              className="px-3 sm:px-4 py-2 sm:py-2.5 bg-brand hover:bg-brand/90 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
               <Plus className="w-4 h-4" />
               <span>إضافة موظف معتمد</span>
@@ -1506,7 +1508,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
           {currentUserRole === "SYS_ADMIN" && (
             <button
               onClick={() => setShowPurgeConfirm(true)}
-              className="px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-650 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-red-200"
+              className="px-3 sm:px-4 py-2 sm:py-2.5 bg-red-50 hover:bg-red-100 text-red-650 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-red-200"
             >
               <ShieldAlert className="w-4 h-4 text-red-650 animate-pulse" />
               <span>تصفير النظام بالكامل</span>
@@ -1519,7 +1521,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
       <div className="flex border-b border-gray-200 gap-1 overflow-x-auto custom-scrollbar pb-1">
         <button
           onClick={() => setActiveTab("hierarchy")}
-          className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+          className={`px-3 sm:px-4 md:px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
             activeTab === "hierarchy" ? "border-brand text-brand font-black" : "border-transparent text-gray-500 hover:text-gray-900"
           }`}
         >
@@ -1533,7 +1535,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
         
         <button
           onClick={() => setActiveTab("org_chart")}
-          className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+          className={`px-3 sm:px-4 md:px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
             activeTab === "org_chart" ? "border-brand text-brand font-black" : "border-transparent text-gray-500 hover:text-gray-900"
           }`}
         >
@@ -1546,7 +1548,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 <>
             <button
               onClick={() => setActiveTab("transfer")}
-              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              className={`px-3 sm:px-4 md:px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
                 activeTab === "transfer" ? "border-brand text-brand font-black" : "border-transparent text-gray-500 hover:text-gray-900"
               }`}
             >
@@ -1555,7 +1557,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
             </button>
             <button
               onClick={() => setActiveTab("approvals")}
-              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              className={`px-3 sm:px-4 md:px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
                 activeTab === "approvals" ? "border-brand text-brand font-black" : "border-transparent text-gray-500 hover:text-gray-900"
               }`}
             >
@@ -1565,7 +1567,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
             </button>
             <button
               onClick={() => setActiveTab("logs")}
-              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              className={`px-3 sm:px-4 md:px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
                 activeTab === "logs" ? "border-brand text-brand font-black" : "border-transparent text-gray-500 hover:text-gray-900"
               }`}
             >
@@ -1574,7 +1576,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
             </button>
             <button
               onClick={() => setActiveTab("permissions")}
-              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              className={`px-3 sm:px-4 md:px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
                 activeTab === "permissions" ? "border-brand text-brand font-black" : "border-transparent text-gray-500 hover:text-gray-900"
               }`}
             >
@@ -1583,7 +1585,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
             </button>
             <button
               onClick={() => setActiveTab("master_data")}
-              className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              className={`px-3 sm:px-4 md:px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${
                 activeTab === "master_data" ? "border-brand text-brand font-black" : "border-transparent text-gray-500 hover:text-gray-900"
               }`}
             >
@@ -1592,7 +1594,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
             </button>
         <button
           onClick={() => setActiveTab("design_settings")}
-          className={`px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${ activeTab === "design_settings" ? "border-brand text-brand font-black" : "border-transparent text-gray-500 hover:text-gray-900" }`}
+          className={`px-3 sm:px-4 md:px-5 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap cursor-pointer ${ activeTab === "design_settings" ? "border-brand text-brand font-black" : "border-transparent text-gray-500 hover:text-gray-900" }`}
         >
           <Sparkles className="w-4 h-4 shrink-0" />
           <span>تنظيم التصميم</span>
@@ -1609,14 +1611,14 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
           
 <div key="filter-popover-1784704070986-2">
             {/* Search Filters Toolbar */}
-            <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="bg-white rounded-xl sm:rounded-2xl p-4 border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-3 md:gap-4">
               <div className="relative flex-1 max-w-md">
                 <input
                   type="text"
                   placeholder="ابحث بحرية عن موظف، رقم وظيفي، بريد أو جوال..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 pr-10 text-xs focus:outline-none focus:ring-2 focus:ring-brand focus:bg-white transition-all text-right font-medium"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 pr-10 text-xs focus:outline-none focus:ring-2 focus:ring-brand focus:bg-white transition-all text-right font-medium"
                 />
                 <Search className="absolute top-3.5 right-3.5 text-gray-400 w-4 h-4" />
               </div>
@@ -1672,12 +1674,12 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
             </div>
 
             {filteredEmployees.length === 0 ? (
-              <div className="bg-white rounded-2xl p-12 border border-gray-200 text-center shadow-sm">
-                <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <div className="bg-white rounded-xl sm:rounded-2xl p-12 border border-gray-200 text-center shadow-sm">
+                <Users className="w-10 h-10 sm:w-12 sm:h-12 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-sm font-bold text-gray-600">عذراً، لم يتم العثور على موظفين</h3>
               </div>
             ) : viewMode === "grid" ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
                 <AnimatePresence mode="popLayout">
                   {filteredEmployees.map((emp) => {
                     const isSelf = emp.id === currentUser?.id;
@@ -1690,7 +1692,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.9 }}
                         transition={{ duration: 0.3 }}
-                        className={`bg-[#e8e4e4] hover:bg-[#e2dede] transition-colors duration-300 rounded-2xl p-5 border shadow-sm flex flex-col justify-between relative overflow-hidden group ${
+                        className={`bg-[#e8e4e4] hover:bg-[#e2dede] transition-colors duration-300 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 border shadow-sm flex flex-col justify-between relative overflow-hidden group ${
                           isSelf ? "ring-2 ring-brand ring-offset-2 border-brand/40" : "border-gray-200"
                         } ${emp.active === false ? "opacity-50 grayscale-[30%] border-gray-300" : ""}`}
                       >
@@ -1712,7 +1714,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
                           <img
                             src={emp.photo || PRESET_AVATARS[0]}
                             alt={emp.name}
-                            className="w-14 h-14 rounded-2xl object-cover ring-2 ring-gray-100 bg-gray-50"
+                            className="w-14 h-14 rounded-xl sm:rounded-2xl object-cover ring-2 ring-gray-100 bg-gray-50"
                             referrerPolicy="no-referrer"
                           />
                           <div>
@@ -1852,16 +1854,25 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
         {/* TAB 2: ORG BUILDER */}
         {activeTab === "org_chart" && (
-          <div className="bg-[#f8f9fa] rounded-2xl p-6 border border-gray-200 shadow-sm relative min-h-[600px] overflow-x-auto custom-scrollbar">
+          <div className="bg-[#f8f9fa] rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 border border-gray-200 shadow-sm relative min-h-[600px] overflow-x-auto custom-scrollbar">
             
-            <div className="flex items-center justify-between mb-8 border-b border-gray-200 pb-4 min-w-[800px]">
+            <div className="flex items-center justify-between mb-8 border-b border-gray-200 pb-4 min-w-[800px] sticky left-0 right-0">
               <div>
-                <h2 className="text-xl font-black text-gray-900">بناء الهيكل التنظيمي</h2>
+                <h2 className="text-base sm:text-lg md:text-xl font-black text-gray-900">بناء الهيكل التنظيمي</h2>
                 <p className="text-xs text-gray-500 font-bold mt-1">تأسيس القطاعات والإدارات والأقسام بشكل مستقل لتسكين الموظفين عليها لاحقاً.</p>
+              </div>
+              <div className="flex items-center gap-2 mr-auto bg-white p-1 rounded-xl border border-gray-200 shadow-sm" dir="ltr">
+                <button onClick={() => setZoomLevel(z => Math.min(z + 0.1, 2))} className="p-1.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors text-gray-700" title="تكبير (Zoom In)">
+                  <Plus className="w-4 h-4" />
+                </button>
+                <span className="text-xs font-bold text-gray-600 w-12 text-center select-none">{Math.round(zoomLevel * 100)}%</span>
+                <button onClick={() => setZoomLevel(z => Math.max(z - 0.1, 0.4))} className="p-1.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors text-gray-700" title="تصغير (Zoom Out)">
+                  <Minus className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
-            <div className="flex flex-col items-center gap-6 min-w-[800px] pb-10">
+            <div className="flex flex-col items-center gap-3 sm:gap-4 md:gap-6 min-w-[800px] pb-10 transition-transform origin-top" style={{ transform: `scale(${zoomLevel})` }}>
               
               {/* Level 1: ROOT */}
               {(() => {
@@ -1869,7 +1880,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
                 return (
                   <div className="flex flex-col items-center w-full">
                     {!rootNode ? (
-                      <button onClick={() => { setOrgNodeForm({ id: "", name: "", type: "ROOT", parent: "", isSubcategory: false }); setShowOrgNodeModal(true); }} className="px-5 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-black transition-all flex items-center gap-2 shadow-md relative z-10 mt-4">
+                      <button onClick={() => { setOrgNodeForm({ id: "", name: "", type: "ROOT", parent: "", isSubcategory: false }); setShowOrgNodeModal(true); }} className="px-3 sm:px-4 md:px-5 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-black transition-all flex items-center gap-2 shadow-md relative z-10 mt-4">
                         <Plus className="w-5 h-5" /> إضافة الإدارة العليا
                       </button>
                     ) : (
@@ -1918,7 +1929,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
               <div className="w-px h-8 bg-gray-300 -my-6 z-0"></div>
 
               {/* Level 2: Sectors */}
-              <div className="flex flex-row justify-center items-start gap-8 flex-wrap w-full relative pt-6">
+              <div className="flex flex-row justify-center items-start gap-2.5 sm:gap-3 md:gap-4 sm:gap-6 md:gap-8 flex-wrap w-full relative pt-6">
                 <div className="absolute top-0 left-10 right-10 h-px bg-gray-300 z-0"></div>
                 {dbOrgNodes.filter(n => n.type === "SECTOR").length === 0 ? (
                   <div className="text-gray-400 text-[11px] font-bold p-4 border border-dashed border-gray-300 rounded-xl bg-white w-full text-center">لا توجد قطاعات مسجلة. اضغط على إضافة بالأعلى لتأسيس قطاع.</div>
@@ -1976,7 +1987,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
                         <div className="flex flex-col items-center mt-6 relative w-full">
                           <div className="absolute top-0 w-px h-6 bg-gray-300 -mt-6 z-0"></div>
                           
-                          <div className="flex flex-row justify-center items-start gap-6 flex-wrap relative w-full pt-6 mt-2">
+                          <div className="flex flex-row justify-center items-start gap-3 sm:gap-4 md:gap-6 flex-wrap relative w-full pt-6 mt-2">
                             {dbOrgNodes.filter(n => n.type === "DEPARTMENT" && n.parent === sector.name).length > 1 && (
                               <div className="absolute top-0 left-10 right-10 h-px bg-gray-300 z-0"></div>
                             )}
@@ -2032,7 +2043,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
                                 <div className="flex flex-col items-center mt-6 relative w-full">
                                   <div className="absolute top-0 w-px h-6 bg-gray-300 -mt-6 z-0"></div>
                                   
-                                  <div className="flex flex-row justify-center items-start gap-4 flex-wrap relative w-full pt-6 mt-2">
+                                  <div className="flex flex-row justify-center items-start gap-2.5 sm:gap-3 md:gap-4 flex-wrap relative w-full pt-6 mt-2">
                                     {dbOrgNodes.filter(n => n.type === "SECTION" && n.parent === dept.name).length > 1 && (
                                       <div className="absolute top-0 left-10 right-10 h-px bg-gray-300 z-0"></div>
                                     )}
@@ -2109,7 +2120,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
         {/* TAB: TRANSFER DUTIES */}
         {activeTab === "transfer" && currentUserRole === "SYS_ADMIN" && (
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-6">
+          <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 border border-gray-200 shadow-sm space-y-6">
             <div>
               <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5">
                 <ArrowRightLeft className="w-5 h-5 text-amber-500" />
@@ -2123,7 +2134,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
             <form onSubmit={handleTransferDuties} className="space-y-6">
               <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                 <label className="block text-[11px] text-gray-500 font-extrabold mb-3">نوع النقل</label>
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-3 sm:gap-4 md:gap-6">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="radio" name="transferMode" value="full" checked={transferMode === "full"} onChange={() => setTransferMode("full")} className="w-4 h-4 text-brand focus:ring-brand" />
                     <span className="text-xs font-bold text-gray-800">نقل أعمال كامل (نقل دائم)</span>
@@ -2135,7 +2146,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                   <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">الموظف الحالي (المصدر)</label>
                   <select value={sourceEmpId} onChange={(e) => setSourceEmpId(e.target.value)} className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-xs font-bold">
@@ -2157,7 +2168,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
               </div>
 
               {transferMode === "delegation" && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
                   <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                     <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">تاريخ انتهاء التكليف</label>
                     <input type="date" value={delegationEndDate} onChange={(e) => setDelegationEndDate(e.target.value)} required className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-xs font-bold" />
@@ -2171,9 +2182,9 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
                 </div>
               )}
 
-              <div className="bg-slate-50 p-5 rounded-xl border border-gray-200 space-y-3.5">
+              <div className="bg-slate-50 p-3 sm:p-4 md:p-5 rounded-xl border border-gray-200 space-y-3.5">
                 <span className="block text-xs font-black text-gray-800">العناصر المشمولة بالنقل:</span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3 md:gap-4 pt-1">
                   <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
                     <input type="checkbox" disabled={sourceEmpStats.committees === 0} checked={transferCommittees} onChange={(e) => setTransferCommittees(e.target.checked)} className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4" />
                     <span>اللجان القطاعية ({sourceEmpStats.committees})</span>
@@ -2193,7 +2204,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
                 </div>
               </div>
               <div className="flex justify-end">
-                <button type="submit" disabled={isTransferring} className="px-6 py-3 bg-brand text-white rounded-xl text-xs font-black disabled:opacity-50">
+                <button type="submit" disabled={isTransferring} className="px-3 sm:px-4 md:px-6 py-3 bg-brand text-white rounded-xl text-xs font-black disabled:opacity-50">
                   {isTransferring ? "جاري النقل..." : "تأكيد تفويض المهام"}
                 </button>
               </div>
@@ -2265,18 +2276,18 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
         {/* TAB: APPROVALS */}
         {activeTab === "approvals" && currentUserRole === "SYS_ADMIN" && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
+            <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 border border-gray-200 shadow-sm space-y-4">
               <div className="flex justify-between items-center">
                 <h2 className="text-sm font-black text-gray-900 flex items-center gap-1.5"><UserCheck className="w-5 h-5 text-amber-500" /><span>طلبات الانضمام المعلقة</span></h2>
                 <button onClick={verifyJoinRequestsIntegrity} className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-black flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5" /><span>فحص الاستعلام</span></button>
               </div>
               {serverJoinRequests.filter(req => !req.status || req.status === "pending").length === 0 ? (
-                <div className="p-8 border border-dashed border-gray-200 rounded-xl text-center text-[11px] font-bold text-gray-500">لا توجد طلبات معلقة.</div>
+                <div className="p-4 sm:p-6 md:p-8 border border-dashed border-gray-200 rounded-xl text-center text-[11px] font-bold text-gray-500">لا توجد طلبات معلقة.</div>
               ) : (
                 <div className="space-y-3">
                   {serverJoinRequests.filter(req => !req.status || req.status === "pending").map((req) => (
-                    <div key={req.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex justify-between items-center gap-4">
+                    <div key={req.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex justify-between items-center gap-2.5 sm:gap-3 md:gap-4">
                       <div>
                         <span className="font-extrabold text-xs text-gray-900 block">{req.name}</span>
                         <div className="text-[10px] text-gray-500 font-mono mt-1">{req.email} | {req.phone}</div>
@@ -2291,7 +2302,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
               )}
             </div>
 
-            <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm space-y-5">
+            <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 border border-gray-200 shadow-sm space-y-5">
               <h2 className="text-sm font-black text-gray-900 flex items-center gap-1.5"><Lock className="w-5 h-5 text-brand" /><span>البريد المسموح (Whitelist)</span></h2>
               <form onSubmit={handleAddWhitelistEmail} className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -2324,7 +2335,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
         {/* TAB: PERMISSIONS */}
         {activeTab === "permissions" && currentUserRole === "SYS_ADMIN" && (
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-6">
+          <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 border border-gray-200 shadow-sm space-y-6">
             <h2 className="text-base font-black text-gray-900 flex items-center gap-1.5"><Lock className="w-5 h-5 text-indigo-600" /><span>صلاحيات الوصول</span></h2>
             <div className="overflow-x-auto custom-scrollbar rounded-xl border border-gray-200">
               <table className="w-full text-right text-xs">
@@ -2471,7 +2482,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
         {/* TAB: LOGS */}
         {activeTab === "logs" && currentUserRole === "SYS_ADMIN" && (
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-4">
+          <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 border border-gray-200 shadow-sm space-y-4">
             <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5"><FileText className="w-5 h-5 text-red-650" /><span>سجل المراقبة الأمني</span></h2>
             <div className="overflow-x-auto custom-scrollbar rounded-xl border border-gray-200">
               <table className="w-full text-right text-xs">
@@ -2495,7 +2506,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
         {/* TAB: MASTER DATA */}
         {activeTab === "master_data" && currentUserRole === "SYS_ADMIN" && (
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-6">
+          <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 border border-gray-200 shadow-sm space-y-6">
             <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5"><Database className="w-5 h-5 text-gray-800" /><span>إدارة البيانات الموحدة</span></h2>
             <div className="flex flex-wrap gap-2 border-b border-gray-100 pb-4">
               {[{ key: "committees", label: "اللجان", count: dbCommittees?.length || 0 }, { key: "members", label: "الأعضاء", count: dbMembers?.length || 0 }].map((tab) => (
@@ -2533,7 +2544,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
         {/* TAB: DESIGN SETTINGS */}
         {activeTab === "design_settings" && (
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-6">
+          <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 border border-gray-200 shadow-sm space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5"><Sparkles className="w-5 h-5 text-amber-500" /><span>تنظيم التصميم (إعدادات الصفحة)</span></h2>
               <button 
@@ -2547,9 +2558,9 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
               </button>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
               {/* Themes */}
-              <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200 space-y-4">
+              <div className="bg-gray-50 p-3 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border border-gray-200 space-y-4">
                 <h3 className="font-extrabold text-sm text-gray-800">السمات البصرية (Themes)</h3>
                 <p className="text-xs text-gray-500 leading-relaxed">
                   يمكنك اختيار السمة البصرية المفضلة للنظام. جميع السمات مصممة بحيث تراعي قواعد التباين العالي.
@@ -2584,13 +2595,13 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
               </div>
 
               {/* Manual Customization */}
-              <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200 space-y-4">
+              <div className="bg-gray-50 p-3 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border border-gray-200 space-y-4">
                 <h3 className="font-extrabold text-sm text-gray-800">تخصيص ثيم يدوي</h3>
                 <p className="text-xs text-gray-500 leading-relaxed">
                   اختر الألوان المفضلة وسيقوم النظام بتطبيقها على مساحة عملك الخاصة فقط.
                 </p>
                 <div className="space-y-4 mt-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:gap-4">
                     <div>
                       <label className="block text-[10px] font-bold text-gray-700 mb-1">اللون الرئيسي (Primary):</label>
                       <div className="flex items-center gap-2">
@@ -2642,9 +2653,9 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
               </div>
 
               {/* Typography (Fonts and Font Sizes) */}
-              <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200 space-y-4 md:col-span-2">
+              <div className="bg-gray-50 p-3 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border border-gray-200 space-y-4 md:col-span-2">
                 <h3 className="font-extrabold text-sm text-gray-800">الخطوط وأحجام النصوص (Typography)</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4 sm:gap-6 md:gap-8">
                   {/* Font Family */}
                   <div>
                     <label className="block text-xs font-bold text-gray-700 mb-3">نوع الخط (Font Family):</label>
@@ -2675,7 +2686,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
                         <input type="radio" name="fontSize" checked={theme.fontSize === 110} onChange={() => updateTheme({ fontSize: 110 })} className="w-4 h-4 text-brand focus:ring-brand" />
                       </label>
                       <label className={`flex items-center justify-between p-3 border rounded-xl cursor-pointer ${theme.fontSize === 120 ? 'border-brand bg-blue-50/50' : 'border-gray-200 bg-white hover:border-brand'}`}>
-                        <span className="text-lg font-bold text-gray-800">كبير جداً (120%)</span>
+                        <span className="text-sm sm:text-base md:text-lg font-bold text-gray-800">كبير جداً (120%)</span>
                         <input type="radio" name="fontSize" checked={theme.fontSize === 120} onChange={() => updateTheme({ fontSize: 120 })} className="w-4 h-4 text-brand focus:ring-brand" />
                       </label>
                     </div>
@@ -2692,7 +2703,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
         {showOrgNodeModal && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowOrgNodeModal(false)} className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 overflow-hidden">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative bg-white rounded-xl sm:rounded-2xl shadow-xl w-full max-w-sm p-3 sm:p-4 md:p-6 overflow-hidden">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="font-black text-gray-900">{orgNodeForm.id ? "تعديل عقدة في الهيكل التنظيمي" : "إضافة عقدة للهيكل التنظيمي"}</h3>
                 <button onClick={() => setShowOrgNodeModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
@@ -2709,7 +2720,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
                     {!orgNodeForm.id && orgNodeForm.type !== "JOB_TITLE" && (
                       <div className="mb-4">
                         <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">نوع العقدة المضافة</label>
-                        <div className="flex gap-4">
+                        <div className="flex gap-2.5 sm:gap-3 md:gap-4">
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input type="radio" checked={orgNodeForm.type === "STAFF"} onChange={() => setOrgNodeForm({...orgNodeForm, type: "STAFF", isSubcategory: false})} className="w-4 h-4 text-brand" />
                             <span className="text-xs font-bold">سكرتير / وظيفة مساندة</span>
@@ -2773,7 +2784,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
                 )}
 
                 <div className="pt-2 flex justify-end">
-                  <button type="submit" className="px-5 py-2.5 bg-brand text-white rounded-xl text-xs font-black">{orgNodeForm.id ? "حفظ التعديلات" : "حفظ وإضافة"}</button>
+                  <button type="submit" className="px-3 sm:px-4 md:px-5 py-2.5 bg-brand text-white rounded-xl text-xs font-black">{orgNodeForm.id ? "حفظ التعديلات" : "حفظ وإضافة"}</button>
                 </div>
               </form>
             </motion.div>
@@ -2786,8 +2797,8 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
         {confirmDialog && confirmDialog.isOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { if (confirmDialog.onCancel) confirmDialog.onCancel(); else setConfirmDialog(null); }} className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden p-6">
-              <div className="flex items-center gap-3 mb-4 text-red-600"><AlertTriangle className="w-6 h-6" /><h3 className="text-lg font-black">{confirmDialog.title}</h3></div>
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white rounded-xl sm:rounded-2xl shadow-xl overflow-hidden p-3 sm:p-4 md:p-6">
+              <div className="flex items-center gap-3 mb-4 text-red-600"><AlertTriangle className="w-6 h-6" /><h3 className="text-sm sm:text-base md:text-lg font-black">{confirmDialog.title}</h3></div>
               <p className="text-sm font-semibold text-gray-700 whitespace-pre-wrap">{confirmDialog.message}</p>
               <div className="mt-6 flex justify-end gap-3">
                 {!confirmDialog.isAlert && (
@@ -2807,10 +2818,10 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
       {/* EMPLOYEE FORM MODAL */}
       <AnimatePresence>
         {showFormModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowFormModal(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ scale: 0.9, y: 15, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.9, y: 15, opacity: 0 }} className="bg-white rounded-3xl border border-gray-200 shadow-2xl w-full max-w-2xl relative z-10 max-h-[90vh] flex flex-col overflow-hidden">
-              <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
+            <motion.div initial={{ scale: 0.9, y: 15, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.9, y: 15, opacity: 0 }} className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl border border-gray-200 shadow-2xl w-full max-w-2xl relative z-10 max-h-[90vh] flex flex-col overflow-hidden">
+              <div className="bg-[#e8e4e4] p-3 sm:p-4 md:p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-brand text-white rounded-xl"><UserPlus className="w-5 h-5 stroke-[2.5]" /></div>
                   <div>
@@ -2821,12 +2832,12 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
                 <button onClick={() => setShowFormModal(false)} className="p-1.5 hover:bg-gray-200 text-gray-500 rounded-lg"><X className="w-5 h-5" /></button>
               </div>
 
-              <form onSubmit={handleSaveEmployee} className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
+              <form onSubmit={handleSaveEmployee} className="p-3 sm:p-4 md:p-6 space-y-5 overflow-y-auto custom-scrollbar">
                 
                 {/* Photo Upload */}
                 <div className="flex flex-col items-center justify-center mb-6">
-                  <div className="relative w-20 h-20 mb-2">
-                    <div className="w-full h-full rounded-2xl border-4 border-white shadow-md overflow-hidden bg-gray-50 flex items-center justify-center">
+                  <div className="relative w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 mb-2">
+                    <div className="w-full h-full rounded-xl sm:rounded-2xl border-4 border-white shadow-md overflow-hidden bg-gray-50 flex items-center justify-center">
                       {formPhoto ? <img src={formPhoto} alt="Avatar" className="w-full h-full object-cover" /> : <User className="w-8 h-8 text-gray-300" />}
                     </div>
                     <label className="absolute bottom-[-8px] right-[-8px] w-7 h-7 bg-brand rounded-full border-2 border-white flex items-center justify-center text-white cursor-pointer hover:bg-blue-700">
@@ -2843,7 +2854,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-6 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-6 gap-2.5 sm:gap-3 md:gap-4">
                   <div className="sm:col-span-1">
                     <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">الرقم الوظيفي</label>
                     <input type="text" required value={formId} onChange={(e) => setFormId(e.target.value)} className="w-full h-10 bg-white border border-gray-300 rounded-xl px-3 text-xs font-bold text-center outline-none focus:border-brand" />
@@ -2864,7 +2875,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4">
                   <div>
                     <label className="block text-[11px] text-gray-500 font-extrabold mb-1.5">البريد الإلكتروني {isEditing && <span className="text-amber-600">(ثابت)</span>}</label>
                     <input type="email" required value={formEmail} onChange={(e) => setFormEmail(e.target.value)} disabled={isEditing} dir="ltr" className="w-full h-10 bg-gray-50 border border-gray-300 rounded-xl px-3 text-xs font-semibold text-left outline-none focus:border-brand disabled:opacity-80" />
@@ -2998,7 +3009,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4">
                   <div className="space-y-1.5">
                     <label className="block text-[11px] text-gray-500 font-extrabold">صلاحيات الموظف بالنظام</label>
                     <select value={formRole} onChange={(e: any) => setFormRole(e.target.value)} disabled={currentUserRole !== "SYS_ADMIN"} className="w-full h-10 bg-white border border-gray-300 rounded-xl px-3 text-xs font-bold outline-none focus:border-brand disabled:opacity-50">
@@ -3013,7 +3024,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
                     </select>
                   </div>
                   {currentUserRole === "SYS_ADMIN" && (
-                    <div className="flex gap-4">
+                    <div className="flex gap-2.5 sm:gap-3 md:gap-4">
                       <div className="flex-1 flex items-center gap-2 bg-white border border-gray-300 rounded-xl px-3 h-10">
                         <input type="checkbox" id="fActive" checked={formActive} onChange={(e) => setFormActive(e.target.checked)} className="w-4 h-4 text-brand" />
                         <label htmlFor="fActive" className="text-[10px] font-extrabold cursor-pointer">موظف نشط</label>
@@ -3056,8 +3067,8 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
                 )}
 
                 <div className="pt-4 border-t border-gray-100 flex justify-end gap-3">
-                  <button type="button" onClick={() => setShowFormModal(false)} className="px-5 py-2.5 text-xs font-bold text-gray-600 bg-white border border-gray-300 rounded-xl hover:bg-gray-50">إلغاء</button>
-                  <button type="submit" className="px-5 py-2.5 text-xs font-bold text-white bg-brand rounded-xl hover:bg-brand/90 flex items-center gap-2">
+                  <button type="button" onClick={() => setShowFormModal(false)} className="px-3 sm:px-4 md:px-5 py-2.5 text-xs font-bold text-gray-600 bg-white border border-gray-300 rounded-xl hover:bg-gray-50">إلغاء</button>
+                  <button type="submit" className="px-3 sm:px-4 md:px-5 py-2.5 text-xs font-bold text-white bg-brand rounded-xl hover:bg-brand/90 flex items-center gap-2">
                     <UserPlus className="w-4 h-4" /><span>حفظ بيانات الموظف</span>
                   </button>
                 </div>
@@ -3072,7 +3083,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
         {selectedEmployee && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedEmployee(null)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-2xl p-5 w-full max-w-md relative z-10 text-right">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 w-full max-w-md relative z-10 text-right">
               <button onClick={() => setSelectedEmployee(null)} className="absolute top-4 left-4 text-gray-400"><X className="w-5 h-5" /></button>
               <h3 className="font-extrabold text-sm mb-2">اللجان المربوطة بـ: {selectedEmployee.name}</h3>
               <div className="space-y-2 mt-4 max-h-60 overflow-y-auto">
@@ -3096,13 +3107,13 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-red-100"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-red-100"
             >
-              <div className="p-6">
-                <div className="w-16 h-16 bg-red-50 text-red-650 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100">
+              <div className="p-3 sm:p-4 md:p-6">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-red-50 text-red-650 rounded-xl sm:rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100">
                   <ShieldAlert className="w-8 h-8 animate-pulse" />
                 </div>
-                <h3 className="text-xl font-black text-center text-gray-900 mb-2">تأكيد تصفير النظام</h3>
+                <h3 className="text-base sm:text-lg md:text-xl font-black text-center text-gray-900 mb-2">تأكيد تصفير النظام</h3>
                 <p className="text-xs text-gray-500 font-bold text-center leading-relaxed mb-6">
                   هذا الإجراء سيقوم بحذف <span className="text-red-650">كافة البيانات</span> (لجان، أعضاء، فعاليات، مهام، تقارير، الخ) بشكل نهائي ولا يمكن التراجع عنه. هل أنت متأكد من رغبتك في الاستمرار؟
                 </p>
@@ -3122,7 +3133,7 @@ const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
                   <button
                     onClick={() => setShowPurgeConfirm(false)}
                     disabled={isPurging}
-                    className="px-6 h-12 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black text-sm rounded-xl transition-all"
+                    className="px-3 sm:px-4 md:px-6 h-12 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black text-sm rounded-xl transition-all"
                   >
                     إلغاء
                   </button>

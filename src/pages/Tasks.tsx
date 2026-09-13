@@ -2,6 +2,9 @@ import React, { useState, useEffect, FormEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query } from '../lib/firebase';
 import { db } from '../lib/firebase';
+import { createGoogleTask, updateGoogleTask, deleteGoogleTask, createGoogleCalendarEvent } from "../lib/googleApi";
+import { showGlobalToast } from "../lib/toastUtils";
+
 import { 
   CheckSquare, Search, Plus, X, Trash2, Edit2, LayoutGrid, List, AlertTriangle, Check, BookOpen, Clock, AlignLeft, Send, Filter, Users, Settings, Copy, ChevronDown, ChevronUp, Sparkles, Sliders, ArrowLeftRight, Archive, CheckCircle2, AlertCircle, FileSpreadsheet, Paperclip, ChevronLeft, Calendar
 } from "lucide-react";
@@ -22,9 +25,76 @@ export interface TaskItem {
   attachments: Array<{ name: string; url: string; date: string }>;
   escalationLevel: "لا يوجد" | "رئيس قسم" | "مدير الإدارة" | "مساعد الأمين العام" | "الأمين العام";
   historyLog?: Array<{ id: string; date: string; time: string; note: string; by: string; action: string }>;
+  googleTaskIds?: Record<string, string>;
 }
 
 
+
+
+const syncTasksToGoogle = async (tasksList: TaskItem[], dbEmployees: any[]) => {
+    let stats = { created: 0, updated: 0, failed: 0 };
+    for (const t of tasksList) {
+        if (!t.assignedTo) continue;
+        let updatedGoogleTaskIds = { ...(t.googleTaskIds || {}) };
+        
+        // Clean up old assignments
+        const keys = Object.keys(updatedGoogleTaskIds);
+        for (const oldAssignee of keys) {
+            if (oldAssignee !== t.assignedTo) {
+                const oldEmp = dbEmployees.find((e: any) => e.name === oldAssignee);
+                if (oldEmp && oldEmp.email) {
+                    try {
+                        await deleteGoogleTask(updatedGoogleTaskIds[oldAssignee], oldEmp.email);
+                    } catch(e) {
+                        console.warn("Failed to delete old task for", oldAssignee);
+                    }
+                }
+                delete updatedGoogleTaskIds[oldAssignee];
+            }
+        }
+        
+        const targetEmp = dbEmployees.find((e: any) => e.name === t.assignedTo);
+        if (targetEmp && targetEmp.email) {
+            let taskPayload = {
+               title: `${t.title} (تكليف داخلي)`,
+               notes: `الوصف: ${t.description}\nالمنسق: ${t.assignedBy}\nملاحظات: ${t.additionalNotes || ""}`,
+               due: t.dueDate ? new Date(t.dueDate).toISOString() : undefined,
+            };
+            try {
+                if (updatedGoogleTaskIds[t.assignedTo]) {
+                    try {
+                       await updateGoogleTask(updatedGoogleTaskIds[t.assignedTo], taskPayload, targetEmp.email);
+                       stats.updated++;
+                    } catch(err) {
+                       const res = await createGoogleTask(taskPayload, targetEmp.email);
+                       if (res && res.id) {
+                          updatedGoogleTaskIds[t.assignedTo] = res.id;
+                          stats.updated++;
+                       }
+                    }
+                } else {
+                    const res = await createGoogleTask(taskPayload, targetEmp.email);
+                    if (res && res.id) {
+                        updatedGoogleTaskIds[t.assignedTo] = res.id;
+                        stats.created++;
+                    }
+                }
+                
+                if (JSON.stringify(updatedGoogleTaskIds) !== JSON.stringify(t.googleTaskIds || {})) {
+                    await updateDoc(doc(db, "tasks", t.id), { googleTaskIds: updatedGoogleTaskIds });
+                }
+            } catch (err) {
+                console.warn("Failed to sync task", t.id, err);
+                stats.failed++;
+            }
+        } else {
+             if (JSON.stringify(updatedGoogleTaskIds) !== JSON.stringify(t.googleTaskIds || {})) {
+                 await updateDoc(doc(db, "tasks", t.id), { googleTaskIds: updatedGoogleTaskIds });
+             }
+        }
+    }
+    return stats;
+};
 
 export default function Tasks() {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -98,7 +168,7 @@ export default function Tasks() {
   const [currentTask, setCurrentTask] = useState<TaskItem | null>(null);
   const [isSendOpen, setIsSendOpen] = useState(false);
   const [sendType, setSendType] = useState<"email" | "forward">("email");
-  const [forwardAssignDept, setForwardAssignDept] = useState("إدارة اللجان");
+  const [forwardAssignDept, setForwardAssignDept] = useState("");
   const [forwardAssignTo, setForwardAssignTo] = useState("");
   const [forwardNote, setForwardNote] = useState("");
   const [newProgressNote, setNewProgressNote] = useState("");
@@ -113,7 +183,7 @@ export default function Tasks() {
   const [dueDate, setDueDate] = useState("");
   const [assignedBy, setAssignedBy] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
-  const [selectedAssignDept, setSelectedAssignDept] = useState("إدارة اللجان");
+  const [selectedAssignDept, setSelectedAssignDept] = useState("");
   const [status, setStatus] = useState<"جديدة" | "جاري العمل عليها" | "متأخرة" | "منجزة">("جديدة");
   const [achievementNotes, setAchievementNotes] = useState("");
   const [tempAttachments, setTempAttachments] = useState<Array<{ name: string; url: string; date: string }>>([]);
@@ -146,8 +216,10 @@ export default function Tasks() {
     setPriority("عادية");
     setDueDate(new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10)); // 5 days from now
     setAssignedBy(currentUserName);
-    setSelectedAssignDept("إدارة اللجان");
-    const deptEmps = allEmployeesData.filter(emp => emp.orgLevel3 === "إدارة اللجان" || emp.orgLevel2 === "إدارة اللجان" || emp.orgLevel1 === "إدارة اللجان");
+    const availableDepts = Array.from(new Set(allEmployeesData.map(e => e.orgLevel3 || e.orgLevel2 || e.orgLevel1).filter(Boolean)));
+    const defaultDept = availableDepts.includes("إدارة اللجان") ? "إدارة اللجان" : (availableDepts[0] as string || "");
+    setSelectedAssignDept(defaultDept);
+    const deptEmps = allEmployeesData.filter(emp => emp.orgLevel3 === defaultDept || emp.orgLevel2 === defaultDept || emp.orgLevel1 === defaultDept);
     setAssignedTo(deptEmps.length > 0 ? deptEmps[0].name : (employeesList[0] || ""));
     setStatus("جديدة");
     setAchievementNotes("");
@@ -179,7 +251,45 @@ export default function Tasks() {
     };
 
     try {
-      await addDoc(collection(db, "tasks"), newTask);
+      const docRef = await addDoc(collection(db, "tasks"), newTask);
+      
+      // Sync to Google Tasks & Calendar
+      try {
+        const targetEmp = allEmployeesData.find((e: any) => e.name === assignedTo);
+        const empEmail = targetEmp ? targetEmp.email : undefined;
+        
+        let createdTaskId;
+        try {
+            const res = await createGoogleTask({
+               title: `${title} (تكليف داخلي)`,
+               notes: `الوصف: ${description}\nالمنسق: ${assignedBy}\nملاحظات: ${additionalNotes || ""}`,
+               due: dueDate ? new Date(dueDate).toISOString() : undefined,
+            }, empEmail);
+            if (res && res.id) {
+               createdTaskId = res.id;
+               await updateDoc(doc(db, "tasks", docRef.id), { 
+                   googleTaskIds: { [assignedTo]: res.id }
+               });
+            }
+        } catch(e) {
+            console.warn("Failed to create Google Task", e);
+        }
+
+        await createGoogleCalendarEvent({
+          summary: `${title} (تكليف داخلي)`,
+          description: `الوصف: ${description}\nالمسند إليه: ${assignedTo}\nملاحظات: ${additionalNotes}`,
+          start: {
+            date: dueDate ? new Date(dueDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+          },
+          end: {
+            date: dueDate ? new Date(dueDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+          }
+        }, empEmail);
+        showGlobalToast("تم إنشاء المهمة ومزامنتها مع المهام والتقويم", "success");
+      } catch (err) {
+        console.warn("Failed to sync with Google APIs", err);
+        showGlobalToast("تم الحفظ، ولكن واجهنا مشكلة في المزامنة", "error");
+      }
       setIsAddOpen(false);
     } catch (e) {
       console.error(e);
@@ -203,7 +313,9 @@ export default function Tasks() {
     if (emp && (emp.orgLevel3 || emp.orgLevel2 || emp.orgLevel1)) {
       setSelectedAssignDept((emp.orgLevel3 || emp.orgLevel2 || emp.orgLevel1) as string);
     } else {
-      setSelectedAssignDept("إدارة اللجان");
+      const availableDepts = Array.from(new Set(allEmployeesData.map(e => e.orgLevel3 || e.orgLevel2 || e.orgLevel1).filter(Boolean)));
+      const defaultDept = availableDepts.includes("إدارة اللجان") ? "إدارة اللجان" : (availableDepts[0] as string || "");
+      setSelectedAssignDept(defaultDept);
     }
 
     setStatus(task.status);
@@ -368,6 +480,20 @@ export default function Tasks() {
 
       localStorage.setItem("app_system_logs", JSON.stringify([logEntry, ...currentLogs]));
       
+      if (deletedItem && deletedItem.googleTaskIds) {
+          const keys = Object.keys(deletedItem.googleTaskIds);
+          for (const key of keys) {
+              const emp = allEmployeesData.find(e => e.name === key);
+              if (emp && emp.email) {
+                  try {
+                      await deleteGoogleTask(deletedItem.googleTaskIds[key], emp.email);
+                  } catch(e) {
+                      console.warn("Failed to delete task from Google Tasks", e);
+                  }
+              }
+          }
+      }
+
       await deleteDoc(doc(db, "tasks", taskToDeleteId));
     } catch (err) {
       console.error(err);
@@ -423,7 +549,7 @@ export default function Tasks() {
     const handleOpenSendModal = (task: TaskItem) => {
     setCurrentTask(task);
     setSendType("email");
-    setForwardAssignDept("إدارة اللجان");
+    setForwardAssignDept("");
     setForwardAssignTo(employeesList[0] || "");
     setForwardNote("");
     setIsSendOpen(true);
@@ -457,6 +583,11 @@ export default function Tasks() {
           assignedTo: forwardAssignTo,
           historyLog: updatedHistory
         });
+
+        try {
+           await syncTasksToGoogle([{...currentTask, assignedTo: forwardAssignTo} as TaskItem], allEmployeesData);
+        } catch (err) {}
+        
         setIsSendOpen(false);
       } catch(e) {}
     }
@@ -500,13 +631,13 @@ export default function Tasks() {
       `}} />
 
       {/* -------------------- Page Action Header -------------------- */}
-      <div className="bg-[#e8e4e4] rounded-2xl p-6 border border-gray-200 shadow-sm flex flex-col xl:flex-row items-center justify-between gap-4 print:hidden">
+      <div className="bg-[#e8e4e4] rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 border border-gray-200 shadow-sm flex flex-col xl:flex-row items-center justify-between gap-2.5 sm:gap-3 md:gap-4 print:hidden">
         <div>
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 text-brand rounded-xl">
               <CheckSquare className="w-7 h-7 text-brand" />
             </div>
-            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight font-sans">بوابة المهام الإدارية الداخلية</h1>
+            <h1 className="text-sm sm:text-base md:text-lg sm:text-xl md:text-2xl font-extrabold text-gray-900 tracking-tight font-sans">بوابة المهام الإدارية الداخلية</h1>
           </div>
           <p className="text-gray-600 text-sm font-medium mt-1">إسناد ومتابعة الأعمال الإدارية واليومية بين منسوبي الغرفة وإحصاء مستحقاتها تلقائياً</p>
         </div>
@@ -743,13 +874,13 @@ export default function Tasks() {
       <div id="printable-tasks-area" className="w-full">
         {/* Print only banner view */}
         <div className="hidden print:block border-b-2 border-blue-800 pb-4 mb-6 text-center text-right" dir="rtl">
-          <h1 className="text-2xl font-black text-blue-900">كشف وجرد المهام الإدارية الداخلية</h1>
+          <h1 className="text-sm sm:text-base md:text-lg sm:text-xl md:text-2xl font-black text-blue-900">كشف وجرد المهام الإدارية الداخلية</h1>
           <p className="text-xs text-gray-500 mt-2">مستخرج آلياً من الغرفة التجارية بمكة المكرمة - تاريخ الطباعة: {new Date().toLocaleDateString('ar-SA')}</p>
         </div>
 
         {filteredTasks.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center flex flex-col items-center justify-center space-y-3">
-            <div className="w-12 h-12 bg-blue-50 text-blue-700 rounded-full flex items-center justify-center">
+          <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-200 p-12 text-center flex flex-col items-center justify-center space-y-3">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 text-blue-700 rounded-full flex items-center justify-center">
               <Archive className="w-6 h-6" />
             </div>
             <div className="space-y-0.5">
@@ -759,7 +890,7 @@ export default function Tasks() {
           </div>
         ) : viewMode === "cards" ? (
           /* Cards Bento Visualizer */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
             {filteredTasks.map((t) => {
               const delayInfo = calculateDelayInfo(t);
               
@@ -776,7 +907,7 @@ export default function Tasks() {
               return (
                 <div
                   key={t.id}
-                  className="bg-[#e8e4e4] hover:bg-[#e2dede] transition-all duration-300 rounded-2xl p-5 border border-gray-200 shadow-sm hover:shadow-md relative overflow-hidden flex flex-col justify-between"
+                  className="bg-[#e8e4e4] hover:bg-[#e2dede] transition-all duration-300 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 border border-gray-200 shadow-sm hover:shadow-md relative overflow-hidden flex flex-col justify-between"
                 >
                   {/* Left hand status vertical bar */}
                   <span className={`absolute top-0 right-0 w-1.5 h-full ${
@@ -928,7 +1059,7 @@ export default function Tasks() {
           </div>
         ) : (
           /* Table Standard Layout */
-          <div className="bg-[#e8e4e4] rounded-2xl border border-gray-200 shadow-sm overflow-hidden overflow-x-auto custom-scrollbar text-right">
+          <div className="bg-[#e8e4e4] rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm overflow-hidden overflow-x-auto custom-scrollbar text-right">
             <table className="w-full text-right border-collapse">
               <thead>
                 <tr className="bg-[#dfdada] border-b border-gray-300 text-gray-900 text-xs font-black">
@@ -1027,9 +1158,9 @@ export default function Tasks() {
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 15, opacity: 0 }}
               transition={{ type: "spring", damping: 20, stiffness: 280 }}
-              className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right flex flex-col max-h-[90vh]"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right flex flex-col max-h-[90vh]"
             >
-              <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
+              <div className="bg-[#e8e4e4] p-3 sm:p-4 md:p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-600 text-white rounded-xl">
                     <Plus className="w-5 h-5 stroke-[2.5]" />
@@ -1048,8 +1179,8 @@ export default function Tasks() {
                 </button>
               </div>
 
-              <form onSubmit={handleAddTask} className="overflow-y-auto p-6 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <form onSubmit={handleAddTask} className="overflow-y-auto p-3 sm:p-4 md:p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4">
                   {/* Title */}
                   <div className="col-span-1 md:col-span-2">
                     <label className="block text-xs font-black text-gray-750 mb-1">اسم المهمة الرئيسي *</label>
@@ -1118,8 +1249,9 @@ export default function Tasks() {
                       <select
                         value={selectedAssignDept}
                         onChange={(e) => {
-                          setSelectedAssignDept(e.target.value);
-                          const deptEmps = allEmployeesData.filter(emp => emp.orgLevel3 === e.target.value || emp.orgLevel2 === e.target.value || emp.orgLevel1 === e.target.value);
+                          const val = e.target.value;
+                          setSelectedAssignDept(val);
+                          const deptEmps = val ? allEmployeesData.filter(emp => emp.orgLevel3 === val || emp.orgLevel2 === val || emp.orgLevel1 === val) : allEmployeesData;
                           if (deptEmps.length > 0) {
                             setAssignedTo(deptEmps[0].name);
                           } else {
@@ -1128,6 +1260,7 @@ export default function Tasks() {
                         }}
                         className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                       >
+                        <option value="">-- جميع الإدارات --</option>
                         {Array.from(new Set(allEmployeesData.map(e => e.orgLevel3 || e.orgLevel2 || e.orgLevel1).filter(Boolean))).map((dept, i) => (
                           <option key={i} value={dept as string}>{dept as string}</option>
                         ))}
@@ -1137,7 +1270,8 @@ export default function Tasks() {
                         onChange={(e) => setAssignedTo(e.target.value)}
                         className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                       >
-                        {allEmployeesData.filter(emp => emp.orgLevel3 === selectedAssignDept || emp.orgLevel2 === selectedAssignDept || emp.orgLevel1 === selectedAssignDept).map((e, i) => (
+                        <option value="">-- اختر الموظف --</option>
+                        {allEmployeesData.filter(emp => selectedAssignDept ? (emp.orgLevel3 === selectedAssignDept || emp.orgLevel2 === selectedAssignDept || emp.orgLevel1 === selectedAssignDept) : true).map((e, i) => (
                           <option key={i} value={e.name}>{e.name}</option>
                         ))}
                       </select>
@@ -1258,7 +1392,7 @@ export default function Tasks() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 text-xs font-black bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-all"
+                    className="px-3 sm:px-4 md:px-5 py-2 text-xs font-black bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-all"
                   >
                     إسناد المهمة للموظف
                   </button>
@@ -1288,9 +1422,9 @@ export default function Tasks() {
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 15, opacity: 0 }}
               transition={{ type: "spring", damping: 20, stiffness: 280 }}
-              className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right flex flex-col max-h-[90vh]"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right flex flex-col max-h-[90vh]"
             >
-              <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
+              <div className="bg-[#e8e4e4] p-3 sm:p-4 md:p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-600 text-white rounded-xl">
                     <Edit2 className="w-5 h-5 stroke-[2.5]" />
@@ -1309,8 +1443,8 @@ export default function Tasks() {
                 </button>
               </div>
 
-              <form onSubmit={handleEditTask} className="overflow-y-auto p-6 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <form onSubmit={handleEditTask} className="overflow-y-auto p-3 sm:p-4 md:p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4">
                   {/* Title */}
                   <div className="col-span-1 md:col-span-2">
                     <label className="block text-xs font-black text-gray-750 mb-1">اسم المهمة *</label>
@@ -1421,7 +1555,8 @@ export default function Tasks() {
                         onChange={(e) => setAssignedTo(e.target.value)}
                         className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                       >
-                        {allEmployeesData.filter(emp => emp.orgLevel3 === selectedAssignDept || emp.orgLevel2 === selectedAssignDept || emp.orgLevel1 === selectedAssignDept).map((e, i) => (
+                        <option value="">-- اختر الموظف --</option>
+                        {allEmployeesData.filter(emp => selectedAssignDept ? (emp.orgLevel3 === selectedAssignDept || emp.orgLevel2 === selectedAssignDept || emp.orgLevel1 === selectedAssignDept) : true).map((e, i) => (
                           <option key={i} value={e.name}>{e.name}</option>
                         ))}
                       </select>
@@ -1478,7 +1613,7 @@ export default function Tasks() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 text-xs font-black bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-all"
+                    className="px-3 sm:px-4 md:px-5 py-2 text-xs font-black bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-all"
                   >
                     حفظ التغييرات
                   </button>
@@ -1510,15 +1645,15 @@ export default function Tasks() {
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 15, opacity: 0 }}
               transition={{ type: "spring", damping: 20, stiffness: 280 }}
-              className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-md shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right"
             >
-              <div className="p-6 bg-gradient-to-l from-blue-50 to-white border-b border-gray-100 flex justify-between items-center">
+              <div className="p-3 sm:p-4 md:p-6 bg-gradient-to-l from-blue-50 to-white border-b border-gray-100 flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
                     <Send className="w-5 h-5" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-black text-gray-900 leading-tight">إرسال أو إحالة المهمة</h2>
+                    <h2 className="text-sm sm:text-base md:text-lg font-black text-gray-900 leading-tight">إرسال أو إحالة المهمة</h2>
                     <p className="text-[10px] text-gray-500 font-bold mt-0.5">اختر وسيلة الإرسال أو الإحالة</p>
                   </div>
                 </div>
@@ -1530,10 +1665,10 @@ export default function Tasks() {
                 </button>
               </div>
 
-              <form onSubmit={handleSendSubmit} className="p-6">
+              <form onSubmit={handleSendSubmit} className="p-3 sm:p-4 md:p-6">
                 <div className="space-y-4">
                   
-                  <div className="flex gap-4 mb-4">
+                  <div className="flex gap-2.5 sm:gap-3 md:gap-4 mb-4">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input type="radio" name="sendType" value="email" checked={sendType === "email"} onChange={() => setSendType("email")} className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" />
                       <span className="text-xs font-bold text-gray-750">بريد إلكتروني خارجي</span>
@@ -1557,8 +1692,9 @@ export default function Tasks() {
                         <select
                           value={forwardAssignDept}
                           onChange={(e) => {
-                            setForwardAssignDept(e.target.value);
-                            const deptEmps = allEmployeesData.filter(emp => emp.orgLevel3 === e.target.value || emp.orgLevel2 === e.target.value || emp.orgLevel1 === e.target.value);
+                            const val = e.target.value;
+                            setForwardAssignDept(val);
+                            const deptEmps = val ? allEmployeesData.filter(emp => emp.orgLevel3 === val || emp.orgLevel2 === val || emp.orgLevel1 === val) : allEmployeesData;
                             if (deptEmps.length > 0) {
                               setForwardAssignTo(deptEmps[0].name);
                             } else {
@@ -1567,6 +1703,7 @@ export default function Tasks() {
                           }}
                           className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                         >
+                          <option value="">-- جميع الإدارات --</option>
                           {Array.from(new Set(allEmployeesData.map(e => e.orgLevel3 || e.orgLevel2 || e.orgLevel1).filter(Boolean))).map((dept, i) => (
                             <option key={i} value={dept as string}>{dept as string}</option>
                           ))}
@@ -1579,7 +1716,8 @@ export default function Tasks() {
                           onChange={(e) => setForwardAssignTo(e.target.value)}
                           className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-xs font-black focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                         >
-                          {allEmployeesData.filter(emp => emp.orgLevel3 === forwardAssignDept || emp.orgLevel2 === forwardAssignDept || emp.orgLevel1 === forwardAssignDept).map((e, i) => (
+                          <option value="">-- اختر الموظف --</option>
+                          {allEmployeesData.filter(emp => forwardAssignDept ? (emp.orgLevel3 === forwardAssignDept || emp.orgLevel2 === forwardAssignDept || emp.orgLevel1 === forwardAssignDept) : true).map((e, i) => (
                             <option key={i} value={e.name}>{e.name}</option>
                           ))}
                         </select>
@@ -1609,7 +1747,7 @@ export default function Tasks() {
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/30 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+                    className="px-3 sm:px-4 md:px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/30 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
                   >
                     <Send className="w-3.5 h-3.5" />
                     <span>{sendType === "email" ? "تجهيز البريد" : "إحالة المهمة"}</span>
@@ -1640,9 +1778,9 @@ export default function Tasks() {
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 15, opacity: 0 }}
               transition={{ type: "spring", damping: 20, stiffness: 280 }}
-              className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right flex flex-col max-h-[90vh]"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-md shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right flex flex-col max-h-[90vh]"
             >
-              <div className="bg-[#e8e4e4] p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
+              <div className="bg-[#e8e4e4] p-3 sm:p-4 md:p-5 border-b border-gray-200 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-600 text-white rounded-xl">
                     <CheckCircle2 className="w-5 h-5 stroke-[2.5]" />
@@ -1661,7 +1799,7 @@ export default function Tasks() {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveAction} className="overflow-y-auto p-6 space-y-4">
+              <form onSubmit={handleSaveAction} className="overflow-y-auto p-3 sm:p-4 md:p-6 space-y-4">
                 
                 {currentTask?.historyLog && currentTask.historyLog.length > 0 && (
                   <div className="mb-4">
@@ -1718,7 +1856,7 @@ export default function Tasks() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 text-xs font-black bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-all"
+                    className="px-3 sm:px-4 md:px-5 py-2 text-xs font-black bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-all"
                   >
                     تأكيد وحفظ حالة الإنجاز
                   </button>
@@ -1748,9 +1886,9 @@ export default function Tasks() {
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 15, opacity: 0 }}
               transition={{ type: "spring", damping: 20, stiffness: 280 }}
-              className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right flex flex-col"
+              className="bg-white rounded-xl sm:rounded-2xl sm:rounded-3xl w-full max-w-md shadow-2xl border border-gray-100 relative overflow-hidden z-10 text-right flex flex-col"
             >
-              <div className="bg-red-50 p-5 border-b border-red-100 flex items-center justify-between shrink-0">
+              <div className="bg-red-50 p-3 sm:p-4 md:p-5 border-b border-red-100 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-red-600 text-white rounded-xl">
                     <AlertTriangle className="w-5 h-5 stroke-[2.5]" />
@@ -1769,8 +1907,8 @@ export default function Tasks() {
                 </button>
               </div>
 
-              <form onSubmit={handleConfirmDeleteTask} className="p-6 space-y-4">
-                <div className="text-xs text-gray-600 font-bold leading-relaxed bg-slate-50 border border-gray-200 p-3.5 rounded-2xl">
+              <form onSubmit={handleConfirmDeleteTask} className="p-3 sm:p-4 md:p-6 space-y-4">
+                <div className="text-xs text-gray-600 font-bold leading-relaxed bg-slate-50 border border-gray-200 p-3.5 rounded-xl sm:rounded-2xl">
                   تنبيه بقواعد النظام: عند مسح المهمة القطاعية، سيتم رصد العملية باسمك وتوقيتها وصور الحذف لأرشفتها في شاشة الرقابة الأمنية. الرجاء كتابة المبرر والسبب الرسمي.
                 </div>
 
@@ -1796,7 +1934,7 @@ export default function Tasks() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 text-xs font-black bg-red-600 hover:bg-red-700 text-white rounded-xl shadow-md transition-all cursor-pointer"
+                    className="px-3 sm:px-4 md:px-5 py-2 text-xs font-black bg-red-600 hover:bg-red-700 text-white rounded-xl shadow-md transition-all cursor-pointer"
                   >
                     تأكيد المسح النهائي للرصد
                   </button>

@@ -47,6 +47,11 @@ export function useDashboardStats() {
   const [loading, setLoading] = useState(true);
 
   const fetchStats = async () => {
+    const { auth } = await import("../lib/firebase");
+    if (!auth || !auth.currentUser) {
+      setLoading(false);
+      return;
+    }
     if (!db || db.type === "dummy_firestore") {
       setLoading(false);
       return;
@@ -68,7 +73,10 @@ export function useDashboardStats() {
       const apprecCases = comms.filter(c => c.ratingIssues && c.ratingIssues.trim().length > 0 && c.ratingIssues !== "لا يوجد قضايا تقدير").length;
 
       const evts = eventsSnap.docs.map(d => d.data());
-      const totalEvts = evts.length;
+      
+      const isMeeting = (e: any) => e.type === "اجتماع" || getEventKindStr(e.title) === "اجتماع" || getEventKindStr(e.eventName) === "اجتماع";
+      const meetingsEvts = evts.filter(e => isMeeting(e)).length;
+      const totalEvts = evts.filter(e => !isMeeting(e)).length;
       const completedEvts = evts.filter(e => {
         const stepValues = [
           !!e.committeeConfirmed,
@@ -82,7 +90,7 @@ export function useDashboardStats() {
         const st = (e.status || "").trim();
         return stepValues.filter(Boolean).length === 7 || st.includes("منته") || st.includes("مكتمل") || st.includes("منجز") || st.includes("مؤكد");
       }).length;
-      const meetingsEvts = evts.filter(e => e.type === "اجتماع" || getEventKindStr(e.title) === "اجتماع" || getEventKindStr(e.eventName) === "اجتماع").length;
+      
       const gatheringsEvts = evts.filter(e => e.type === "لقاء" || getEventKindStr(e.title) === "لقاء" || getEventKindStr(e.eventName) === "لقاء").length;
       const workshopsEvts = evts.filter(e => e.type === "ورشة عمل" || getEventKindStr(e.title) === "ورشة عمل" || getEventKindStr(e.eventName) === "ورشة عمل").length;
       const visitsEvts = evts.filter(e => e.type === "زيارة" || getEventKindStr(e.title) === "زيارة" || getEventKindStr(e.eventName) === "زيارة").length;
@@ -137,8 +145,20 @@ console.log("Events array from DB in useDashboardStats:", evts.slice(0, 3));
     }
   };
 
-  useEffect(() => {
-    fetchStats();
+    useEffect(() => {
+    // Only fetch stats if we have a real db and we have an authenticated user (to avoid permission denied on initial load before auth completes)
+    // Actually we can check auth.currentUser
+    import("../lib/firebase").then(({ auth }) => {
+       if (auth && auth.currentUser) {
+          fetchStats();
+       } else {
+          // If not logged in yet, try again shortly or wait for the component to be rendered only when authenticated
+          setTimeout(fetchStats, 1000);
+       }
+    }).catch(() => {
+       fetchStats();
+    });
+
     const interval = setInterval(fetchStats, 60000); // refresh every minute
     return () => clearInterval(interval);
   }, []);

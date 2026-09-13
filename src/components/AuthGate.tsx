@@ -1,5 +1,6 @@
 import { doc } from "firebase/firestore";
 import { setDoc } from "../lib/firebase";
+import { signInAnonymously } from "firebase/auth";
 import React, { useState } from "react";
 import { 
   Lock, 
@@ -13,7 +14,7 @@ import {
   LogIn,
   UserPlus
 } from "lucide-react";
-import { useFirestoreCollection, setFirestoreBlocked } from "../lib/firebaseUtils";
+import { useFirestoreCollection } from "../lib/firebaseUtils";
 import { auth, db } from "../lib/firebase";
 import { collection, getDocs, addDoc, query, where } from "../lib/firebase";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
@@ -48,6 +49,7 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
   const { data: dbApprovedEmails, loading: approvedEmailsLoading } = useFirestoreCollection<any>("approved_emails", []);
   
   const isDataLoading = employeesLoading  || approvedEmailsLoading;
+  console.log("AuthGate loading state:", { loading, employeesLoading, approvedEmailsLoading, isDataLoading });
 
   const logSystemAction = async (employeeName: string, details: string, status: "ناجحة" | "مرفوضة") => {
     try {
@@ -65,6 +67,14 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
 
   // معالجة التحقق والتوجيه بالبريد الإلكتروني المدخل بعد الحصول عليه
   const proceedWithEmailLogin = async (email: string) => {
+    // If not already authenticated, try to sign in anonymously so Firestore rules pass
+    if (auth && !auth.currentUser) {
+       try {
+          await signInAnonymously(auth);
+       } catch (e) {
+          console.warn("Could not sign in anonymously", e);
+       }
+    }
     const emailLower = email.trim().toLowerCase();
 
     // 1. Is this the Master Administrator?
@@ -260,7 +270,6 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
       // Reset the global block state after a successful sign-in
       // This allows any hooks that fell back to local storage due to unauthenticated errors
       // to re-attempt establishing the real-time snapshot listeners.
-      setFirestoreBlocked(false);
 
       if (user && user.email) {
         setLoginEmail(user.email);
@@ -421,11 +430,11 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
         <div className="absolute bottom-[-25%] right-[-15%] w-[700px] h-[700px] bg-amber-500/5 rounded-full blur-[160px]"></div>
       </div>
 
-      <div className="w-full max-w-lg bg-slate-850/95 backdrop-blur-2xl border border-slate-700/50 rounded-3xl shadow-2xl p-6 sm:p-8 relative z-10 font-sans">
+      <div className="w-full max-w-lg bg-slate-850/95 backdrop-blur-2xl border border-slate-700/50 rounded-xl sm:rounded-2xl sm:rounded-3xl shadow-2xl p-3 sm:p-4 md:p-6 sm:p-8 relative z-10 font-sans">
         
         {/* Header Branding */}
         <div className="text-center mb-8">
-          <div className="mx-auto w-24 h-24 bg-white rounded-2xl flex items-center justify-center shadow-lg shadow-black/10 mb-4 ring-4 ring-slate-800 p-2.5 overflow-hidden">
+          <div className="mx-auto w-10 h-10 sm:w-12 sm:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-white rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg shadow-black/10 mb-4 ring-4 ring-slate-800 p-2.5 overflow-hidden">
             <img 
               src="https://drive.google.com/thumbnail?id=1pAVRkqNXJmtVRpCl1fy3wuQS6hpmJPKt&sz=w500" 
               alt="شعار غرفة مكة المكرمة"
@@ -515,7 +524,7 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
         {/* REGISTER VIEW PANEL (Join Request) */}
         {activeTab === "register" && (
           <form onSubmit={handleRegisterInput} className="space-y-4 animate-fadeIn">
-            <div className="p-3 bg-sky-500/10 border border-sky-500/20 text-sky-400 rounded-2xl text-[10px] sm:text-[11px] font-bold leading-relaxed mb-2.5">
+            <div className="p-3 bg-sky-500/10 border border-sky-500/20 text-sky-400 rounded-xl sm:rounded-2xl text-[10px] sm:text-[11px] font-bold leading-relaxed mb-2.5">
               💡 <span className="text-white font-extrabold">تقديم طلب انضمام موظف جديد:</span> 
                سيتم إرسال طلب تسجيل حساب جديد إلى مدير النظام، وستتمكن من الدخول فور الموافقة على الطلب.
             </div>
@@ -530,7 +539,7 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
                   value={regName}
                   onChange={(e) => setRegName(e.target.value)}
                   placeholder="مثال: خالد بن إبراهيم مدني"
-                  className="w-full bg-slate-800 border border-slate-700/60 rounded-xl px-4 py-2.5 pr-10 text-slate-100 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-bold transition-all text-right"
+                  className="w-full bg-slate-800 border border-slate-700/60 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 pr-10 text-slate-100 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-bold transition-all text-right"
                 />
                 <User className="absolute top-3 right-3 text-slate-500 w-4.5 h-4.5 shrink-0" />
               </div>
@@ -546,7 +555,7 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
                   value={regPhone}
                   onChange={(e) => setRegPhone(e.target.value)}
                   placeholder="+9665xxxxxxxx"
-                  className="w-full bg-slate-800 border border-slate-700/60 rounded-xl px-4 py-2.5 pr-10 text-slate-100 text-xs text-left focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-medium"
+                  className="w-full bg-slate-800 border border-slate-700/60 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 pr-10 text-slate-100 text-xs text-left focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-medium"
                   dir="ltr"
                 />
                 <Phone className="absolute top-3 right-3 text-slate-500 w-4.5 h-4.5 shrink-0" />
@@ -563,7 +572,7 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
                   placeholder="X.XXXX@makkahchamber.sa"
-                  className="w-full bg-slate-800 border border-slate-700/60 rounded-xl px-4 py-2.5 pr-10 text-slate-100 text-xs text-left focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-medium"
+                  className="w-full bg-slate-800 border border-slate-700/60 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 pr-10 text-slate-100 text-xs text-left focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-medium"
                   dir="ltr"
                 />
                 <Mail className="absolute top-3 right-3 text-slate-500 w-4.5 h-4.5 shrink-0" />

@@ -1,20 +1,250 @@
-101:  role: "SYS_ADMIN" | "DEPT_HEAD" | "MANAG_DIR" | "SPECIALIST"; // الدور الصلاحيتي
-102-  roleAr: string; // الدور بالعربية
-103-  jobTitle: string; // المسمى الوظيفي
-104-  phone: string; // رقم الجوال
-105-  extension?: string; // رقم التحويلة
-106-  email: string; // البريد الإلكتروني
---
-517:        role: "SPECIALIST",
-518-        roleAr: "أخصائي اللجان",
-519-        jobTitle: "أخصائي لجان",
-520-        phone: req.phone,
-521-        email: emailLower,
-522-        photo: PRESET_AVATARS[Math.floor(Math.random() * PRESET_AVATARS.length)],
---
-676:        role: isPowerUser ? formRole : (existingEmployee?.role || "SPECIALIST"),
-677-        roleAr: isPowerUser ? (roleMapper[formRole] || "أخصائي اللجان") : (existingEmployee?.roleAr || "أخصائي اللجان"),
-678-        jobTitle: formJobTitle.trim() || (isPowerUser ? (roleMapper[formRole] || "أخصائي لجان") : (existingEmployee?.jobTitle || "أخصائي لجان")),
-679-        phone: formPhone.trim(),
-680-        extension: formExtension.trim(),
-681-        email: isEditing && existingEmployee ? existingEmployee.email : cleanEmail, // البريد الإلكتروني هو معرف الحساب ولا يمكن تعديله لضمان عدم الخروج
+                                      type="checkbox"
+                                      checked={singleInvitedEmployees.includes(emp)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) setSingleInvitedEmployees([...singleInvitedEmployees, emp]);
+                                        else setSingleInvitedEmployees(singleInvitedEmployees.filter(e => e !== emp));
+                                      }}
+                                      className="w-3.5 h-3.5 text-brand rounded border-gray-300 focus:ring-brand"
+                                    />
+                                    <span className="text-[10px] font-bold text-gray-600 line-clamp-1" title={emp}>{emp}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Row 4 */}
+                          <div className="md:col-span-full space-y-1 border-t border-gray-200 mt-2 pt-4">
+                            <label className="text-[11px] font-black text-gray-500 block">عنوان الفعالية</label>
+                            <input
+                              type="text"
+                              value={newTitle}
+                              onChange={(e) => {
+                                setNewTitle(e.target.value);
+                                setIsTitleManuallyEdited(true);
+                              }}
+                              className="w-full bg-gray-50 text-gray-900 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              placeholder="أدخل عنوان الفعالية أو قم بتعديله يدوياً..."
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {newType === "متسلسلة" && (
+                        
+<div key="filter-popover-1784704070964-10" className="contents">
+                          {/* Row 1 */}
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-black text-gray-500 block">النوع *</label>
+                            <select
+                              value={seriesKind}
+                              onChange={(e) => {
+                                setSeriesKind(e.target.value);
+                                if (e.target.value !== "اجتماع") {
+                                  setSeriesClassification("");
+                                }
+                              }}
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                            >
+                              <option value="" disabled>اختر نوع الفعالية</option>
+                              {EVENT_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
+                            </select>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-black text-gray-500 block">التصنيف *</label>
+                            <select
+                              value={seriesClassification}
+                              onChange={(e) => setSeriesClassification(e.target.value)}
+                              disabled={seriesKind !== "اجتماع"}
+                              className={`w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand ${seriesKind !== "اجتماع" ? "opacity-50 cursor-not-allowed" : ""}`}
+                            >
+                              <option value="">اختر نوع التصنيف</option>
+                              {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-black text-gray-500 block">اللجنة</label>
+                            <select
+                              value={newCommitteeId}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setNewCommitteeId(val);
+                                setNewMembers([]); // Reset members when committee changes
+                                const matched = committees.find(c => String(c.id) === String(val));
+                                if (matched && matched.specialist) {
+                                  setSingleEmployee(matched.specialist);
+                                  setSeriesAssignedEmployee(matched.specialist);
+                                } else {
+                                  setSeriesAssignedEmployee(dynamicEmployees[(val - 1) % dynamicEmployees.length] || dynamicEmployees[0] );
+                                }
+                              }}
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                            >
+                              <option value={0} disabled>اختر المركز</option>
+                              {committees.filter(c => canUserEditCommittee(c.name)).map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Row 2 */}
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-black text-gray-500 block">الموظف المعني</label>
+                            <select
+                              value={seriesAssignedEmployee}
+                              onChange={(e) => setSeriesAssignedEmployee(e.target.value)}
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                            >
+                              <option value="">تحديد الموظف...</option>
+                              {dynamicEmployees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
+                            </select>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-black text-gray-500 block">اسم الجهة (اختياري)</label>
+                            <input
+                              type="text"
+                              placeholder="مثال: الهيئة الملكية"
+                              value={seriesPartyName}
+                              onChange={(e) => setSeriesPartyName(e.target.value)}
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                            />
+                          </div>
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[11px] font-black text-gray-500 block">اسم الجهة (اختياري)</label>
+                            <input
+                              type="text"
+                              placeholder="مثال: الهيئة الملكية"
+                              value={seriesPartyName}
+                              onChange={(e) => setSeriesPartyName(e.target.value)}
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                            />
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-black text-gray-500 block">يوم الانعقاد *</label>
+                            <select
+                              value={seriesDayOfWeek}
+                              onChange={(e) => setSeriesDayOfWeek(e.target.value)}
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                            >
+                              {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-black text-gray-500 block">أسبوع الانعقاد *</label>
+                            <select
+                              value={seriesWeekOfMonth}
+                              onChange={(e) => setSeriesWeekOfMonth(e.target.value)}
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                            >
+                              {Object.keys(WEEKSMap).map(w => <option key={w} value={w}>{w}</option>)}
+                            </select>
+                          </div>
+
+                          {/* Row 3 */}
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-black text-gray-500 block">تاريخ البداية *</label>
+                            <input
+                              type="date"
+                              required
+                              value={seriesStartDate}
+                              onChange={(e) => setSeriesStartDate(e.target.value)}
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                            />
+                            {isWeekend(seriesStartDate) && <p className="text-red-500 text-[10px] font-bold mt-1">تنبيه: هذا التاريخ يوافق إجازة نهاية الأسبوع</p>}
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-black text-gray-500 block">تاريخ النهاية *</label>
+                            <input
+                              type="date"
+                              required
+                              value={seriesEndDate}
+                              onChange={(e) => setSeriesEndDate(e.target.value)}
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                            />
+                            {isWeekend(seriesEndDate) && <p className="text-red-500 text-[10px] font-bold mt-1">تنبيه: هذا التاريخ يوافق إجازة نهاية الأسبوع</p>}
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-black text-gray-500 block">الوقت</label>
+                            <input
+                              type="time"
+                              value={seriesTime}
+                              onChange={(e) => setSeriesTime(e.target.value)}
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                            />
+                          </div>
+
+                          {/* Row 4 */}
+                          <div className="md:col-span-3 space-y-2 mt-2">
+                            <label className="text-[11px] font-black text-gray-500 block">القاعة</label>
+                            <div className="flex gap-2">
+                              <select 
+                                value={selectedRoom}
+                                onChange={(e) => setSelectedRoom(e.target.value)}
+                                className="flex-1 bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand"
+                              >
+                                <option value="" disabled>اختر قاعة...</option>
+                                {ROOMS.map(rm => <option key={rm} value={rm}>{rm}</option>)}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (selectedRoom && !seriesRooms.includes(selectedRoom)) {
+                                     setSeriesRooms([...seriesRooms, selectedRoom]);
+                                  }
+                                  setSelectedRoom(""); // Reset after adding
+                                }}
+                                className="w-11 h-11 bg-brand text-white rounded-xl flex items-center justify-center hover:bg-brand/90 transition-colors shadow-sm shrink-0"
+                              >
+                                <Plus className="w-5 h-5" />
+                              </button>
+                            </div>
+                            {seriesRooms.length > 0 && (
+                              <div className="flex flex-wrap gap-2 mt-3">
+                                {seriesRooms.map(rm => (
+                                  <span key={rm} className="px-3 py-1.5 text-xs font-black rounded-lg border bg-[#4ea0b0]/10 text-[#4ea0b0] border-[#4ea0b0]/30 shadow-sm flex items-center gap-2">
+                                    {rm}
+                                    <button
+                                      type="button"
+                                      onClick={() => setSeriesRooms(seriesRooms.filter(r => r !== rm))}
+                                      className="text-[#4ea0b0] hover:text-red-500 transition-colors"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      
+
+                  <div className="md:col-span-full space-y-1">
+                    <label className="text-[11px] font-black text-gray-500 block">ملاحظات / تفاصيل</label>
+                    <textarea
+                      value={newNotes}
+                      onChange={(e) => setNewNotes(e.target.value)}
+                      rows={3}
+                      className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand focus:border-brand resize-none"
+                    ></textarea>
+                  </div>
+
+                </div>
+
+                <div className="mt-8 pt-5 border-t border-gray-100 flex items-center justify-end flex-row-reverse gap-3">
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand/90 transition-colors shadow-lg shadow-brand/20 active:scale-95"
+                  >
+                    {newType === "متسلسلة" ? "استعراض الجدول" : (editingEvent ? "حفظ التعديلات" : "إضافة الفعالية")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddOpen(false)}
