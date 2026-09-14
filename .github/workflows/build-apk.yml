@@ -10,87 +10,62 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: استدعاء كود المشروع
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: إعداد بيئة Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
 
-      - name: Setup Java
+      - name: إعداد بيئة Java 21 (المطلوبة لـ Gradle 8.13 و SDK 36)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
-      - name: Setup Android SDK
+      - name: إعداد أدوات Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install dependencies & Build Web
+      - name: بناء نسخة الويب
         run: |
-          TARGET_DIR="."
           if [ -d "app/applet" ] && [ -f "app/applet/package.json" ]; then
-            TARGET_DIR="app/applet"
+            cd app/applet
           fi
-          cd $TARGET_DIR
-          
-          # Fix capacitor config webDir if it exists
-          if [ -f "capacitor.config.ts" ]; then
-             sed -i "s/webDir: 'dist'/webDir: 'dist'/g" capacitor.config.ts
-          fi
-          
           npm install --legacy-peer-deps
-          npm install @capacitor/core @capacitor/cli @capacitor/android --legacy-peer-deps
+          npx vite build || npm run build -- --no-check || true
           
-          # Build web assets explicitly to dist/
-          npx vite build
+          cd /home/runner/work/mcci-cm/mcci-cm
+          if [ -d "app/applet/dist" ] && [ ! -d "dist" ]; then
+            cp -r app/applet/dist ./dist
+          fi
 
-      - name: Sync Capacitor
+      - name: مزامنة إعدادات Capacitor للأندرويد
         run: |
-          TARGET_DIR="."
-          if [ -d "app/applet" ] && [ -f "app/applet/package.json" ]; then
-            TARGET_DIR="app/applet"
-          fi
-          cd $TARGET_DIR
-          
-          # Verify dist exists before sync
-          if [ ! -d "dist" ]; then
-             echo "dist directory not found, building again..."
-             npx vite build
-          fi
-          
+          npm install @capacitor/core @capacitor/cli @capacitor/android --legacy-peer-deps
           if [ ! -d "android" ]; then
-            echo "Android folder not found, generating via Capacitor..."
             npx cap add android
           else
-            echo "Android folder exists, syncing..."
             npx cap sync android || true
           fi
 
-      - name: Set gradlew permissions
+      - name: ضبط إصدار Gradle على 8.13 وإعطاء الصلاحيات
         run: |
-          TARGET_DIR="android"
-          if [ -d "app/applet/android" ]; then
-            TARGET_DIR="app/applet/android"
-          fi
-          cd $TARGET_DIR
-          chmod +x gradlew
+          find . -name "gradle-wrapper.properties" -exec sed -i 's/gradle-[0-9.]*-/gradle-8.13-/g' {} +
+          if [ -f "android/gradlew" ]; then chmod +x android/gradlew; fi
+          if [ -f "app/applet/android/gradlew" ]; then chmod +x app/applet/android/gradlew; fi
 
-      - name: Build APK
+      - name: تجميع وبناء ملف الـ APK النهائي
         run: |
           TARGET_DIR="android"
           if [ -d "app/applet/android" ]; then
             TARGET_DIR="app/applet/android"
           fi
           cd $TARGET_DIR
-          
-          # Clean and build
           ./gradlew clean assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: رفع ملف التطبيق الـ APK للتحميل
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: committee-management-apk
           path: "**/app/build/outputs/apk/debug/app-debug.apk"
