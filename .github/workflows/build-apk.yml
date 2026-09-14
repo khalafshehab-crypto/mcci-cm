@@ -22,17 +22,20 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: '17' # Gradle 8.x in Capacitor usually prefers Java 17
 
       - name: إعداد أدوات Android SDK
         uses: android-actions/setup-android@v3
 
       - name: تثبيت حزم المشروع وبناء نسخة الويب
         run: |
+          TARGET_DIR="."
           if [ -d "app/applet" ] && [ -f "app/applet/package.json" ]; then
-            cd app/applet
+            TARGET_DIR="app/applet"
           fi
+          cd $TARGET_DIR
           npm install --legacy-peer-deps
+          npm install @capacitor/core @capacitor/cli @capacitor/android --legacy-peer-deps
           npx vite build
 
       - name: تهيئة وتحديث منصة الأندرويد
@@ -43,33 +46,33 @@ jobs:
           fi
           cd $TARGET_DIR
           
-          npm install @capacitor/core @capacitor/cli @capacitor/android --legacy-peer-deps
-          
-          if [ ! -d "android" ] && [ ! -d "../android" ]; then
+          if [ ! -d "android" ]; then
+            echo "Android folder not found, generating via Capacitor..."
             npx cap add android
           else
-            npx cap sync android || true
+            echo "Android folder exists, syncing..."
+            npx cap sync android
           fi
 
       - name: إعطاء صلاحيات التشغيل لـ Gradle
         run: |
-          if [ -f "android/gradlew" ]; then
-            chmod +x android/gradlew
-          elif [ -f "app/applet/android/gradlew" ]; then
-            chmod +x app/applet/android/gradlew
+          TARGET_DIR="android"
+          if [ -d "app/applet/android" ]; then
+            TARGET_DIR="app/applet/android"
           fi
+          cd $TARGET_DIR
+          chmod +x gradlew
 
       - name: تجميع وبناء ملف الـ APK
         run: |
-          if [ -d "android" ]; then
-            cd android
-          elif [ -d "app/applet/android" ]; then
-            cd app/applet/android
+          TARGET_DIR="android"
+          if [ -d "app/applet/android" ]; then
+            TARGET_DIR="app/applet/android"
           fi
+          cd $TARGET_DIR
           ./gradlew assembleDebug --no-daemon
 
       - name: رفع ملف الـ APK للتحميل
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: committee-management-apk
