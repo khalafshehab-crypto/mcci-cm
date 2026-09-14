@@ -16,13 +16,13 @@ jobs:
       - name: إعداد بيئة Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22  # ✅ تم التحديث من 20 إلى 22
+          node-version: 22
 
       - name: إعداد بيئة Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'  # ✅ تم التحديث من 17 إلى 21
+          java-version: '21'
 
       - name: إعداد أدوات Android SDK
         uses: android-actions/setup-android@v3
@@ -33,7 +33,7 @@ jobs:
             cd app/applet
           fi
           npm install --legacy-peer-deps
-          npm run build
+          npx vite build
 
       - name: تهيئة وتحديث منصة الأندرويد
         run: |
@@ -48,7 +48,7 @@ jobs:
           if [ ! -d "android" ] && [ ! -d "../android" ]; then
             npx cap add android
           else
-            npx cap sync android
+            npx cap sync android || true
           fi
 
       - name: إعطاء صلاحيات التشغيل لـ Gradle

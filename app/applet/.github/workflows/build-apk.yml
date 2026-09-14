@@ -3,7 +3,7 @@ name: Build Android APK
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch: # يتيح لك تشغيل البناء يدوياً بنقرة زر في أي وقت
+  workflow_dispatch:
 
 jobs:
   build:
@@ -29,35 +29,43 @@ jobs:
 
       - name: تثبيت حزم المشروع وبناء نسخة الويب
         run: |
+          if [ -d "app/applet" ] && [ -f "app/applet/package.json" ]; then
+            cd app/applet
+          fi
           npm install --legacy-peer-deps
           npm run build
 
-      - name: تهيئة Capacitor ومنصة الأندرويد
+      - name: تهيئة وتحديث منصة الأندرويد
         run: |
+          TARGET_DIR="."
+          if [ -d "app/applet" ] && [ -f "app/applet/package.json" ]; then
+            TARGET_DIR="app/applet"
+          fi
+          cd $TARGET_DIR
+          
           npm install @capacitor/core @capacitor/cli @capacitor/android --legacy-peer-deps
           
-          # تحديد مجلد المخرجات تلقائياً (dist أو build)
-          WEB_DIR="dist"
-          if [ -d "build" ]; then WEB_DIR="build"; fi
-          
-          # إنشاء الإعدادات في حال عدم وجودها
-          if [ ! -f capacitor.config.json ] && [ ! -f capacitor.config.ts ]; then
-            npx cap init "بوابة اللجان" "sa.gov.mcci.committees" --web-dir $WEB_DIR
-          fi
-          
-          # إضافة الأندرويد أو مزامنتها
-          if [ ! -d "android" ]; then
+          if [ ! -d "android" ] && [ ! -d "../android" ]; then
             npx cap add android
           else
             npx cap sync android
           fi
 
       - name: إعطاء صلاحيات التشغيل لـ Gradle
-        run: chmod +x android/gradlew
+        run: |
+          if [ -f "android/gradlew" ]; then
+            chmod +x android/gradlew
+          elif [ -f "app/applet/android/gradlew" ]; then
+            chmod +x app/applet/android/gradlew
+          fi
 
       - name: تجميع وبناء ملف الـ APK
         run: |
-          cd android
+          if [ -d "android" ]; then
+            cd android
+          elif [ -d "app/applet/android" ]; then
+            cd app/applet/android
+          fi
           ./gradlew assembleDebug --no-daemon
 
       - name: رفع ملف الـ APK للتحميل
@@ -65,5 +73,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: committee-management-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: "**/app/build/outputs/apk/debug/app-debug.apk"
           retention-days: 14

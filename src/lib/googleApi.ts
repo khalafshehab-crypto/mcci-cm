@@ -1,5 +1,5 @@
 // src/lib/googleApi.ts
-import { GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut } from "firebase/auth";
 import { auth, db, doc, setDoc, getDoc } from "./firebase";
 
 // In-memory token storage (Mandatory for security to bypass localStorage/sessionStorage)

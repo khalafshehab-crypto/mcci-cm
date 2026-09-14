@@ -5,7 +5,9 @@
 
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import React, { useState, useEffect, Suspense } from "react";
-import { db, doc, onSnapshot, auth } from "./lib/firebase";
+import { db, doc, setDoc, onSnapshot, auth } from "./lib/firebase";
+import { getRedirectResult, GoogleAuthProvider } from "firebase/auth";
+import { setCachedAccessToken } from "./lib/googleApi";
 import Layout from "./components/Layout";
 import AuthGate from "./components/AuthGate";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -120,6 +122,27 @@ export default function App() {
   useThemeSettings();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Handle redirect results from Google Auth on mobile
+    if (auth) {
+      getRedirectResult(auth).then((result) => {
+        if (result) {
+           const credential = GoogleAuthProvider.credentialFromResult(result);
+           if (credential?.accessToken) {
+             setCachedAccessToken(credential.accessToken);
+             if (result.user?.email) {
+               const tokenRef = doc(db, "employee_tokens", result.user.email.toLowerCase());
+               setDoc(tokenRef, {
+                 token: credential.accessToken,
+                 timestamp: Date.now()
+               }, { merge: true }).catch(console.error);
+             }
+           }
+        }
+      }).catch(console.error);
+    }
+  }, []);
 
   useEffect(() => {
             let isInitialCheck = true;

@@ -17,7 +17,7 @@ import {
 import { useFirestoreCollection } from "../lib/firebaseUtils";
 import { auth, db } from "../lib/firebase";
 import { collection, getDocs, addDoc, query, where } from "../lib/firebase";
-import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, signInWithRedirect } from "firebase/auth";
 import { getGoogleProvider, setCachedAccessToken } from "../lib/googleApi";
 
 interface AuthGateProps {
@@ -247,7 +247,16 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
     try {
       const provider = getGoogleProvider();
       
-      const result = await signInWithPopup(auth, provider);
+      let result;
+      try {
+        result = await signInWithPopup(auth, provider);
+      } catch (err: any) {
+        if (err.code === "auth/popup-blocked" || err.code === "auth/popup-closed-by-user") {
+          await signInWithRedirect(auth, provider);
+          return; // The page will redirect
+        }
+        throw err;
+      }
       const credential = GoogleAuthProvider.credentialFromResult(result);
       if (credential?.accessToken) {
         setCachedAccessToken(credential.accessToken);
